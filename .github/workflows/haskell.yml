@@ -27,9 +27,8 @@ jobs:
           ${{ runner.os }}-build
 
     - name: Install dependencies
-      run: |
-        cabal update
-        cabal install --only-dependencies --force-reinstalls
+      run: cabal install --only-dependencies
+
     - name: Build
       run: cabal build
 
