@@ -1,8 +1,6 @@
 elm-stuff
 dist
+dist-newstyle
 cabal-dev
-.cabal-sandbox/
-cabal.sandbox.config
 .DS_Store
 *~
-travis.log
