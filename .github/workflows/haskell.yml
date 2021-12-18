@@ -20,20 +20,16 @@ jobs:
 
     - name: Cache
       uses: actions/cache@v1
-      env:
-        cache-name: cache-cabal
       with:
         path: ~/.cabal
-        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/*.cabal') }}-${{ hashFiles('**/cabal.project') }}
+        key: ${{ runner.os }}-build-${{ hashFiles('**/*.cabal') }}
         restore-keys: |
-          ${{ runner.os }}-build-${{ env.cache-name }}-
-          ${{ runner.os }}-build-
-          ${{ runner.os }}-
+          ${{ runner.os }}-build
 
     - name: Install dependencies
       run: |
         cabal v1-update
-        cabal v1-build --only-dependencies --enable-tests --enable-benchmarks
+        cabal v1-install --only-dependencies --force-reinstalls
     - name: Build
-      run: cabal v1-build --enable-tests --enable-benchmarks all
+      run: cabal v1-build
 
