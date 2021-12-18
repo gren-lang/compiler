@@ -28,8 +28,8 @@ jobs:
 
     - name: Install dependencies
       run: |
-        cabal v1-update
-        cabal v1-install --only-dependencies --force-reinstalls
+        cabal update
+        cabal install --only-dependencies --force-reinstalls
     - name: Build
-      run: cabal v1-build
+      run: cabal build
 
