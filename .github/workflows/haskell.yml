@@ -27,7 +27,7 @@ jobs:
           ${{ runner.os }}-build
 
     - name: Install dependencies
-      run: cabal install --only-dependencies
+      run: cabal install --only-dependencies --overwrite-policy=always
 
     - name: Build
       run: cabal build
