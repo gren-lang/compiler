@@ -173,7 +173,7 @@ getCacheDir projectName =
 
 getElmHome :: IO FilePath
 getElmHome =
-  do  maybeCustomHome <- Env.lookupEnv "ELM_HOME"
+  do  maybeCustomHome <- Env.lookupEnv "GREN_HOME"
       case maybeCustomHome of
         Just customHome -> return customHome
-        Nothing -> Dir.getAppUserDataDirectory "elm"
+        Nothing -> Dir.getAppUserDataDirectory "gren"
