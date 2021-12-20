@@ -1,31 +1,30 @@
-
-Name: elm
+Cabal-version: 3.6
+Name: gren
 Version: 0.19.1
 
 Synopsis:
-    The `elm` command line interface.
+    The `gren` command line interface.
 
 Description:
-    This includes commands like `elm make`, `elm repl`, and many others
-    for helping make Elm developers happy and productive.
+    This includes commands like `gren make`, `gren repl`, and many others
+    for helping make Gren developers happy and productive.
 
-Homepage: https://elm-lang.org
+Homepage: https://github.com/gren/compiler.git
 
-License: BSD3
+License: BSD-3-Clause
 License-file: LICENSE
 
-Author:     Evan Czaplicki
-Maintainer: info@elm-lang.org
-Copyright:  Copyright (c) 2011-present, Evan Czaplicki
+Author:     Robin Heggelund Hansen
+Maintainer: info@gren-lang.org
+Copyright:  Copyright (c) 2011-2021, Evan Czaplicki. Copyright (c) 2021-present, Robin Heggelund Hansen
 
 Category: Compiler, Language
 
-Cabal-version: >=1.9
 Build-type: Simple
 
 source-repository head
     type:     git
-    location: git://github.com/elm/compiler.git
+    location: git://github.com/gren/compiler.git
 
 
 Flag dev {
@@ -34,13 +33,11 @@ Flag dev {
 }
 
 
-Executable elm
+Executable gren
     if flag(dev)
         ghc-options: -O0 -Wall -Werror
     else
         ghc-options: -O2 -rtsopts -threaded "-with-rtsopts=-N -qg -A128m"
-        -- add -eventlog for (elm make src/Main.elm +RTS -l; threadscope elm.eventlog)
-        -- https://www.oreilly.com/library/view/parallel-and-concurrent/9781449335939/
 
     Hs-Source-Dirs:
         compiler/src
@@ -200,7 +197,7 @@ Executable elm
         Type.Type
         Type.Unify
         Type.UnionFind
-        Paths_elm
+        Paths_gren
 
     Build-depends:
         ansi-terminal >= 0.11 && < 0.12,
