@@ -85,6 +85,7 @@ Executable gren
         File
         Generate
         Http
+        Git
         Reporting
         Reporting.Exit
         Reporting.Exit.Help
