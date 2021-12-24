@@ -1,9 +1,12 @@
 module Git
     ( checkInstalledGit
+    , githubUrl
     , clone
     )
     where
 
+import qualified Elm.Package as Pkg
+import qualified Elm.Version as V
 
 import System.Directory (findExecutable)
 import qualified System.IO as IO
@@ -18,11 +21,23 @@ checkInstalledGit = do
      Nothing -> False
 
 
-clone :: String -> String -> IO ()
-clone targetFolder gitUrl = do
+githubUrl :: Pkg.Name -> String
+githubUrl pkg =
+    "https://github.com/" ++ Pkg.toUrl pkg ++ ".git"
+
+
+clone :: String -> V.Version -> String -> IO ()
+clone gitUrl vsn targetFolder = do
     nullHandle <- IO.openFile "/dev/null" IO.WriteMode
     procResult <- 
-        Process.createProcess (Process.proc "git" [ "clone", gitUrl, targetFolder ]) 
+        Process.createProcess 
+            (Process.proc "git" 
+                [ "clone"
+                , gitUrl
+                , "-b", V.toChars vsn
+                , "--depth", "1"
+                , targetFolder 
+                ]) 
             { Process.std_out = Process.UseHandle nullHandle
             , Process.std_err = Process.UseHandle nullHandle
             }

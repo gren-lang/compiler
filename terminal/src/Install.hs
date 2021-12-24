@@ -149,7 +149,7 @@ attemptChangesHelp root env oldOutline newOutline question =
 
 
 makeAppPlan :: Solver.Env -> Pkg.Name -> Outline.AppOutline -> Task (Changes V.Version)
-makeAppPlan (Solver.Env cache _ connection registry) pkg outline@(Outline.AppOutline _ _ direct indirect testDirect testIndirect) =
+makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ _ direct indirect testDirect testIndirect) =
   if Map.member pkg direct then
     return AlreadyInstalled
 
@@ -185,11 +185,10 @@ makeAppPlan (Solver.Env cache _ connection registry) pkg outline@(Outline.AppOut
 
               Nothing ->
                 -- finally try to add it from scratch
-                case Registry.getVersions' pkg registry of
+                Task.throw (Exit.InstallUnknownPackageOnline pkg [])
+                {-case Registry.getVersions' pkg registry of
                   Left suggestions ->
-                    case connection of
-                      Solver.Online _ -> Task.throw (Exit.InstallUnknownPackageOnline pkg suggestions)
-                      Solver.Offline  -> Task.throw (Exit.InstallUnknownPackageOffline pkg suggestions)
+                    Task.throw (Exit.InstallUnknownPackageOnline pkg suggestions)
 
                   Right _ ->
                     do  result <- Task.io $ Solver.addToApp cache connection registry pkg outline
@@ -204,7 +203,7 @@ makeAppPlan (Solver.Env cache _ connection registry) pkg outline@(Outline.AppOut
                             Task.throw (Exit.InstallNoOfflineAppSolution pkg)
 
                           Solver.Err exit ->
-                            Task.throw (Exit.InstallHadSolverTrouble exit)
+                            Task.throw (Exit.InstallHadSolverTrouble exit)-}
 
 
 
@@ -212,7 +211,7 @@ makeAppPlan (Solver.Env cache _ connection registry) pkg outline@(Outline.AppOut
 
 
 makePkgPlan :: Solver.Env -> Pkg.Name -> Outline.PkgOutline -> Task (Changes C.Constraint)
-makePkgPlan (Solver.Env cache _ connection registry) pkg outline@(Outline.PkgOutline _ _ _ _ _ deps test _) =
+makePkgPlan (Solver.Env cache) pkg outline@(Outline.PkgOutline _ _ _ _ _ deps test _) =
   if Map.member pkg deps then
     return AlreadyInstalled
   else
@@ -226,17 +225,16 @@ makePkgPlan (Solver.Env cache _ connection registry) pkg outline@(Outline.PkgOut
             }
 
       Nothing ->
-        -- try to add a new dependency
+        Task.throw (Exit.InstallUnknownPackageOnline pkg [])
+        {--- try to add a new dependency
         case Registry.getVersions' pkg registry of
           Left suggestions ->
-            case connection of
-              Solver.Online _ -> Task.throw (Exit.InstallUnknownPackageOnline pkg suggestions)
-              Solver.Offline  -> Task.throw (Exit.InstallUnknownPackageOffline pkg suggestions)
+            Task.throw (Exit.InstallUnknownPackageOnline pkg suggestions)
 
           Right (Registry.KnownVersions _ _) ->
             do  let old = Map.union deps test
                 let cons = Map.insert pkg C.anything old
-                result <- Task.io $ Solver.verify cache connection registry cons
+                result <- Task.io $ Solver.verify cache cons
                 case result of
                   Solver.Ok solution ->
                     let
@@ -261,6 +259,7 @@ makePkgPlan (Solver.Env cache _ connection registry) pkg outline@(Outline.PkgOut
 
                   Solver.Err exit ->
                     Task.throw (Exit.InstallHadSolverTrouble exit)
+                    -}
 
 
 addNews :: Maybe Pkg.Name -> Map.Map Pkg.Name C.Constraint -> Map.Map Pkg.Name C.Constraint -> Map.Map Pkg.Name C.Constraint

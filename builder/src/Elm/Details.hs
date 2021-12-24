@@ -143,10 +143,10 @@ loadInterfaces root (Details _ _ _ _ _ extras) =
 
 
 verifyInstall :: BW.Scope -> FilePath -> Solver.Env -> Outline.Outline -> IO (Either Exit.Details ())
-verifyInstall scope root (Solver.Env cache manager connection registry) outline =
+verifyInstall scope root (Solver.Env cache) outline =
   do  time <- File.getTime (root </> "elm.json")
       let key = Reporting.ignorer
-      let env = Env key scope root cache manager connection registry
+      let env = Env key scope root cache
       case outline of
         Outline.Pkg pkg -> Task.run (verifyPkg env time pkg >> return ())
         Outline.App app -> Task.run (verifyApp env time app >> return ())
@@ -198,9 +198,6 @@ data Env =
     , _scope :: BW.Scope
     , _root :: FilePath
     , _cache :: Stuff.PackageCache
-    , _manager :: Http.Manager
-    , _connection :: Solver.Connection
-    , _registry :: Registry.Registry
     }
 
 
@@ -218,8 +215,8 @@ initEnv key scope root =
                 Left problem ->
                   return $ Left $ Exit.DetailsCannotGetRegistry problem
 
-                Right (Solver.Env cache manager connection registry) ->
-                  return $ Right (Env key scope root cache manager connection registry, outline)
+                Right (Solver.Env cache) ->
+                  return $ Right (Env key scope root cache, outline)
 
 
 
@@ -266,8 +263,8 @@ checkAppDeps (Outline.AppOutline _ _ direct indirect testDirect testIndirect) =
 
 
 verifyConstraints :: Env -> Map.Map Pkg.Name Con.Constraint -> Task (Map.Map Pkg.Name Solver.Details)
-verifyConstraints (Env _ _ _ cache _ connection registry) constraints =
-  do  result <- Task.io $ Solver.verify cache connection registry constraints
+verifyConstraints (Env _ _ _ cache) constraints =
+  do  result <- Task.io $ Solver.verify cache constraints
       case result of
         Solver.Ok details        -> return details
         Solver.NoSolution        -> Task.throw $ Exit.DetailsNoSolution
@@ -312,7 +309,7 @@ fork work =
 
 
 verifyDependencies :: Env -> File.Time -> ValidOutline -> Map.Map Pkg.Name Solver.Details -> Map.Map Pkg.Name a -> Task Details
-verifyDependencies env@(Env key scope root cache _ _ _) time outline solution directDeps =
+verifyDependencies env@(Env key scope root cache) time outline solution directDeps =
   Task.eio id $
   do  Reporting.report key (Reporting.DStart (Map.size solution))
       mvar <- newEmptyMVar
@@ -379,7 +376,7 @@ type Dep =
 
 
 verifyDep :: Env -> MVar (Map.Map Pkg.Name (MVar Dep)) -> Map.Map Pkg.Name Solver.Details -> Pkg.Name -> Solver.Details -> IO Dep
-verifyDep (Env key _ _ cache manager _ _) depsMVar solution pkg details@(Solver.Details vsn directDeps) =
+verifyDep (Env key _ _ cache) depsMVar solution pkg details@(Solver.Details vsn directDeps) =
   do  let fingerprint = Map.intersectionWith (\(Solver.Details v _) _ -> v) solution directDeps
       exists <- Dir.doesDirectoryExist (Stuff.package cache pkg vsn </> "src")
       if exists
@@ -395,17 +392,8 @@ verifyDep (Env key _ _ cache manager _ _) depsMVar solution pkg details@(Solver.
                     then Reporting.report key Reporting.DBuilt >> return (Right artifacts)
                     else build key cache depsMVar pkg details fingerprint fingerprints
         else
-          do  Reporting.report key Reporting.DRequested
-              result <- downloadPackage cache manager pkg vsn
-              case result of
-                Left problem ->
-                  do  Reporting.report key (Reporting.DFailed pkg vsn)
-                      return $ Left $ Just $ Exit.BD_BadDownload pkg vsn problem
-
-                Right () ->
-                  do  Reporting.report key (Reporting.DReceived pkg vsn)
-                      build key cache depsMVar pkg details fingerprint Set.empty
-
+          do  Reporting.report key (Reporting.DFailed pkg vsn)
+              return $ Left $ Just $ Exit.BD_BadDownload pkg vsn (Exit.PP_BadEndpointContent "")
 
 
 -- ARTIFACT CACHE
@@ -739,43 +727,6 @@ toDocs result =
     RForeign _      -> Nothing
     RKernelLocal _  -> Nothing
     RKernelForeign  -> Nothing
-
-
-
--- DOWNLOAD PACKAGE
-
-
-downloadPackage :: Stuff.PackageCache -> Http.Manager -> Pkg.Name -> V.Version -> IO (Either Exit.PackageProblem ())
-downloadPackage cache manager pkg vsn =
-  let
-    url = Website.metadata pkg vsn "endpoint.json"
-  in
-  do  eitherByteString <-
-        Http.get manager url [] id (return . Right)
-
-      case eitherByteString of
-        Left err ->
-          return $ Left $ Exit.PP_BadEndpointRequest err
-
-        Right byteString ->
-          case D.fromByteString endpointDecoder byteString of
-            Left _ ->
-              return $ Left $ Exit.PP_BadEndpointContent url
-
-            Right (endpoint, expectedHash) ->
-              Http.getArchive manager endpoint Exit.PP_BadArchiveRequest (Exit.PP_BadArchiveContent endpoint) $
-                \(sha, archive) ->
-                  if expectedHash == Http.shaToChars sha
-                  then Right <$> File.writePackage (Stuff.package cache pkg vsn) archive
-                  else return $ Left $ Exit.PP_BadArchiveHash endpoint expectedHash (Http.shaToChars sha)
-
-
-endpointDecoder :: D.Decoder e (String, String)
-endpointDecoder =
-  do  url <- D.field "url" D.string
-      hash <- D.field "hash" D.string
-      return (Utf8.toChars url, Utf8.toChars hash)
-
 
 
 -- BINARY
