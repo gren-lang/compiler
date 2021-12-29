@@ -14,6 +14,7 @@ module Stuff
   , getPackageCache
   , registry
   , package
+  , basePackage
   , getReplCache
   , getElmHome
   )
@@ -152,6 +153,11 @@ registry (PackageCache dir) =
 package :: PackageCache -> Pkg.Name -> V.Version -> FilePath
 package (PackageCache dir) name version =
   dir </> Pkg.toFilePath name </> V.toChars version
+
+
+basePackage :: PackageCache -> Pkg.Name -> FilePath
+basePackage (PackageCache dir) name =
+  dir </> Pkg.toFilePath name </> "base"
 
 
 

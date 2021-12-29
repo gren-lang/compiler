@@ -246,17 +246,29 @@ addConstraint solved unsolved (name, newConstraint) =
 
 getRelevantVersions :: Pkg.Name -> C.Constraint -> Solver (V.Version, [V.Version])
 getRelevantVersions name constraint =
-  Solver $ \state@(State _ _) ok back _ -> back state
-      {-case Registry.getVersions name registry of
-      Just (Registry.KnownVersions newest previous) ->
+  Solver $ \state@(State cache _) ok back _ -> do
+    maybeVersions <- getRelevantVersionsHelper cache name
+    case maybeVersions of
+      Just (newest, previous) ->
         case filter (C.satisfies constraint) (newest:previous) of
           []   -> back state
           v:vs -> ok state (v,vs) back
 
       Nothing ->
         back state
-        -}
 
+
+getRelevantVersionsHelper ::  Stuff.PackageCache -> Pkg.Name -> IO (Maybe (V.Version, [V.Version]))
+getRelevantVersionsHelper cache name = do
+    let home = Stuff.basePackage cache name
+    let path = home </> "elm.json"
+    outlineExists <- File.exists path
+    _ <-
+        if outlineExists then
+          Git.update home
+        else
+          Git.clone (Git.githubUrl name) home
+    Git.tags home
 
 
 -- GET CONSTRAINTS
@@ -284,8 +296,8 @@ getConstraints pkg vsn =
                           Left  _  ->
                             err (Exit.SolverBadCacheData pkg vsn)
                   else
-                    do  let url = Git.githubUrl pkg
-                        _ <- Git.clone url vsn home
+                    do  let basePath = Stuff.basePackage cache pkg
+                        _ <- Git.localClone basePath vsn home
                         bytes <- File.readUtf8 path
                         case D.fromByteString constraintsDecoder bytes of
                           Right cs ->
