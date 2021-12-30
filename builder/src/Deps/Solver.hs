@@ -260,15 +260,14 @@ getRelevantVersions name constraint =
 
 getRelevantVersionsHelper ::  Stuff.PackageCache -> Pkg.Name -> IO (Maybe (V.Version, [V.Version]))
 getRelevantVersionsHelper cache name = do
-    let home = Stuff.basePackage cache name
-    let path = home </> "elm.json"
-    outlineExists <- File.exists path
+    let repoPath = Stuff.basePackage cache name
+    repoExists <- Dir.doesDirectoryExist repoPath
     _ <-
-        if outlineExists then
-          Git.update home
+        if repoExists then
+          Git.update repoPath
         else
-          Git.clone (Git.githubUrl name) home
-    Git.tags home
+          Git.clone (Git.githubUrl name) repoPath
+    Git.tags repoPath
 
 
 -- GET CONSTRAINTS

@@ -31,6 +31,7 @@ checkInstalledGit = do
 newtype GitUrl
   = GitUrl String
 
+
 githubUrl :: Pkg.Name -> GitUrl
 githubUrl pkg =
     GitUrl $ "https://github.com/" ++ Pkg.toUrl pkg ++ ".git"
@@ -38,21 +39,19 @@ githubUrl pkg =
 
 clone :: GitUrl -> FilePath -> IO ()
 clone (GitUrl gitUrl) targetFolder = do
-    nullHandle <- IO.openFile "/dev/null" IO.WriteMode
+    putStrLn $ "Cloning " ++ gitUrl
     procResult <-
-        Process.createProcess
+        Process.readCreateProcessWithExitCode
             (Process.proc "git" [ "clone" , "--bare", gitUrl, targetFolder ])
-            { Process.std_out = Process.UseHandle nullHandle
-            , Process.std_err = Process.UseHandle nullHandle
-            }
+            ""
     return ()
 
 
 localClone :: FilePath -> V.Version -> FilePath -> IO ()
 localClone gitUrl vsn targetFolder = do
-    nullHandle <- IO.openFile "/dev/null" IO.WriteMode
+    putStrLn $ "Checking out " ++ gitUrl ++ " version " ++ V.toChars vsn
     procResult <- 
-        Process.createProcess 
+        Process.readCreateProcessWithExitCode
             (Process.proc "git" 
                 [ "clone"
                 , gitUrl
@@ -61,27 +60,28 @@ localClone gitUrl vsn targetFolder = do
                 , "--depth", "1"
                 , targetFolder 
                 ]) 
-            { Process.std_out = Process.UseHandle nullHandle
-            , Process.std_err = Process.UseHandle nullHandle
-            }
+            ""
     return ()
 
 
 update :: FilePath -> IO ()
 update path = do
-    nullHandle <- IO.openFile "/dev/null" IO.WriteMode
+    putStrLn $ "Updating " ++ path
     procResult <-
-        Process.createProcess
-            (Process.proc "git" [ "pull", "--tags" ])
-            { Process.std_out = Process.UseHandle nullHandle
-            , Process.std_err = Process.UseHandle nullHandle
-            }
+        Process.readCreateProcessWithExitCode
+            ((Process.proc "git" [ "pull", "--tags" ])
+            { Process.cwd = Just path })
+            ""
     return ()
 
 
 tags :: FilePath -> IO (Maybe (V.Version, [V.Version]))
 tags path = do
-    (exitCode, stdout, stderr) <- Process.readProcessWithExitCode "git" [ "tag" ] ""
+    (exitCode, stdout, stderr) <-
+        Process.readCreateProcessWithExitCode
+            ((Process.proc "git" [ "tag" ])
+            { Process.cwd = Just path })
+            ""
     let tags = map BS.pack $ lines stdout
     let versions = Either.rights $ map (Parser.fromByteString V.parser (,)) tags
     case versions of
