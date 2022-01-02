@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-module Stuff
+module Directories
   ( details
   , interfaces
   , objects
@@ -16,7 +16,7 @@ module Stuff
   , package
   , basePackage
   , getReplCache
-  , getElmHome
+  , getGrenHome
   )
   where
 
@@ -36,29 +36,29 @@ import qualified Elm.Version as V
 -- PATHS
 
 
-stuff :: FilePath -> FilePath
-stuff root =
-  root </> "elm-stuff" </> compilerVersion
+projectCache :: FilePath -> FilePath
+projectCache root =
+  root </> ".gren_cache" </> compilerVersion
 
 
 details :: FilePath -> FilePath
 details root =
-  stuff root </> "d.dat"
+  projectCache root </> "d.dat"
 
 
 interfaces :: FilePath -> FilePath
 interfaces root =
-  stuff root </> "i.dat"
+  projectCache root </> "i.dat"
 
 
 objects :: FilePath -> FilePath
 objects root =
-  stuff root </> "o.dat"
+  projectCache root </> "o.dat"
 
 
 prepublishDir :: FilePath -> FilePath
 prepublishDir root =
-  stuff root </> "prepublish"
+  projectCache root </> "prepublish"
 
 
 compilerVersion :: FilePath
@@ -82,7 +82,7 @@ elmo root name =
 
 toArtifactPath :: FilePath -> ModuleName.Raw -> String -> FilePath
 toArtifactPath root name ext =
-  stuff root </> ModuleName.toHyphenPath name <.> ext
+  projectCache root </> ModuleName.toHyphenPath name <.> ext
 
 
 
@@ -91,7 +91,7 @@ toArtifactPath root name ext =
 
 temp :: FilePath -> String -> FilePath
 temp root ext =
-  stuff root </> "temp" <.> ext
+  projectCache root </> "temp" <.> ext
 
 
 
@@ -123,7 +123,7 @@ findRootHelp dirs =
 
 withRootLock :: FilePath -> IO a -> IO a
 withRootLock root work =
-  do  let dir = stuff root
+  do  let dir = projectCache root
       Dir.createDirectoryIfMissing True dir
       Lock.withFileLock (dir </> "lock") Lock.Exclusive (\_ -> work)
 
@@ -171,14 +171,14 @@ getReplCache =
 
 getCacheDir :: FilePath -> IO FilePath
 getCacheDir projectName =
-  do  home <- getElmHome
+  do  home <- getGrenHome
       let root = home </> compilerVersion </> projectName
       Dir.createDirectoryIfMissing True root
       return root
 
 
-getElmHome :: IO FilePath
-getElmHome =
+getGrenHome :: IO FilePath
+getGrenHome =
   do  maybeCustomHome <- Env.lookupEnv "GREN_HOME"
       case maybeCustomHome of
         Just customHome -> return customHome

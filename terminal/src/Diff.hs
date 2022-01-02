@@ -33,7 +33,7 @@ import qualified Reporting.Exit as Exit
 import qualified Reporting.Exit.Help as Help
 import qualified Reporting.Render.Type.Localizer as L
 import qualified Reporting.Task as Task
-import qualified Stuff
+import qualified Directories as Dirs
 
 
 
@@ -62,7 +62,7 @@ run args () =
 data Env =
   Env
     { _maybeRoot :: Maybe FilePath
-    , _cache :: Stuff.PackageCache
+    , _cache :: Dirs.PackageCache
     , _manager :: Http.Manager
     , _registry :: Registry.Registry
     }
@@ -70,8 +70,8 @@ data Env =
 
 getEnv :: Task Env
 getEnv =
-  do  maybeRoot <- Task.io $ Stuff.findRoot
-      cache     <- Task.io $ Stuff.getPackageCache
+  do  maybeRoot <- Task.io $ Dirs.findRoot
+      cache     <- Task.io $ Dirs.getPackageCache
       manager   <- Task.io $ Http.getManager
       registry  <- Task.eio Exit.DiffMustHaveLatestRegistry $ Registry.latest manager cache
       return (Env maybeRoot cache manager registry)

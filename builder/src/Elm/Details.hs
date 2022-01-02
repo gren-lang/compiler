@@ -57,7 +57,7 @@ import qualified Reporting
 import qualified Reporting.Annotation as A
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Task as Task
-import qualified Stuff
+import qualified Directories as Dirs
 
 
 
@@ -128,14 +128,14 @@ loadObjects :: FilePath -> Details -> IO (MVar (Maybe Opt.GlobalGraph))
 loadObjects root (Details _ _ _ _ _ extras) =
   case extras of
     ArtifactsFresh _ o -> newMVar (Just o)
-    ArtifactsCached    -> fork (File.readBinary (Stuff.objects root))
+    ArtifactsCached    -> fork (File.readBinary (Dirs.objects root))
 
 
 loadInterfaces :: FilePath -> Details -> IO (MVar (Maybe Interfaces))
 loadInterfaces root (Details _ _ _ _ _ extras) =
   case extras of
     ArtifactsFresh i _ -> newMVar (Just i)
-    ArtifactsCached    -> fork (File.readBinary (Stuff.interfaces root))
+    ArtifactsCached    -> fork (File.readBinary (Dirs.interfaces root))
 
 
 
@@ -159,7 +159,7 @@ verifyInstall scope root (Solver.Env cache) outline =
 load :: Reporting.Style -> BW.Scope -> FilePath -> IO (Either Exit.Details Details)
 load style scope root =
   do  newTime <- File.getTime (root </> "elm.json")
-      maybeDetails <- File.readBinary (Stuff.details root)
+      maybeDetails <- File.readBinary (Dirs.details root)
       case maybeDetails of
         Nothing ->
           generate style scope root newTime
@@ -197,7 +197,7 @@ data Env =
     { _key :: Reporting.DKey
     , _scope :: BW.Scope
     , _root :: FilePath
-    , _cache :: Stuff.PackageCache
+    , _cache :: Dirs.PackageCache
     }
 
 
@@ -313,13 +313,13 @@ verifyDependencies env@(Env key scope root cache) time outline solution directDe
   Task.eio id $
   do  Reporting.report key (Reporting.DStart (Map.size solution))
       mvar <- newEmptyMVar
-      mvars <- Stuff.withRegistryLock cache $
+      mvars <- Dirs.withRegistryLock cache $
         Map.traverseWithKey (\k v -> fork (verifyDep env mvar solution k v)) solution
       putMVar mvar mvars
       deps <- traverse readMVar mvars
       case sequence deps of
         Left _ ->
-          do  home <- Stuff.getElmHome
+          do  home <- Dirs.getGrenHome
               return $ Left $ Exit.DetailsBadDeps home $
                 Maybe.catMaybes $ Either.lefts $ Map.elems deps
 
@@ -330,9 +330,9 @@ verifyDependencies env@(Env key scope root cache) time outline solution directDe
             foreigns = Map.map (OneOrMore.destruct Foreign) $ Map.foldrWithKey gatherForeigns Map.empty $ Map.intersection artifacts directDeps
             details = Details time outline 0 Map.empty foreigns (ArtifactsFresh ifaces objs)
           in
-          do  BW.writeBinary scope (Stuff.objects    root) objs
-              BW.writeBinary scope (Stuff.interfaces root) ifaces
-              BW.writeBinary scope (Stuff.details    root) details
+          do  BW.writeBinary scope (Dirs.objects    root) objs
+              BW.writeBinary scope (Dirs.interfaces root) ifaces
+              BW.writeBinary scope (Dirs.details    root) details
               return (Right details)
 
 
@@ -378,11 +378,11 @@ type Dep =
 verifyDep :: Env -> MVar (Map.Map Pkg.Name (MVar Dep)) -> Map.Map Pkg.Name Solver.Details -> Pkg.Name -> Solver.Details -> IO Dep
 verifyDep (Env key _ _ cache) depsMVar solution pkg details@(Solver.Details vsn directDeps) =
   do  let fingerprint = Map.intersectionWith (\(Solver.Details v _) _ -> v) solution directDeps
-      exists <- Dir.doesDirectoryExist (Stuff.package cache pkg vsn </> "src")
+      exists <- Dir.doesDirectoryExist (Dirs.package cache pkg vsn </> "src")
       if exists
         then
           do  Reporting.report key Reporting.DCached
-              maybeCache <- File.readBinary (Stuff.package cache pkg vsn </> "artifacts.dat")
+              maybeCache <- File.readBinary (Dirs.package cache pkg vsn </> "artifacts.dat")
               case maybeCache of
                 Nothing ->
                   build key cache depsMVar pkg details fingerprint Set.empty
@@ -414,9 +414,9 @@ type Fingerprint =
 -- BUILD
 
 
-build :: Reporting.DKey -> Stuff.PackageCache -> MVar (Map.Map Pkg.Name (MVar Dep)) -> Pkg.Name -> Solver.Details -> Fingerprint -> Set.Set Fingerprint -> IO Dep
+build :: Reporting.DKey -> Dirs.PackageCache -> MVar (Map.Map Pkg.Name (MVar Dep)) -> Pkg.Name -> Solver.Details -> Fingerprint -> Set.Set Fingerprint -> IO Dep
 build key cache depsMVar pkg (Solver.Details vsn _) f fs =
-  do  eitherOutline <- Outline.read (Stuff.package cache pkg vsn)
+  do  eitherOutline <- Outline.read (Dirs.package cache pkg vsn)
       case eitherOutline of
         Left _ ->
           do  Reporting.report key Reporting.DBroken
@@ -435,7 +435,7 @@ build key cache depsMVar pkg (Solver.Details vsn _) f fs =
                       return $ Left $ Nothing
 
                 Right directArtifacts ->
-                  do  let src = Stuff.package cache pkg vsn </> "src"
+                  do  let src = Dirs.package cache pkg vsn </> "src"
                       let foreignDeps = gatherForeignInterfaces directArtifacts
                       let exposedDict = Map.fromKeys (\_ -> ()) (Outline.flattenExposed exposed)
                       docsStatus <- getDocsStatus cache pkg vsn
@@ -461,7 +461,7 @@ build key cache depsMVar pkg (Solver.Details vsn _) f fs =
 
                                 Just results ->
                                   let
-                                    path = Stuff.package cache pkg vsn </> "artifacts.dat"
+                                    path = Dirs.package cache pkg vsn </> "artifacts.dat"
                                     ifaces = gatherInterfaces exposedDict results
                                     objects = gatherObjects results
                                     artifacts = Artifacts ifaces objects
@@ -689,9 +689,9 @@ data DocsStatus
   | DocsNotNeeded
 
 
-getDocsStatus :: Stuff.PackageCache -> Pkg.Name -> V.Version -> IO DocsStatus
+getDocsStatus :: Dirs.PackageCache -> Pkg.Name -> V.Version -> IO DocsStatus
 getDocsStatus cache pkg vsn =
-  do  exists <- File.exists (Stuff.package cache pkg vsn </> "docs.json")
+  do  exists <- File.exists (Dirs.package cache pkg vsn </> "docs.json")
       if exists
         then return DocsNotNeeded
         else return DocsNeeded
@@ -709,11 +709,11 @@ makeDocs status modul =
       Nothing
 
 
-writeDocs :: Stuff.PackageCache -> Pkg.Name -> V.Version -> DocsStatus -> Map.Map ModuleName.Raw Result -> IO ()
+writeDocs :: Dirs.PackageCache -> Pkg.Name -> V.Version -> DocsStatus -> Map.Map ModuleName.Raw Result -> IO ()
 writeDocs cache pkg vsn status results =
   case status of
     DocsNeeded ->
-      E.writeUgly (Stuff.package cache pkg vsn </> "docs.json") $
+      E.writeUgly (Dirs.package cache pkg vsn </> "docs.json") $
         Docs.encode $ Map.mapMaybe toDocs results
 
     DocsNotNeeded ->

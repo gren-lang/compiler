@@ -27,7 +27,7 @@ import qualified Http
 import qualified Json.Decode as D
 import qualified Parse.Primitives as P
 import qualified Reporting.Exit as Exit
-import qualified Stuff
+import qualified Directories as Dirs
 
 
 
@@ -52,22 +52,22 @@ data KnownVersions =
 -- READ
 
 
-read :: Stuff.PackageCache -> IO (Maybe Registry)
+read :: Dirs.PackageCache -> IO (Maybe Registry)
 read cache =
-  File.readBinary (Stuff.registry cache)
+  File.readBinary (Dirs.registry cache)
 
 
 
 -- FETCH
 
 
-fetch :: Http.Manager -> Stuff.PackageCache -> IO (Either Exit.RegistryProblem Registry)
+fetch :: Http.Manager -> Dirs.PackageCache -> IO (Either Exit.RegistryProblem Registry)
 fetch manager cache =
   post manager "/all-packages" allPkgsDecoder $
     \versions ->
       do  let size = Map.foldr' addEntry 0 versions
           let registry = Registry size versions
-          let path = Stuff.registry cache
+          let path = Dirs.registry cache
           File.writeBinary path registry
           return registry
 
@@ -98,7 +98,7 @@ allPkgsDecoder =
 -- UPDATE
 
 
-update :: Http.Manager -> Stuff.PackageCache -> Registry -> IO (Either Exit.RegistryProblem Registry)
+update :: Http.Manager -> Dirs.PackageCache -> Registry -> IO (Either Exit.RegistryProblem Registry)
 update manager cache oldRegistry@(Registry size packages) =
   post manager ("/all-packages/since/" ++ show size) (D.list newPkgDecoder) $
     \news ->
@@ -112,7 +112,7 @@ update manager cache oldRegistry@(Registry size packages) =
             newPkgs = foldr addNew packages news
             newRegistry = Registry newSize newPkgs
           in
-          do  File.writeBinary (Stuff.registry cache) newRegistry
+          do  File.writeBinary (Dirs.registry cache) newRegistry
               return newRegistry
 
 
@@ -156,7 +156,7 @@ bail _ _ =
 -- LATEST
 
 
-latest :: Http.Manager -> Stuff.PackageCache -> IO (Either Exit.RegistryProblem Registry)
+latest :: Http.Manager -> Dirs.PackageCache -> IO (Either Exit.RegistryProblem Registry)
 latest manager cache =
   do  maybeOldRegistry <- read cache
       case maybeOldRegistry of

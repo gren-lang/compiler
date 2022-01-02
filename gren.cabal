@@ -90,7 +90,7 @@ Executable gren
         Reporting.Exit
         Reporting.Exit.Help
         Reporting.Task
-        Stuff
+        Directories
 
         -- Elm things
         Elm.Outline

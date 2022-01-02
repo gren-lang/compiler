@@ -39,7 +39,7 @@ import qualified Reporting.Doc as D
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Exit.Help as Help
 import qualified Reporting.Task as Task
-import qualified Stuff
+import qualified Directories as Dirs
 
 
 
@@ -63,7 +63,7 @@ run () () =
 data Env =
   Env
     { _root :: FilePath
-    , _cache :: Stuff.PackageCache
+    , _cache :: Dirs.PackageCache
     , _manager :: Http.Manager
     , _registry :: Registry.Registry
     , _outline :: Outline.Outline
@@ -72,8 +72,8 @@ data Env =
 
 getEnv :: Task.Task Exit.Publish Env
 getEnv =
-  do  root <- Task.mio Exit.PublishNoOutline $ Stuff.findRoot
-      cache <- Task.io $ Stuff.getPackageCache
+  do  root <- Task.mio Exit.PublishNoOutline $ Dirs.findRoot
+      cache <- Task.io $ Dirs.getPackageCache
       manager <- Task.io $ Http.getManager
       registry <- Task.eio Exit.PublishMustHaveLatestRegistry $ Registry.latest manager cache
       outline <- Task.eio Exit.PublishBadOutline $ Outline.read root
@@ -297,7 +297,7 @@ toZipUrl pkg vsn =
 withPrepublishDir :: FilePath -> (FilePath -> Task.Task x a) -> Task.Task x a
 withPrepublishDir root callback =
   let
-    dir = Stuff.prepublishDir root
+    dir = Dirs.prepublishDir root
   in
   Task.eio id $
     bracket_

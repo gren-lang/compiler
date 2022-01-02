@@ -31,7 +31,7 @@ import qualified Generate.Mode as Mode
 import qualified Nitpick.Debug as Nitpick
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Task as Task
-import qualified Stuff
+import qualified Directories as Dirs
 
 
 -- NOTE: This is used by Make, Repl, and Reactor right now. But it may be
@@ -143,7 +143,7 @@ loadObject root modul =
 
     Build.Cached name _ _ ->
       do  mvar <- newEmptyMVar
-          _ <- forkIO $ putMVar mvar =<< File.readBinary (Stuff.elmo root name)
+          _ <- forkIO $ putMVar mvar =<< File.readBinary (Dirs.elmo root name)
           return (name, mvar)
 
 
@@ -200,7 +200,7 @@ loadTypesHelp root modul =
             Build.Unneeded ->
               do  mvar <- newEmptyMVar
                   _ <- forkIO $
-                    do  maybeIface <- File.readBinary (Stuff.elmi root name)
+                    do  maybeIface <- File.readBinary (Dirs.elmi root name)
                         putMVar mvar (Extract.fromInterface name <$> maybeIface)
                   return mvar
 

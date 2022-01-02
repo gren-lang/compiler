@@ -66,7 +66,7 @@ import qualified Reporting.Exit as Exit
 import qualified Reporting.Render.Code as Code
 import qualified Reporting.Report as Report
 import qualified Reporting.Task as Task
-import qualified Stuff
+import qualified Directories as Dirs
 
 
 
@@ -496,7 +496,7 @@ attemptEval :: Env -> State -> State -> Output -> IO State
 attemptEval (Env root interpreter ansi) oldState newState output =
   do  result <-
         BW.withScope $ \scope ->
-        Stuff.withRootLock root $ Task.run $
+        Dirs.withRootLock root $ Task.run $
         do  details <-
               Task.eio Exit.ReplBadDetails $
                 Details.load Reporting.silent scope root
@@ -606,13 +606,13 @@ genericHelpMessage =
 
 getRoot :: IO FilePath
 getRoot =
-  do  maybeRoot <- Stuff.findRoot
+  do  maybeRoot <- Dirs.findRoot
       case maybeRoot of
         Just root ->
           return root
 
         Nothing ->
-          do  cache <- Stuff.getReplCache
+          do  cache <- Dirs.getReplCache
               let root = cache </> "tmp"
               Dir.createDirectoryIfMissing True (root </> "src")
               Outline.write root $ Outline.Pkg $
@@ -681,7 +681,7 @@ exeNotFound name =
 
 initSettings :: IO (Repl.Settings M)
 initSettings =
-  do  cache <- Stuff.getReplCache
+  do  cache <- Dirs.getReplCache
       return $
         Repl.Settings
           { Repl.historyFile = Just (cache </> "history")

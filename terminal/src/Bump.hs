@@ -25,7 +25,7 @@ import qualified Reporting.Doc as D
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Exit.Help as Help
 import qualified Reporting.Task as Task
-import qualified Stuff
+import qualified Directories as Dirs
 
 
 
@@ -45,7 +45,7 @@ run () () =
 data Env =
   Env
     { _root :: FilePath
-    , _cache :: Stuff.PackageCache
+    , _cache :: Dirs.PackageCache
     , _manager :: Http.Manager
     , _registry :: Registry.Registry
     , _outline :: Outline.PkgOutline
@@ -54,13 +54,13 @@ data Env =
 
 getEnv :: Task.Task Exit.Bump Env
 getEnv =
-  do  maybeRoot <- Task.io $ Stuff.findRoot
+  do  maybeRoot <- Task.io $ Dirs.findRoot
       case maybeRoot of
         Nothing ->
           Task.throw Exit.BumpNoOutline
 
         Just root ->
-          do  cache <- Task.io $ Stuff.getPackageCache
+          do  cache <- Task.io $ Dirs.getPackageCache
               manager <- Task.io $ Http.getManager
               registry <- Task.eio Exit.BumpMustHaveLatestRegistry $ Registry.latest manager cache
               outline <- Task.eio Exit.BumpBadOutline $ Outline.read root

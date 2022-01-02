@@ -33,7 +33,7 @@ import qualified Http
 import qualified Git
 import qualified Json.Decode as D
 import qualified Reporting.Exit as Exit
-import qualified Stuff
+import qualified Directories as Dirs
 
 
 
@@ -54,7 +54,7 @@ newtype Solver a =
 
 data State =
   State
-    { _cache :: Stuff.PackageCache
+    { _cache :: Dirs.PackageCache
     , _constraints :: Map.Map (Pkg.Name, V.Version) Constraints
     }
 
@@ -85,9 +85,9 @@ data Details =
   Details V.Version (Map.Map Pkg.Name C.Constraint)
 
 
-verify :: Stuff.PackageCache -> Map.Map Pkg.Name C.Constraint -> IO (Result (Map.Map Pkg.Name Details))
+verify :: Dirs.PackageCache -> Map.Map Pkg.Name C.Constraint -> IO (Result (Map.Map Pkg.Name Details))
 verify cache constraints =
-  Stuff.withRegistryLock cache $
+  Dirs.withRegistryLock cache $
   case try constraints of
     Solver solver ->
       solver (State cache Map.empty)
@@ -114,9 +114,9 @@ data AppSolution =
     }
 
 
-addToApp :: Stuff.PackageCache -> Pkg.Name -> Outline.AppOutline -> IO (Result AppSolution)
+addToApp :: Dirs.PackageCache -> Pkg.Name -> Outline.AppOutline -> IO (Result AppSolution)
 addToApp cache pkg outline@(Outline.AppOutline _ _ direct indirect testDirect testIndirect) =
-  Stuff.withRegistryLock cache $
+  Dirs.withRegistryLock cache $
   let
     allIndirects = Map.union indirect testIndirect
     allDirects = Map.union direct testDirect
@@ -258,9 +258,9 @@ getRelevantVersions name constraint =
         back state
 
 
-getRelevantVersionsHelper ::  Stuff.PackageCache -> Pkg.Name -> IO (Maybe (V.Version, [V.Version]))
+getRelevantVersionsHelper ::  Dirs.PackageCache -> Pkg.Name -> IO (Maybe (V.Version, [V.Version]))
 getRelevantVersionsHelper cache name = do
-    let repoPath = Stuff.basePackage cache name
+    let repoPath = Dirs.basePackage cache name
     repoExists <- Dir.doesDirectoryExist repoPath
     _ <-
         if repoExists then
@@ -283,7 +283,7 @@ getConstraints pkg vsn =
 
           Nothing ->
             do  let toNewState cs = State cache (Map.insert key cs cDict)
-                let home = Stuff.package cache pkg vsn
+                let home = Dirs.package cache pkg vsn
                 let path = home </> "elm.json"
                 outlineExists <- File.exists path
                 if outlineExists then
@@ -295,7 +295,7 @@ getConstraints pkg vsn =
                           Left  _  ->
                             err (Exit.SolverBadCacheData pkg vsn)
                   else
-                    do  let basePath = Stuff.basePackage cache pkg
+                    do  let basePath = Dirs.basePackage cache pkg
                         _ <- Git.localClone basePath vsn home
                         bytes <- File.readUtf8 path
                         case D.fromByteString constraintsDecoder bytes of
@@ -322,12 +322,12 @@ constraintsDecoder =
 
 
 newtype Env =
-  Env Stuff.PackageCache 
+  Env Dirs.PackageCache 
 
 
 initEnv :: IO (Either Exit.RegistryProblem Env)
 initEnv =
-  do  cache <- Stuff.getPackageCache
+  do  cache <- Dirs.getPackageCache
       return $ Right $ Env cache
 
 

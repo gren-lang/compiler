@@ -23,7 +23,7 @@ import Reporting.Doc ((<>), (<+>))
 import qualified Reporting.Doc as D
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Task as Task
-import qualified Stuff
+import qualified Directories as Dirs
 
 
 
@@ -38,7 +38,7 @@ data Args
 run :: Args -> () -> IO ()
 run args () =
   Reporting.attempt Exit.installToReport $
-    do  maybeRoot <- Stuff.findRoot
+    do  maybeRoot <- Dirs.findRoot
         case maybeRoot of
           Nothing ->
             return (Left Exit.InstallNoOutline)
@@ -46,7 +46,7 @@ run args () =
           Just root ->
             case args of
               NoArgs ->
-                do  elmHome <- Stuff.getElmHome
+                do  elmHome <- Dirs.getGrenHome
                     return (Left (Exit.InstallNoArgs elmHome))
 
               Install pkg ->

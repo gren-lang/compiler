@@ -19,7 +19,7 @@ import qualified Deps.Registry as Registry
 import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
 import qualified Parse.Primitives as P
-import qualified Stuff
+import qualified Directories as Dirs
 import qualified Reporting.Suggest as Suggest
 
 
@@ -119,7 +119,7 @@ parsePackage chars =
 
 suggestPackages :: String -> IO [String]
 suggestPackages given =
-  do  cache <- Stuff.getPackageCache
+  do  cache <- Dirs.getPackageCache
       maybeRegistry <- Registry.read cache
       return $
         case maybeRegistry of
@@ -133,7 +133,7 @@ suggestPackages given =
 
 examplePackages :: String -> IO [String]
 examplePackages given =
-  do  cache <- Stuff.getPackageCache
+  do  cache <- Dirs.getPackageCache
       maybeRegistry <- Registry.read cache
       return $
         case maybeRegistry of

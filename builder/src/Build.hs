@@ -55,7 +55,7 @@ import qualified Reporting.Error.Syntax as Syntax
 import qualified Reporting.Error.Import as Import
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Render.Type.Localizer as L
-import qualified Stuff
+import qualified Directories as Dirs
 
 
 
@@ -556,7 +556,7 @@ loadInterface root (name, ciMvar) =
               return (Just (name, iface))
 
         Unneeded ->
-          do  maybeIface <- File.readBinary (Stuff.elmi root name)
+          do  maybeIface <- File.readBinary (Dirs.elmi root name)
               case maybeIface of
                 Nothing ->
                   do  putMVar ciMvar Corrupted
@@ -715,8 +715,8 @@ compile (Env key root projectType _ buildID _ _) docsNeed (Details.Local path ti
         Right docs ->
           do  let name = Src.getName modul
               let iface = I.fromModule pkg canonical annotations
-              let elmi = Stuff.elmi root name
-              File.writeBinary (Stuff.elmo root name) objects
+              let elmi = Dirs.elmi root name
+              File.writeBinary (Dirs.elmo root name) objects
               maybeOldi <- File.readBinary elmi
               case maybeOldi of
                 Just oldi | oldi == iface ->
@@ -750,7 +750,7 @@ projectTypeToPkg projectType =
 
 writeDetails :: FilePath -> Details.Details -> Map.Map ModuleName.Raw Result -> IO ()
 writeDetails root (Details.Details time outline buildID locals foreigns extras) results =
-  File.writeBinary (Stuff.details root) $
+  File.writeBinary (Dirs.details root) $
     Details.Details time outline buildID (Map.foldrWithKey addNewLocal locals results) foreigns extras
 
 
@@ -1220,7 +1220,7 @@ gatherProblemsOrMains results (NE.List rootResult rootResults) =
     (ROutsideOk n i o, (  [], ms)) -> Right (NE.List (Outside n i o) ms)
     (ROutsideOk _ _ _, (e:es, _ )) -> Left  (NE.List e es)
     (ROutsideErr e   , (  es, _ )) -> Left  (NE.List e es)
-    (ROutsideBlocked , (  [], _ )) -> error "seems like elm-stuff/ is corrupted"
+    (ROutsideBlocked , (  [], _ )) -> error "seems like .gren_cache/ is corrupted"
     (ROutsideBlocked , (e:es, _ )) -> Left  (NE.List e es)
 
 
