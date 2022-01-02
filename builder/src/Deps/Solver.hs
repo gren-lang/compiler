@@ -322,7 +322,7 @@ constraintsDecoder =
 
 
 newtype Env =
-  Env Dirs.PackageCache 
+  Env Dirs.PackageCache
 
 
 initEnv :: IO (Either Exit.RegistryProblem Env)

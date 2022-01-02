@@ -378,9 +378,8 @@ type Dep =
 verifyDep :: Env -> MVar (Map.Map Pkg.Name (MVar Dep)) -> Map.Map Pkg.Name Solver.Details -> Pkg.Name -> Solver.Details -> IO Dep
 verifyDep (Env key _ _ cache) depsMVar solution pkg details@(Solver.Details vsn directDeps) =
   do  let fingerprint = Map.intersectionWith (\(Solver.Details v _) _ -> v) solution directDeps
-      exists <- Dir.doesDirectoryExist (Dirs.package cache pkg vsn </> "src")
-      if exists
-        then
+      exists <- Dir.doesFileExist (Dirs.package cache pkg vsn </> "elm.json")
+      if exists then
           do  Reporting.report key Reporting.DCached
               maybeCache <- File.readBinary (Dirs.package cache pkg vsn </> "artifacts.dat")
               case maybeCache of
