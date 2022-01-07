@@ -20,6 +20,17 @@ import qualified Data.Either as Either
 import qualified Data.ByteString.Char8 as BS
 
 
+-- IO Helper
+
+
+putStrFlush :: String -> IO ()
+putStrFlush str =
+  putStr str >> IO.hFlush IO.stdout
+
+
+--
+
+
 checkInstalledGit :: IO Bool
 checkInstalledGit = do
    gitPath <- findExecutable "git"
@@ -29,27 +40,30 @@ checkInstalledGit = do
 
 
 newtype GitUrl
-  = GitUrl String
+  = GitUrl (String, String)
 
 
 githubUrl :: Pkg.Name -> GitUrl
 githubUrl pkg =
-    GitUrl $ "https://github.com/" ++ Pkg.toUrl pkg ++ ".git"
+    GitUrl
+      ( Pkg.toChars pkg
+      , "https://github.com/" ++ Pkg.toUrl pkg ++ ".git"
+      )
 
 
 clone :: GitUrl -> FilePath -> IO ()
-clone (GitUrl gitUrl) targetFolder = do
-    putStrLn $ "Cloning " ++ gitUrl
+clone (GitUrl (pkgName, gitUrl)) targetFolder = do
+    putStrFlush $ "Cloning " ++ pkgName ++ "... "
     procResult <-
         Process.readCreateProcessWithExitCode
             (Process.proc "git" [ "clone" , "--bare", gitUrl, targetFolder ])
             ""
+    putStrLn "Done!"
     return ()
 
 
 localClone :: FilePath -> V.Version -> FilePath -> IO ()
 localClone gitUrl vsn targetFolder = do
-    putStrLn $ "Checking out " ++ gitUrl ++ " version " ++ V.toChars vsn
     procResult <- 
         Process.readCreateProcessWithExitCode
             (Process.proc "git" 
@@ -64,14 +78,15 @@ localClone gitUrl vsn targetFolder = do
     return ()
 
 
-update :: FilePath -> IO ()
-update path = do
-    putStrLn $ "Updating " ++ path
+update :: Pkg.Name -> FilePath -> IO ()
+update pkg path = do
+    putStrFlush $ "Updating " ++ Pkg.toChars pkg ++ "... "
     procResult <-
         Process.readCreateProcessWithExitCode
             ((Process.proc "git" [ "pull", "--tags" ])
             { Process.cwd = Just path })
             ""
+    putStrLn "Done!"
     return ()
 
 

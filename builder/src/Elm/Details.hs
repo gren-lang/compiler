@@ -378,21 +378,16 @@ type Dep =
 verifyDep :: Env -> MVar (Map.Map Pkg.Name (MVar Dep)) -> Map.Map Pkg.Name Solver.Details -> Pkg.Name -> Solver.Details -> IO Dep
 verifyDep (Env key _ _ cache) depsMVar solution pkg details@(Solver.Details vsn directDeps) =
   do  let fingerprint = Map.intersectionWith (\(Solver.Details v _) _ -> v) solution directDeps
-      exists <- Dir.doesFileExist (Dirs.package cache pkg vsn </> "elm.json")
-      if exists then
-          do  Reporting.report key Reporting.DCached
-              maybeCache <- File.readBinary (Dirs.package cache pkg vsn </> "artifacts.dat")
-              case maybeCache of
-                Nothing ->
-                  build key cache depsMVar pkg details fingerprint Set.empty
+      Reporting.report key Reporting.DCached
+      maybeCache <- File.readBinary (Dirs.package cache pkg vsn </> "artifacts.dat")
+      case maybeCache of
+        Nothing ->
+          build key cache depsMVar pkg details fingerprint Set.empty
 
-                Just (ArtifactCache fingerprints artifacts) ->
-                  if Set.member fingerprint fingerprints
-                    then Reporting.report key Reporting.DBuilt >> return (Right artifacts)
-                    else build key cache depsMVar pkg details fingerprint fingerprints
-        else
-          do  Reporting.report key (Reporting.DFailed pkg vsn)
-              return $ Left $ Just $ Exit.BD_BadDownload pkg vsn (Exit.PP_BadEndpointContent "")
+        Just (ArtifactCache fingerprints artifacts) ->
+          if Set.member fingerprint fingerprints
+            then Reporting.report key Reporting.DBuilt >> return (Right artifacts)
+            else build key cache depsMVar pkg details fingerprint fingerprints
 
 
 -- ARTIFACT CACHE

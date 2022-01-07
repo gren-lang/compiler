@@ -264,7 +264,7 @@ getRelevantVersionsHelper cache name = do
     repoExists <- Dir.doesDirectoryExist repoPath
     _ <-
         if repoExists then
-          Git.update repoPath
+          Git.update name repoPath
         else
           Git.clone (Git.githubUrl name) repoPath
     Git.tags repoPath
