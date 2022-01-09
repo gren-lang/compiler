@@ -22,6 +22,8 @@ module Reporting
   , trackBuild
   --
   , reportGenerate
+  --
+  , putStrFlush
   )
   where
 

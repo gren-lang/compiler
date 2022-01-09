@@ -249,25 +249,30 @@ getRelevantVersions name constraint =
   Solver $ \state@(State cache _) ok back _ -> do
     maybeVersions <- getRelevantVersionsHelper cache name
     case maybeVersions of
-      Just (newest, previous) ->
+      Right (newest, previous) ->
         case filter (C.satisfies constraint) (newest:previous) of
           []   -> back state
           v:vs -> ok state (v,vs) back
 
-      Nothing ->
+      Left _ ->
         back state
 
 
-getRelevantVersionsHelper ::  Dirs.PackageCache -> Pkg.Name -> IO (Maybe (V.Version, [V.Version]))
+getRelevantVersionsHelper ::  Dirs.PackageCache -> Pkg.Name -> IO (Either Git.Problem (V.Version, [V.Version]))
 getRelevantVersionsHelper cache name = do
     let repoPath = Dirs.basePackage cache name
     repoExists <- Dir.doesDirectoryExist repoPath
-    _ <-
+    retVal <-
         if repoExists then
           Git.update name repoPath
         else
           Git.clone (Git.githubUrl name) repoPath
-    Git.tags repoPath
+    case retVal of
+      Left problem ->
+        return $ Left problem
+
+      Right () ->
+        Git.tags repoPath
 
 
 -- GET CONSTRAINTS

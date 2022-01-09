@@ -157,7 +157,7 @@ package (PackageCache dir) name version =
 
 basePackage :: PackageCache -> Pkg.Name -> FilePath
 basePackage (PackageCache dir) name =
-  dir </> Pkg.toFilePath name </> "base"
+  dir </> Pkg.toFilePath name </> "repo.git"
 
 
 
