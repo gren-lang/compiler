@@ -24,7 +24,6 @@ import qualified Elm.Magnitude as M
 import qualified Elm.Outline as Outline
 import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
-import qualified Http
 import qualified Reporting
 import Reporting.Doc ((<>), (<+>))
 import qualified Reporting.Doc as D

@@ -28,7 +28,6 @@ import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
 import qualified File
-import qualified Http
 import qualified Json.Decode as D
 import qualified Reporting.Exit as Exit
 import qualified Directories as Dirs
@@ -354,7 +353,7 @@ changeMagnitude (Changes added changed removed) =
 -- GET DOCS
 
 
-getDocs :: Dirs.PackageCache -> Http.Manager -> Pkg.Name -> V.Version -> IO (Either () Docs.Documentation)
-getDocs cache manager name version =
+getDocs :: Dirs.PackageCache -> Pkg.Name -> V.Version -> IO (Either () Docs.Documentation)
+getDocs cache name version =
   -- TODO: Implement using local git clones
   return $ Right Docs.tmpEmpty

@@ -27,7 +27,6 @@ import qualified Elm.Package as Pkg
 import qualified Elm.Outline as Outline
 import qualified Elm.Version as V
 import qualified File
-import qualified Http
 import qualified Git
 import qualified Json.Decode as D
 import qualified Reporting.Exit as Exit

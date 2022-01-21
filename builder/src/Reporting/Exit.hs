@@ -32,9 +32,6 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Name as N
 import qualified Data.NonEmptyList as NE
-import qualified Network.HTTP.Client as HTTP
-import qualified Network.HTTP.Types.Header as HTTP
-import qualified Network.HTTP.Types.Status as HTTP
 import qualified System.FilePath as FP
 import System.FilePath ((</>), (<.>))
 
@@ -45,7 +42,6 @@ import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
 import qualified File
 import qualified Git
-import qualified Http
 import qualified Json.Decode as Decode
 import qualified Json.Encode as Encode
 import qualified Json.String as Json

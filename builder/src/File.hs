@@ -7,7 +7,6 @@ module File
   , writeUtf8
   , readUtf8
   , writeBuilder
-  , writePackage
   , exists
   , remove
   , removeDir
@@ -15,7 +14,6 @@ module File
   where
 
 
-import qualified Codec.Archive.Zip as Zip
 import Control.Exception (catch)
 import qualified Data.Binary as Binary
 import qualified Data.ByteString as BS
@@ -168,38 +166,6 @@ writeBuilder path builder =
   IO.withBinaryFile path IO.WriteMode $ \handle ->
     do  IO.hSetBuffering handle (IO.BlockBuffering Nothing)
         B.hPutBuilder handle builder
-
-
-
--- WRITE PACKAGE
-
-
-writePackage :: FilePath -> Zip.Archive -> IO ()
-writePackage destination archive =
-  case Zip.zEntries archive of
-    [] ->
-      return ()
-
-    entry:entries ->
-      do  let root = length (Zip.eRelativePath entry)
-          mapM_ (writeEntry destination root) entries
-
-
-writeEntry :: FilePath -> Int -> Zip.Entry -> IO ()
-writeEntry destination root entry =
-  let
-    path = drop root (Zip.eRelativePath entry)
-  in
-  if List.isPrefixOf "src/" path
-    || path == "LICENSE"
-    || path == "README.md"
-    || path == "elm.json"
-  then
-      if not (null path) && last path == '/'
-      then Dir.createDirectoryIfMissing True (destination </> path)
-      else LBS.writeFile (destination </> path) (Zip.fromEntry entry)
-  else
-      return ()
 
 
 
