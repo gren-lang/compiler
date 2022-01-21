@@ -17,7 +17,6 @@ import qualified BackgroundWriter as BW
 import qualified Build
 import Deps.Diff (PackageChanges(..), ModuleChanges(..), Changes(..))
 import qualified Deps.Diff as DD
-import qualified Deps.Registry as Registry
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Details as Details
 import qualified Elm.Docs as Docs
@@ -63,18 +62,14 @@ data Env =
   Env
     { _maybeRoot :: Maybe FilePath
     , _cache :: Dirs.PackageCache
-    , _manager :: Http.Manager
-    , _registry :: Registry.Registry
     }
 
 
 getEnv :: Task Env
 getEnv =
-  do  maybeRoot <- Task.io $ Dirs.findRoot
-      cache     <- Task.io $ Dirs.getPackageCache
-      manager   <- Task.io $ Http.getManager
-      registry  <- Task.eio Exit.DiffMustHaveLatestRegistry $ Registry.latest manager cache
-      return (Env maybeRoot cache manager registry)
+  do  maybeRoot <- Task.io Dirs.findRoot
+      cache     <- Task.io Dirs.getPackageCache
+      return (Env maybeRoot cache)
 
 
 
@@ -86,17 +81,18 @@ type Task a =
 
 
 diff :: Env -> Args -> Task ()
-diff env@(Env _ _ _ registry) args =
+diff env@(Env _ _) args =
   case args of
     GlobalInquiry name v1 v2 ->
-      case Registry.getVersions' name registry of
+        {-case Registry.getVersions' name registry of
         Right vsns ->
           do  oldDocs <- getDocs env name vsns (min v1 v2)
               newDocs <- getDocs env name vsns (max v1 v2)
               writeDiff oldDocs newDocs
 
         Left suggestions ->
-          Task.throw $ Exit.DiffUnknownPackage name suggestions
+          Task.throw $ Exit.DiffUnknownPackage name suggestions-}
+        Task.throw Exit.DiffUnpublished
 
     LocalInquiry v1 v2 ->
       do  (name, vsns) <- readOutline env
@@ -121,27 +117,29 @@ diff env@(Env _ _ _ registry) args =
 -- GET DOCS
 
 
-getDocs :: Env -> Pkg.Name -> Registry.KnownVersions -> V.Version -> Task Docs.Documentation
-getDocs (Env _ cache manager _) name (Registry.KnownVersions latest previous) version =
-  if latest == version || elem version previous
+getDocs :: Env -> Pkg.Name -> () -> V.Version -> Task Docs.Documentation
+getDocs (Env _ cache) name () version =
+    {-if latest == version || elem version previous
   then Task.eio (Exit.DiffDocsProblem version) $ DD.getDocs cache manager name version
-  else Task.throw $ Exit.DiffUnknownVersion name version (latest:previous)
+  else Task.throw $ Exit.DiffUnknownVersion name version (latest:previous)-}
+  Task.throw Exit.DiffUnpublished 
 
 
-getLatestDocs :: Env -> Pkg.Name -> Registry.KnownVersions -> Task Docs.Documentation
-getLatestDocs (Env _ cache manager _) name (Registry.KnownVersions latest _) =
-  Task.eio (Exit.DiffDocsProblem latest) $ DD.getDocs cache manager name latest
+getLatestDocs :: Env -> Pkg.Name -> () -> Task Docs.Documentation
+getLatestDocs (Env _ cache) name () =
+  Task.throw Exit.DiffUnpublished
+  --Task.eio (Exit.DiffDocsProblem latest) $ DD.getDocs cache manager name latest
 
 
 
 -- READ OUTLINE
 
 
-readOutline :: Env -> Task (Pkg.Name, Registry.KnownVersions)
-readOutline (Env maybeRoot _ _ registry) =
+readOutline :: Env -> Task (Pkg.Name, ())
+readOutline (Env maybeRoot _) =
   case maybeRoot of
     Nothing ->
-      Task.throw $ Exit.DiffNoOutline
+      Task.throw Exit.DiffNoOutline
 
     Just root ->
       do  result <- Task.io $ Outline.read root
@@ -152,12 +150,10 @@ readOutline (Env maybeRoot _ _ registry) =
             Right outline ->
               case outline of
                 Outline.App _ ->
-                  Task.throw $ Exit.DiffApplication
+                  Task.throw Exit.DiffApplication
 
                 Outline.Pkg (Outline.PkgOutline pkg _ _ _ _ _ _ _) ->
-                  case Registry.getVersions pkg registry of
-                    Just vsns -> return (pkg, vsns)
-                    Nothing   -> Task.throw Exit.DiffUnpublished
+                  Task.throw Exit.DiffUnpublished
 
 
 
@@ -165,7 +161,7 @@ readOutline (Env maybeRoot _ _ registry) =
 
 
 generateDocs :: Env -> Task Docs.Documentation
-generateDocs (Env maybeRoot _ _ _) =
+generateDocs (Env maybeRoot _) =
   case maybeRoot of
     Nothing ->
       Task.throw $ Exit.DiffNoOutline

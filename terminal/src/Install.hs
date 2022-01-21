@@ -12,7 +12,6 @@ import qualified Data.Map.Merge.Strict as Map
 
 import qualified BackgroundWriter as BW
 import qualified Deps.Solver as Solver
-import qualified Deps.Registry as Registry
 import qualified Elm.Constraint as C
 import qualified Elm.Details as Details
 import qualified Elm.Package as Pkg
@@ -51,7 +50,7 @@ run args () =
 
               Install pkg ->
                 Task.run $
-                  do  env <- Task.eio Exit.InstallBadRegistry $ Solver.initEnv
+                  do  env <- Task.io Solver.initEnv
                       oldOutline <- Task.eio Exit.InstallBadOutline $ Outline.read root
                       case oldOutline of
                         Outline.App outline ->

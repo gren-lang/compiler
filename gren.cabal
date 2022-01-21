@@ -77,11 +77,8 @@ Executable gren
         -- from builder/
         Build
         BackgroundWriter
-        Deps.Bump
         Deps.Diff
-        Deps.Registry
         Deps.Solver
-        Deps.Website
         File
         Generate
         Http

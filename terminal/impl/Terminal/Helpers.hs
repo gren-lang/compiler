@@ -15,7 +15,6 @@ import qualified Data.Utf8 as Utf8
 import qualified System.FilePath as FP
 
 import Terminal (Parser(..))
-import qualified Deps.Registry as Registry
 import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
 import qualified Parse.Primitives as P
@@ -105,8 +104,8 @@ package =
     { _singular = "package"
     , _plural = "packages"
     , _parser = parsePackage
-    , _suggest = suggestPackages
-    , _examples = examplePackages
+    , _suggest = (\_ -> return [])
+    , _examples = \_ -> return []
     }
 
 
@@ -116,33 +115,3 @@ parsePackage chars =
     Right pkg -> Just pkg
     Left _    -> Nothing
 
-
-suggestPackages :: String -> IO [String]
-suggestPackages given =
-  do  cache <- Dirs.getPackageCache
-      maybeRegistry <- Registry.read cache
-      return $
-        case maybeRegistry of
-          Nothing ->
-            []
-
-          Just (Registry.Registry _ versions) ->
-            filter (List.isPrefixOf given) $
-              map Pkg.toChars (Map.keys versions)
-
-
-examplePackages :: String -> IO [String]
-examplePackages given =
-  do  cache <- Dirs.getPackageCache
-      maybeRegistry <- Registry.read cache
-      return $
-        case maybeRegistry of
-          Nothing ->
-            [ "elm/json"
-            , "elm/http"
-            , "elm/random"
-            ]
-
-          Just (Registry.Registry _ versions) ->
-            map Pkg.toChars $ take 4 $
-              Suggest.sort given Pkg.toChars (Map.keys versions)

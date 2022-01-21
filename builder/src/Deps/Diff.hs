@@ -21,7 +21,6 @@ import qualified Data.Set as Set
 import qualified System.Directory as Dir
 import System.FilePath ((</>))
 
-import qualified Deps.Website as Website
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Docs as Docs
 import qualified Elm.Magnitude as M
@@ -355,29 +354,7 @@ changeMagnitude (Changes added changed removed) =
 -- GET DOCS
 
 
-getDocs :: Dirs.PackageCache -> Http.Manager -> Pkg.Name -> V.Version -> IO (Either Exit.DocsProblem Docs.Documentation)
+getDocs :: Dirs.PackageCache -> Http.Manager -> Pkg.Name -> V.Version -> IO (Either () Docs.Documentation)
 getDocs cache manager name version =
-  do  let home = Dirs.package cache name version
-      let path = home </> "docs.json"
-      exists <- File.exists path
-      if exists
-        then
-          do  bytes <- File.readUtf8 path
-              case D.fromByteString Docs.decoder bytes of
-                Right docs ->
-                  return $ Right docs
-
-                Left _ ->
-                  do  File.remove path
-                      return $ Left Exit.DP_Cache
-        else
-          do  let url = Website.metadata name version "docs.json"
-              Http.get manager url [] Exit.DP_Http $ \body ->
-                case D.fromByteString Docs.decoder body of
-                  Right docs ->
-                    do  Dir.createDirectoryIfMissing True home
-                        File.writeUtf8 path body
-                        return $ Right docs
-
-                  Left _ ->
-                    return $ Left $ Exit.DP_Data url body
+  -- TODO: Implement using local git clones
+  return $ Right Docs.tmpEmpty

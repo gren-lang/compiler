@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall #-}
-{-# LANGUAGE BangPatterns, OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Elm.Details
   ( Details(..)
   , BuildID
@@ -37,9 +37,7 @@ import qualified AST.Source as Src
 import qualified AST.Optimized as Opt
 import qualified BackgroundWriter as BW
 import qualified Compile
-import qualified Deps.Registry as Registry
 import qualified Deps.Solver as Solver
-import qualified Deps.Website as Website
 import qualified Elm.Constraint as Con
 import qualified Elm.Docs as Docs
 import qualified Elm.Interface as I
@@ -210,13 +208,8 @@ initEnv key scope root =
           return $ Left $ Exit.DetailsBadOutline problem
 
         Right outline ->
-          do  maybeEnv <- readMVar mvar
-              case maybeEnv of
-                Left problem ->
-                  return $ Left $ Exit.DetailsCannotGetRegistry problem
-
-                Right (Solver.Env cache) ->
-                  return $ Right (Env key scope root cache, outline)
+          do  (Solver.Env cache) <- readMVar mvar
+              return $ Right (Env key scope root cache, outline)
 
 
 

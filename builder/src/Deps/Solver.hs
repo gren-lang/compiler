@@ -22,8 +22,6 @@ import Data.Map ((!))
 import qualified System.Directory as Dir
 import System.FilePath ((</>))
 
-import qualified Deps.Registry as Registry
-import qualified Deps.Website as Website
 import qualified Elm.Constraint as C
 import qualified Elm.Package as Pkg
 import qualified Elm.Outline as Outline
@@ -246,7 +244,7 @@ addConstraint solved unsolved (name, newConstraint) =
 
 getRelevantVersions :: Pkg.Name -> C.Constraint -> Solver (V.Version, [V.Version])
 getRelevantVersions name constraint =
-  Solver $ \state@(State cache _) ok back _ -> do
+  Solver $ \state@(State cache _) ok back err -> do
     maybeVersions <- getRelevantVersionsHelper cache name
     case maybeVersions of
       Right (newest, previous) ->
@@ -254,11 +252,11 @@ getRelevantVersions name constraint =
           []   -> back state
           v:vs -> ok state (v,vs) back
 
-      Left _ ->
-        back state
+      Left gitErr ->
+        err $ Exit.SolverBadGitOperationUnversionedPkg name gitErr
 
 
-getRelevantVersionsHelper ::  Dirs.PackageCache -> Pkg.Name -> IO (Either Git.Problem (V.Version, [V.Version]))
+getRelevantVersionsHelper ::  Dirs.PackageCache -> Pkg.Name -> IO (Either Git.Error (V.Version, [V.Version]))
 getRelevantVersionsHelper cache name = do
     let repoPath = Dirs.basePackage cache name
     repoExists <- Dir.doesDirectoryExist repoPath
@@ -301,14 +299,19 @@ getConstraints pkg vsn =
                             err (Exit.SolverBadCacheData pkg vsn)
                   else
                     do  let basePath = Dirs.basePackage cache pkg
-                        _ <- Git.localClone basePath vsn home
-                        bytes <- File.readUtf8 path
-                        case D.fromByteString constraintsDecoder bytes of
-                          Right cs ->
-                            ok (toNewState cs) cs back
+                        gitResult <- Git.localClone basePath vsn home
+                        case gitResult of
+                          Left gitErr ->
+                              err $ Exit.SolverBadGitOperationVersionedPkg pkg vsn gitErr
 
-                          Left  _  ->
-                            err (Exit.SolverBadCacheData pkg vsn)
+                          Right () -> do
+                            bytes <- File.readUtf8 path
+                            case D.fromByteString constraintsDecoder bytes of
+                              Right cs ->
+                                ok (toNewState cs) cs back
+
+                              Left  _  ->
+                                err (Exit.SolverBadCacheData pkg vsn)
 
 
 constraintsDecoder :: D.Decoder () Constraints
@@ -330,10 +333,10 @@ newtype Env =
   Env Dirs.PackageCache
 
 
-initEnv :: IO (Either Exit.RegistryProblem Env)
+initEnv :: IO Env
 initEnv =
   do  cache <- Dirs.getPackageCache
-      return $ Right $ Env cache
+      return $ Env cache
 
 
 -- INSTANCES

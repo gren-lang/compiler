@@ -1,6 +1,6 @@
 module Git
     ( GitUrl
-    , Problem(..)
+    , Error(..)
     , checkInstalledGit
     , githubUrl
     , clone
@@ -13,7 +13,6 @@ module Git
 import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
 import qualified Parse.Primitives as Parser
-import qualified Reporting as R
 
 import System.Directory (findExecutable)
 import qualified System.IO as IO
@@ -23,7 +22,7 @@ import qualified Data.Either as Either
 import qualified Data.ByteString.Char8 as BS
 
 
-data Problem
+data Error
   = MissingGit
   | FailedCommand (Maybe FilePath) [String] String
   | NoVersions FilePath
@@ -35,6 +34,11 @@ data Problem
 checkInstalledGit :: IO (Maybe FilePath)
 checkInstalledGit =
   findExecutable "git"
+
+
+putStrFlush :: String -> IO ()
+putStrFlush str =
+  IO.putStr str >> IO.hFlush IO.stdout
 
 
 --
@@ -55,10 +59,10 @@ githubUrl pkg =
 --
 
 
-clone :: GitUrl -> FilePath -> IO (Either Problem ())
+clone :: GitUrl -> FilePath -> IO (Either Error ())
 clone (GitUrl (pkgName, gitUrl)) targetFolder = do
     maybeExec <- checkInstalledGit
-    R.putStrFlush $ "Cloning " ++ pkgName ++ "... "
+    putStrFlush $ "Cloning " ++ pkgName ++ "... "
     case maybeExec of
       Nothing -> do
           putStrLn "Error!"
@@ -80,7 +84,7 @@ clone (GitUrl (pkgName, gitUrl)) targetFolder = do
             return $ Right ()
 
 
-localClone :: FilePath -> V.Version -> FilePath -> IO (Either Problem ())
+localClone :: FilePath -> V.Version -> FilePath -> IO (Either Error ())
 localClone gitUrl vsn targetFolder = do
     maybeExec <- checkInstalledGit
     case maybeExec of
@@ -108,10 +112,10 @@ localClone gitUrl vsn targetFolder = do
             return $ Right ()
 
 
-update :: Pkg.Name -> FilePath -> IO (Either Problem ())
+update :: Pkg.Name -> FilePath -> IO (Either Error ())
 update pkg path = do
     maybeExec <- checkInstalledGit
-    R.putStrFlush $ "Updating " ++ Pkg.toChars pkg ++ "... "
+    putStrFlush $ "Updating " ++ Pkg.toChars pkg ++ "... "
     case maybeExec of
       Nothing -> do
         putStrLn "Error!"
@@ -134,7 +138,7 @@ update pkg path = do
             return $ Right ()
 
 
-tags :: FilePath -> IO (Either Problem (V.Version, [V.Version]))
+tags :: FilePath -> IO (Either Error (V.Version, [V.Version]))
 tags path = do
     maybeExec <- checkInstalledGit
     case maybeExec of

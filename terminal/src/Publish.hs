@@ -19,10 +19,7 @@ import qualified System.Process as Process
 
 import qualified BackgroundWriter as BW
 import qualified Build
-import qualified Deps.Bump as Bump
 import qualified Deps.Diff as Diff
-import qualified Deps.Registry as Registry
-import qualified Deps.Website as Website
 import qualified Elm.Details as Details
 import qualified Elm.Docs as Docs
 import qualified Elm.Magnitude as M
@@ -64,20 +61,16 @@ data Env =
   Env
     { _root :: FilePath
     , _cache :: Dirs.PackageCache
-    , _manager :: Http.Manager
-    , _registry :: Registry.Registry
     , _outline :: Outline.Outline
     }
 
 
 getEnv :: Task.Task Exit.Publish Env
 getEnv =
-  do  root <- Task.mio Exit.PublishNoOutline $ Dirs.findRoot
-      cache <- Task.io $ Dirs.getPackageCache
-      manager <- Task.io $ Http.getManager
-      registry <- Task.eio Exit.PublishMustHaveLatestRegistry $ Registry.latest manager cache
+  do  root <- Task.mio Exit.PublishNoOutline Dirs.findRoot
+      cache <- Task.io Dirs.getPackageCache
       outline <- Task.eio Exit.PublishBadOutline $ Outline.read root
-      return $ Env root cache manager registry outline
+      return $ Env root cache outline
 
 
 
@@ -85,15 +78,14 @@ getEnv =
 
 
 publish ::  Env -> Task.Task Exit.Publish ()
-publish env@(Env root _ manager registry outline) =
+publish env@(Env root _ outline) =
   case outline of
     Outline.App _ ->
       Task.throw Exit.PublishApplication
 
     Outline.Pkg (Outline.PkgOutline pkg summary _ vsn exposed _ _ _) ->
-      do  let maybeKnownVersions = Registry.getVersions pkg registry
-
-          reportPublishStart pkg vsn maybeKnownVersions
+      -- TODO: Adapt to new package manager
+      do  reportPublishStart pkg vsn Nothing
 
           if noExposed  exposed then Task.throw Exit.PublishNoExposed else return ()
           if badSummary summary then Task.throw Exit.PublishNoSummary else return ()
@@ -101,14 +93,11 @@ publish env@(Env root _ manager registry outline) =
           verifyReadme root
           verifyLicense root
           docs <- verifyBuild root
-          verifyVersion env pkg vsn docs maybeKnownVersions
+          verifyVersion env pkg vsn docs Nothing
           git <- getGit
-          commitHash <- verifyTag git manager pkg vsn
+          commitHash <- verifyTag git pkg vsn
           verifyNoChanges git commitHash vsn
-          zipHash <- verifyZip env pkg vsn
 
-          Task.io $ putStrLn ""
-          register manager pkg vsn docs commitHash zipHash
           Task.io $ putStrLn "Success!"
 
 
@@ -189,7 +178,7 @@ verifyBuild root =
 
 -- GET GIT
 
-
+-- TODO: Use Git module?
 newtype Git =
   Git { _run :: [String] -> IO Exit.ExitCode }
 
@@ -219,8 +208,8 @@ getGit =
 -- VERIFY GITHUB TAG
 
 
-verifyTag :: Git -> Http.Manager -> Pkg.Name -> V.Version -> Task.Task Exit.Publish String
-verifyTag git manager pkg vsn =
+verifyTag :: Git -> Pkg.Name -> V.Version -> Task.Task Exit.Publish String
+verifyTag git pkg vsn =
   reportTagCheck vsn $
   do  -- https://stackoverflow.com/questions/1064499/how-to-list-all-git-tags
       exitCode <- _run git [ "show", "--name-only", V.toChars vsn, "--" ]
@@ -229,25 +218,7 @@ verifyTag git manager pkg vsn =
           return $ Left (Exit.PublishMissingTag vsn)
 
         Exit.ExitSuccess ->
-          let url = toTagUrl pkg vsn in
-          Http.get manager url [Http.accept "application/json"] (Exit.PublishCannotGetTag vsn) $ \body ->
-            case D.fromByteString commitHashDecoder body of
-              Right hash ->
-                return $ Right hash
-
-              Left _ ->
-                return $ Left (Exit.PublishCannotGetTagData vsn url body)
-
-
-toTagUrl :: Pkg.Name -> V.Version -> String
-toTagUrl pkg vsn =
-  "https://api.github.com/repos/" ++ Pkg.toUrl pkg ++ "/git/refs/tags/" ++ V.toChars vsn
-
-
-commitHashDecoder :: D.Decoder e String
-commitHashDecoder =
-  Utf8.toChars <$>
-    D.field "object" (D.field "sha" D.string)
+            return $ Right ""
 
 
 
@@ -265,67 +236,6 @@ verifyNoChanges git commitHash vsn =
 
 
 
--- VERIFY THAT ZIP BUILDS / COMPUTE HASH
-
-
-verifyZip :: Env -> Pkg.Name -> V.Version -> Task.Task Exit.Publish Http.Sha
-verifyZip (Env root _ manager _ _) pkg vsn =
-  withPrepublishDir root $ \prepublishDir ->
-    do  let url = toZipUrl pkg vsn
-
-        (sha, archive) <-
-          reportDownloadCheck $
-            Http.getArchive manager url
-              Exit.PublishCannotGetZip
-              (Exit.PublishCannotDecodeZip url)
-              (return . Right)
-
-        Task.io $ File.writePackage prepublishDir archive
-
-        reportZipBuildCheck $
-          Dir.withCurrentDirectory prepublishDir $
-            verifyZipBuild prepublishDir
-
-        return sha
-
-
-toZipUrl :: Pkg.Name -> V.Version -> String
-toZipUrl pkg vsn =
-  "https://github.com/" ++ Pkg.toUrl pkg ++ "/zipball/" ++ V.toChars vsn ++ "/"
-
-
-withPrepublishDir :: FilePath -> (FilePath -> Task.Task x a) -> Task.Task x a
-withPrepublishDir root callback =
-  let
-    dir = Dirs.prepublishDir root
-  in
-  Task.eio id $
-    bracket_
-      (Dir.createDirectoryIfMissing True dir)
-      (Dir.removeDirectoryRecursive dir)
-      (Task.run (callback dir))
-
-
-verifyZipBuild :: FilePath -> IO (Either Exit.Publish ())
-verifyZipBuild root =
-  BW.withScope $ \scope -> Task.run $
-  do  details@(Details.Details _ outline _ _ _ _) <-
-        Task.eio Exit.PublishZipBadDetails $
-          Details.load Reporting.silent scope root
-
-      exposed <-
-        case outline of
-          Details.ValidApp _          -> Task.throw Exit.PublishZipApplication
-          Details.ValidPkg _ []     _ -> Task.throw Exit.PublishZipNoExposed
-          Details.ValidPkg _ (e:es) _ -> return (NE.List e es)
-
-      _ <- Task.eio Exit.PublishZipBuildProblem $
-        Build.fromExposed Reporting.silent root details Build.KeepDocs exposed
-
-      return ()
-
-
-
 -- VERIFY VERSION
 
 
@@ -334,7 +244,7 @@ data GoodVersion
   | GoodBump V.Version M.Magnitude
 
 
-verifyVersion :: Env -> Pkg.Name -> V.Version -> Docs.Documentation -> Maybe Registry.KnownVersions -> Task.Task Exit.Publish ()
+verifyVersion :: Env -> Pkg.Name -> V.Version -> Docs.Documentation -> Maybe () -> Task.Task Exit.Publish ()
 verifyVersion env pkg vsn newDocs publishedVersions =
   reportSemverCheck vsn $
     case publishedVersions of
@@ -343,15 +253,15 @@ verifyVersion env pkg vsn newDocs publishedVersions =
         then return $ Right GoodStart
         else return $ Left $ Exit.PublishNotInitialVersion vsn
 
-      Just knownVersions@(Registry.KnownVersions latest previous) ->
-        if vsn == latest || elem vsn previous
-        then return $ Left $ Exit.PublishAlreadyPublished vsn
-        else verifyBump env pkg vsn newDocs knownVersions
+      Just _ ->
+        verifyBump env pkg vsn newDocs ()
 
 
-verifyBump :: Env -> Pkg.Name -> V.Version -> Docs.Documentation -> Registry.KnownVersions -> IO (Either Exit.Publish GoodVersion)
-verifyBump (Env _ cache manager _ _) pkg vsn newDocs knownVersions@(Registry.KnownVersions latest _) =
-  case List.find (\(_ ,new, _) -> vsn == new) (Bump.getPossibilities knownVersions) of
+verifyBump :: Env -> Pkg.Name -> V.Version -> Docs.Documentation -> () -> IO (Either Exit.Publish GoodVersion)
+verifyBump (Env _ cache _) pkg vsn newDocs () =
+    -- TODO: needs fixing
+    return $ Right GoodStart
+    {-case List.find (\(_ ,new, _) -> vsn == new) (Bump.getPossibilities knownVersions) of
     Nothing ->
       return $ Left $
         Exit.PublishInvalidBump vsn latest
@@ -371,37 +281,14 @@ verifyBump (Env _ cache manager _ _) pkg vsn newDocs knownVersions@(Registry.Kno
               then return $ Right $ GoodBump old magnitude
               else
                 return $ Left $
-                  Exit.PublishBadBump old new magnitude realNew (Diff.toMagnitude changes)
-
-
-
--- REGISTER PACKAGES
-
-
-register :: Http.Manager -> Pkg.Name -> V.Version -> Docs.Documentation -> String -> Http.Sha -> Task.Task Exit.Publish ()
-register manager pkg vsn docs commitHash sha =
-  let
-    url =
-      Website.route "/register"
-        [ ("name", Pkg.toChars pkg)
-        , ("version", V.toChars vsn)
-        , ("commit-hash", commitHash)
-        ]
-  in
-  Task.eio Exit.PublishCannotRegister $
-    Http.upload manager url
-      [ Http.filePart "elm.json" "elm.json"
-      , Http.jsonPart "docs.json" "docs.json" (Docs.encode docs)
-      , Http.filePart "README.md" "README.md"
-      , Http.stringPart "github-hash" (Http.shaToChars sha)
-      ]
+                  Exit.PublishBadBump old new magnitude realNew (Diff.toMagnitude changes)-}
 
 
 
 -- REPORTING
 
 
-reportPublishStart :: Pkg.Name -> V.Version -> Maybe Registry.KnownVersions -> Task.Task x ()
+reportPublishStart :: Pkg.Name -> V.Version -> Maybe () -> Task.Task x ()
 reportPublishStart pkg vsn maybeKnownVersions =
   Task.io $
   case maybeKnownVersions of
