@@ -16,10 +16,8 @@ module Deps.Solver
 
 
 import Control.Monad (foldM)
-import Control.Concurrent (forkIO, newEmptyMVar, putMVar, readMVar)
 import qualified Data.Map as Map
 import Data.Map ((!))
-import qualified System.Directory as Dir
 import System.FilePath ((</>))
 
 import qualified Elm.Constraint as C
@@ -31,6 +29,7 @@ import qualified Git
 import qualified Json.Decode as D
 import qualified Reporting.Exit as Exit
 import qualified Directories as Dirs
+import qualified Deps.Package as Package
 
 
 
@@ -244,8 +243,8 @@ addConstraint solved unsolved (name, newConstraint) =
 getRelevantVersions :: Pkg.Name -> C.Constraint -> Solver (V.Version, [V.Version])
 getRelevantVersions name constraint =
   Solver $ \state@(State cache _) ok back err -> do
-    maybeVersions <- getRelevantVersionsHelper cache name
-    case maybeVersions of
+    versionsResult <- Package.getVersions cache name
+    case versionsResult of
       Right (newest, previous) ->
         case filter (C.satisfies constraint) (newest:previous) of
           []   -> back state
@@ -254,22 +253,6 @@ getRelevantVersions name constraint =
       Left gitErr ->
         err $ Exit.SolverBadGitOperationUnversionedPkg name gitErr
 
-
-getRelevantVersionsHelper ::  Dirs.PackageCache -> Pkg.Name -> IO (Either Git.Error (V.Version, [V.Version]))
-getRelevantVersionsHelper cache name = do
-    let repoPath = Dirs.basePackage cache name
-    repoExists <- Dir.doesDirectoryExist repoPath
-    retVal <-
-        if repoExists then
-          Git.update name repoPath
-        else
-          Git.clone (Git.githubUrl name) repoPath
-    case retVal of
-      Left problem ->
-        return $ Left problem
-
-      Right () ->
-        Git.tags repoPath
 
 
 -- GET CONSTRAINTS

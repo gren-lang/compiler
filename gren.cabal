@@ -78,6 +78,7 @@ Executable gren
         Build
         BackgroundWriter
         Deps.Diff
+        Deps.Package
         Deps.Solver
         File
         Generate

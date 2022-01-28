@@ -49,16 +49,7 @@ import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (minusPtr, plusPtr)
 import GHC.Exts
   ( Int(I#), Ptr(Ptr), Char(C#)
-  , RealWorld
-  , ByteArray#, MutableByteArray#
   , isTrue#
-  , newByteArray#
-  , unsafeFreezeByteArray#
-  , sizeofByteArray#
-  , copyByteArray#
-  , copyAddrToByteArray#
-  , copyByteArrayToAddr#
-  , writeWord8Array#
   )
 import GHC.IO
 import GHC.ST (ST(ST), runST)

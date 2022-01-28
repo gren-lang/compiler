@@ -18,8 +18,6 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Name as Name
 import qualified Data.Set as Set
-import qualified System.Directory as Dir
-import System.FilePath ((</>))
 
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Docs as Docs
@@ -27,9 +25,6 @@ import qualified Elm.Magnitude as M
 import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
-import qualified File
-import qualified Json.Decode as D
-import qualified Reporting.Exit as Exit
 import qualified Directories as Dirs
 
 
@@ -354,6 +349,6 @@ changeMagnitude (Changes added changed removed) =
 
 
 getDocs :: Dirs.PackageCache -> Pkg.Name -> V.Version -> IO (Either () Docs.Documentation)
-getDocs cache name version =
+getDocs _ _ _ =
   -- TODO: Implement using local git clones
   return $ Right Docs.tmpEmpty

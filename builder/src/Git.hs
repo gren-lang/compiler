@@ -72,7 +72,7 @@ clone (GitUrl (pkgName, gitUrl)) targetFolder = do
         let args = [ "clone" , "--bare", gitUrl, targetFolder ]
         (exitCode, _, stderr) <-
             Process.readCreateProcessWithExitCode
-                (Process.proc "git" args)
+                (Process.proc git args)
                 ""
         case exitCode of
           Exit.ExitFailure _ -> do
@@ -159,12 +159,12 @@ tags path = do
 
           Exit.ExitSuccess ->
             let
-              tags =
+              tagList =
                 map BS.pack $ lines stdout
 
               -- Ignore tags that aren't semantic versions
               versions =
-                Either.rights $ map (Parser.fromByteString V.parser (,)) tags
+                Either.rights $ map (Parser.fromByteString V.parser (,)) tagList
             in
             case versions of
               [] -> return $ Left $ NoVersions path

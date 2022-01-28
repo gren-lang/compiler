@@ -27,7 +27,6 @@ module Reporting.Exit
 
 
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.UTF8 as BS_UTF8
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Name as N
@@ -47,7 +46,6 @@ import qualified Json.Encode as Encode
 import qualified Json.String as Json
 import Parse.Primitives (Row, Col)
 import qualified Reporting.Annotation as A
-import Reporting.Doc ((<>))
 import qualified Reporting.Doc as D
 import qualified Reporting.Error.Import as Import
 import qualified Reporting.Error.Json as Json
@@ -1220,7 +1218,7 @@ toGitErrorReport title err context =
         , D.indent 4 $ D.reflow errorMsg
         ]
 
-    Git.NoVersions path ->
+    Git.NoVersions _ ->
       toGitReport (context ++ ", no valid semantic version tags in this repo.")
         [ D.reflow "Gren packages are just git repositories with tags following the \
         \ semantic versioning scheme. However, it seems that this particular repo \

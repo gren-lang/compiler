@@ -19,16 +19,14 @@ import qualified Data.Binary as Binary
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Internal as BS
 import qualified Data.ByteString.Builder as B
-import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Fixed as Fixed
-import qualified Data.List as List
 import qualified Data.Time.Clock as Time
 import qualified Data.Time.Clock.POSIX as Time
 import qualified Foreign.ForeignPtr as FPtr
 import GHC.IO.Exception (IOException, IOErrorType(InvalidArgument))
 import qualified System.Directory as Dir
 import qualified System.FilePath as FP
-import System.FilePath ((</>))
+import System.FilePath ()
 import qualified System.IO as IO
 import System.IO.Error (ioeGetErrorType, annotateIOError, modifyIOError)
 

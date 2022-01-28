@@ -27,9 +27,7 @@ import qualified Data.Name as Name
 import qualified Data.NonEmptyList as NE
 import qualified Data.OneOrMore as OneOrMore
 import qualified Data.Set as Set
-import qualified Data.Utf8 as Utf8
 import Data.Word (Word64)
-import qualified System.Directory as Dir
 import System.FilePath ((</>), (<.>))
 
 import qualified AST.Canonical as Can
@@ -47,7 +45,6 @@ import qualified Elm.Outline as Outline
 import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
 import qualified File
-import qualified Json.Decode as D
 import qualified Json.Encode as E
 import qualified Parse.Module as Parse
 import qualified Reporting

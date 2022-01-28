@@ -9,8 +9,6 @@ module Terminal.Helpers
 
 import qualified Data.ByteString.UTF8 as BS_UTF8
 import qualified Data.Char as Char
-import qualified Data.List as List
-import qualified Data.Map as Map
 import qualified Data.Utf8 as Utf8
 import qualified System.FilePath as FP
 
@@ -18,8 +16,6 @@ import Terminal (Parser(..))
 import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
 import qualified Parse.Primitives as P
-import qualified Directories as Dirs
-import qualified Reporting.Suggest as Suggest
 
 
 
