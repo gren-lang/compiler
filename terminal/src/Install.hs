@@ -12,6 +12,7 @@ import qualified Data.Map.Merge.Strict as Map
 
 import qualified BackgroundWriter as BW
 import qualified Deps.Solver as Solver
+import qualified Deps.Package as Package
 import qualified Elm.Constraint as C
 import qualified Elm.Details as Details
 import qualified Elm.Package as Pkg
@@ -183,26 +184,19 @@ makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ _ direct indire
                     }
 
               Nothing ->
-                -- finally try to add it from scratch
-                Task.throw (Exit.InstallUnknownPackageOnline pkg [])
-                {-case Registry.getVersions' pkg registry of
-                  Left suggestions ->
-                    Task.throw (Exit.InstallUnknownPackageOnline pkg suggestions)
+                do  result <- Task.io $ Solver.addToApp cache pkg outline
+                    case result of
+                      Solver.Ok (Solver.AppSolution old new app) ->
+                        return (Changes (detectChanges old new) (Outline.App app))
 
-                  Right _ ->
-                    do  result <- Task.io $ Solver.addToApp cache connection registry pkg outline
-                        case result of
-                          Solver.Ok (Solver.AppSolution old new app) ->
-                            return (Changes (detectChanges old new) (Outline.App app))
+                      Solver.NoSolution ->
+                        Task.throw (Exit.InstallNoOnlineAppSolution pkg)
 
-                          Solver.NoSolution ->
-                            Task.throw (Exit.InstallNoOnlineAppSolution pkg)
+                      Solver.NoOfflineSolution ->
+                        Task.throw (Exit.InstallNoOfflineAppSolution pkg)
 
-                          Solver.NoOfflineSolution ->
-                            Task.throw (Exit.InstallNoOfflineAppSolution pkg)
-
-                          Solver.Err exit ->
-                            Task.throw (Exit.InstallHadSolverTrouble exit)-}
+                      Solver.Err exit ->
+                        Task.throw (Exit.InstallHadSolverTrouble exit)
 
 
 
@@ -224,41 +218,33 @@ makePkgPlan (Solver.Env cache) pkg outline@(Outline.PkgOutline _ _ _ _ _ deps te
             }
 
       Nothing ->
-        Task.throw (Exit.InstallUnknownPackageOnline pkg [])
-        {--- try to add a new dependency
-        case Registry.getVersions' pkg registry of
-          Left suggestions ->
-            Task.throw (Exit.InstallUnknownPackageOnline pkg suggestions)
+        do  let old = Map.union deps test
+            let cons = Map.insert pkg C.anything old
+            result <- Task.io $ Solver.verify cache cons
+            case result of
+              Solver.Ok solution ->
+                let
+                  (Solver.Details vsn _) = solution ! pkg
 
-          Right (Registry.KnownVersions _ _) ->
-            do  let old = Map.union deps test
-                let cons = Map.insert pkg C.anything old
-                result <- Task.io $ Solver.verify cache cons
-                case result of
-                  Solver.Ok solution ->
-                    let
-                      (Solver.Details vsn _) = solution ! pkg
+                  con = C.untilNextMajor vsn
+                  new = Map.insert pkg con old
+                  changes = detectChanges old new
+                  news = Map.mapMaybe keepNew changes
+                in
+                return $ Changes changes $ Outline.Pkg $
+                  outline
+                    { Outline._pkg_deps = addNews (Just pkg) news deps
+                    , Outline._pkg_test_deps = addNews Nothing news test
+                    }
 
-                      con = C.untilNextMajor vsn
-                      new = Map.insert pkg con old
-                      changes = detectChanges old new
-                      news = Map.mapMaybe keepNew changes
-                    in
-                    return $ Changes changes $ Outline.Pkg $
-                      outline
-                        { Outline._pkg_deps = addNews (Just pkg) news deps
-                        , Outline._pkg_test_deps = addNews Nothing news test
-                        }
+              Solver.NoSolution ->
+                Task.throw $ Exit.InstallNoOnlinePkgSolution pkg
 
-                  Solver.NoSolution ->
-                    Task.throw (Exit.InstallNoOnlinePkgSolution pkg)
+              Solver.NoOfflineSolution ->
+                Task.throw $ Exit.InstallNoOfflinePkgSolution pkg
 
-                  Solver.NoOfflineSolution ->
-                    Task.throw (Exit.InstallNoOfflinePkgSolution pkg)
-
-                  Solver.Err exit ->
-                    Task.throw (Exit.InstallHadSolverTrouble exit)
-                    -}
+              Solver.Err exit ->
+                Task.throw $ Exit.InstallHadSolverTrouble exit
 
 
 addNews :: Maybe Pkg.Name -> Map.Map Pkg.Name C.Constraint -> Map.Map Pkg.Name C.Constraint -> Map.Map Pkg.Name C.Constraint
