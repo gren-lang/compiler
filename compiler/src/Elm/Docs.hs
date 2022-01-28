@@ -13,8 +13,6 @@ module Elm.Docs
   , Error(..)
   , decoder
   , encode
-  --
-  , tmpEmpty
   )
   where
 
@@ -49,12 +47,6 @@ import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Docs as E
 import qualified Reporting.Result as Result
 
-
--- TODO: temporary helper function
--- remove before merging new package manager
-tmpEmpty :: Documentation
-tmpEmpty =
-    Map.empty
 
 -- DOCUMENTATION
 

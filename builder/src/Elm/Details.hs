@@ -235,7 +235,7 @@ verifyApp env time outline@(Outline.AppOutline elmVersion srcDirs direct _ _ _) 
         actual <- verifyConstraints env (Map.map Con.exactly stated)
         if Map.size stated == Map.size actual
           then verifyDependencies env time (ValidApp srcDirs) actual direct
-          else Task.throw $ Exit.DetailsHandEditedDependencies
+          else Task.throw Exit.DetailsHandEditedDependencies
   else
     Task.throw $ Exit.DetailsBadElmInAppOutline elmVersion
 

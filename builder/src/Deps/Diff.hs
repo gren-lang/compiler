@@ -18,14 +18,27 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Name as Name
 import qualified Data.Set as Set
+import qualified Data.NonEmptyList as NE
+import qualified System.Directory as Dir
+import System.FilePath ((</>))
 
 import qualified Elm.Compiler.Type as Type
+import qualified Elm.Details as Details
 import qualified Elm.Docs as Docs
 import qualified Elm.Magnitude as M
 import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
+import qualified Elm.Outline as Outline
 import qualified Elm.Version as V
+import qualified Deps.Package as Package
+import qualified Reporting
+import qualified Reporting.Exit as Exit
+import qualified Reporting.Task as Task
+import qualified Json.Decode as D
+import qualified File
 import qualified Directories as Dirs
+import qualified Build
+import qualified BackgroundWriter as BW
 
 
 
@@ -348,7 +361,39 @@ changeMagnitude (Changes added changed removed) =
 -- GET DOCS
 
 
-getDocs :: Dirs.PackageCache -> Pkg.Name -> V.Version -> IO (Either () Docs.Documentation)
-getDocs _ _ _ =
-  -- TODO: Implement using local git clones
-  return $ Right Docs.tmpEmpty
+-- TODO: Return better error message than DP_Cache
+getDocs :: Dirs.PackageCache -> Pkg.Name -> V.Version -> Task.Task Exit.DocsProblem Docs.Documentation
+getDocs cache pkg vsn =
+  do  Task.eio Exit.DP_Git $ Dirs.withRegistryLock cache $ 
+        Package.installPackageVersion cache pkg vsn
+      let home = Dirs.package cache pkg vsn
+      let path = home </> "docs.json"
+      exists <- Task.io $ File.exists path
+      if exists
+        then
+          do  bytes <- Task.io $ File.readUtf8 path
+              case D.fromByteString Docs.decoder bytes of
+                Right docs ->
+                   return docs
+
+                Left _ ->
+                    do  Task.io $ File.remove home
+                        Task.throw Exit.DP_Cache
+        else
+          do  details <- Task.eio (const Exit.DP_Cache) $ BW.withScope $ \scope ->
+                Details.load Reporting.silent scope home
+
+              outline <- Task.eio (const Exit.DP_Cache) $ Outline.read home
+              case outline of
+                (Outline.Pkg (Outline.PkgOutline _ _ _ _ exposed _ _ _)) ->
+                    case Outline.flattenExposed exposed of
+                        [] ->
+                            Task.throw Exit.DP_Cache
+
+                        e:es ->
+                            Task.eio (const Exit.DP_Cache) $
+                                Build.fromExposed Reporting.silent home details Build.KeepDocs (NE.List e es)
+
+                _ ->
+                    Task.throw Exit.DP_Cache
+

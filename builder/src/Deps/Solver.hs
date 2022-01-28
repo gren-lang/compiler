@@ -269,30 +269,23 @@ getConstraints pkg vsn =
           Nothing ->
             do  let toNewState cs = State cache (Map.insert key cs cDict)
                 let home = Dirs.package cache pkg vsn
-                let path = home </> "elm.json"
-                outlineExists <- File.exists path
-                if outlineExists then
-                    do  bytes <- File.readUtf8 path
-                        case D.fromByteString constraintsDecoder bytes of
-                          Right cs ->
-                            ok (toNewState cs) cs back
+                packageInstalResult <- Package.installPackageVersion cache pkg vsn
+                case packageInstalResult of
+                    Left gitErr ->
+                        err $ Exit.SolverBadGitOperationVersionedPkg pkg vsn gitErr
+                  
+                    Right () -> do
+                        let path = home </> "elm.json"
+                        outlineExists <- File.exists path
+                        if outlineExists 
+                           then do  bytes <- File.readUtf8 path
+                                    case D.fromByteString constraintsDecoder bytes of
+                                      Right cs ->
+                                          ok (toNewState cs) cs back
 
-                          Left  _  ->
-                            err (Exit.SolverBadCacheData pkg vsn)
-                  else
-                    do  let basePath = Dirs.basePackage cache pkg
-                        gitResult <- Git.localClone basePath vsn home
-                        case gitResult of
-                          Left gitErr ->
-                              err $ Exit.SolverBadGitOperationVersionedPkg pkg vsn gitErr
-
-                          Right () -> do
-                            bytes <- File.readUtf8 path
-                            case D.fromByteString constraintsDecoder bytes of
-                              Right cs ->
-                                ok (toNewState cs) cs back
-
-                              Left  _  ->
+                                      Left  _  ->
+                                          err (Exit.SolverBadCacheData pkg vsn)
+                            else
                                 err (Exit.SolverBadCacheData pkg vsn)
 
 

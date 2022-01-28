@@ -17,6 +17,7 @@ module Reporting.Exit
   , DetailsBadDep(..)
   , BuildProblem(..)
   , BuildProjectProblem(..)
+  , DocsProblem(..)
   , Generate(..)
   --
   , toString
@@ -27,6 +28,7 @@ module Reporting.Exit
 
 
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.UTF8 as BS_UTF8
 import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Name as N
@@ -222,6 +224,7 @@ data Bump
   | BumpBadDetails Details
   | BumpNoExposed
   | BumpBadBuild BuildProblem
+  | BumpCannotFindDocs Pkg.Name V.Version DocsProblem
 
 
 bumpToReport :: Bump -> Help.Report
@@ -266,18 +269,22 @@ bumpToReport bump =
 
     BumpNoExposed ->
       Help.docReport "NO EXPOSED MODULES" (Just "elm.json")
-        ( D.fillSep $
+        ( D.fillSep
             [ "To", "bump", "a", "package,", "the"
             , D.dullyellow "\"exposed-modules\"", "field", "of", "your"
             , "elm.json", "must", "list", "at", "least", "one", "module."
             ]
         )
-        [ D.reflow $
+        [ D.reflow
             "Try adding some modules back to the \"exposed-modules\" field."
         ]
 
     BumpBadBuild problem ->
       toBuildProblemReport problem
+
+    BumpCannotFindDocs pkg vsn problem ->
+      toDocsProblemReport problem $
+        "I need the docs for " ++ V.toChars vsn ++ " to compute the next version number"
 
 
 
@@ -549,6 +556,47 @@ toBadReadmeReport title summary =
         \ nicer!"
     ]
 
+
+
+-- DOCS
+
+
+data DocsProblem
+  = DP_Git Git.Error
+  | DP_Data String BS.ByteString
+  | DP_Cache
+
+
+toDocsProblemReport :: DocsProblem -> String -> Help.Report
+toDocsProblemReport problem context =
+  case problem of
+    DP_Git gitError ->
+      toGitErrorReport "PROBLEM LOADING DOCS" gitError context
+
+    DP_Data url body ->
+      Help.report "PROBLEM LOADING DOCS" Nothing (context ++ ", so I fetched:")
+        [ D.indent 4 $ D.dullyellow $ D.fromChars url
+        , D.reflow $
+            "I got the data back, but it was not what I was expecting. The response\
+            \ body contains " ++ show (BS.length body) ++ " bytes. Here is the "
+            ++ if BS.length body <= 76 then "whole thing:" else "beginning:"
+        , D.indent 4 $ D.dullyellow $ D.fromChars $
+            if BS.length body <= 76
+            then BS_UTF8.toString body
+            else take 73 (BS_UTF8.toString body) ++ "..."
+        , D.reflow
+            "Does this error keep showing up? Maybe there is something weird with your\
+            \ internet connection."
+        ]
+
+    DP_Cache ->
+      Help.report "PROBLEM LOADING DOCS" Nothing (context ++ ", but the local copy seems to be corrupted.")
+        [ D.reflow
+            "I deleted the cached version, so the next run should download a fresh copy of\
+            \ the docs. Hopefully that will get you unstuck, but it will not resolve the root\
+            \ problem if, for example, a 3rd party editor plugin is modifing cached files\
+            \ for some reason."
+        ]
 
 
 -- INSTALL

@@ -11,6 +11,7 @@ import qualified Data.NonEmptyList as NE
 import qualified BackgroundWriter as BW
 import qualified Build
 import qualified Deps.Diff as Diff
+import qualified Deps.Package as Package
 import qualified Elm.Details as Details
 import qualified Elm.Docs as Docs
 import qualified Elm.Magnitude as M
@@ -70,23 +71,24 @@ getEnv =
 
 
 bump :: Env -> Task.Task Exit.Bump ()
-bump env@(Env root _ outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _)) =
-    {-case Registry.getVersions pkg registry of
-    Just knownVersions ->
-      let
-        bumpableVersions =
-          map (\(old, _, _) -> old) (Bump.getPossibilities knownVersions)
-      in
-      if elem vsn bumpableVersions
-      then suggestVersion env
-      else
-        Task.throw $ Exit.BumpUnexpectedVersion vsn $
-          map head (List.group (List.sort bumpableVersions))
+bump env@(Env root cache outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _)) =
+    Task.eio id $
+    do  versionResult <- Dirs.withRegistryLock cache $ Package.getVersions cache pkg 
+        case versionResult of
+          Right knownVersions ->
+             let
+                bumpableVersions =
+                    map (\(old, _, _) -> old) (Package.bumpPossibilities knownVersions)
+              in
+              if elem vsn bumpableVersions 
+                then Task.run $ suggestVersion env
+                else do
+                    return $ Left $ Exit.BumpUnexpectedVersion vsn $
+                        map head (List.group (List.sort bumpableVersions))
 
-    Nothing ->
-      Task.io $ checkNewPackage root outline
-      -}
-    Task.throw Exit.BumpApplication
+          Left _ ->
+            do  checkNewPackage root outline
+                return $ Right ()
 
 
 
@@ -112,8 +114,11 @@ checkNewPackage root outline@(Outline.PkgOutline _ _ _ version _ _ _ _) =
 
 suggestVersion :: Env -> Task.Task Exit.Bump ()
 suggestVersion (Env root cache outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _)) =
-    Task.throw (Exit.BumpApplication)
-    {-do  oldDocs <- Task.eio (Exit.BumpCannotFindDocs pkg vsn) (Diff.getDocs cache manager pkg vsn)
+  do  oldDocs <-
+        Task.mapError 
+            (Exit.BumpCannotFindDocs pkg vsn) 
+            (Diff.getDocs cache pkg vsn)
+
       newDocs <- generateDocs root outline
       let changes = Diff.diff oldDocs newDocs
       let newVersion = Diff.bump changes vsn
@@ -126,7 +131,7 @@ suggestVersion (Env root cache outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _))
         "Based on your new API, this should be a" <+> D.green mag <+> "change (" <> old <> " => " <> new <> ")\n"
         <> "Bail out of this command and run 'elm diff' for a full explanation.\n"
         <> "\n"
-        <> "Should I perform the update (" <> old <> " => " <> new <> ") in elm.json? [Y/n] "-}
+        <> "Should I perform the update (" <> old <> " => " <> new <> ") in elm.json? [Y/n] "
 
 
 generateDocs :: FilePath -> Outline.PkgOutline -> Task.Task Exit.Bump Docs.Documentation
@@ -137,7 +142,7 @@ generateDocs root (Outline.PkgOutline _ _ _ _ exposed _ _ _) =
 
       case Outline.flattenExposed exposed of
         [] ->
-          Task.throw $ Exit.BumpNoExposed
+          Task.throw Exit.BumpNoExposed
 
         e:es ->
           Task.eio Exit.BumpBadBuild $

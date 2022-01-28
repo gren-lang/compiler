@@ -1,6 +1,7 @@
 module Git
     ( GitUrl
     , Error(..)
+    --
     , checkInstalledGit
     , githubUrl
     , clone
@@ -169,4 +170,4 @@ tags path = do
             case versions of
               [] -> return $ Left $ NoVersions path
               v:vs -> return $ Right (v, vs)
-    
+
