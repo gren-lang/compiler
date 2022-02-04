@@ -5,11 +5,10 @@ module Publish
   where
 
 
-import Control.Exception (bracket_)
 import Control.Monad (void)
 import qualified Data.List as List
+import qualified Data.Either as Either
 import qualified Data.NonEmptyList as NE
-import qualified Data.Utf8 as Utf8
 import qualified System.Directory as Dir
 import qualified System.Exit as Exit
 import System.FilePath ((</>))
@@ -19,6 +18,7 @@ import qualified System.Process as Process
 
 import qualified BackgroundWriter as BW
 import qualified Build
+import qualified Deps.Package as Package
 import qualified Deps.Diff as Diff
 import qualified Elm.Details as Details
 import qualified Elm.Docs as Docs
@@ -27,7 +27,6 @@ import qualified Elm.Outline as Outline
 import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
 import qualified File
-import qualified Json.Decode as D
 import qualified Json.String as Json
 import qualified Reporting
 import Reporting.Doc ((<+>))
@@ -73,14 +72,15 @@ getEnv =
 
 
 publish ::  Env -> Task.Task Exit.Publish ()
-publish env@(Env root _ outline) =
+publish env@(Env root cache outline) =
   case outline of
     Outline.App _ ->
       Task.throw Exit.PublishApplication
 
     Outline.Pkg (Outline.PkgOutline pkg summary _ vsn exposed _ _ _) ->
-      -- TODO: Adapt to new package manager
-      do  reportPublishStart pkg vsn Nothing
+      do  knownVersionsResult <- Task.io $ Dirs.withRegistryLock cache $ Package.getVersions cache pkg
+          let knownVersionsMaybe = Either.either (const Nothing) Just knownVersionsResult
+          reportPublishStart pkg vsn knownVersionsMaybe
 
           if noExposed  exposed then Task.throw Exit.PublishNoExposed else return ()
           if badSummary summary then Task.throw Exit.PublishNoSummary else return ()
@@ -88,7 +88,7 @@ publish env@(Env root _ outline) =
           verifyReadme root
           verifyLicense root
           docs <- verifyBuild root
-          verifyVersion env pkg vsn docs Nothing
+          verifyVersion env pkg vsn docs knownVersionsMaybe
           git <- getGit
           commitHash <- verifyTag git pkg vsn
           verifyNoChanges git commitHash vsn
@@ -124,11 +124,9 @@ verifyReadme root =
   reportReadmeCheck $
   do  let readmePath = root </> "README.md"
       exists <- File.exists readmePath
-      case exists of
-        False ->
-          return (Left Exit.PublishNoReadme)
-
-        True ->
+      if exists
+        then return (Left Exit.PublishNoReadme)
+        else
           do  size <- IO.withFile readmePath IO.ReadMode IO.hFileSize
               if size < 300
                 then return (Left Exit.PublishShortReadme)
@@ -172,8 +170,8 @@ verifyBuild root =
 
 
 -- GET GIT
+-- TODO: Move to Git module
 
--- TODO: Use Git module?
 newtype Git =
   Git { _run :: [String] -> IO Exit.ExitCode }
 
@@ -204,7 +202,8 @@ getGit =
 
 
 verifyTag :: Git -> Pkg.Name -> V.Version -> Task.Task Exit.Publish String
-verifyTag git pkg vsn =
+verifyTag git _ vsn =
+  -- TODO: Check that tag exist in cached repo, that should mean it's available remote as well
   reportTagCheck vsn $
   do  -- https://stackoverflow.com/questions/1064499/how-to-list-all-git-tags
       exitCode <- _run git [ "show", "--name-only", V.toChars vsn, "--" ]
@@ -222,6 +221,7 @@ verifyTag git pkg vsn =
 
 verifyNoChanges :: Git -> String -> V.Version -> Task.Task Exit.Publish ()
 verifyNoChanges git commitHash vsn =
+  -- TODO: This doesn't actually compare against a specific tag as far as I can see
   reportLocalChangesCheck $
   do  -- https://stackoverflow.com/questions/3878624/how-do-i-programmatically-determine-if-there-are-uncommited-changes
       exitCode <- _run git [ "diff-index", "--quiet", commitHash, "--" ]
@@ -239,7 +239,7 @@ data GoodVersion
   | GoodBump V.Version M.Magnitude
 
 
-verifyVersion :: Env -> Pkg.Name -> V.Version -> Docs.Documentation -> Maybe () -> Task.Task Exit.Publish ()
+verifyVersion :: Env -> Pkg.Name -> V.Version -> Docs.Documentation -> Maybe (V.Version, [ V.Version ]) -> Task.Task Exit.Publish ()
 verifyVersion env pkg vsn newDocs publishedVersions =
   reportSemverCheck vsn $
     case publishedVersions of
@@ -248,42 +248,42 @@ verifyVersion env pkg vsn newDocs publishedVersions =
         then return $ Right GoodStart
         else return $ Left $ Exit.PublishNotInitialVersion vsn
 
-      Just _ ->
-        verifyBump env pkg vsn newDocs ()
+      Just vsns@(latest, previous) ->
+        if vsn == latest || elem vsn previous
+          then return $ Left $ Exit.PublishAlreadyPublished vsn
+          else verifyBump env pkg vsn newDocs vsns
 
 
-verifyBump :: Env -> Pkg.Name -> V.Version -> Docs.Documentation -> () -> IO (Either Exit.Publish GoodVersion)
-verifyBump (Env _ cache _) pkg vsn newDocs () =
-    -- TODO: needs fixing
-    return $ Right GoodStart
-    {-case List.find (\(_ ,new, _) -> vsn == new) (Bump.getPossibilities knownVersions) of
+verifyBump :: Env -> Pkg.Name -> V.Version -> Docs.Documentation -> (V.Version, [ V.Version ]) -> IO (Either Exit.Publish GoodVersion)
+verifyBump (Env _ cache _) pkg vsn newDocs knownVersions@(latest, _) =
+  case List.find (\(_ ,new, _) -> vsn == new) (Package.bumpPossibilities knownVersions) of
     Nothing ->
       return $ Left $
         Exit.PublishInvalidBump vsn latest
 
     Just (old, new, magnitude) ->
-      do  result <- Diff.getDocs cache manager pkg old
-          case result of
-            Left dp ->
-              return $ Left $ Exit.PublishCannotGetDocs old new dp
+        do  result <- Task.run $ Diff.getDocs cache pkg old
+            case result of
+              Left dp ->
+                 return $ Left $ Exit.PublishCannotGetDocs old new dp
 
-            Right oldDocs ->
-              let
-                changes = Diff.diff oldDocs newDocs
-                realNew = Diff.bump changes old
-              in
-              if new == realNew
-              then return $ Right $ GoodBump old magnitude
-              else
-                return $ Left $
-                  Exit.PublishBadBump old new magnitude realNew (Diff.toMagnitude changes)-}
+              Right oldDocs ->
+                  let
+                    changes = Diff.diff oldDocs newDocs
+                    realNew = Diff.bump changes old
+                  in
+                  if new == realNew
+                     then return $ Right $ GoodBump old magnitude
+                  else
+                    return $ Left $
+                        Exit.PublishBadBump old new magnitude realNew (Diff.toMagnitude changes)
 
 
 
 -- REPORTING
 
 
-reportPublishStart :: Pkg.Name -> V.Version -> Maybe () -> Task.Task x ()
+reportPublishStart :: Pkg.Name -> V.Version -> Maybe (V.Version, [ V.Version ]) -> Task.Task x ()
 reportPublishStart pkg vsn maybeKnownVersions =
   Task.io $
   case maybeKnownVersions of
@@ -350,28 +350,12 @@ reportTagCheck vsn =
     ("Version " ++ V.toChars vsn ++ " is not tagged on GitHub!")
 
 
-reportDownloadCheck :: IO (Either x a) -> Task.Task x a
-reportDownloadCheck =
-  reportCheck
-    "Downloading code from GitHub..."
-    "Code downloaded successfully from GitHub"
-    "Could not download code from GitHub!"
-
-
 reportLocalChangesCheck :: IO (Either x a) -> Task.Task x a
 reportLocalChangesCheck =
   reportCheck
     "Checking for uncommitted changes..."
     "No uncommitted changes in local code"
     "Your local code is different than the code tagged on GitHub"
-
-
-reportZipBuildCheck :: IO (Either x a) -> Task.Task x a
-reportZipBuildCheck =
-  reportCheck
-    "Verifying downloaded code..."
-    "Downloaded code compiles successfully"
-    "Cannot compile downloaded code!"
 
 
 reportCheck :: String -> String -> String -> IO (Either x a) -> Task.Task x a

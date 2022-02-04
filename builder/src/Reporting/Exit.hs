@@ -335,6 +335,7 @@ data Publish
   | PublishShortReadme
   | PublishNoLicense
   | PublishBuildProblem BuildProblem
+  | PublishCannotGetDocs V.Version V.Version DocsProblem
   | PublishMissingTag V.Version
   | PublishNoGit
   | PublishLocalChanges V.Version
@@ -489,6 +490,11 @@ publishToReport publish =
 
     PublishBuildProblem buildProblem ->
       toBuildProblemReport buildProblem
+
+    PublishCannotGetDocs old new docsProblem ->
+      toDocsProblemReport docsProblem $
+        "I need the docs for " ++ V.toChars old ++ " to verify that "
+        ++ V.toChars new ++ " really does come next"
 
     PublishMissingTag version ->
       let vsn = V.toChars version in
