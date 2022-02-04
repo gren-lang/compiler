@@ -28,7 +28,7 @@ import qualified Generate.Html as Html
 import qualified Reporting
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Task as Task
-import qualified Stuff
+import qualified Directories as Dirs
 import Terminal (Parser(..))
 
 
@@ -66,7 +66,7 @@ type Task a = Task.Task Exit.Make a
 run :: [FilePath] -> Flags -> IO ()
 run paths flags@(Flags _ _ _ report _) =
   do  style <- getStyle report
-      maybeRoot <- Stuff.findRoot
+      maybeRoot <- Dirs.findRoot
       Reporting.attemptWithStyle style Exit.makeToReport $
         case maybeRoot of
           Just root -> runHelp root paths style flags
@@ -76,7 +76,7 @@ run paths flags@(Flags _ _ _ report _) =
 runHelp :: FilePath -> [FilePath] -> Reporting.Style -> Flags -> IO (Either Exit.Make ())
 runHelp root paths style (Flags debug optimize maybeOutput _ maybeDocs) =
   BW.withScope $ \scope ->
-  Stuff.withRootLock root $ Task.run $
+  Dirs.withRootLock root $ Task.run $
   do  desiredMode <- getMode debug optimize
       details <- Task.eio Exit.MakeBadDetails (Details.load style scope root)
       case paths of

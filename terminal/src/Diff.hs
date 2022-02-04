@@ -17,7 +17,7 @@ import qualified BackgroundWriter as BW
 import qualified Build
 import Deps.Diff (PackageChanges(..), ModuleChanges(..), Changes(..))
 import qualified Deps.Diff as DD
-import qualified Deps.Registry as Registry
+import qualified Deps.Package as Package
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Details as Details
 import qualified Elm.Docs as Docs
@@ -25,15 +25,14 @@ import qualified Elm.Magnitude as M
 import qualified Elm.Outline as Outline
 import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
-import qualified Http
 import qualified Reporting
-import Reporting.Doc ((<>), (<+>))
+import Reporting.Doc ((<+>))
 import qualified Reporting.Doc as D
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Exit.Help as Help
 import qualified Reporting.Render.Type.Localizer as L
 import qualified Reporting.Task as Task
-import qualified Stuff
+import qualified Directories as Dirs
 
 
 
@@ -62,19 +61,15 @@ run args () =
 data Env =
   Env
     { _maybeRoot :: Maybe FilePath
-    , _cache :: Stuff.PackageCache
-    , _manager :: Http.Manager
-    , _registry :: Registry.Registry
+    , _cache :: Dirs.PackageCache
     }
 
 
 getEnv :: Task Env
 getEnv =
-  do  maybeRoot <- Task.io $ Stuff.findRoot
-      cache     <- Task.io $ Stuff.getPackageCache
-      manager   <- Task.io $ Http.getManager
-      registry  <- Task.eio Exit.DiffMustHaveLatestRegistry $ Registry.latest manager cache
-      return (Env maybeRoot cache manager registry)
+  do  maybeRoot <- Task.io Dirs.findRoot
+      cache     <- Task.io Dirs.getPackageCache
+      return (Env maybeRoot cache)
 
 
 
@@ -86,17 +81,18 @@ type Task a =
 
 
 diff :: Env -> Args -> Task ()
-diff env@(Env _ _ _ registry) args =
+diff env@(Env _ cache) args =
   case args of
     GlobalInquiry name v1 v2 ->
-      case Registry.getVersions' name registry of
-        Right vsns ->
-          do  oldDocs <- getDocs env name vsns (min v1 v2)
-              newDocs <- getDocs env name vsns (max v1 v2)
-              writeDiff oldDocs newDocs
+        do  versionResult <- Task.io $ Dirs.withRegistryLock cache $ Package.getVersions cache name
+            case versionResult of
+                Right vsns ->
+                  do  oldDocs <- getDocs env name vsns (min v1 v2)
+                      newDocs <- getDocs env name vsns (max v1 v2)
+                      writeDiff oldDocs newDocs
 
-        Left suggestions ->
-          Task.throw $ Exit.DiffUnknownPackage name suggestions
+                Left _ ->
+                    Task.throw Exit.DiffUnpublished
 
     LocalInquiry v1 v2 ->
       do  (name, vsns) <- readOutline env
@@ -121,27 +117,27 @@ diff env@(Env _ _ _ registry) args =
 -- GET DOCS
 
 
-getDocs :: Env -> Pkg.Name -> Registry.KnownVersions -> V.Version -> Task Docs.Documentation
-getDocs (Env _ cache manager _) name (Registry.KnownVersions latest previous) version =
-  if latest == version || elem version previous
-  then Task.eio (Exit.DiffDocsProblem version) $ DD.getDocs cache manager name version
-  else Task.throw $ Exit.DiffUnknownVersion name version (latest:previous)
+getDocs :: Env -> Pkg.Name -> (V.Version, [ V.Version ]) -> V.Version -> Task Docs.Documentation
+getDocs (Env _ cache) name (latest, previous) version =
+    if latest == version || elem version previous
+        then Task.mapError (Exit.DiffDocsProblem version) $ DD.getDocs cache name version
+        else Task.throw $ Exit.DiffUnknownVersion name version (latest:previous)
 
 
-getLatestDocs :: Env -> Pkg.Name -> Registry.KnownVersions -> Task Docs.Documentation
-getLatestDocs (Env _ cache manager _) name (Registry.KnownVersions latest _) =
-  Task.eio (Exit.DiffDocsProblem latest) $ DD.getDocs cache manager name latest
+getLatestDocs :: Env -> Pkg.Name -> (V.Version, [ V.Version ]) -> Task Docs.Documentation
+getLatestDocs (Env _ cache) name (latest, _) =
+  Task.mapError (Exit.DiffDocsProblem latest) $ DD.getDocs cache name latest
 
 
 
 -- READ OUTLINE
 
 
-readOutline :: Env -> Task (Pkg.Name, Registry.KnownVersions)
-readOutline (Env maybeRoot _ _ registry) =
+readOutline :: Env -> Task (Pkg.Name, (V.Version, [ V.Version ]))
+readOutline (Env maybeRoot cache) =
   case maybeRoot of
     Nothing ->
-      Task.throw $ Exit.DiffNoOutline
+      Task.throw Exit.DiffNoOutline
 
     Just root ->
       do  result <- Task.io $ Outline.read root
@@ -152,12 +148,16 @@ readOutline (Env maybeRoot _ _ registry) =
             Right outline ->
               case outline of
                 Outline.App _ ->
-                  Task.throw $ Exit.DiffApplication
+                  Task.throw Exit.DiffApplication
 
                 Outline.Pkg (Outline.PkgOutline pkg _ _ _ _ _ _ _) ->
-                  case Registry.getVersions pkg registry of
-                    Just vsns -> return (pkg, vsns)
-                    Nothing   -> Task.throw Exit.DiffUnpublished
+                    do  versionResult <- Task.io $ Dirs.withRegistryLock cache $ Package.getVersions cache pkg
+                        case versionResult of
+                          Right vsns ->
+                            return (pkg, vsns)
+
+                          Left _ ->
+                            Task.throw Exit.DiffUnpublished
 
 
 
@@ -165,10 +165,10 @@ readOutline (Env maybeRoot _ _ registry) =
 
 
 generateDocs :: Env -> Task Docs.Documentation
-generateDocs (Env maybeRoot _ _ _) =
+generateDocs (Env maybeRoot _) =
   case maybeRoot of
     Nothing ->
-      Task.throw $ Exit.DiffNoOutline
+      Task.throw Exit.DiffNoOutline
 
     Just root ->
       do  details <-
@@ -177,12 +177,12 @@ generateDocs (Env maybeRoot _ _ _) =
 
           case Details._outline details of
             Details.ValidApp _ ->
-              Task.throw $ Exit.DiffApplication
+              Task.throw Exit.DiffApplication
 
             Details.ValidPkg _ exposed _ ->
               case exposed of
                 [] ->
-                  Task.throw $ Exit.DiffNoExposed
+                  Task.throw Exit.DiffNoExposed
 
                 e:es ->
                   Task.eio Exit.DiffBadBuild $

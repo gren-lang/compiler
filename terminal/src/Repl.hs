@@ -29,7 +29,6 @@ import qualified Data.ByteString.UTF8 as BS_UTF8
 import qualified Data.Char as Char
 import qualified Data.List as List
 import qualified Data.Map as Map
-import Data.Monoid ((<>))
 import qualified Data.Name as N
 import qualified System.Console.Haskeline as Repl
 import qualified System.Directory as Dir
@@ -66,7 +65,7 @@ import qualified Reporting.Exit as Exit
 import qualified Reporting.Render.Code as Code
 import qualified Reporting.Report as Report
 import qualified Reporting.Task as Task
-import qualified Stuff
+import qualified Directories as Dirs
 
 
 
@@ -181,7 +180,7 @@ read =
 
         Just chars ->
           let
-            lines = Lines (stripLegacyBackslash chars) []
+            lines = Lines chars []
           in
           case categorize lines of
             Done input -> return input
@@ -197,28 +196,11 @@ readMore previousLines prefill =
 
         Just chars ->
           let
-            lines = addLine (stripLegacyBackslash chars) previousLines
+            lines = addLine chars previousLines
           in
           case categorize lines of
             Done input -> return input
             Continue p -> readMore lines p
-
-
--- For compatibility with 0.19.0 such that readers of "Programming Elm" by @jfairbank
--- can get through the REPL section successfully.
---
--- TODO: remove stripLegacyBackslash in next MAJOR release
---
-stripLegacyBackslash :: [Char] -> [Char]
-stripLegacyBackslash chars =
-  case chars of
-    [] ->
-      []
-
-    _:_ ->
-      if last chars == '\\'
-      then init chars
-      else chars
 
 
 data Prefill
@@ -496,7 +478,7 @@ attemptEval :: Env -> State -> State -> Output -> IO State
 attemptEval (Env root interpreter ansi) oldState newState output =
   do  result <-
         BW.withScope $ \scope ->
-        Stuff.withRootLock root $ Task.run $
+        Dirs.withRootLock root $ Task.run $
         do  details <-
               Task.eio Exit.ReplBadDetails $
                 Details.load Reporting.silent scope root
@@ -606,13 +588,13 @@ genericHelpMessage =
 
 getRoot :: IO FilePath
 getRoot =
-  do  maybeRoot <- Stuff.findRoot
+  do  maybeRoot <- Dirs.findRoot
       case maybeRoot of
         Just root ->
           return root
 
         Nothing ->
-          do  cache <- Stuff.getReplCache
+          do  cache <- Dirs.getReplCache
               let root = cache </> "tmp"
               Dir.createDirectoryIfMissing True (root </> "src")
               Outline.write root $ Outline.Pkg $
@@ -681,7 +663,7 @@ exeNotFound name =
 
 initSettings :: IO (Repl.Settings M)
 initSettings =
-  do  cache <- Stuff.getReplCache
+  do  cache <- Dirs.getReplCache
       return $
         Repl.Settings
           { Repl.historyFile = Just (cache </> "history")

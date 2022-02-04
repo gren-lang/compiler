@@ -65,34 +65,29 @@ question =
 
 init :: IO (Either Exit.Init ())
 init =
-  do  eitherEnv <- Solver.initEnv
-      case eitherEnv of
-        Left problem ->
-          return (Left (Exit.InitRegistryProblem problem))
+  do  (Solver.Env cache) <- Solver.initEnv
+      result <- Solver.verify cache defaults
+      case result of
+        Solver.Err exit ->
+          return (Left (Exit.InitSolverProblem exit))
 
-        Right (Solver.Env cache _ connection registry) ->
-          do  result <- Solver.verify cache connection registry defaults
-              case result of
-                Solver.Err exit ->
-                  return (Left (Exit.InitSolverProblem exit))
+        Solver.NoSolution ->
+          return (Left (Exit.InitNoSolution (Map.keys defaults)))
 
-                Solver.NoSolution ->
-                  return (Left (Exit.InitNoSolution (Map.keys defaults)))
+        Solver.NoOfflineSolution ->
+          return (Left (Exit.InitNoOfflineSolution (Map.keys defaults)))
 
-                Solver.NoOfflineSolution ->
-                  return (Left (Exit.InitNoOfflineSolution (Map.keys defaults)))
-
-                Solver.Ok details ->
-                  let
-                    solution = Map.map (\(Solver.Details vsn _) -> vsn) details
-                    directs = Map.intersection solution defaults
-                    indirects = Map.difference solution defaults
-                  in
-                  do  Dir.createDirectoryIfMissing True "src"
-                      Outline.write "." $ Outline.App $
-                        Outline.AppOutline V.compiler (NE.List (Outline.RelativeSrcDir "src") []) directs indirects Map.empty Map.empty
-                      putStrLn "Okay, I created it. Now read that link!"
-                      return (Right ())
+        Solver.Ok details ->
+          let
+            solution = Map.map (\(Solver.Details vsn _) -> vsn) details
+            directs = Map.intersection solution defaults
+            indirects = Map.difference solution defaults
+          in
+          do  Dir.createDirectoryIfMissing True "src"
+              Outline.write "." $ Outline.App $
+                Outline.AppOutline V.compiler (NE.List (Outline.RelativeSrcDir "src") []) directs indirects Map.empty Map.empty
+              putStrLn "Okay, I created it. Now read that link!"
+              return (Right ())
 
 
 defaults :: Map.Map Pkg.Name Con.Constraint

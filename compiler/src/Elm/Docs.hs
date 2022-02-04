@@ -48,7 +48,6 @@ import qualified Reporting.Error.Docs as E
 import qualified Reporting.Result as Result
 
 
-
 -- DOCUMENTATION
 
 

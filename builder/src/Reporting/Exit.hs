@@ -15,8 +15,6 @@ module Reporting.Exit
   , OutlineProblem(..)
   , Details(..)
   , DetailsBadDep(..)
-  , PackageProblem(..)
-  , RegistryProblem(..)
   , BuildProblem(..)
   , BuildProjectProblem(..)
   , DocsProblem(..)
@@ -35,9 +33,6 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Name as N
 import qualified Data.NonEmptyList as NE
-import qualified Network.HTTP.Client as HTTP
-import qualified Network.HTTP.Types.Header as HTTP
-import qualified Network.HTTP.Types.Status as HTTP
 import qualified System.FilePath as FP
 import System.FilePath ((</>), (<.>))
 
@@ -47,13 +42,12 @@ import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
 import qualified File
-import qualified Http
+import qualified Git
 import qualified Json.Decode as Decode
 import qualified Json.Encode as Encode
 import qualified Json.String as Json
 import Parse.Primitives (Row, Col)
 import qualified Reporting.Annotation as A
-import Reporting.Doc ((<>))
 import qualified Reporting.Doc as D
 import qualified Reporting.Error.Import as Import
 import qualified Reporting.Error.Json as Json
@@ -90,7 +84,6 @@ data Init
   | InitNoOfflineSolution [Pkg.Name]
   | InitSolverProblem Solver
   | InitAlreadyExists
-  | InitRegistryProblem RegistryProblem
 
 
 initToReport :: Init -> Help.Report
@@ -131,10 +124,6 @@ initToReport exit =
             ]
         ]
 
-    InitRegistryProblem problem ->
-      toRegistryProblemReport "PROBLEM LOADING PACKAGE LIST" problem $
-        "I need the list of published packages before I can start initializing projects"
-
 
 
 -- DIFF
@@ -149,7 +138,6 @@ data Diff
   | DiffUnknownPackage Pkg.Name [Pkg.Name]
   | DiffUnknownVersion Pkg.Name V.Version [V.Version]
   | DiffDocsProblem V.Version DocsProblem
-  | DiffMustHaveLatestRegistry RegistryProblem
   | DiffBadDetails Details
   | DiffBadBuild BuildProblem
 
@@ -222,10 +210,6 @@ diffToReport diff =
       toDocsProblemReport problem $
         "I need the docs for " ++ V.toChars version ++ " to compute this diff"
 
-    DiffMustHaveLatestRegistry problem ->
-      toRegistryProblemReport "PROBLEM UPDATING PACKAGE LIST" problem $
-        "I need the latest list of published packages before I do this diff"
-
     DiffBadDetails details ->
       toDetailsReport details
 
@@ -242,11 +226,10 @@ data Bump
   | BumpBadOutline Outline
   | BumpApplication
   | BumpUnexpectedVersion V.Version [V.Version]
-  | BumpMustHaveLatestRegistry RegistryProblem
-  | BumpCannotFindDocs Pkg.Name V.Version DocsProblem
   | BumpBadDetails Details
   | BumpNoExposed
   | BumpBadBuild BuildProblem
+  | BumpCannotFindDocs Pkg.Name V.Version DocsProblem
 
 
 bumpToReport :: Bump -> Help.Report
@@ -286,31 +269,27 @@ bumpToReport bump =
         , D.vcat $ map (D.green . D.fromVersion) versions
         ]
 
-    BumpMustHaveLatestRegistry problem ->
-      toRegistryProblemReport "PROBLEM UPDATING PACKAGE LIST" problem $
-        "I need the latest list of published packages before I can bump any versions"
-
-    BumpCannotFindDocs _ version problem ->
-      toDocsProblemReport problem $
-        "I need the docs for " ++ V.toChars version ++ " to compute the next version number"
-
     BumpBadDetails details ->
       toDetailsReport details
 
     BumpNoExposed ->
       Help.docReport "NO EXPOSED MODULES" (Just "elm.json")
-        ( D.fillSep $
+        ( D.fillSep
             [ "To", "bump", "a", "package,", "the"
             , D.dullyellow "\"exposed-modules\"", "field", "of", "your"
             , "elm.json", "must", "list", "at", "least", "one", "module."
             ]
         )
-        [ D.reflow $
+        [ D.reflow
             "Try adding some modules back to the \"exposed-modules\" field."
         ]
 
     BumpBadBuild problem ->
       toBuildProblemReport problem
+
+    BumpCannotFindDocs _ vsn problem ->
+      toDocsProblemReport problem $
+        "I need the docs for " ++ V.toChars vsn ++ " to compute the next version number"
 
 
 
@@ -345,7 +324,6 @@ data Publish
   = PublishNoOutline
   | PublishBadOutline Outline
   | PublishBadDetails Details
-  | PublishMustHaveLatestRegistry RegistryProblem
   | PublishApplication
   | PublishNotInitialVersion V.Version
   | PublishAlreadyPublished V.Version
@@ -357,20 +335,10 @@ data Publish
   | PublishShortReadme
   | PublishNoLicense
   | PublishBuildProblem BuildProblem
-  | PublishMissingTag V.Version
-  | PublishCannotGetTag V.Version Http.Error
-  | PublishCannotGetTagData V.Version String BS.ByteString
-  | PublishCannotGetZip Http.Error
-  | PublishCannotDecodeZip String
   | PublishCannotGetDocs V.Version V.Version DocsProblem
-  | PublishCannotRegister Http.Error
+  | PublishMissingTag V.Version
   | PublishNoGit
   | PublishLocalChanges V.Version
-  --
-  | PublishZipBadDetails Details
-  | PublishZipApplication
-  | PublishZipNoExposed
-  | PublishZipBuildProblem BuildProblem
 
 
 publishToReport :: Publish -> Help.Report
@@ -389,10 +357,6 @@ publishToReport publish =
 
     PublishBadDetails problem ->
       toDetailsReport problem
-
-    PublishMustHaveLatestRegistry problem ->
-      toRegistryProblemReport "PROBLEM UPDATING PACKAGE LIST" problem $
-        "I need the latest list of published packages to make sure this is safe to publish"
 
     PublishApplication ->
       Help.report "UNPUBLISHABLE" Nothing "I cannot publish applications, only packages!" []
@@ -527,6 +491,11 @@ publishToReport publish =
     PublishBuildProblem buildProblem ->
       toBuildProblemReport buildProblem
 
+    PublishCannotGetDocs old new docsProblem ->
+      toDocsProblemReport docsProblem $
+        "I need the docs for " ++ V.toChars old ++ " to verify that "
+        ++ V.toChars new ++ " really does come next"
+
     PublishMissingTag version ->
       let vsn = V.toChars version in
       Help.docReport "NO TAG" Nothing
@@ -545,70 +514,6 @@ publishToReport publish =
             ]
         , "The -m flag is for a helpful message. Try to make it more informative!"
         ]
-
-    PublishCannotGetTag version httpError ->
-      case httpError of
-        Http.BadHttp _ (HTTP.StatusCodeException response _)
-          | HTTP.statusCode (HTTP.responseStatus response) == 404 ->
-              let vsn = V.toChars version in
-              Help.report "NO TAG ON GITHUB" Nothing
-                ("You have version " ++ vsn ++ " tagged locally, but not on GitHub.")
-                [ D.reflow
-                    "Run the following command to make this tag available on GitHub:"
-                , D.indent 4 $ D.dullyellow $ D.fromChars $
-                    "git push origin " ++ vsn
-                , D.reflow
-                    "This will make it possible to find your code online based on the version number."
-                ]
-
-        _ ->
-          toHttpErrorReport "PROBLEM VERIFYING TAG" httpError
-            "I need to check that the version tag is registered on GitHub"
-
-    PublishCannotGetTagData version url body ->
-      Help.report "PROBLEM VERIFYING TAG" Nothing
-        ("I need to check that version " ++ V.toChars version ++ " is tagged on GitHub, so I fetched:")
-        [ D.indent 4 $ D.dullyellow $ D.fromChars url
-        , D.reflow $
-            "I got the data back, but it was not what I was expecting. The response\
-            \ body contains " ++ show (BS.length body) ++ " bytes. Here is the "
-            ++ if BS.length body <= 76 then "whole thing:" else "beginning:"
-        , D.indent 4 $ D.dullyellow $ D.fromChars $
-            if BS.length body <= 76
-            then BS_UTF8.toString body
-            else take 73 (BS_UTF8.toString body) ++ "..."
-        , D.reflow $
-            "Does this error keep showing up? Maybe there is something weird with your\
-            \ internet connection. We have gotten reports that schools, businesses,\
-            \ airports, etc. sometimes intercept requests and add things to the body\
-            \ or change its contents entirely. Could that be the problem?"
-        ]
-
-    PublishCannotGetZip httpError ->
-      toHttpErrorReport "PROBLEM DOWNLOADING CODE" httpError $
-        "I need to check that folks can download and build the source code when they\
-        \ install this package"
-
-    PublishCannotDecodeZip url ->
-      Help.report "PROBLEM DOWNLOADING CODE" Nothing
-        "I need to check that folks can download and build the source code when they\
-        \ install this package, so I downloaded the code from:"
-        [ D.indent 4 $ D.dullyellow $ D.fromChars url
-        , D.reflow $
-            "I was unable to unzip the archive though. Maybe there is something weird with\
-            \ your internet connection. We have gotten reports that schools, businesses,\
-            \ airports, etc. sometimes intercept requests and add things to the body or\
-            \ change its contents entirely. Could that be the problem?"
-        ]
-
-    PublishCannotGetDocs old new docsProblem ->
-      toDocsProblemReport docsProblem $
-        "I need the docs for " ++ V.toChars old ++ " to verify that "
-        ++ V.toChars new ++ " really does come next"
-
-    PublishCannotRegister httpError ->
-      toHttpErrorReport "PROBLEM PUBLISHING PACKAGE" httpError $
-        "I need to send information about your package to the package website"
 
     PublishNoGit ->
       Help.report "NO GIT" Nothing
@@ -639,18 +544,6 @@ publishToReport publish =
             ++ vsn ++ "` and publish your code from there."
         ]
 
-    PublishZipBadDetails _ ->
-      badZipReport
-
-    PublishZipApplication ->
-      badZipReport
-
-    PublishZipNoExposed ->
-      badZipReport
-
-    PublishZipBuildProblem _ ->
-      badZipReport
-
 
 toBadReadmeReport :: String -> String -> Help.Report
 toBadReadmeReport title summary =
@@ -675,24 +568,12 @@ toBadReadmeReport title summary =
     ]
 
 
-badZipReport :: Help.Report
-badZipReport =
-  Help.report "PROBLEM VERIFYING PACKAGE" Nothing
-    "Before publishing packages, I download the code from GitHub and try to build it\
-    \ from scratch. That way I can be more confident that it will work for other\
-    \ people too. But I am not able to build it!"
-    [ D.reflow $
-        "I was just able to build your local copy though. Is there some way the version\
-        \ on GitHub could be different?"
-    ]
-
-
 
 -- DOCS
 
 
 data DocsProblem
-  = DP_Http Http.Error
+  = DP_Git Git.Error
   | DP_Data String BS.ByteString
   | DP_Cache
 
@@ -700,8 +581,8 @@ data DocsProblem
 toDocsProblemReport :: DocsProblem -> String -> Help.Report
 toDocsProblemReport problem context =
   case problem of
-    DP_Http httpError ->
-      toHttpErrorReport "PROBLEM LOADING DOCS" httpError context
+    DP_Git gitError ->
+      toGitErrorReport "PROBLEM LOADING DOCS" gitError context
 
     DP_Data url body ->
       Help.report "PROBLEM LOADING DOCS" Nothing (context ++ ", so I fetched:")
@@ -714,22 +595,19 @@ toDocsProblemReport problem context =
             if BS.length body <= 76
             then BS_UTF8.toString body
             else take 73 (BS_UTF8.toString body) ++ "..."
-        , D.reflow $
+        , D.reflow
             "Does this error keep showing up? Maybe there is something weird with your\
-            \ internet connection. We have gotten reports that schools, businesses,\
-            \ airports, etc. sometimes intercept requests and add things to the body\
-            \ or change its contents entirely. Could that be the problem?"
+            \ internet connection."
         ]
 
     DP_Cache ->
       Help.report "PROBLEM LOADING DOCS" Nothing (context ++ ", but the local copy seems to be corrupted.")
-        [ D.reflow $
+        [ D.reflow
             "I deleted the cached version, so the next run should download a fresh copy of\
             \ the docs. Hopefully that will get you unstuck, but it will not resolve the root\
             \ problem if, for example, a 3rd party editor plugin is modifing cached files\
             \ for some reason."
         ]
-
 
 
 -- INSTALL
@@ -738,7 +616,6 @@ toDocsProblemReport problem context =
 data Install
   = InstallNoOutline
   | InstallBadOutline Outline
-  | InstallBadRegistry RegistryProblem
   | InstallNoArgs FilePath
   | InstallNoOnlineAppSolution Pkg.Name
   | InstallNoOfflineAppSolution Pkg.Name
@@ -762,10 +639,6 @@ installToReport exit =
 
     InstallBadOutline outline ->
       toOutlineReport outline
-
-    InstallBadRegistry problem ->
-      toRegistryProblemReport "PROBLEM LOADING PACKAGE LIST" problem $
-        "I need the list of published packages to figure out how to install things"
 
     InstallNoArgs elmHome ->
       Help.report "INSTALL WHAT?" Nothing
@@ -901,8 +774,8 @@ installToReport exit =
 
 data Solver
   = SolverBadCacheData Pkg.Name V.Version
-  | SolverBadHttpData Pkg.Name V.Version String
-  | SolverBadHttp Pkg.Name V.Version Http.Error
+  | SolverBadGitOperationUnversionedPkg Pkg.Name Git.Error
+  | SolverBadGitOperationVersionedPkg Pkg.Name V.Version Git.Error
 
 
 toSolverReport :: Solver -> Help.Report
@@ -915,28 +788,19 @@ toSolverReport problem =
           \ help me search for a set of compatible packages. I had it cached locally, but\
           \ it looks like the file was corrupted!"
         )
-        [ D.reflow $
+        [ D.reflow
             "I deleted the cached version, so the next run should download a fresh copy.\
             \ Hopefully that will get you unstuck, but it will not resolve the root\
             \ problem if a 3rd party tool is modifing cached files for some reason."
         ]
 
-    SolverBadHttpData pkg vsn url ->
-      Help.report "PROBLEM SOLVING PACKAGE CONSTRAINTS" Nothing
-        (
-          "I need the elm.json of " ++ Pkg.toChars pkg ++ " " ++ V.toChars vsn ++ " to\
-          \ help me search for a set of compatible packages, but I ran into corrupted\
-          \ information from:"
-        )
-        [ D.indent 4 $ D.dullyellow $ D.fromChars url
-        , D.reflow $
-            "Is something weird with your internet connection. We have gotten reports that\
-            \ schools, businesses, airports, etc. sometimes intercept requests and add things\
-            \ to the body or change its contents entirely. Could that be the problem?"
-        ]
+    SolverBadGitOperationUnversionedPkg pkg gitError ->
+      toGitErrorReport "PROBLEM SOLVING PACKAGE CONSTRAINTS" gitError $
+        "I need the elm.json of " ++ Pkg.toChars pkg 
+        ++ " to help me search for a set of compatible packages"
 
-    SolverBadHttp pkg vsn httpError ->
-      toHttpErrorReport "PROBLEM SOLVING PACKAGE CONSTRAINTS" httpError $
+    SolverBadGitOperationVersionedPkg pkg vsn gitError ->
+      toGitErrorReport "PROBLEM SOLVING PACKAGE CONSTRAINTS" gitError $
         "I need the elm.json of " ++ Pkg.toChars pkg ++ " " ++ V.toChars vsn
         ++ " to help me search for a set of compatible packages"
 
@@ -1265,13 +1129,11 @@ data Details
   | DetailsBadElmInAppOutline V.Version
   | DetailsHandEditedDependencies
   | DetailsBadOutline Outline
-  | DetailsCannotGetRegistry RegistryProblem
   | DetailsBadDeps FilePath [DetailsBadDep]
 
 
 data DetailsBadDep
-  = BD_BadDownload Pkg.Name V.Version PackageProblem
-  | BD_BadBuild Pkg.Name V.Version (Map.Map Pkg.Name V.Version)
+  = BD_BadBuild Pkg.Name V.Version (Map.Map Pkg.Name V.Version)
 
 
 toDetailsReport :: Details -> Help.Report
@@ -1345,12 +1207,8 @@ toDetailsReport details =
     DetailsBadOutline outline ->
       toOutlineReport outline
 
-    DetailsCannotGetRegistry problem ->
-      toRegistryProblemReport "PROBLEM LOADING PACKAGE LIST" problem $
-        "I need the list of published packages to verify your dependencies"
-
     DetailsBadDeps cacheDir deps ->
-      case List.sortOn toBadDepRank deps of
+      case deps of
         [] ->
           Help.report "PROBLEM BUILDING DEPENDENCIES" Nothing
             "I am not sure what is going wrong though."
@@ -1365,9 +1223,6 @@ toDetailsReport details =
 
         d:_ ->
           case d of
-            BD_BadDownload pkg vsn packageProblem ->
-              toPackageProblemReport pkg vsn packageProblem
-
             BD_BadBuild pkg vsn fingerprint ->
               Help.report "PROBLEM BUILDING DEPENDENCIES" Nothing
                 "I ran into a compilation error when trying to build the following package:"
@@ -1390,196 +1245,44 @@ toDetailsReport details =
                 ]
 
 
-toBadDepRank :: DetailsBadDep -> Int -- lower is better
-toBadDepRank badDep =
-  case badDep of
-    BD_BadDownload _ _ _ -> 0
-    BD_BadBuild _ _ _ -> 1
+
+-- 
 
 
-
--- PACKAGE PROBLEM
-
-
-data PackageProblem
-  = PP_BadEndpointRequest Http.Error
-  | PP_BadEndpointContent String
-  | PP_BadArchiveRequest Http.Error
-  | PP_BadArchiveContent String
-  | PP_BadArchiveHash String String String
-
-
-toPackageProblemReport :: Pkg.Name -> V.Version -> PackageProblem -> Help.Report
-toPackageProblemReport pkg vsn problem =
+toGitErrorReport :: String -> Git.Error -> String -> Help.Report
+toGitErrorReport title err context =
   let
-    thePackage =
-      Pkg.toChars pkg ++ " " ++ V.toChars vsn
-  in
-  case problem of
-    PP_BadEndpointRequest httpError ->
-      toHttpErrorReport "PROBLEM DOWNLOADING PACKAGE" httpError $
-        "I need to find the latest download link for " ++ thePackage
+    toGitReport intro details =
+      Help.report title Nothing intro details
 
-    PP_BadEndpointContent url ->
-      Help.report "PROBLEM DOWNLOADING PACKAGE" Nothing
-        (
-          "I need to find the latest download link for " ++ thePackage ++ ", but I ran into corrupted information from:"
-        )
-        [ D.indent 4 $ D.dullyellow $ D.fromChars url
-        , D.reflow $
-            "Is something weird with your internet connection. We have gotten reports that\
-            \ schools, businesses, airports, etc. sometimes intercept requests and add things\
-            \ to the body or change its contents entirely. Could that be the problem?"
-        ]
-
-    PP_BadArchiveRequest httpError ->
-      toHttpErrorReport "PROBLEM DOWNLOADING PACKAGE" httpError $
-        "I was trying to download the source code for " ++ thePackage
-
-    PP_BadArchiveContent url ->
-      Help.report "PROBLEM DOWNLOADING PACKAGE" Nothing
-        (
-          "I downloaded the source code for " ++ thePackage ++ " from:"
-        )
-        [ D.indent 4 $ D.dullyellow $ D.fromChars url
-        , D.reflow $
-           "But I was unable to unzip the data. Maybe there is something weird with\
-            \ your internet connection. We have gotten reports that schools, businesses,\
-            \ airports, etc. sometimes intercept requests and add things to the body or\
-            \ change its contents entirely. Could that be the problem?"
-        ]
-
-    PP_BadArchiveHash url expectedHash actualHash ->
-      Help.report "CORRUPT PACKAGE DATA" Nothing
-        (
-          "I downloaded the source code for " ++ thePackage ++ " from:"
-        )
-        [ D.indent 4 $ D.dullyellow $ D.fromChars url
-        , D.reflow "But it looks like the hash of the archive has changed since publication:"
-        , D.vcat $ map D.fromChars $
-            [ "  Expected: " ++ expectedHash
-            , "    Actual: " ++ actualHash
-            ]
-        , D.reflow $
-            "This usually means that the package author moved the version\
-            \ tag, so report it to them and see if that is the issue. Folks\
-            \ on Elm slack can probably help as well."
-        ]
-
-
-
--- REGISTRY PROBLEM
-
-
-data RegistryProblem
-  = RP_Http Http.Error
-  | RP_Data String BS.ByteString
-
-
-toRegistryProblemReport :: String -> RegistryProblem -> String -> Help.Report
-toRegistryProblemReport title problem context =
-  case problem of
-    RP_Http err ->
-      toHttpErrorReport title err context
-
-    RP_Data url body ->
-      Help.report title Nothing (context ++ ", so I fetched:")
-        [ D.indent 4 $ D.dullyellow $ D.fromChars url
-        , D.reflow $
-            "I got the data back, but it was not what I was expecting. The response\
-            \ body contains " ++ show (BS.length body) ++ " bytes. Here is the "
-            ++ if BS.length body <= 76 then "whole thing:" else "beginning:"
-        , D.indent 4 $ D.dullyellow $ D.fromChars $
-            if BS.length body <= 76
-            then BS_UTF8.toString body
-            else take 73 (BS_UTF8.toString body) ++ "..."
-        , D.reflow $
-            "Does this error keep showing up? Maybe there is something weird with your\
-            \ internet connection. We have gotten reports that schools, businesses,\
-            \ airports, etc. sometimes intercept requests and add things to the body\
-            \ or change its contents entirely. Could that be the problem?"
-        ]
-
-
-toHttpErrorReport :: String -> Http.Error -> String -> Help.Report
-toHttpErrorReport title err context =
-  let
-    toHttpReport intro url details =
-      Help.report title Nothing intro $
-        D.indent 4 (D.dullyellow (D.fromChars url)) : details
+    prettyPrintGitCommand maybePath args =
+      let
+        suffix =
+          case maybePath of
+            Just path -> " in " ++ path
+            Nothing -> ""
+      in
+        unwords args ++ suffix
   in
   case err of
-    Http.BadUrl url reason ->
-      toHttpReport (context ++ ", so I wanted to fetch:") url
-        [ D.reflow $ "But my HTTP library is saying this is not a valid URL. It is saying:"
-        , D.indent 4 $ D.fromChars reason
-        , D.reflow $
-            "This may indicate that there is some problem in the compiler, so please open an\
-            \ issue at https://github.com/elm/compiler/issues listing your operating system, Elm\
-            \ version, the command you ran, the terminal output, and any additional information\
-            \ that might help others reproduce the error."
+    Git.MissingGit ->
+      toGitReport (context ++ ", I couldn't find a git binary.")
+        [ D.reflow "I use git to clone dependencies from github.\
+          \ Make sure that git is installed and present in your PATH."
         ]
 
-    Http.BadHttp url httpExceptionContent ->
-      case httpExceptionContent of
-        HTTP.StatusCodeException response body ->
-          let
-            (HTTP.Status code message) = HTTP.responseStatus response
-          in
-          toHttpReport (context ++ ", so I tried to fetch:") url
-            [ D.fillSep $
-                ["But","it","came","back","as",D.red (D.fromInt code)]
-                ++ map D.fromChars (words (BS_UTF8.toString message))
-            , D.indent 4 $ D.reflow $ BS_UTF8.toString body
-            , D.reflow $
-                "This may mean some online endpoint changed in an unexpected way, so if does not\
-                \ seem like something on your side is causing this (e.g. firewall) please report\
-                \ this to https://github.com/elm/compiler/issues with your operating system, Elm\
-                \ version, the command you ran, the terminal output, and any additional information\
-                \ that can help others reproduce the error!"
-            ]
-
-        HTTP.TooManyRedirects responses ->
-          toHttpReport (context ++ ", so I tried to fetch:") url
-            [ D.reflow $ "But I gave up after following these " ++ show (length responses) ++ " redirects:"
-            , D.indent 4 $ D.vcat $ map toRedirectDoc responses
-            , D.reflow $
-                "Is it possible that your internet connection intercepts certain requests? That\
-                \ sometimes causes problems for folks in schools, businesses, airports, hotels,\
-                \ and certain countries. Try asking for help locally or in a community forum!"
-            ]
-
-        otherException ->
-          toHttpReport (context ++ ", so I tried to fetch:") url
-            [ D.reflow $ "But my HTTP library is giving me the following error message:"
-            , D.indent 4 $ D.fromChars (show otherException)
-            , D.reflow $
-                "Are you somewhere with a slow internet connection? Or no internet?\
-                \ Does the link I am trying to fetch work in your browser? Maybe the\
-                \ site is down? Does your internet connection have a firewall that\
-                \ blocks certain domains? It is usually something like that!"
-            ]
-
-    Http.BadMystery url someException ->
-      toHttpReport (context ++ ", so I tried to fetch:") url
-        [ D.reflow $ "But I ran into something weird! I was able to extract this error message:"
-        , D.indent 4 $ D.fromChars (show someException)
-        , D.reflow $
-            "Is it possible that your internet connection intercepts certain requests? That\
-            \ sometimes causes problems for folks in schools, businesses, airports, hotels,\
-            \ and certain countries. Try asking for help locally or in a community forum!"
+    Git.FailedCommand maybePath args errorMsg ->
+      toGitReport (context ++ ", so I tried to execute: " ++ prettyPrintGitCommand maybePath args)
+        [ D.reflow "But it returned the following error message:"
+        , D.indent 4 $ D.reflow errorMsg
         ]
 
-
-toRedirectDoc :: HTTP.Response body -> D.Doc
-toRedirectDoc response =
-  let
-    (HTTP.Status code message) = HTTP.responseStatus response
-  in
-  case List.lookup HTTP.hLocation (HTTP.responseHeaders response) of
-    Just loc -> D.red (D.fromInt code) <> " - " <> D.fromChars (BS_UTF8.toString loc)
-    Nothing  -> D.red (D.fromInt code) <> " - " <> D.fromChars (BS_UTF8.toString message)
-
+    Git.NoVersions _ ->
+      toGitReport (context ++ ", no valid semantic version tags in this repo.")
+        [ D.reflow "Gren packages are just git repositories with tags following the \
+        \ semantic versioning scheme. However, it seems that this particular repo \
+        \ doesn't have _any_ semantic version tags!"
+        ]
 
 
 -- MAKE

@@ -12,7 +12,6 @@ import Control.Monad.Trans (MonadIO(liftIO))
 import qualified Data.ByteString.Builder as B
 import qualified Data.ByteString as BS
 import qualified Data.HashMap.Strict as HashMap
-import Data.Monoid ((<>))
 import qualified Data.NonEmptyList as NE
 import qualified System.Directory as Dir
 import System.FilePath as FP
@@ -31,7 +30,7 @@ import qualified Generate
 import qualified Reporting
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Task as Task
-import qualified Stuff
+import qualified Directories as Dirs
 
 
 
@@ -151,13 +150,13 @@ serveElm path =
 
 compile :: FilePath -> IO (Either Exit.Reactor B.Builder)
 compile path =
-  do  maybeRoot <- Stuff.findRoot
+  do  maybeRoot <- Dirs.findRoot
       case maybeRoot of
         Nothing ->
           return $ Left $ Exit.ReactorNoOutline
 
         Just root ->
-          BW.withScope $ \scope -> Stuff.withRootLock root $ Task.run $
+          BW.withScope $ \scope -> Dirs.withRootLock root $ Task.run $
             do  details <- Task.eio Exit.ReactorBadDetails $ Details.load Reporting.silent scope root
                 artifacts <- Task.eio Exit.ReactorBadBuild $ Build.fromPaths Reporting.silent root details (NE.List path [])
                 javascript <- Task.mapError Exit.ReactorBadGenerate $ Generate.dev root details artifacts

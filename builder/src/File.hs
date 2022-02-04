@@ -7,7 +7,6 @@ module File
   , writeUtf8
   , readUtf8
   , writeBuilder
-  , writePackage
   , exists
   , remove
   , removeDir
@@ -15,22 +14,19 @@ module File
   where
 
 
-import qualified Codec.Archive.Zip as Zip
 import Control.Exception (catch)
 import qualified Data.Binary as Binary
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Internal as BS
 import qualified Data.ByteString.Builder as B
-import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Fixed as Fixed
-import qualified Data.List as List
 import qualified Data.Time.Clock as Time
 import qualified Data.Time.Clock.POSIX as Time
 import qualified Foreign.ForeignPtr as FPtr
 import GHC.IO.Exception (IOException, IOErrorType(InvalidArgument))
 import qualified System.Directory as Dir
 import qualified System.FilePath as FP
-import System.FilePath ((</>))
+import System.FilePath ()
 import qualified System.IO as IO
 import System.IO.Error (ioeGetErrorType, annotateIOError, modifyIOError)
 
@@ -168,38 +164,6 @@ writeBuilder path builder =
   IO.withBinaryFile path IO.WriteMode $ \handle ->
     do  IO.hSetBuffering handle (IO.BlockBuffering Nothing)
         B.hPutBuilder handle builder
-
-
-
--- WRITE PACKAGE
-
-
-writePackage :: FilePath -> Zip.Archive -> IO ()
-writePackage destination archive =
-  case Zip.zEntries archive of
-    [] ->
-      return ()
-
-    entry:entries ->
-      do  let root = length (Zip.eRelativePath entry)
-          mapM_ (writeEntry destination root) entries
-
-
-writeEntry :: FilePath -> Int -> Zip.Entry -> IO ()
-writeEntry destination root entry =
-  let
-    path = drop root (Zip.eRelativePath entry)
-  in
-  if List.isPrefixOf "src/" path
-    || path == "LICENSE"
-    || path == "README.md"
-    || path == "elm.json"
-  then
-      if not (null path) && last path == '/'
-      then Dir.createDirectoryIfMissing True (destination </> path)
-      else LBS.writeFile (destination </> path) (Zip.fromEntry entry)
-  else
-      return ()
 
 
 

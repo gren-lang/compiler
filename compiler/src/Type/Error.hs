@@ -20,7 +20,6 @@ module Type.Error
 
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
-import Data.Monoid ((<>))
 import qualified Data.Name as Name
 
 import qualified Data.Bag as Bag

@@ -2,7 +2,6 @@
 module Deps.Solver
   ( Solver
   , Result(..)
-  , Connection(..)
   --
   , Details(..)
   , verify
@@ -17,23 +16,19 @@ module Deps.Solver
 
 
 import Control.Monad (foldM)
-import Control.Concurrent (forkIO, newEmptyMVar, putMVar, readMVar)
 import qualified Data.Map as Map
 import Data.Map ((!))
-import qualified System.Directory as Dir
 import System.FilePath ((</>))
 
-import qualified Deps.Registry as Registry
-import qualified Deps.Website as Website
 import qualified Elm.Constraint as C
 import qualified Elm.Package as Pkg
 import qualified Elm.Outline as Outline
 import qualified Elm.Version as V
 import qualified File
-import qualified Http
 import qualified Json.Decode as D
 import qualified Reporting.Exit as Exit
-import qualified Stuff
+import qualified Directories as Dirs
+import qualified Deps.Package as Package
 
 
 
@@ -54,9 +49,7 @@ newtype Solver a =
 
 data State =
   State
-    { _cache :: Stuff.PackageCache
-    , _connection :: Connection
-    , _registry :: Registry.Registry
+    { _cache :: Dirs.PackageCache
     , _constraints :: Map.Map (Pkg.Name, V.Version) Constraints
     }
 
@@ -66,11 +59,6 @@ data Constraints =
     { _elm :: C.Constraint
     , _deps :: Map.Map Pkg.Name C.Constraint
     }
-
-
-data Connection
-  = Online Http.Manager
-  | Offline
 
 
 
@@ -92,30 +80,22 @@ data Details =
   Details V.Version (Map.Map Pkg.Name C.Constraint)
 
 
-verify :: Stuff.PackageCache -> Connection -> Registry.Registry -> Map.Map Pkg.Name C.Constraint -> IO (Result (Map.Map Pkg.Name Details))
-verify cache connection registry constraints =
-  Stuff.withRegistryLock cache $
+verify :: Dirs.PackageCache -> Map.Map Pkg.Name C.Constraint -> IO (Result (Map.Map Pkg.Name Details))
+verify cache constraints =
+  Dirs.withRegistryLock cache $
   case try constraints of
     Solver solver ->
-      solver (State cache connection registry Map.empty)
+      solver (State cache Map.empty)
         (\s a _ -> return $ Ok (Map.mapWithKey (addDeps s) a))
-        (\_     -> return $ noSolution connection)
+        (\_     -> return NoSolution)
         (\e     -> return $ Err e)
 
 
 addDeps :: State -> Pkg.Name -> V.Version -> Details
-addDeps (State _ _ _ constraints) name vsn =
+addDeps (State _ constraints) name vsn =
   case Map.lookup (name, vsn) constraints of
     Just (Constraints _ deps) -> Details vsn deps
     Nothing                   -> error "compiler bug manifesting in Deps.Solver.addDeps"
-
-
-noSolution :: Connection -> Result a
-noSolution connection =
-  case connection of
-    Online _ -> NoSolution
-    Offline -> NoOfflineSolution
-
 
 
 -- ADD TO APP - used in Install
@@ -129,9 +109,9 @@ data AppSolution =
     }
 
 
-addToApp :: Stuff.PackageCache -> Connection -> Registry.Registry -> Pkg.Name -> Outline.AppOutline -> IO (Result AppSolution)
-addToApp cache connection registry pkg outline@(Outline.AppOutline _ _ direct indirect testDirect testIndirect) =
-  Stuff.withRegistryLock cache $
+addToApp :: Dirs.PackageCache -> Pkg.Name -> Outline.AppOutline -> IO (Result AppSolution)
+addToApp cache pkg outline@(Outline.AppOutline _ _ direct indirect testDirect testIndirect) =
+  Dirs.withRegistryLock cache $
   let
     allIndirects = Map.union indirect testIndirect
     allDirects = Map.union direct testDirect
@@ -150,14 +130,14 @@ addToApp cache connection registry pkg outline@(Outline.AppOutline _ _ direct in
       ]
   of
     Solver solver ->
-      solver (State cache connection registry Map.empty)
+      solver (State cache Map.empty)
         (\s a _ -> return $ Ok (toApp s pkg outline allDeps a))
-        (\_     -> return $ noSolution connection)
+        (\_     -> return $ NoSolution)
         (\e     -> return $ Err e)
 
 
 toApp :: State -> Pkg.Name -> Outline.AppOutline -> Map.Map Pkg.Name V.Version -> Map.Map Pkg.Name V.Version -> AppSolution
-toApp (State _ _ _ constraints) pkg (Outline.AppOutline elm srcDirs direct _ testDirect _) old new =
+toApp (State _ constraints) pkg (Outline.AppOutline elm srcDirs direct _ testDirect _) old new =
   let
     d   = Map.intersection new (Map.insert pkg V.one direct)
     i   = Map.difference (getTransitive constraints new (Map.toList d) Map.empty) d
@@ -261,15 +241,16 @@ addConstraint solved unsolved (name, newConstraint) =
 
 getRelevantVersions :: Pkg.Name -> C.Constraint -> Solver (V.Version, [V.Version])
 getRelevantVersions name constraint =
-  Solver $ \state@(State _ _ registry _) ok back _ ->
-    case Registry.getVersions name registry of
-      Just (Registry.KnownVersions newest previous) ->
+  Solver $ \state@(State cache _) ok back err -> do
+    versionsResult <- Package.getVersions cache name
+    case versionsResult of
+      Right (newest, previous) ->
         case filter (C.satisfies constraint) (newest:previous) of
           []   -> back state
           v:vs -> ok state (v,vs) back
 
-      Nothing ->
-        back state
+      Left gitErr ->
+        err $ Exit.SolverBadGitOperationUnversionedPkg name gitErr
 
 
 
@@ -278,56 +259,33 @@ getRelevantVersions name constraint =
 
 getConstraints :: Pkg.Name -> V.Version -> Solver Constraints
 getConstraints pkg vsn =
-  Solver $ \state@(State cache connection registry cDict) ok back err ->
+  Solver $ \state@(State cache cDict) ok back err ->
     do  let key = (pkg, vsn)
         case Map.lookup key cDict of
           Just cs ->
             ok state cs back
 
           Nothing ->
-            do  let toNewState cs = State cache connection registry (Map.insert key cs cDict)
-                let home = Stuff.package cache pkg vsn
-                let path = home </> "elm.json"
-                outlineExists <- File.exists path
-                if outlineExists
-                  then
-                    do  bytes <- File.readUtf8 path
-                        case D.fromByteString constraintsDecoder bytes of
-                          Right cs ->
-                            case connection of
-                              Online _ ->
-                                ok (toNewState cs) cs back
+            do  let toNewState cs = State cache (Map.insert key cs cDict)
+                let home = Dirs.package cache pkg vsn
+                packageInstalResult <- Package.installPackageVersion cache pkg vsn
+                case packageInstalResult of
+                    Left gitErr ->
+                        err $ Exit.SolverBadGitOperationVersionedPkg pkg vsn gitErr
+                  
+                    Right () -> do
+                        let path = home </> "elm.json"
+                        outlineExists <- File.exists path
+                        if outlineExists 
+                           then do  bytes <- File.readUtf8 path
+                                    case D.fromByteString constraintsDecoder bytes of
+                                      Right cs ->
+                                          ok (toNewState cs) cs back
 
-                              Offline ->
-                                do  srcExists <- Dir.doesDirectoryExist (Stuff.package cache pkg vsn </> "src")
-                                    if srcExists
-                                      then ok (toNewState cs) cs back
-                                      else back state
-
-                          Left  _  ->
-                            do  File.remove path
+                                      Left  _  ->
+                                          err (Exit.SolverBadCacheData pkg vsn)
+                            else
                                 err (Exit.SolverBadCacheData pkg vsn)
-                  else
-                    case connection of
-                      Offline ->
-                        back state
-
-                      Online manager ->
-                        do  let url = Website.metadata pkg vsn "elm.json"
-                            result <- Http.get manager url [] id (return . Right)
-                            case result of
-                              Left httpProblem ->
-                                err (Exit.SolverBadHttp pkg vsn httpProblem)
-
-                              Right body ->
-                                case D.fromByteString constraintsDecoder body of
-                                  Right cs ->
-                                    do  Dir.createDirectoryIfMissing True home
-                                        File.writeUtf8 path body
-                                        ok (toNewState cs) cs back
-
-                                  Left _ ->
-                                    err (Exit.SolverBadHttpData pkg vsn url)
 
 
 constraintsDecoder :: D.Decoder () Constraints
@@ -345,38 +303,14 @@ constraintsDecoder =
 -- ENVIRONMENT
 
 
-data Env =
-  Env Stuff.PackageCache Http.Manager Connection Registry.Registry
+newtype Env =
+  Env Dirs.PackageCache
 
 
-initEnv :: IO (Either Exit.RegistryProblem Env)
+initEnv :: IO Env
 initEnv =
-  do  mvar  <- newEmptyMVar
-      _     <- forkIO $ putMVar mvar =<< Http.getManager
-      cache <- Stuff.getPackageCache
-      Stuff.withRegistryLock cache $
-        do  maybeRegistry <- Registry.read cache
-            manager       <- readMVar mvar
-
-            case maybeRegistry of
-              Nothing ->
-                do  eitherRegistry <- Registry.fetch manager cache
-                    case eitherRegistry of
-                      Right latestRegistry ->
-                        return $ Right $ Env cache manager (Online manager) latestRegistry
-
-                      Left problem ->
-                        return $ Left $ problem
-
-              Just cachedRegistry ->
-                do  eitherRegistry <- Registry.update manager cache cachedRegistry
-                    case eitherRegistry of
-                      Right latestRegistry ->
-                        return $ Right $ Env cache manager (Online manager) latestRegistry
-
-                      Left _ ->
-                        return $ Right $ Env cache manager Offline cachedRegistry
-
+  do  cache <- Dirs.getPackageCache
+      return $ Env cache
 
 
 -- INSTANCES

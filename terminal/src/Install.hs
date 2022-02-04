@@ -12,18 +12,17 @@ import qualified Data.Map.Merge.Strict as Map
 
 import qualified BackgroundWriter as BW
 import qualified Deps.Solver as Solver
-import qualified Deps.Registry as Registry
 import qualified Elm.Constraint as C
 import qualified Elm.Details as Details
 import qualified Elm.Package as Pkg
 import qualified Elm.Outline as Outline
 import qualified Elm.Version as V
 import qualified Reporting
-import Reporting.Doc ((<>), (<+>))
+import Reporting.Doc ((<+>))
 import qualified Reporting.Doc as D
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Task as Task
-import qualified Stuff
+import qualified Directories as Dirs
 
 
 
@@ -38,7 +37,7 @@ data Args
 run :: Args -> () -> IO ()
 run args () =
   Reporting.attempt Exit.installToReport $
-    do  maybeRoot <- Stuff.findRoot
+    do  maybeRoot <- Dirs.findRoot
         case maybeRoot of
           Nothing ->
             return (Left Exit.InstallNoOutline)
@@ -46,12 +45,12 @@ run args () =
           Just root ->
             case args of
               NoArgs ->
-                do  elmHome <- Stuff.getElmHome
+                do  elmHome <- Dirs.getGrenHome
                     return (Left (Exit.InstallNoArgs elmHome))
 
               Install pkg ->
                 Task.run $
-                  do  env <- Task.eio Exit.InstallBadRegistry $ Solver.initEnv
+                  do  env <- Task.io Solver.initEnv
                       oldOutline <- Task.eio Exit.InstallBadOutline $ Outline.read root
                       case oldOutline of
                         Outline.App outline ->
@@ -149,7 +148,7 @@ attemptChangesHelp root env oldOutline newOutline question =
 
 
 makeAppPlan :: Solver.Env -> Pkg.Name -> Outline.AppOutline -> Task (Changes V.Version)
-makeAppPlan (Solver.Env cache _ connection registry) pkg outline@(Outline.AppOutline _ _ direct indirect testDirect testIndirect) =
+makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ _ direct indirect testDirect testIndirect) =
   if Map.member pkg direct then
     return AlreadyInstalled
 
@@ -184,27 +183,19 @@ makeAppPlan (Solver.Env cache _ connection registry) pkg outline@(Outline.AppOut
                     }
 
               Nothing ->
-                -- finally try to add it from scratch
-                case Registry.getVersions' pkg registry of
-                  Left suggestions ->
-                    case connection of
-                      Solver.Online _ -> Task.throw (Exit.InstallUnknownPackageOnline pkg suggestions)
-                      Solver.Offline  -> Task.throw (Exit.InstallUnknownPackageOffline pkg suggestions)
+                do  result <- Task.io $ Solver.addToApp cache pkg outline
+                    case result of
+                      Solver.Ok (Solver.AppSolution old new app) ->
+                        return (Changes (detectChanges old new) (Outline.App app))
 
-                  Right _ ->
-                    do  result <- Task.io $ Solver.addToApp cache connection registry pkg outline
-                        case result of
-                          Solver.Ok (Solver.AppSolution old new app) ->
-                            return (Changes (detectChanges old new) (Outline.App app))
+                      Solver.NoSolution ->
+                        Task.throw (Exit.InstallNoOnlineAppSolution pkg)
 
-                          Solver.NoSolution ->
-                            Task.throw (Exit.InstallNoOnlineAppSolution pkg)
+                      Solver.NoOfflineSolution ->
+                        Task.throw (Exit.InstallNoOfflineAppSolution pkg)
 
-                          Solver.NoOfflineSolution ->
-                            Task.throw (Exit.InstallNoOfflineAppSolution pkg)
-
-                          Solver.Err exit ->
-                            Task.throw (Exit.InstallHadSolverTrouble exit)
+                      Solver.Err exit ->
+                        Task.throw (Exit.InstallHadSolverTrouble exit)
 
 
 
@@ -212,7 +203,7 @@ makeAppPlan (Solver.Env cache _ connection registry) pkg outline@(Outline.AppOut
 
 
 makePkgPlan :: Solver.Env -> Pkg.Name -> Outline.PkgOutline -> Task (Changes C.Constraint)
-makePkgPlan (Solver.Env cache _ connection registry) pkg outline@(Outline.PkgOutline _ _ _ _ _ deps test _) =
+makePkgPlan (Solver.Env cache) pkg outline@(Outline.PkgOutline _ _ _ _ _ deps test _) =
   if Map.member pkg deps then
     return AlreadyInstalled
   else
@@ -226,41 +217,33 @@ makePkgPlan (Solver.Env cache _ connection registry) pkg outline@(Outline.PkgOut
             }
 
       Nothing ->
-        -- try to add a new dependency
-        case Registry.getVersions' pkg registry of
-          Left suggestions ->
-            case connection of
-              Solver.Online _ -> Task.throw (Exit.InstallUnknownPackageOnline pkg suggestions)
-              Solver.Offline  -> Task.throw (Exit.InstallUnknownPackageOffline pkg suggestions)
+        do  let old = Map.union deps test
+            let cons = Map.insert pkg C.anything old
+            result <- Task.io $ Solver.verify cache cons
+            case result of
+              Solver.Ok solution ->
+                let
+                  (Solver.Details vsn _) = solution ! pkg
 
-          Right (Registry.KnownVersions _ _) ->
-            do  let old = Map.union deps test
-                let cons = Map.insert pkg C.anything old
-                result <- Task.io $ Solver.verify cache connection registry cons
-                case result of
-                  Solver.Ok solution ->
-                    let
-                      (Solver.Details vsn _) = solution ! pkg
+                  con = C.untilNextMajor vsn
+                  new = Map.insert pkg con old
+                  changes = detectChanges old new
+                  news = Map.mapMaybe keepNew changes
+                in
+                return $ Changes changes $ Outline.Pkg $
+                  outline
+                    { Outline._pkg_deps = addNews (Just pkg) news deps
+                    , Outline._pkg_test_deps = addNews Nothing news test
+                    }
 
-                      con = C.untilNextMajor vsn
-                      new = Map.insert pkg con old
-                      changes = detectChanges old new
-                      news = Map.mapMaybe keepNew changes
-                    in
-                    return $ Changes changes $ Outline.Pkg $
-                      outline
-                        { Outline._pkg_deps = addNews (Just pkg) news deps
-                        , Outline._pkg_test_deps = addNews Nothing news test
-                        }
+              Solver.NoSolution ->
+                Task.throw $ Exit.InstallNoOnlinePkgSolution pkg
 
-                  Solver.NoSolution ->
-                    Task.throw (Exit.InstallNoOnlinePkgSolution pkg)
+              Solver.NoOfflineSolution ->
+                Task.throw $ Exit.InstallNoOfflinePkgSolution pkg
 
-                  Solver.NoOfflineSolution ->
-                    Task.throw (Exit.InstallNoOfflinePkgSolution pkg)
-
-                  Solver.Err exit ->
-                    Task.throw (Exit.InstallHadSolverTrouble exit)
+              Solver.Err exit ->
+                Task.throw $ Exit.InstallHadSolverTrouble exit
 
 
 addNews :: Maybe Pkg.Name -> Map.Map Pkg.Name C.Constraint -> Map.Map Pkg.Name C.Constraint -> Map.Map Pkg.Name C.Constraint

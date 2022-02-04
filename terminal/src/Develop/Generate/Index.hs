@@ -22,7 +22,7 @@ import qualified Elm.Version as V
 import qualified Json.Encode as E
 import Json.Encode ((==>))
 import qualified Reporting
-import qualified Stuff
+import qualified Directories as Dirs
 
 
 
@@ -131,7 +131,7 @@ toFile pwd path =
 
 getOutline :: IO (Maybe Outline.Outline)
 getOutline =
-  do  maybeRoot <- Stuff.findRoot
+  do  maybeRoot <- Dirs.findRoot
       case maybeRoot of
         Nothing ->
           return Nothing
@@ -162,7 +162,7 @@ getExactDeps maybeOutline =
           return Map.empty
 
         Outline.Pkg _ ->
-          do  maybeRoot <- Stuff.findRoot
+          do  maybeRoot <- Dirs.findRoot
               case maybeRoot of
                 Nothing ->
                   return Map.empty

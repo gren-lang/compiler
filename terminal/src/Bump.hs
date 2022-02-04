@@ -10,22 +10,20 @@ import qualified Data.NonEmptyList as NE
 
 import qualified BackgroundWriter as BW
 import qualified Build
-import qualified Deps.Bump as Bump
 import qualified Deps.Diff as Diff
-import qualified Deps.Registry as Registry
+import qualified Deps.Package as Package
 import qualified Elm.Details as Details
 import qualified Elm.Docs as Docs
 import qualified Elm.Magnitude as M
 import qualified Elm.Outline as Outline
 import qualified Elm.Version as V
-import qualified Http
-import Reporting.Doc ((<>), (<+>))
+import Reporting.Doc ((<+>))
 import qualified Reporting
 import qualified Reporting.Doc as D
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Exit.Help as Help
 import qualified Reporting.Task as Task
-import qualified Stuff
+import qualified Directories as Dirs
 
 
 
@@ -45,31 +43,27 @@ run () () =
 data Env =
   Env
     { _root :: FilePath
-    , _cache :: Stuff.PackageCache
-    , _manager :: Http.Manager
-    , _registry :: Registry.Registry
+    , _cache :: Dirs.PackageCache
     , _outline :: Outline.PkgOutline
     }
 
 
 getEnv :: Task.Task Exit.Bump Env
 getEnv =
-  do  maybeRoot <- Task.io $ Stuff.findRoot
+  do  maybeRoot <- Task.io Dirs.findRoot
       case maybeRoot of
         Nothing ->
           Task.throw Exit.BumpNoOutline
 
         Just root ->
-          do  cache <- Task.io $ Stuff.getPackageCache
-              manager <- Task.io $ Http.getManager
-              registry <- Task.eio Exit.BumpMustHaveLatestRegistry $ Registry.latest manager cache
+          do  cache <- Task.io Dirs.getPackageCache
               outline <- Task.eio Exit.BumpBadOutline $ Outline.read root
               case outline of
                 Outline.App _ ->
                   Task.throw Exit.BumpApplication
 
                 Outline.Pkg pkgOutline ->
-                  return $ Env root cache manager registry pkgOutline
+                  return $ Env root cache pkgOutline
 
 
 
@@ -77,21 +71,24 @@ getEnv =
 
 
 bump :: Env -> Task.Task Exit.Bump ()
-bump env@(Env root _ _ registry outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _)) =
-  case Registry.getVersions pkg registry of
-    Just knownVersions ->
-      let
-        bumpableVersions =
-          map (\(old, _, _) -> old) (Bump.getPossibilities knownVersions)
-      in
-      if elem vsn bumpableVersions
-      then suggestVersion env
-      else
-        Task.throw $ Exit.BumpUnexpectedVersion vsn $
-          map head (List.group (List.sort bumpableVersions))
+bump env@(Env root cache outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _)) =
+    Task.eio id $
+    do  versionResult <- Dirs.withRegistryLock cache $ Package.getVersions cache pkg 
+        case versionResult of
+          Right knownVersions ->
+             let
+                bumpableVersions =
+                    map (\(old, _, _) -> old) (Package.bumpPossibilities knownVersions)
+              in
+              if elem vsn bumpableVersions 
+                then Task.run $ suggestVersion env
+                else do
+                    return $ Left $ Exit.BumpUnexpectedVersion vsn $
+                        map head (List.group (List.sort bumpableVersions))
 
-    Nothing ->
-      Task.io $ checkNewPackage root outline
+          Left _ ->
+            do  checkNewPackage root outline
+                return $ Right ()
 
 
 
@@ -116,8 +113,12 @@ checkNewPackage root outline@(Outline.PkgOutline _ _ _ version _ _ _ _) =
 
 
 suggestVersion :: Env -> Task.Task Exit.Bump ()
-suggestVersion (Env root cache manager _ outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _)) =
-  do  oldDocs <- Task.eio (Exit.BumpCannotFindDocs pkg vsn) (Diff.getDocs cache manager pkg vsn)
+suggestVersion (Env root cache outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _)) =
+  do  oldDocs <-
+        Task.mapError 
+            (Exit.BumpCannotFindDocs pkg vsn) 
+            (Diff.getDocs cache pkg vsn)
+
       newDocs <- generateDocs root outline
       let changes = Diff.diff oldDocs newDocs
       let newVersion = Diff.bump changes vsn
@@ -141,7 +142,7 @@ generateDocs root (Outline.PkgOutline _ _ _ _ exposed _ _ _) =
 
       case Outline.flattenExposed exposed of
         [] ->
-          Task.throw $ Exit.BumpNoExposed
+          Task.throw Exit.BumpNoExposed
 
         e:es ->
           Task.eio Exit.BumpBadBuild $

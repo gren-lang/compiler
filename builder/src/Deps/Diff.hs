@@ -18,21 +18,26 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Name as Name
 import qualified Data.Set as Set
-import qualified System.Directory as Dir
+import qualified Data.NonEmptyList as NE
 import System.FilePath ((</>))
 
-import qualified Deps.Website as Website
 import qualified Elm.Compiler.Type as Type
+import qualified Elm.Details as Details
 import qualified Elm.Docs as Docs
 import qualified Elm.Magnitude as M
 import qualified Elm.ModuleName as ModuleName
 import qualified Elm.Package as Pkg
+import qualified Elm.Outline as Outline
 import qualified Elm.Version as V
-import qualified File
-import qualified Http
-import qualified Json.Decode as D
+import qualified Deps.Package as Package
+import qualified Reporting
 import qualified Reporting.Exit as Exit
-import qualified Stuff
+import qualified Reporting.Task as Task
+import qualified Json.Decode as D
+import qualified File
+import qualified Directories as Dirs
+import qualified Build
+import qualified BackgroundWriter as BW
 
 
 
@@ -355,29 +360,39 @@ changeMagnitude (Changes added changed removed) =
 -- GET DOCS
 
 
-getDocs :: Stuff.PackageCache -> Http.Manager -> Pkg.Name -> V.Version -> IO (Either Exit.DocsProblem Docs.Documentation)
-getDocs cache manager name version =
-  do  let home = Stuff.package cache name version
+-- TODO: Return better error message than DP_Cache
+getDocs :: Dirs.PackageCache -> Pkg.Name -> V.Version -> Task.Task Exit.DocsProblem Docs.Documentation
+getDocs cache pkg vsn =
+  do  Task.eio Exit.DP_Git $ Dirs.withRegistryLock cache $ 
+        Package.installPackageVersion cache pkg vsn
+      let home = Dirs.package cache pkg vsn
       let path = home </> "docs.json"
-      exists <- File.exists path
+      exists <- Task.io $ File.exists path
       if exists
         then
-          do  bytes <- File.readUtf8 path
+          do  bytes <- Task.io $ File.readUtf8 path
               case D.fromByteString Docs.decoder bytes of
                 Right docs ->
-                  return $ Right docs
+                   return docs
 
                 Left _ ->
-                  do  File.remove path
-                      return $ Left Exit.DP_Cache
+                    do  Task.io $ File.remove home
+                        Task.throw Exit.DP_Cache
         else
-          do  let url = Website.metadata name version "docs.json"
-              Http.get manager url [] Exit.DP_Http $ \body ->
-                case D.fromByteString Docs.decoder body of
-                  Right docs ->
-                    do  Dir.createDirectoryIfMissing True home
-                        File.writeUtf8 path body
-                        return $ Right docs
+          do  details <- Task.eio (const Exit.DP_Cache) $ BW.withScope $ \scope ->
+                Details.load Reporting.silent scope home
 
-                  Left _ ->
-                    return $ Left $ Exit.DP_Data url body
+              outline <- Task.eio (const Exit.DP_Cache) $ Outline.read home
+              case outline of
+                (Outline.Pkg (Outline.PkgOutline _ _ _ _ exposed _ _ _)) ->
+                    case Outline.flattenExposed exposed of
+                        [] ->
+                            Task.throw Exit.DP_Cache
+
+                        e:es ->
+                            Task.eio (const Exit.DP_Cache) $
+                                Build.fromExposed Reporting.silent home details Build.KeepDocs (NE.List e es)
+
+                _ ->
+                    Task.throw Exit.DP_Cache
+
