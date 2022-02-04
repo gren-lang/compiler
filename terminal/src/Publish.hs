@@ -42,10 +42,6 @@ import qualified Directories as Dirs
 -- RUN
 
 
--- TODO mandate no "exposing (..)" in packages to make
--- optimization to skip builds in Elm.Details always valid
-
-
 run :: () -> () -> IO ()
 run () () =
   Reporting.attempt Exit.publishToReport $
