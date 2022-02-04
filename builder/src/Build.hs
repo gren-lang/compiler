@@ -1220,7 +1220,7 @@ gatherProblemsOrMains results (NE.List rootResult rootResults) =
     (ROutsideOk n i o, (  [], ms)) -> Right (NE.List (Outside n i o) ms)
     (ROutsideOk _ _ _, (e:es, _ )) -> Left  (NE.List e es)
     (ROutsideErr e   , (  es, _ )) -> Left  (NE.List e es)
-    (ROutsideBlocked , (  [], _ )) -> error "seems like .gren_cache/ is corrupted"
+    (ROutsideBlocked , (  [], _ )) -> error "seems like .gren/ is corrupted"
     (ROutsideBlocked , (e:es, _ )) -> Left  (NE.List e es)
 
 
