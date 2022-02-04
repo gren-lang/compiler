@@ -17,6 +17,7 @@ import qualified BackgroundWriter as BW
 import qualified Build
 import Deps.Diff (PackageChanges(..), ModuleChanges(..), Changes(..))
 import qualified Deps.Diff as DD
+import qualified Deps.Package as Package
 import qualified Elm.Compiler.Type as Type
 import qualified Elm.Details as Details
 import qualified Elm.Docs as Docs
@@ -25,7 +26,7 @@ import qualified Elm.Outline as Outline
 import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
 import qualified Reporting
-import Reporting.Doc ((<>), (<+>))
+import Reporting.Doc ((<+>))
 import qualified Reporting.Doc as D
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Exit.Help as Help
@@ -80,18 +81,18 @@ type Task a =
 
 
 diff :: Env -> Args -> Task ()
-diff env@(Env _ _) args =
+diff env@(Env _ cache) args =
   case args of
     GlobalInquiry name v1 v2 ->
-        {-case Registry.getVersions' name registry of
-        Right vsns ->
-          do  oldDocs <- getDocs env name vsns (min v1 v2)
-              newDocs <- getDocs env name vsns (max v1 v2)
-              writeDiff oldDocs newDocs
+        do  versionResult <- Task.io $ Dirs.withRegistryLock cache $ Package.getVersions cache name
+            case versionResult of
+                Right vsns ->
+                  do  oldDocs <- getDocs env name vsns (min v1 v2)
+                      newDocs <- getDocs env name vsns (max v1 v2)
+                      writeDiff oldDocs newDocs
 
-        Left suggestions ->
-          Task.throw $ Exit.DiffUnknownPackage name suggestions-}
-        Task.throw Exit.DiffUnpublished
+                Left _ ->
+                    Task.throw Exit.DiffUnpublished
 
     LocalInquiry v1 v2 ->
       do  (name, vsns) <- readOutline env
@@ -116,26 +117,24 @@ diff env@(Env _ _) args =
 -- GET DOCS
 
 
-getDocs :: Env -> Pkg.Name -> () -> V.Version -> Task Docs.Documentation
-getDocs (Env _ cache) name () version =
-    {-if latest == version || elem version previous
-  then Task.eio (Exit.DiffDocsProblem version) $ DD.getDocs cache manager name version
-  else Task.throw $ Exit.DiffUnknownVersion name version (latest:previous)-}
-  Task.throw Exit.DiffUnpublished 
+getDocs :: Env -> Pkg.Name -> (V.Version, [ V.Version ]) -> V.Version -> Task Docs.Documentation
+getDocs (Env _ cache) name (latest, previous) version =
+    if latest == version || elem version previous
+        then Task.mapError (Exit.DiffDocsProblem version) $ DD.getDocs cache name version
+        else Task.throw $ Exit.DiffUnknownVersion name version (latest:previous)
 
 
-getLatestDocs :: Env -> Pkg.Name -> () -> Task Docs.Documentation
-getLatestDocs (Env _ cache) name () =
-  Task.throw Exit.DiffUnpublished
-  --Task.eio (Exit.DiffDocsProblem latest) $ DD.getDocs cache manager name latest
+getLatestDocs :: Env -> Pkg.Name -> (V.Version, [ V.Version ]) -> Task Docs.Documentation
+getLatestDocs (Env _ cache) name (latest, _) =
+  Task.mapError (Exit.DiffDocsProblem latest) $ DD.getDocs cache name latest
 
 
 
 -- READ OUTLINE
 
 
-readOutline :: Env -> Task (Pkg.Name, ())
-readOutline (Env maybeRoot _) =
+readOutline :: Env -> Task (Pkg.Name, (V.Version, [ V.Version ]))
+readOutline (Env maybeRoot cache) =
   case maybeRoot of
     Nothing ->
       Task.throw Exit.DiffNoOutline
@@ -152,7 +151,13 @@ readOutline (Env maybeRoot _) =
                   Task.throw Exit.DiffApplication
 
                 Outline.Pkg (Outline.PkgOutline pkg _ _ _ _ _ _ _) ->
-                  Task.throw Exit.DiffUnpublished
+                    do  versionResult <- Task.io $ Dirs.withRegistryLock cache $ Package.getVersions cache pkg
+                        case versionResult of
+                          Right vsns ->
+                            return (pkg, vsns)
+
+                          Left _ ->
+                            Task.throw Exit.DiffUnpublished
 
 
 
@@ -163,7 +168,7 @@ generateDocs :: Env -> Task Docs.Documentation
 generateDocs (Env maybeRoot _) =
   case maybeRoot of
     Nothing ->
-      Task.throw $ Exit.DiffNoOutline
+      Task.throw Exit.DiffNoOutline
 
     Just root ->
       do  details <-
@@ -172,12 +177,12 @@ generateDocs (Env maybeRoot _) =
 
           case Details._outline details of
             Details.ValidApp _ ->
-              Task.throw $ Exit.DiffApplication
+              Task.throw Exit.DiffApplication
 
             Details.ValidPkg _ exposed _ ->
               case exposed of
                 [] ->
-                  Task.throw $ Exit.DiffNoExposed
+                  Task.throw Exit.DiffNoExposed
 
                 e:es ->
                   Task.eio Exit.DiffBadBuild $

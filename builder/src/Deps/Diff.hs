@@ -19,7 +19,6 @@ import qualified Data.Map as Map
 import qualified Data.Name as Name
 import qualified Data.Set as Set
 import qualified Data.NonEmptyList as NE
-import qualified System.Directory as Dir
 import System.FilePath ((</>))
 
 import qualified Elm.Compiler.Type as Type

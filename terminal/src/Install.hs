@@ -12,14 +12,13 @@ import qualified Data.Map.Merge.Strict as Map
 
 import qualified BackgroundWriter as BW
 import qualified Deps.Solver as Solver
-import qualified Deps.Package as Package
 import qualified Elm.Constraint as C
 import qualified Elm.Details as Details
 import qualified Elm.Package as Pkg
 import qualified Elm.Outline as Outline
 import qualified Elm.Version as V
 import qualified Reporting
-import Reporting.Doc ((<>), (<+>))
+import Reporting.Doc ((<+>))
 import qualified Reporting.Doc as D
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Task as Task

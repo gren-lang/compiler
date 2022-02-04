@@ -42,7 +42,7 @@ getVersions cache name = do
 bumpPossibilities :: (V.Version, [V.Version]) -> [(V.Version, V.Version, M.Magnitude)]
 bumpPossibilities (latest, previous) =
   let
-    allVersions = latest:previous
+    allVersions = reverse (latest:previous)
     minorPoints = map last (List.groupBy sameMajor allVersions)
     patchPoints = map last (List.groupBy sameMinor allVersions)
   in
@@ -80,8 +80,8 @@ installPackageVersion cache pkg vsn = do
                     let gitUrl = Git.githubUrl pkg
                     baseCloneResult <- Git.clone gitUrl basePkgPath 
                     case baseCloneResult of
-                      Left error ->
-                          return $ Left error
+                      Left cloneErr ->
+                          return $ Left cloneErr
 
                       Right () ->
                           Git.localClone basePkgPath vsn versionedPkgPath

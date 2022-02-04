@@ -19,6 +19,7 @@ import System.Directory (findExecutable)
 import qualified System.IO as IO
 import qualified System.Process as Process
 import qualified System.Exit as Exit
+import qualified Data.List as List
 import qualified Data.Either as Either
 import qualified Data.ByteString.Char8 as BS
 
@@ -165,7 +166,7 @@ tags path = do
 
               -- Ignore tags that aren't semantic versions
               versions =
-                Either.rights $ map (Parser.fromByteString V.parser (,)) tagList
+                reverse $ List.sort $ Either.rights $ map (Parser.fromByteString V.parser (,)) tagList
             in
             case versions of
               [] -> return $ Left $ NoVersions path

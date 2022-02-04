@@ -137,6 +137,7 @@ data Diff
   | DiffUnpublished
   | DiffUnknownPackage Pkg.Name [Pkg.Name]
   | DiffUnknownVersion Pkg.Name V.Version [V.Version]
+  | DiffDocsProblem V.Version DocsProblem
   | DiffBadDetails Details
   | DiffBadBuild BuildProblem
 
@@ -204,6 +205,10 @@ diffToReport diff =
               map mkRow $ List.groupBy sameMajor (List.sort realVersions)
         , "Want one of those instead?"
         ]
+
+    DiffDocsProblem version problem ->
+      toDocsProblemReport problem $
+        "I need the docs for " ++ V.toChars version ++ " to compute this diff"
 
     DiffBadDetails details ->
       toDetailsReport details
@@ -282,7 +287,7 @@ bumpToReport bump =
     BumpBadBuild problem ->
       toBuildProblemReport problem
 
-    BumpCannotFindDocs pkg vsn problem ->
+    BumpCannotFindDocs _ vsn problem ->
       toDocsProblemReport problem $
         "I need the docs for " ++ V.toChars vsn ++ " to compute the next version number"
 
