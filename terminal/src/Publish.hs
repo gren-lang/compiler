@@ -124,7 +124,7 @@ verifyReadme root =
   reportReadmeCheck $
   do  let readmePath = root </> "README.md"
       exists <- File.exists readmePath
-      if exists
+      if not exists
         then return (Left Exit.PublishNoReadme)
         else
           do  size <- IO.withFile readmePath IO.ReadMode IO.hFileSize
