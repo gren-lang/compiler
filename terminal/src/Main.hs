@@ -8,14 +8,12 @@ module Main
 import Prelude hiding (init)
 import qualified Data.List as List
 import qualified Text.PrettyPrint.ANSI.Leijen as P
-import Text.Read (readMaybe)
 
 import qualified Elm.Version as V
 import Terminal
 import Terminal.Helpers
 
 import qualified Bump
-import qualified Develop
 import qualified Diff
 import qualified Init
 import qualified Install
@@ -33,7 +31,6 @@ main =
   Terminal.app intro outro
     [ repl
     , init
-    , reactor
     , make
     , install
     , bump
@@ -61,7 +58,7 @@ intro =
 
 outro :: P.Doc
 outro =
-  P.fillSep $ map P.text $ words $
+  P.fillSep $ map P.text $ words
     "Be sure to ask on the Elm slack if you run into trouble! Folks are friendly and\
     \ happy to help out. They hang out there because it is fun, so be kind to get the\
     \ best results!"
@@ -125,45 +122,6 @@ interpreter =
     , _parser = Just
     , _suggest = \_ -> return []
     , _examples = \_ -> return ["node","nodejs"]
-    }
-
-
-
--- REACTOR
-
-
-reactor :: Terminal.Command
-reactor =
-  let
-    summary =
-      "Compile code with a click. It opens a file viewer in your browser, and\
-      \ when you click on an Elm file, it compiles and you see the result."
-
-    details =
-      "The `reactor` command starts a local server on your computer:"
-
-    example =
-      reflow
-        "After running that command, you would have a server at <http://localhost:8000>\
-        \ that helps with development. It shows your files like a file viewer. If you\
-        \ click on an Elm file, it will compile it for you! And you can just press\
-        \ the refresh button in the browser to recompile things."
-
-    reactorFlags =
-      flags Develop.Flags
-        |-- flag "port" port_ "The port of the server (default: 8000)"
-  in
-  Terminal.Command "reactor" (Common summary) details example noArgs reactorFlags Develop.run
-
-
-port_ :: Parser Int
-port_ =
-  Parser
-    { _singular = "port"
-    , _plural = "ports"
-    , _parser = readMaybe
-    , _suggest = \_ -> return []
-    , _examples = \_ -> return ["3000","8000"]
     }
 
 

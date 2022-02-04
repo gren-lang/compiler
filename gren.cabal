@@ -53,7 +53,6 @@ Executable gren
 
     other-modules:
         Bump
-        Develop
         Diff
         Init
         Install
@@ -67,12 +66,6 @@ Executable gren
         Terminal.Error
         Terminal.Helpers
         Terminal.Internal
-
-        -- from terminal/
-        Develop.Generate.Help
-        Develop.Generate.Index
-        Develop.StaticFiles
-        Develop.StaticFiles.Build
 
         -- from builder/
         Build
@@ -218,9 +211,6 @@ Executable gren
         process,
         raw-strings-qq,
         scientific,
-        SHA,
-        snap-core,
-        snap-server,
         template-haskell,
         time >= 1.9.1,
         unordered-containers,
