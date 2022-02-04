@@ -31,5 +31,5 @@ jobs:
       run: cabal install --only-dependencies --overwrite-policy=always
 
     - name: Build
-      run: cabal build
+      run: cabal build -f dev
 
