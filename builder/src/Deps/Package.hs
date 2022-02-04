@@ -74,8 +74,15 @@ installPackageVersion cache pkg vsn = do
             let basePkgPath = Dirs.basePackage cache pkg
             basePkgExists <- Dir.doesDirectoryExist basePkgPath
             if basePkgExists 
-                -- TODO: perform update on base pkg
-                then Git.localClone basePkgPath vsn versionedPkgPath
+                then do
+                    updateResult <- Git.update pkg basePkgPath
+                    case updateResult of
+                      Left updateErr ->
+                        return $ Left updateErr
+
+                      Right () ->
+                        Git.localClone basePkgPath vsn versionedPkgPath
+
                 else do
                     let gitUrl = Git.githubUrl pkg
                     baseCloneResult <- Git.clone gitUrl basePkgPath 
