@@ -180,7 +180,7 @@ read =
 
         Just chars ->
           let
-            lines = Lines (stripLegacyBackslash chars) []
+            lines = Lines chars []
           in
           case categorize lines of
             Done input -> return input
@@ -196,28 +196,11 @@ readMore previousLines prefill =
 
         Just chars ->
           let
-            lines = addLine (stripLegacyBackslash chars) previousLines
+            lines = addLine chars previousLines
           in
           case categorize lines of
             Done input -> return input
             Continue p -> readMore lines p
-
-
--- For compatibility with 0.19.0 such that readers of "Programming Elm" by @jfairbank
--- can get through the REPL section successfully.
---
--- TODO: remove stripLegacyBackslash in next MAJOR release
---
-stripLegacyBackslash :: [Char] -> [Char]
-stripLegacyBackslash chars =
-  case chars of
-    [] ->
-      []
-
-    _:_ ->
-      if last chars == '\\'
-      then init chars
-      else chars
 
 
 data Prefill
