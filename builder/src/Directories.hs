@@ -12,7 +12,6 @@ module Directories
   , withRegistryLock
   , PackageCache
   , getPackageCache
-  , registry
   , package
   , basePackage
   , getReplCache
@@ -38,7 +37,7 @@ import qualified Elm.Version as V
 
 projectCache :: FilePath -> FilePath
 projectCache root =
-  root </> ".gren_cache" </> compilerVersion
+  root </> ".gren" </> compilerVersion
 
 
 details :: FilePath -> FilePath
@@ -145,11 +144,6 @@ getPackageCache =
   PackageCache <$> getCacheDir "packages"
 
 
-registry :: PackageCache -> FilePath
-registry (PackageCache dir) =
-  dir </> "registry.dat"
-
-
 package :: PackageCache -> Pkg.Name -> V.Version -> FilePath
 package (PackageCache dir) name version =
   dir </> Pkg.toFilePath name </> V.toChars version
@@ -182,4 +176,4 @@ getGrenHome =
   do  maybeCustomHome <- Env.lookupEnv "GREN_HOME"
       case maybeCustomHome of
         Just customHome -> return customHome
-        Nothing -> Dir.getAppUserDataDirectory "gren"
+        Nothing -> Dir.getXdgDirectory Dir.XdgCache "gren"
