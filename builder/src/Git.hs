@@ -2,12 +2,14 @@ module Git
     ( GitUrl
     , Error(..)
     --
-    , checkInstalledGit
     , githubUrl
     , clone
     , localClone
     , update
     , tags
+    --
+    , hasLocalTag
+    , hasLocalChangesSinceTag
     )
     where
 
@@ -156,7 +158,6 @@ tags path = do
                 ""
         case exitCode of
           Exit.ExitFailure _ -> do
-            putStrLn "Error!"
             return $ Left $ FailedCommand (Just path) ("git":args) stderr
 
           Exit.ExitSuccess ->
@@ -172,3 +173,44 @@ tags path = do
               [] -> return $ Left $ NoVersions path
               v:vs -> return $ Right (v, vs)
 
+
+hasLocalTag :: V.Version -> IO (Either Error ())
+hasLocalTag vsn = do
+    maybeExec <- checkInstalledGit
+    case maybeExec of
+      Nothing ->
+        return $ Left MissingGit
+
+      Just git -> do
+        let args = [ "show", "--name-only", V.toChars vsn, "--" ]
+        (exitCode, _, stderr) <-
+            Process.readCreateProcessWithExitCode
+                (Process.proc git args)
+                ""
+        case exitCode of
+          Exit.ExitFailure _ -> do
+            return $ Left $ FailedCommand Nothing ("git":args) stderr
+
+          Exit.ExitSuccess ->
+            return $ Right ()
+
+
+hasLocalChangesSinceTag :: V.Version -> IO (Either Error ())
+hasLocalChangesSinceTag vsn = do
+    maybeExec <- checkInstalledGit
+    case maybeExec of
+      Nothing ->
+        return $ Left MissingGit
+
+      Just git -> do
+        let args = [ "diff-index", "--quiet", V.toChars vsn, "--" ]
+        (exitCode, _, stderr) <-
+            Process.readCreateProcessWithExitCode
+                (Process.proc git args)
+                ""
+        case exitCode of
+          Exit.ExitFailure _ -> do
+            return $ Left $ FailedCommand Nothing ("git":args) stderr
+
+          Exit.ExitSuccess ->
+            return $ Right ()

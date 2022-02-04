@@ -9,12 +9,9 @@ import Control.Monad (void)
 import qualified Data.List as List
 import qualified Data.Either as Either
 import qualified Data.NonEmptyList as NE
-import qualified System.Directory as Dir
-import qualified System.Exit as Exit
 import System.FilePath ((</>))
 import qualified System.Info as Info
 import qualified System.IO as IO
-import qualified System.Process as Process
 
 import qualified BackgroundWriter as BW
 import qualified Build
@@ -27,6 +24,7 @@ import qualified Elm.Outline as Outline
 import qualified Elm.Package as Pkg
 import qualified Elm.Version as V
 import qualified File
+import qualified Git
 import qualified Json.String as Json
 import qualified Reporting
 import Reporting.Doc ((<+>))
@@ -89,9 +87,8 @@ publish env@(Env root cache outline) =
           verifyLicense root
           docs <- verifyBuild root
           verifyVersion env pkg vsn docs knownVersionsMaybe
-          git <- getGit
-          commitHash <- verifyTag git pkg vsn
-          verifyNoChanges git commitHash vsn
+          verifyTag vsn
+          verifyNoChanges vsn
 
           Task.io $ putStrLn "Success!"
 
@@ -169,65 +166,42 @@ verifyBuild root =
           Build.fromExposed Reporting.silent root details Build.KeepDocs exposed
 
 
--- GET GIT
--- TODO: Move to Git module
 
-newtype Git =
-  Git { _run :: [String] -> IO Exit.ExitCode }
+-- VERIFY LOCAL TAG
 
 
-getGit :: Task.Task Exit.Publish Git
-getGit =
-  do  maybeGit <- Task.io $ Dir.findExecutable "git"
-      case maybeGit of
-        Nothing ->
-          Task.throw Exit.PublishNoGit
-
-        Just git ->
-          return $ Git $ \args ->
-            let
-              process =
-                (Process.proc git args)
-                  { Process.std_in  = Process.CreatePipe
-                  , Process.std_out = Process.CreatePipe
-                  , Process.std_err = Process.CreatePipe
-                  }
-            in
-            Process.withCreateProcess process $ \_ _ _ handle ->
-              Process.waitForProcess handle
-
-
-
--- VERIFY GITHUB TAG
-
-
-verifyTag :: Git -> Pkg.Name -> V.Version -> Task.Task Exit.Publish String
-verifyTag git _ vsn =
-  -- TODO: Check that tag exist in cached repo, that should mean it's available remote as well
+verifyTag :: V.Version -> Task.Task Exit.Publish ()
+verifyTag vsn =
   reportTagCheck vsn $
-  do  -- https://stackoverflow.com/questions/1064499/how-to-list-all-git-tags
-      exitCode <- _run git [ "show", "--name-only", V.toChars vsn, "--" ]
-      case exitCode of
-        Exit.ExitFailure _ ->
-          return $ Left (Exit.PublishMissingTag vsn)
+  do  result <- Git.hasLocalTag vsn
+      case result of
+        Left Git.MissingGit ->
+          return $ Left Exit.PublishNoGit
 
-        Exit.ExitSuccess ->
-            return $ Right ""
+        Left _ ->
+          return $ Left $ Exit.PublishMissingTag vsn
+
+        Right () ->
+          return $ Right ()
 
 
 
 -- VERIFY NO LOCAL CHANGES SINCE TAG
 
 
-verifyNoChanges :: Git -> String -> V.Version -> Task.Task Exit.Publish ()
-verifyNoChanges git commitHash vsn =
-  -- TODO: This doesn't actually compare against a specific tag as far as I can see
+verifyNoChanges :: V.Version -> Task.Task Exit.Publish ()
+verifyNoChanges vsn =
   reportLocalChangesCheck $
-  do  -- https://stackoverflow.com/questions/3878624/how-do-i-programmatically-determine-if-there-are-uncommited-changes
-      exitCode <- _run git [ "diff-index", "--quiet", commitHash, "--" ]
-      case exitCode of
-        Exit.ExitSuccess   -> return $ Right ()
-        Exit.ExitFailure _ -> return $ Left (Exit.PublishLocalChanges vsn)
+  do  result <- Git.hasLocalChangesSinceTag vsn
+      case result of
+        Left Git.MissingGit ->
+          return $ Left Exit.PublishNoGit
+
+        Left _ ->
+          return $ Left $ Exit.PublishLocalChanges vsn
+
+        Right () ->
+          return $ Right ()
 
 
 
@@ -345,9 +319,9 @@ reportSemverCheck version work =
 reportTagCheck :: V.Version -> IO (Either x a) -> Task.Task x a
 reportTagCheck vsn =
   reportCheck
-    ("Is version " ++ V.toChars vsn ++ " tagged on GitHub?")
-    ("Version " ++ V.toChars vsn ++ " is tagged on GitHub")
-    ("Version " ++ V.toChars vsn ++ " is not tagged on GitHub!")
+    ("Is version " ++ V.toChars vsn ++ " tagged?")
+    ("Version " ++ V.toChars vsn ++ " is tagged")
+    ("Version " ++ V.toChars vsn ++ " is not tagged!")
 
 
 reportLocalChangesCheck :: IO (Either x a) -> Task.Task x a
@@ -355,7 +329,7 @@ reportLocalChangesCheck =
   reportCheck
     "Checking for uncommitted changes..."
     "No uncommitted changes in local code"
-    "Your local code is different than the code tagged on GitHub"
+    "Your local code is different than the code tagged in your git repo"
 
 
 reportCheck :: String -> String -> String -> IO (Either x a) -> Task.Task x a
