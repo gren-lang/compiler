@@ -1,4 +1,3 @@
-
 # Hints for Infinite Types
 
 Infinite types are probably the trickiest kind of bugs to track down. **Writing down type annotations is usually the fastest way to figure them out.** Let's work through an example to get a feel for how these errors usually work though!
@@ -8,7 +7,7 @@ Infinite types are probably the trickiest kind of bugs to track down. **Writing 
 
 A common way to get an infinite type error is very small typos. For example, do you see the problem in the following code?
 
-```elm
+```gren
 incrementNumbers list =
   List.map incrementNumbers list
 
@@ -18,7 +17,7 @@ incrementNumber n =
 
 The issue is that `incrementNumbers` calls itself, not the `incrementNumber` function defined below. So there is an extra `s` in this program! Let's focus on that:
 
-```elm
+```gren
 incrementNumbers list =
   List.map incrementNumbers list -- BUG extra `s` makes this self-recursive
 ```
@@ -31,7 +30,7 @@ That means that `t1 = List t1`, which is an infinite type! If we start expanding
 
 The point is mainly that we are in a confusing situation. The types are confusing. This explanation is confusing. The compiler is confused. It is a bad time. But luckily, the more type annotations you add, the better chance there is that you and the compiler can figure things out! So say we change our definition to:
 
-```elm
+```gren
 incrementNumbers : List Int -> List Int
 incrementNumbers list =
   List.map incrementNumbers list -- STILL HAS BUG

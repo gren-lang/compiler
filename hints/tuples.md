@@ -1,11 +1,10 @@
-
 # From Tuples to Records
 
-The largest tuple possible in Elm has three entries. Once you get to four, it is best to make a record with named entries.
+The largest tuple possible in Gren has three entries. Once you get to four, it is best to make a record with named entries.
 
 For example, it is _conceivable_ to represent a rectangle as four numbers like `(10,10,100,100)` but it would be more self-documenting to use a record like this:
 
-```elm
+```gren
 type alias Rectangle =
   { x : Float
   , y : Float

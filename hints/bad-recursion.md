@@ -1,30 +1,29 @@
-
 # Hints for Bad Recursion
 
 There are two problems that will lead you here, both of them pretty tricky:
 
-  1. [**No Mutation**](#no-mutation) &mdash; Defining values in Elm is slightly different than defining values in languages like JavaScript.
+  1. [**No Mutation**](#no-mutation) &mdash; Defining values in Gren is slightly different than defining values in languages like JavaScript.
 
   2. [**Tricky Recursion**](#tricky-recursion) &mdash; Sometimes you need to define recursive values when creating generators, decoders, and parsers. A common case is a JSON decoder a discussion forums where a comment may have replies, which may have replies, which may have replies, etc.
 
 
 ## No Mutation
 
-Languages like JavaScript let you “reassign” variables. When you say `x = x + 1` it means: whatever `x` was pointing to, have it point to `x + 1` instead. This is called *mutating* a variable. All values are immutable in Elm, so reassigning variables does not make any sense! Okay, so what *should* `x = x + 1` mean in Elm?
+Languages like JavaScript let you “reassign” variables. When you say `x = x + 1` it means: whatever `x` was pointing to, have it point to `x + 1` instead. This is called *mutating* a variable. All values are immutable in Gren, so reassigning variables does not make any sense! Okay, so what *should* `x = x + 1` mean in Gren?
 
-Well, what does it mean with functions? In Elm, we write recursive functions like this:
+Well, what does it mean with functions? In Gren, we write recursive functions like this:
 
-```elm
+```gren
 factorial : Int -> Int
 factorial n =
   if n <= 0 then 1 else n * factorial (n - 1)
 ```
 
-One cool thing about Elm is that whenever you see `factorial 3`, you can always replace that expression with `if 3 <= 0 then 1 else 3 * factorial (3 - 1)` and it will work exactly the same. So when Elm code gets evaluated, we will keep expanding `factorial` until the `if` produces a 1. At that point, we are done expanding and move on.
+One cool thing about Gren is that whenever you see `factorial 3`, you can always replace that expression with `if 3 <= 0 then 1 else 3 * factorial (3 - 1)` and it will work exactly the same. So when Gren code gets evaluated, we will keep expanding `factorial` until the `if` produces a 1. At that point, we are done expanding and move on.
 
 The thing that surprises newcomers is that recursion works the same way with values too. So take the following definition:
 
-```elm
+```gren
 x = x + 1
 ```
 
@@ -32,18 +31,18 @@ We are actually defining `x` in terms of itself. So it would expand out to `x = 
 
 The fix is usually to just give the new value a new name. So you could rewrite it to:
 
-```elm
+```gren
 x1 = x + 1
 ```
 
-Now `x` is the old value and `x1` is the new value. Again, one cool thing about Elm is that whenever you see a `factorial 3` you can safely replace it with its definition. Well, the same is true of values. Wherever I see `x1`, I can replace it with `x + 1`. Thanks to the way definitions work in Elm, this is always safe!
+Now `x` is the old value and `x1` is the new value. Again, one cool thing about Gren is that whenever you see a `factorial 3` you can safely replace it with its definition. Well, the same is true of values. Wherever I see `x1`, I can replace it with `x + 1`. Thanks to the way definitions work in Gren, this is always safe!
 
 
 ## Tricky Recursion
 
 Now, there are some cases where you *do* want a recursive value. Say you are building a website with comments and replies. You may define a comment like this:
 
-```elm
+```gren
 type alias Comment =
   { message : String
   , upvotes : Int
@@ -57,7 +56,7 @@ type Responses =
 
 You may have run into this definition in the [hints for recursive aliases](recursive-alias.md)! Anyway, once you have comments, you may want to turn them into JSON to send back to your server or to store in your database or whatever. So you will probably write some code like this:
 
-```elm
+```gren
 import Json.Decode as Decode exposing (Decoder)
 
 decodeComment : Decoder Comment
@@ -78,7 +77,7 @@ The problem is that now `decodeComment` is defined in terms of itself! To know w
 
 In this case, the trick is to use `Json.Decode.lazy` which delays the evaluation of a decoder until it is needed. So the valid definition would look like this:
 
-```elm
+```gren
 import Json.Decode as Decode exposing (Decoder)
 
 decodeComment : Decoder Comment
@@ -95,7 +94,7 @@ decodeResponses =
   Decode.map Responses (Decode.list (Decode.lazy (\_ -> decodeComment)))
 ```
 
-Notice that in `decodeResponses`, we hide `decodeComment` behind an anonymous function. Elm cannot evaluate an anonymous function until it is given arguments, so it allows us to delay evaluation until it is needed. If there are no comments, we will not need to expand it!
+Notice that in `decodeResponses`, we hide `decodeComment` behind an anonymous function. Gren cannot evaluate an anonymous function until it is given arguments, so it allows us to delay evaluation until it is needed. If there are no comments, we will not need to expand it!
 
 This saves us from expanding the value infinitely. Instead we only expand the value if we need to.
 
@@ -106,9 +105,9 @@ This saves us from expanding the value infinitely. Instead we only expand the va
 
 The compiler tries to detect bad recursion, but how does it know the difference between good and bad situations? Writing `factorial` is fine, but writing `x = x + 1` is not. One version of `decodeComment` was bad, but the other was fine. What is the rule?
 
-**Elm will allow recursive definitions as long as there is at least one lambda before you get back to yourself.** So if we write `factorial` without any pretty syntax, it looks like this:
+**Gren will allow recursive definitions as long as there is at least one lambda before you get back to yourself.** So if we write `factorial` without any pretty syntax, it looks like this:
 
-```elm
+```gren
 factorial =
   \n -> if n <= 0 then 1 else n * factorial (n - 1)
 ```
@@ -117,7 +116,7 @@ There is technically a lambda between the definition and the use, so it is okay!
 
 **This rule is nice, but it does not catch everything.** It is pretty easy to write a definition where the recursion is hidden behind a lambda, but it still immediately expands forever:
 
-```elm
+```gren
 x =
   (\_ -> x) () + 1
 ```

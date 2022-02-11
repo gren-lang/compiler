@@ -1,4 +1,3 @@
-
 # Hints for Type Annotation Problems
 
 At the root of this kind of issue is always the fact that a type annotation in your code does not match the corresponding definition. Now that may mean that the type annotation is "wrong" or it may mean that the definition is "wrong". The compiler cannot figure out your intent, only that there is some mismatch.
@@ -10,7 +9,7 @@ This document is going to outline the various things that can go wrong and show 
 
 The most common issue is with user-defined type variables that are too general. So let's say you have defined a function like this:
 
-```elm
+```gren
 addPair : (a, a) -> a
 addPair (x, y) =
   x + y
@@ -18,7 +17,7 @@ addPair (x, y) =
 
 The issue is that the type annotation is saying "I will accept a tuple containing literally *anything*" but the definition is using `(+)` which requires things to be numbers. So the compiler is going to infer that the true type of the definition is this:
 
-```elm
+```gren
 addPair : (number, number) -> number
 ```
 
@@ -31,7 +30,7 @@ In cases like this, you want to go with whatever the compiler inferred. It is go
 
 It is also possible to have a type annotation that clashes with itself. This is probably more rare, but someone will run into it eventually. Let's use another version of `addPair` with problems:
 
-```elm
+```gren
 addPair : (Int, Int) -> number
 addPair (x, y) =
   x + y
@@ -44,7 +43,7 @@ In this case the annotation says we should get a `number` out, but because we we
 
 A quite tricky case is when an outer type annotation clashes with an inner type annotation. Here is an example of this:
 
-```elm
+```gren
 filter : (a -> Bool) -> List a -> List a
 filter isOkay list =
   let

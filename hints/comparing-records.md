@@ -1,4 +1,3 @@
-# Comparing Records
 
 The built-in comparison operators work on a fixed set of types, like `Int` and `String`. That covers a lot of cases, but what happens when you want to compare records?
 
@@ -11,7 +10,7 @@ Say we want a `view` function that can show a list of students sorted by differe
 
 We could create something like this:
 
-```elm
+```gren
 import Html exposing (..)
 
 type alias Student =
@@ -38,9 +37,9 @@ viewStudent student =
   li [] [ text student.name ]
 ```
 
-If you are worried about the performance of changing the order or updating information about particular students, you can start using the [`Html.Lazy`](https://package.elm-lang.org/packages/elm/html/latest/Html-Lazy) and [`Html.Keyed`](https://package.elm-lang.org/packages/elm/html/latest/Html-Keyed) modules. The updated code would look something like this:
+If you are worried about the performance of changing the order or updating information about particular students, you can start using the [`Html.Lazy`](https://package.gren-lang.org/packages/gren/html/latest/Html-Lazy) and [`Html.Keyed`](https://package.gren-lang.org/packages/gren/html/latest/Html-Keyed) modules. The updated code would look something like this:
 
-```elm
+```gren
 import Html exposing (..)
 import Html.Lazy exposing (lazy)
 import Html.Keyed as Keyed
@@ -82,4 +81,4 @@ By using `Keyed.ul` we help the renderer move the DOM nodes around based on thei
 
 ## Something else?
 
-If you have some other situation, please tell us about it [here](https://github.com/elm/error-message-catalog/issues). That is a log of error messages that can be improved, and we can use the particulars of your scenario to add more advice on this page!
+If you have some other situation, please tell us about it [here](https://github.com/gren/error-message-catalog/issues). That is a log of error messages that can be improved, and we can use the particulars of your scenario to add more advice on this page!

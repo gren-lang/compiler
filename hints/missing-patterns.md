@@ -1,7 +1,6 @@
-
 # Hints for Missing Patterns
 
-Elm checks to make sure that all possible inputs to a function or `case` are handled. This gives us the guarantee that no Elm code is ever going to crash because data had an unexpected shape.
+Gren checks to make sure that all possible inputs to a function or `case` are handled. This gives us the guarantee that no Gren code is ever going to crash because data had an unexpected shape.
 
 There are a couple techniques for making this work for you in every scenario.
 
@@ -10,7 +9,7 @@ There are a couple techniques for making this work for you in every scenario.
 
 A common scenario is that you want to add a tag to a custom type that is used in a bunch of places. For example, maybe you are working different variations of users in a chat room:
 
-```elm
+```gren
 type User
   = Regular String Int
   | Anonymous
@@ -29,7 +28,7 @@ Notice the wildcard pattern in `toName`. This will hurt us! Say we add a `Visito
 
 So instead, it is better to explicitly list all possible variants, like this:
 
-```elm
+```gren
 type User
   = Regular String Int
   | Visitor String
@@ -52,9 +51,9 @@ Now the compiler will say "hey, what should `toName` do when it sees a `Visitor`
 
 Imagine that the `User` type appears in 20 or 30 functions across your project. When we add a `Visitor` variant, the compiler points out all the places that need to be updated. That is very convenient, but in a big project, maybe you want to get through it extra quickly.
 
-In that case, it can be helpful to use [`Debug.todo`](https://package.elm-lang.org/packages/elm-lang/core/latest/Debug#todo) to leave some code incomplete:
+In that case, it can be helpful to use [`Debug.todo`](https://package.gren-lang.org/packages/gren-lang/core/latest/Debug#todo) to leave some code incomplete:
 
-```elm
+```gren
 type User
   = Regular String Int
   | Visitor String
@@ -77,7 +76,7 @@ toName user =
 
 In this case it is easier to just write the implementation, but the point is that on more complex functions, you can put things off a bit.
 
-The Elm compiler is actually aware of `Debug.todo` so when it sees it in a `case` like this, it will crash with a bunch of helpful information. It will tell you:
+The Gren compiler is actually aware of `Debug.todo` so when it sees it in a `case` like this, it will crash with a bunch of helpful information. It will tell you:
 
   1. The name of the module that contains the code.
   2. The line numbers of the `case` containing the TODO.
@@ -90,9 +89,9 @@ I tend to use `Debug.todo` as the message when my goal is to go quick because it
 
 ## A list that definitely is not empty
 
-This can come up from time to time, but Elm **will not** let you write code like this:
+This can come up from time to time, but Gren **will not** let you write code like this:
 
-```elm
+```gren
 last : List a -> a
 last list =
   case list of
@@ -105,7 +104,7 @@ last list =
 
 This is no good. It does not handle the empty list. There are two ways to handle this. One is to make the function return a `Maybe` like this:
 
-```elm
+```gren
 last : List a -> Maybe a
 last list =
   case list of
@@ -123,7 +122,7 @@ This is nice because it lets users know that there might be a failure, so they c
 
 The other option is to “unroll the list” one level to ensure that no one can ever provide an empty list in the first place:
 
-```elm
+```gren
 last : a -> List a -> a
 last first rest =
   case rest of

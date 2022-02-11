@@ -1,9 +1,8 @@
-
 # Variable Shadowing
 
 Variable shadowing is when you define the same variable name twice in an ambiguous way. Here is a pretty reasonable use of shadowing:
 
-```elm
+```gren
 viewName : Maybe String -> Html msg
 viewName name =
   case name of
@@ -16,7 +15,7 @@ viewName name =
 
 I define a `name` with type `Maybe String` and then in that second branch, I define a `name` that is a `String`. Now that there are two `name` values, it is not 100% obvious which one you want in that second branch.
 
-Most linters produce warnings on variable shadowing, so Elm makes “best practices” the default. Just rename the first one to `maybeName` and move on.
+Most linters produce warnings on variable shadowing, so Gren makes “best practices” the default. Just rename the first one to `maybeName` and move on.
 
 This choice is relatively uncommon in programming languages though, so I want to provide the reasoning behind it.
 
@@ -27,7 +26,7 @@ The code snippet from above is the best case scenario for variable shadowing. It
 
 In a large module that is evolving over time, this is going to cause bugs in a very predictable way. You will have two definitions, separated by hundreds of lines. For example:
 
-```elm
+```gren
 name : String
 name =
   "Tom"
@@ -41,7 +40,7 @@ viewName name =
 
 Okay, so the `viewName` function has an argument `name` and it uses it three times. Maybe the `viewName` function is 50 lines long in total, so those uses are not totally easy to see. This is fine so far, but say your colleague comes along five months later and wants to support first and last names. They refactor the code like this:
 
-```elm
+```gren
 viewName : String -> String -> Html msg
 viewName firstName lastName =
   ... name ... name ... name ...
@@ -67,4 +66,4 @@ If you are still skeptical, I encourage you can play around with the number of e
 
 ## Summary
 
-Without shadowing, the code easier to read and folks spend less time on pointless debugging. The net outcome is that folks have more time to make something wonderful with Elm!
+Without shadowing, the code easier to read and folks spend less time on pointless debugging. The net outcome is that folks have more time to make something wonderful with Gren!

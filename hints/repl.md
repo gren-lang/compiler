@@ -1,14 +1,13 @@
-
 # REPL
 
-The REPL lets you interact with Elm values and functions in your terminal.
+The REPL lets you interact with Gren values and functions in your terminal.
 
 
 ## Use
 
-You can type in expressions, definitions, custom types, and module imports using normal Elm syntax.
+You can type in expressions, definitions, custom types, and module imports using normal Gren syntax.
 
-```elm
+```gren
 > 1 + 1
 2 : number
 
@@ -18,7 +17,7 @@ You can type in expressions, definitions, custom types, and module imports using
 
 The same can be done with definitions and custom types:
 
-```elm
+```gren
 > fortyTwo = 42
 42 : number
 
@@ -51,9 +50,9 @@ The same can be done with definitions and custom types:
 "Hey again!" : String
 ```
 
-When you run `elm repl` in a project with an [`elm.json`](https://github.com/elm/compiler/blob/master/docs/elm.json/application.md) file, you can import any module available in the project. So if your project has an `elm/html` dependency, you could say:
+When you run `gren repl` in a project with an [`gren.json`](https://github.com/gren/compiler/blob/master/docs/gren.json/application.md) file, you can import any module available in the project. So if your project has an `gren/html` dependency, you could say:
 
-```elm
+```gren
 > import Html exposing (Html)
 
 > Html.text "hello"
