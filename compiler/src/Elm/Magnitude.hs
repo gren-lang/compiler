@@ -1,20 +1,16 @@
 module Elm.Magnitude
-  ( Magnitude(..)
-  , toChars
+  ( Magnitude (..),
+    toChars,
   )
-  where
-
-
+where
 
 -- MAGNITUDE
-
 
 data Magnitude
   = PATCH
   | MINOR
   | MAJOR
   deriving (Eq, Ord)
-
 
 toChars :: Magnitude -> String
 toChars magnitude =
