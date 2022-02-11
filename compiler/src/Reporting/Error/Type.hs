@@ -359,7 +359,7 @@ problemToHint problem =
           [ "to",
             "learn",
             "why",
-            "Elm",
+            "Gren",
             "does",
             "not",
             "implicitly",
@@ -443,7 +443,7 @@ problemToHint problem =
       ]
     T.AnythingToBool ->
       [ D.toSimpleHint $
-          "Elm does not have “truthiness” such that ints and strings and lists\
+          "Gren does not have “truthiness” such that ints and strings and lists\
           \ are automatically converted to booleans. Do that conversion explicitly!"
       ]
     T.AnythingFromMaybe ->
@@ -661,7 +661,7 @@ badFlexFlexSuper s1 s2 =
           T.CompAppend -> "a compappend"
           T.Appendable -> "appendable"
    in [ D.toSimpleHint $
-          "There are no values in Elm that are both "
+          "There are no values in Gren that are both "
             ++ likeThis s1
             ++ " and "
             ++ likeThis s2
@@ -926,7 +926,7 @@ toExprReport source localizer exprRegion category tipe expected =
                           "But this update needs it to be compatable with:",
                           [ D.reflow
                               "Do you mind creating an <http://sscce.org/> that produces this error message and\
-                              \ sharing it at <https://github.com/elm/error-message-catalog/issues> so we\
+                              \ sharing it at <https://github.com/gren/error-message-catalog/issues> so we\
                               \ can try to give better advice here?"
                           ]
                         )
@@ -1510,7 +1510,7 @@ badCastHelp anInt aFloat toFloat round =
           "sides",
           "match!"
         ],
-      D.link "Note" "Read" "implicit-casts" "to learn why Elm does not implicitly convert Ints to Floats."
+      D.link "Note" "Read" "implicit-casts" "to learn why Gren does not implicitly convert Ints to Floats."
     ]
 
 badStringAdd :: (D.Doc, D.Doc)
@@ -1654,7 +1654,7 @@ badFDiv localizer direction tipe expected =
               [ D.green "toFloat" <> " for explicit conversions     " <> D.black "(toFloat 5 / 2) == 2.5",
                 D.green "(//)   " <> " for integer division         " <> D.black "(5 // 2)        == 2"
               ],
-            D.link "Note" "Read" "implicit-casts" "to learn why Elm does not implicitly convert Ints to Floats."
+            D.link "Note" "Read" "implicit-casts" "to learn why Gren does not implicitly convert Ints to Floats."
           ]
       else
         loneType
@@ -1722,7 +1722,7 @@ badIDiv localizer direction tipe expected =
                 D.green "ceiling" <> " 3.5   == 4",
                 D.green "truncate" <> " 3.5  == 3"
               ],
-            D.link "Note" "Read" "implicit-casts" "to learn why Elm does not implicitly convert Ints to Floats."
+            D.link "Note" "Read" "implicit-casts" "to learn why Gren does not implicitly convert Ints to Floats."
           ]
       else
         loneType

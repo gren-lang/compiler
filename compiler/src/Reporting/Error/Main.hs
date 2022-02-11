@@ -80,7 +80,7 @@ toReport localizer source err =
                 ( "a function",
                   D.reflow $
                     "But if I allowed functions from JS, it would be possible to sneak\
-                    \ side-effects and runtime exceptions into Elm!"
+                    \ side-effects and runtime exceptions into Gren!"
                 )
               E.TypeVariable name ->
                 ( "an unspecified type",
@@ -88,7 +88,7 @@ toReport localizer source err =
                     "But type variables like `" ++ Name.toChars name
                       ++ "` cannot be given as flags.\
                          \ I need to know exactly what type of data I am getting, so I can guarantee that\
-                         \ unexpected data cannot sneak in and crash the Elm program."
+                         \ unexpected data cannot sneak in and crash the Gren program."
                 )
               E.UnsupportedType name ->
                 ( "a `" ++ Name.toChars name ++ "` value",

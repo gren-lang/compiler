@@ -73,4 +73,4 @@ deciderHasDebug decider =
     Opt.FanOut _ tests fallback -> any (deciderHasDebug . snd) tests || deciderHasDebug fallback
 
 -- TODO: FIND GLOBALLY UNUSED DEFINITIONS?
--- TODO: FIND PACKAGE USAGE STATS? (e.g. elm/core = 142, author/project = 2, etc.)
+-- TODO: FIND PACKAGE USAGE STATS? (e.g. gren/core = 142, author/project = 2, etc.)
