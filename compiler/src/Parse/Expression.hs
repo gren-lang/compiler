@@ -13,7 +13,6 @@ import qualified Parse.Number as Number
 import qualified Parse.Pattern as Pattern
 import Parse.Primitives hiding (State)
 import qualified Parse.Primitives as P
-import qualified Parse.Shader as Shader
 import qualified Parse.Space as Space
 import qualified Parse.String as String
 import qualified Parse.Symbol as Symbol
@@ -33,7 +32,6 @@ term =
       [ variable start >>= accessible start,
         string start,
         number start,
-        Shader.shader start,
         list start,
         record start >>= accessible start,
         tuple start >>= accessible start,
