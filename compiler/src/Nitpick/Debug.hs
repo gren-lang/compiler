@@ -70,4 +70,3 @@ deciderHasDebug decider =
     Opt.Leaf (Opt.Jump _) -> False
     Opt.Chain _ success failure -> deciderHasDebug success || deciderHasDebug failure
     Opt.FanOut _ tests fallback -> any (deciderHasDebug . snd) tests || deciderHasDebug fallback
-
