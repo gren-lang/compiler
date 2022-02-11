@@ -10,13 +10,11 @@ where
 
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
-import qualified AST.Utils.Shader as Shader
 import Control.Monad (foldM)
 import qualified Data.Index as Index
-import qualified Data.Map as Map
 import qualified Data.Name as Name
 import qualified Data.Set as Set
-import qualified Elm.ModuleName as ModuleName
+import qualified Gren.ModuleName as ModuleName
 import qualified Optimize.Case as Case
 import qualified Optimize.Names as Names
 import qualified Reporting.Annotation as A
@@ -140,8 +138,6 @@ optimize cycle (A.At region expression) =
         <*> optimize cycle a
         <*> optimize cycle b
         <*> traverse (optimize cycle) maybeC
-    Can.Shader src (Shader.Types attributes uniforms _varyings) ->
-      pure (Opt.Shader src (Map.keysSet attributes) (Map.keysSet uniforms))
 
 -- UPDATE
 

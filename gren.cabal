@@ -1,6 +1,6 @@
 Cabal-version: 3.6
 Name: gren
-Version: 0.19.1
+Version: 0.1.0
 
 Synopsis:
     The `gren` command line interface.
@@ -82,24 +82,24 @@ Executable gren
         Reporting.Task
         Directories
 
-        -- Elm things
-        Elm.Outline
-        Elm.Details
+        -- Gren things
+        Gren.Outline
+        Gren.Details
         --
-        Elm.Compiler.Imports
-        Elm.Compiler.Type
-        Elm.Compiler.Type.Extract
-        Elm.Constraint
-        Elm.Docs
-        Elm.Float
-        Elm.Interface
-        Elm.Kernel
-        Elm.Licenses
-        Elm.Magnitude
-        Elm.ModuleName
-        Elm.Package
-        Elm.String
-        Elm.Version
+        Gren.Compiler.Imports
+        Gren.Compiler.Type
+        Gren.Compiler.Type.Extract
+        Gren.Constraint
+        Gren.Docs
+        Gren.Float
+        Gren.Interface
+        Gren.Kernel
+        Gren.Licenses
+        Gren.Magnitude
+        Gren.ModuleName
+        Gren.Package
+        Gren.String
+        Gren.Version
 
         -- data structures
         Data.Bag

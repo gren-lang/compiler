@@ -27,7 +27,7 @@ sandwich moduleName javascript =
 
 <body>
 
-<pre id="elm"></pre>
+<pre id="gren"></pre>
 
 <script>
 try {
@@ -35,9 +35,9 @@ try {
         <> javascript
         <> [r|
 
-  var app = Elm.|]
+  var app = Gren.|]
         <> name
-        <> [r|.init({ node: document.getElementById("elm") });
+        <> [r|.init({ node: document.getElementById("gren") });
 }
 catch (e)
 {
@@ -45,7 +45,7 @@ catch (e)
   var header = document.createElement("h1");
   header.style.fontFamily = "monospace";
   header.innerText = "Initialization Error";
-  var pre = document.getElementById("elm");
+  var pre = document.getElementById("gren");
   document.body.insertBefore(header, pre);
   pre.innerText = e;
   throw e;

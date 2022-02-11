@@ -60,7 +60,7 @@ toReports source err =
                 "You must have a documentation comment between the module\
                 \ declaration and the imports.",
               D.reflow
-                "Learn more at <https://package.elm-lang.org/help/documentation-format>"
+                "Learn more at <https://package.gren-lang.org/help/documentation-format>"
             )
     ImplicitExposing region ->
       NE.singleton $
@@ -101,7 +101,7 @@ toSyntaxProblemReport source problem =
                   D.stack $
                     [ D.reflow details,
                       D.toSimpleHint $
-                        "Read through <https://package.elm-lang.org/help/documentation-format> for\
+                        "Read through <https://package.gren-lang.org/help/documentation-format> for\
                         \ tips on how to write module documentation!"
                     ]
                 )

@@ -4,7 +4,7 @@
 {-# LANGUAGE UnboxedTuples #-}
 {-# OPTIONS_GHC -Wall #-}
 
-module Elm.Kernel
+module Gren.Kernel
   ( Content (..),
     Chunk (..),
     fromByteString,
@@ -20,11 +20,11 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Name as Name
 import Data.Word (Word8)
-import qualified Elm.ModuleName as ModuleName
-import qualified Elm.Package as Pkg
 import Foreign.ForeignPtr (ForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (Ptr, minusPtr, plusPtr)
+import qualified Gren.ModuleName as ModuleName
+import qualified Gren.Package as Pkg
 import qualified Parse.Module as Module
 import Parse.Primitives hiding (fromByteString)
 import qualified Parse.Primitives as P
@@ -36,9 +36,9 @@ import qualified Reporting.Annotation as A
 
 data Chunk
   = JS B.ByteString
-  | ElmVar ModuleName.Canonical Name.Name
+  | GrenVar ModuleName.Canonical Name.Name
   | JsVar Name.Name Name.Name
-  | ElmField Name.Name
+  | GrenField Name.Name
   | JsField Int
   | JsEnum Int
   | Debug
@@ -54,9 +54,9 @@ addField :: Chunk -> Map.Map Name.Name Int -> Map.Map Name.Name Int
 addField chunk fields =
   case chunk of
     JS _ -> fields
-    ElmVar _ _ -> fields
+    GrenVar _ _ -> fields
     JsVar _ _ -> fields
-    ElmField f -> Map.insertWith (+) f 1 fields
+    GrenField f -> Map.insertWith (+) f 1 fields
     JsField _ -> fields
     JsEnum _ -> fields
     Debug -> fields
@@ -148,7 +148,7 @@ chompTag vs es fs src pos end row col revChunks =
         then
           let !name = Name.fromPtr pos newPos
            in chompChunks vs es fs src newPos end row newCol newPos $
-                ElmField name : revChunks
+                GrenField name : revChunks
         else
           let !name = Name.fromPtr tagPos newPos
            in if 0x30 {-0-} <= word && word <= 0x39 {-9-}
@@ -230,7 +230,7 @@ addImport pkg foreigns vtable (Src.Import (A.At _ importName) maybeAlias exposin
       let home = ModuleName.Canonical (Map.findWithDefault pkg importName foreigns) importName
           prefix = toPrefix importName maybeAlias
           add table name =
-            Map.insert (Name.sepBy 0x5F {-_-} prefix name) (ElmVar home name) table
+            Map.insert (Name.sepBy 0x5F {-_-} prefix name) (GrenVar home name) table
        in List.foldl' add vtable (toNames exposing)
 
 toPrefix :: Name.Name -> Maybe Name.Name -> Name.Name
@@ -269,9 +269,9 @@ instance Binary Chunk where
   put chunk =
     case chunk of
       JS a -> putWord8 0 >> put a
-      ElmVar a b -> putWord8 1 >> put a >> put b
+      GrenVar a b -> putWord8 1 >> put a >> put b
       JsVar a b -> putWord8 2 >> put a >> put b
-      ElmField a -> putWord8 3 >> put a
+      GrenField a -> putWord8 3 >> put a
       JsField a -> putWord8 4 >> put a
       JsEnum a -> putWord8 5 >> put a
       Debug -> putWord8 6
@@ -282,11 +282,11 @@ instance Binary Chunk where
       word <- getWord8
       case word of
         0 -> liftM JS get
-        1 -> liftM2 ElmVar get get
+        1 -> liftM2 GrenVar get get
         2 -> liftM2 JsVar get get
-        3 -> liftM ElmField get
+        3 -> liftM GrenField get
         4 -> liftM JsField get
         5 -> liftM JsEnum get
         6 -> return Debug
         7 -> return Prod
-        _ -> error "problem deserializing Elm.Kernel.Chunk"
+        _ -> error "problem deserializing Gren.Kernel.Chunk"

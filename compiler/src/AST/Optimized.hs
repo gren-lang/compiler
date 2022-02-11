@@ -30,11 +30,11 @@ import qualified Data.Map as Map
 import Data.Name (Name)
 import qualified Data.Name as Name
 import qualified Data.Set as Set
-import qualified Elm.Float as EF
-import qualified Elm.Kernel as K
-import qualified Elm.ModuleName as ModuleName
-import qualified Elm.Package as Pkg
-import qualified Elm.String as ES
+import qualified Gren.Float as EF
+import qualified Gren.Kernel as K
+import qualified Gren.ModuleName as ModuleName
+import qualified Gren.Package as Pkg
+import qualified Gren.String as ES
 import qualified Optimize.DecisionTree as DT
 import qualified Reporting.Annotation as A
 
@@ -175,9 +175,9 @@ addKernelDep :: K.Chunk -> Set.Set Global -> Set.Set Global
 addKernelDep chunk deps =
   case chunk of
     K.JS _ -> deps
-    K.ElmVar home name -> Set.insert (Global home name) deps
+    K.GrenVar home name -> Set.insert (Global home name) deps
     K.JsVar shortName _ -> Set.insert (toKernelGlobal shortName) deps
-    K.ElmField _ -> deps
+    K.GrenField _ -> deps
     K.JsField _ -> deps
     K.JsEnum _ -> deps
     K.Debug -> deps

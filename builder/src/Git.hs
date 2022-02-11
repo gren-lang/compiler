@@ -16,8 +16,8 @@ where
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Either as Either
 import qualified Data.List as List
-import qualified Elm.Package as Pkg
-import qualified Elm.Version as V
+import qualified Gren.Package as Pkg
+import qualified Gren.Version as V
 import qualified Parse.Primitives as Parser
 import System.Directory (findExecutable)
 import qualified System.Exit as Exit

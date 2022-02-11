@@ -1,4 +1,4 @@
-module Elm.Magnitude
+module Gren.Magnitude
   ( Magnitude (..),
     toChars,
   )

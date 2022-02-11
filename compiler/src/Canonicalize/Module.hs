@@ -19,9 +19,9 @@ import qualified Data.Graph as Graph
 import qualified Data.Index as Index
 import qualified Data.Map as Map
 import qualified Data.Name as Name
-import qualified Elm.Interface as I
-import qualified Elm.ModuleName as ModuleName
-import qualified Elm.Package as Pkg
+import qualified Gren.Interface as I
+import qualified Gren.ModuleName as ModuleName
+import qualified Gren.Package as Pkg
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Result as Result

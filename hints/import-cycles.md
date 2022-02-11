@@ -1,9 +1,8 @@
-
 # Import Cycles
 
 What is an import cycle? In practice you may see it if you create two modules with interrelated `User` and `Comment` types like this:
 
-```elm
+```gren
 module Comment exposing (..)
 
 import User
@@ -14,7 +13,7 @@ type alias Comment =
   }
 ```
 
-```elm
+```gren
 module User exposing (..)
 
 import Comment
@@ -41,7 +40,7 @@ There are quite a few ways to break our `Comment` and `User` cycle from above, s
 
 One approach is to just combine the two modules. If we check out the resulting code, we have actually revealed a problem in how we are representing our data:
 
-```elm
+```gren
 module BadCombination1 exposing (..)
 
 type alias Comment =
@@ -57,7 +56,7 @@ type alias User =
 
 Notice that the `Comment` type alias is defined in terms of the `User` type alias and vice versa. Having recursive type aliases like this does not work! That problem is described in depth [here](recursive-alias.md), but the quick takeaway is that one `type alias` needs to become a `type` to break the recursion. So let’s try again:
 
-```elm
+```gren
 module BadCombination2 exposing (..)
 
 type alias Comment =
@@ -75,9 +74,9 @@ type AllUserComments = AllUserComments (List Comment)
 
 Okay, now we have broken the recursion, but we need to ask ourselves, how are we going to actually instantiate these `Comment` and `User` types that we have described. A `Comment` will always have an author, and that `User` will always refer back to the `Comment`. So we seem to want cyclic data here. If we were in JavaScript we might instantiate all the comments in one pass, and then go back through and mutate the users to point to all the relevant comments. In other words, we need *mutation* to create this cyclic data!
 
-All values are immutable in Elm, so we need to use a more functional strategy. One common approach is to use unique identifiers. Instead of referring directly to “the user object” we can refer to a user ID:
+All values are immutable in Gren, so we need to use a more functional strategy. One common approach is to use unique identifiers. Instead of referring directly to “the user object” we can refer to a user ID:
 
-```elm
+```gren
 module GoodCombination exposing (..)
 
 import Dict
@@ -95,7 +94,7 @@ type alias AllComments =
 
 Now in this world, we do not even have cycles in our types anymore! That means we can actually break these out into separate modules again:
 
-```elm
+```gren
 module Comment exposing (..)
 
 import Dict
@@ -110,13 +109,13 @@ type alias AllComments =
   Dict.Dict User.Id (List Comment)
 ```
 
-```elm
+```gren
 module User exposing (..)
 
 type alias Id = String
 ```
 
-So now we are back to the two modules we wanted, but we have data structures that are going to work much better in a functional language like Elm! **This is the common approach, and it is what you hope will happen!**
+So now we are back to the two modules we wanted, but we have data structures that are going to work much better in a functional language like Gren! **This is the common approach, and it is what you hope will happen!**
 
 
 ## 2. Make a New Module
@@ -130,7 +129,7 @@ Now say there are actually a ton of functions and values in the `Comment` and `U
 
 Another way to avoid module cycles is to be more generic in how you represent your data:
 
-```elm
+```gren
 module Comment exposing (..)
 
 type alias Comment author =
@@ -139,7 +138,7 @@ type alias Comment author =
   }
 ```
 
-```elm
+```gren
 module User exposing (..)
 
 type alias User comment =
@@ -155,13 +154,13 @@ So this strategy fails pretty badly with our particular example. The code is mor
 
 ## 4. Hiding Implementation Details in Packages
 
-This gets a little bit trickier when you are creating a package like `elm-lang/parser` which is built around the `Parser` type.
+This gets a little bit trickier when you are creating a package like `gren-lang/parser` which is built around the `Parser` type.
 
 That package has a couple exposed modules: `Parser`, `Parser.LanguageKit`, and `Parser.LowLevel`. All of these modules want access to the internal details of the `Parser` type, but we do not want to ever expose those internal details to the *users* of this package. So where should the `Parser` type live?!
 
 Usually you know which module should expose the type for the best public API. In this case, it makes sense for it to live in the `Parser` module. The way to manage this is to create a `Parser.Internal` module with a definition like:
 
-```elm
+```gren
 module Parser.Internal exposing (..)
 
 type Parser a =
@@ -170,7 +169,7 @@ type Parser a =
 
 Now we can `import Parser.Internal` and use it in any of the modules in our package. The trick is that we never expose the `Parser.Internal` module to the *users* of our package. We can see what is inside, but they cannot! Then in the `Parser` module we can say:
 
-```elm
+```gren
 module Parser exposing (..)
 
 import Parser.Internal as Internal

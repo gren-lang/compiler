@@ -9,8 +9,8 @@ where
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import qualified Elm.ModuleName as ModuleName
-import qualified Elm.Package as Pkg
+import qualified Gren.ModuleName as ModuleName
+import qualified Gren.Package as Pkg
 import qualified Reporting.Annotation as A
 import qualified Reporting.Doc as D
 import qualified Reporting.Render.Code as Code
@@ -47,7 +47,7 @@ toReport source (Error region name unimportedModules problem) =
               "You are trying to import a `" ++ ModuleName.toChars name ++ "` module:",
             D.stack
               [ D.reflow $
-                  "I checked the \"dependencies\" and \"source-directories\" listed in your elm.json,\
+                  "I checked the \"dependencies\" and \"source-directories\" listed in your gren.json,\
                   \ but I cannot find it! Maybe it is a typo for one of these names?",
                 D.dullyellow $
                   D.indent 4 $
@@ -57,7 +57,7 @@ toReport source (Error region name unimportedModules problem) =
                   Nothing ->
                     D.toSimpleHint $
                       "If it is not a typo, check the \"dependencies\" and \"source-directories\"\
-                      \ of your elm.json to make sure all the packages you need are listed there!"
+                      \ of your gren.json to make sure all the packages you need are listed there!"
                   Just dependency ->
                     D.toFancyHint
                       [ "Maybe",
@@ -72,7 +72,7 @@ toReport source (Error region name unimportedModules problem) =
                         D.fromChars (Pkg.toChars dependency),
                         "package?",
                         "Running",
-                        D.green (D.fromChars ("elm install " ++ Pkg.toChars dependency)),
+                        D.green (D.fromChars ("gren install " ++ Pkg.toChars dependency)),
                         "should",
                         "make",
                         "it",

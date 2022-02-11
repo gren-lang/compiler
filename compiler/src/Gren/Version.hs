@@ -2,7 +2,7 @@
 {-# LANGUAGE UnboxedTuples #-}
 {-# OPTIONS_GHC -Wall #-}
 
-module Elm.Version
+module Gren.Version
   ( Version (..),
     one,
     max,
@@ -58,7 +58,7 @@ compiler =
     [major] ->
       Version major 0 0
     [] ->
-      error "could not detect version of elm-compiler you are using"
+      error "could not detect version of the compiler you are using"
 
 -- BUMP
 

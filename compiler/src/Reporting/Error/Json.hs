@@ -257,7 +257,7 @@ parseErrorToReport path source parseError reason =
             ( "I got stuck while trying to parse this number:",
               D.reflow $
                 "I do not accept floating point numbers like 3.1415 right now. That kind\
-                \ of JSON value is not needed for any of the uses that Elm has for now."
+                \ of JSON value is not needed for any of the uses that Gren has for now."
             )
         BadEnd row col ->
           toSnippet
@@ -301,7 +301,7 @@ problemToReport path ftr source context problem reason =
       problemToReport path ftr source (CIndex index context) prob reason
     OneOf p ps ->
       -- NOTE: only displays the deepest problem. This works well for the kind
-      -- of JSON used by Elm, but probably would not work well in general.
+      -- of JSON used by Gren, but probably would not work well in general.
       let (NE.List prob _) = NE.sortBy (negate . getMaxDepth) (NE.List p ps)
        in problemToReport path ftr source context prob reason
     Failure region x ->

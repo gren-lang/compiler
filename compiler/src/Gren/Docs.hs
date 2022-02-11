@@ -4,7 +4,7 @@
 {-# LANGUAGE UnboxedTuples #-}
 {-# OPTIONS_GHC -Wall #-}
 
-module Elm.Docs
+module Gren.Docs
   ( Documentation,
     Module (..),
     fromModule,
@@ -32,10 +32,10 @@ import qualified Data.Name as Name
 import qualified Data.NonEmptyList as NE
 import qualified Data.OneOrMore as OneOrMore
 import Data.Word (Word8)
-import qualified Elm.Compiler.Type as Type
-import qualified Elm.Compiler.Type.Extract as Extract
-import qualified Elm.ModuleName as ModuleName
 import Foreign.Ptr (Ptr, plusPtr)
+import qualified Gren.Compiler.Type as Type
+import qualified Gren.Compiler.Type.Extract as Extract
+import qualified Gren.ModuleName as ModuleName
 import qualified Json.Decode as D
 import Json.Encode ((==>))
 import qualified Json.Encode as E

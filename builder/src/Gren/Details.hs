@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wall #-}
 
-module Elm.Details
+module Gren.Details
   ( Details (..),
     BuildID,
     ValidOutline (..),
@@ -35,15 +35,15 @@ import qualified Data.Set as Set
 import Data.Word (Word64)
 import qualified Deps.Solver as Solver
 import qualified Directories as Dirs
-import qualified Elm.Constraint as Con
-import qualified Elm.Docs as Docs
-import qualified Elm.Interface as I
-import qualified Elm.Kernel as Kernel
-import qualified Elm.ModuleName as ModuleName
-import qualified Elm.Outline as Outline
-import qualified Elm.Package as Pkg
-import qualified Elm.Version as V
 import qualified File
+import qualified Gren.Constraint as Con
+import qualified Gren.Docs as Docs
+import qualified Gren.Interface as I
+import qualified Gren.Kernel as Kernel
+import qualified Gren.ModuleName as ModuleName
+import qualified Gren.Outline as Outline
+import qualified Gren.Package as Pkg
+import qualified Gren.Version as V
 import qualified Json.Encode as E
 import qualified Parse.Module as Parse
 import qualified Reporting
@@ -120,7 +120,7 @@ loadInterfaces root (Details _ _ _ _ _ extras) =
 verifyInstall :: BW.Scope -> FilePath -> Solver.Env -> Outline.Outline -> IO (Either Exit.Details ())
 verifyInstall scope root (Solver.Env cache) outline =
   do
-    time <- File.getTime (root </> "elm.json")
+    time <- File.getTime (root </> "gren.json")
     let key = Reporting.ignorer
     let env = Env key scope root cache
     case outline of
@@ -132,7 +132,7 @@ verifyInstall scope root (Solver.Env cache) outline =
 load :: Reporting.Style -> BW.Scope -> FilePath -> IO (Either Exit.Details Details)
 load style scope root =
   do
-    newTime <- File.getTime (root </> "elm.json")
+    newTime <- File.getTime (root </> "gren.json")
     maybeDetails <- File.readBinary (Dirs.details root)
     case maybeDetails of
       Nothing ->
@@ -184,25 +184,25 @@ initEnv key scope root =
 type Task a = Task.Task Exit.Details a
 
 verifyPkg :: Env -> File.Time -> Outline.PkgOutline -> Task Details
-verifyPkg env time (Outline.PkgOutline pkg _ _ _ exposed direct testDirect elm) =
-  if Con.goodElm elm
+verifyPkg env time (Outline.PkgOutline pkg _ _ _ exposed direct testDirect gren) =
+  if Con.goodGren gren
     then do
       solution <- verifyConstraints env =<< union noDups direct testDirect
       let exposedList = Outline.flattenExposed exposed
       let exactDeps = Map.map (\(Solver.Details v _) -> v) solution -- for pkg docs in reactor
       verifyDependencies env time (ValidPkg pkg exposedList exactDeps) solution direct
-    else Task.throw $ Exit.DetailsBadElmInPkg elm
+    else Task.throw $ Exit.DetailsBadGrenInPkg gren
 
 verifyApp :: Env -> File.Time -> Outline.AppOutline -> Task Details
-verifyApp env time outline@(Outline.AppOutline elmVersion srcDirs direct _ _ _) =
-  if elmVersion == V.compiler
+verifyApp env time outline@(Outline.AppOutline grenVersion srcDirs direct _ _ _) =
+  if grenVersion == V.compiler
     then do
       stated <- checkAppDeps outline
       actual <- verifyConstraints env (Map.map Con.exactly stated)
       if Map.size stated == Map.size actual
         then verifyDependencies env time (ValidApp srcDirs) actual direct
         else Task.throw Exit.DetailsHandEditedDependencies
-    else Task.throw $ Exit.DetailsBadElmInAppOutline elmVersion
+    else Task.throw $ Exit.DetailsBadGrenInAppOutline grenVersion
 
 checkAppDeps :: Outline.AppOutline -> Task (Map.Map Pkg.Name V.Version)
 checkAppDeps (Outline.AppOutline _ _ direct indirect testDirect testIndirect) =
@@ -413,7 +413,7 @@ addLocalGraph name status graph =
 
 gatherInterfaces :: Map.Map ModuleName.Raw () -> Map.Map ModuleName.Raw Result -> Map.Map ModuleName.Raw I.DependencyInterface
 gatherInterfaces exposed artifacts =
-  let onLeft = Map.mapMissing (error "compiler bug manifesting in Elm.Details.gatherInterfaces")
+  let onLeft = Map.mapMissing (error "compiler bug manifesting in Gren.Details.gatherInterfaces")
       onRight = Map.mapMaybeMissing (\_ iface -> toLocalInterface I.private iface)
       onBoth = Map.zipWithMaybeMatched (\_ () iface -> toLocalInterface I.public iface)
    in Map.merge onLeft onRight onBoth exposed artifacts
@@ -467,7 +467,7 @@ data Status
 crawlModule :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> DocsStatus -> ModuleName.Raw -> IO (Maybe Status)
 crawlModule foreignDeps mvar pkg src docsStatus name =
   do
-    let path = src </> ModuleName.toFilePath name <.> "elm"
+    let path = src </> ModuleName.toFilePath name <.> "gren"
     exists <- File.exists path
     case Map.lookup name foreignDeps of
       Just ForeignAmbiguous ->

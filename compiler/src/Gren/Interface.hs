@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -Wall #-}
 
-module Elm.Interface
+module Gren.Interface
   ( Interface (..),
     Union (..),
     Alias (..),
@@ -25,7 +25,7 @@ import qualified Data.Map.Merge.Strict as Map
 import Data.Map.Strict ((!))
 import qualified Data.Map.Strict as Map
 import qualified Data.Name as Name
-import qualified Elm.Package as Pkg
+import qualified Gren.Package as Pkg
 import qualified Reporting.Annotation as A
 
 -- INTERFACE

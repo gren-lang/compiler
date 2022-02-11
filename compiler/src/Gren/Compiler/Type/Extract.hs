@@ -3,7 +3,7 @@
 {-# LANGUAGE Rank2Types #-}
 {-# OPTIONS_GHC -Wall #-}
 
-module Elm.Compiler.Type.Extract
+module Gren.Compiler.Type.Extract
   ( fromAnnotation,
     fromType,
     Types (..),
@@ -23,9 +23,9 @@ import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Name as Name
 import qualified Data.Set as Set
-import qualified Elm.Compiler.Type as T
-import qualified Elm.Interface as I
-import qualified Elm.ModuleName as ModuleName
+import qualified Gren.Compiler.Type as T
+import qualified Gren.Interface as I
+import qualified Gren.ModuleName as ModuleName
 
 -- EXTRACTION
 

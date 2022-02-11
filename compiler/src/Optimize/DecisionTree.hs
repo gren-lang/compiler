@@ -29,8 +29,8 @@ import qualified Data.List as List
 import qualified Data.Maybe as Maybe
 import qualified Data.Name as Name
 import qualified Data.Set as Set
-import qualified Elm.ModuleName as ModuleName
-import qualified Elm.String as ES
+import qualified Gren.ModuleName as ModuleName
+import qualified Gren.String as ES
 import qualified Reporting.Annotation as A
 
 -- COMPILE CASES

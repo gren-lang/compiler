@@ -9,7 +9,7 @@ module Data.Name
   ( Name,
     --
     toChars,
-    toElmString,
+    toGrenString,
     toBuilder,
     --
     fromPtr,
@@ -76,7 +76,6 @@ import qualified Data.Coerce as Coerce
 import qualified Data.List as List
 import qualified Data.String as Chars
 import qualified Data.Utf8 as Utf8
-import qualified Elm.String as ES
 import GHC.Exts
   ( Int (I#),
     Ptr,
@@ -85,21 +84,22 @@ import GHC.Exts
 import GHC.Prim
 import GHC.ST (ST (ST), runST)
 import GHC.Word (Word8 (W8#))
+import qualified Gren.String as ES
 import Prelude hiding (length, maybe, negate)
 
 -- NAME
 
 type Name =
-  Utf8.Utf8 ELM_NAME
+  Utf8.Utf8 GREN_NAME
 
-data ELM_NAME
+data GREN_NAME
 
 -- INSTANCES
 
-instance Chars.IsString (Utf8.Utf8 ELM_NAME) where
+instance Chars.IsString (Utf8.Utf8 GREN_NAME) where
   fromString = Utf8.fromChars
 
-instance Binary.Binary (Utf8.Utf8 ELM_NAME) where
+instance Binary.Binary (Utf8.Utf8 GREN_NAME) where
   get = Utf8.getUnder256
   put = Utf8.putUnder256
 
@@ -109,8 +109,8 @@ toChars :: Name -> [Char]
 toChars =
   Utf8.toChars
 
-toElmString :: Name -> ES.String
-toElmString =
+toGrenString :: Name -> ES.String
+toGrenString =
   Coerce.coerce
 
 {-# INLINE toBuilder #-}
@@ -175,7 +175,7 @@ isCompappendType = Utf8.startsWith prefix_compappend
 
 {-# NOINLINE prefix_kernel #-}
 prefix_kernel :: Name
-prefix_kernel = fromChars "Elm.Kernel."
+prefix_kernel = fromChars "Gren.Kernel."
 
 {-# NOINLINE prefix_number #-}
 prefix_number :: Name
@@ -277,9 +277,9 @@ fromTypeVariableScheme scheme =
 --
 -- Creating a unique name by combining all the subnames can create names
 -- longer than 256 bytes relatively easily. So instead, the first given name
--- (e.g. foo) is prefixed chars that are valid in JS but not Elm (e.g. _M$foo)
+-- (e.g. foo) is prefixed chars that are valid in JS but not Gren (e.g. _M$foo)
 --
--- This should be a unique name since 0.19 disallows shadowing. It would not
+-- This should be a unique name since shadowing is dissallowed. It would not
 -- be possible for multiple top-level cycles to include values with the same
 -- name, so the important thing is to make the cycle name distinct from the
 -- normal name. Same logic for destructuring patterns like (x,y)
@@ -529,7 +529,7 @@ identity = fromChars "identity"
 
 {-# NOINLINE replModule #-}
 replModule :: Name
-replModule = fromChars "Elm_Repl"
+replModule = fromChars "Gren_Repl"
 
 {-# NOINLINE replValueToPrint #-}
 replValueToPrint :: Name

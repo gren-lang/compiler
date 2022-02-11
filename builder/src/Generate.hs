@@ -19,14 +19,14 @@ import qualified Data.Maybe as Maybe
 import qualified Data.Name as N
 import qualified Data.NonEmptyList as NE
 import qualified Directories as Dirs
-import qualified Elm.Compiler.Type.Extract as Extract
-import qualified Elm.Details as Details
-import qualified Elm.Interface as I
-import qualified Elm.ModuleName as ModuleName
-import qualified Elm.Package as Pkg
 import qualified File
 import qualified Generate.JavaScript as JS
 import qualified Generate.Mode as Mode
+import qualified Gren.Compiler.Type.Extract as Extract
+import qualified Gren.Details as Details
+import qualified Gren.Interface as I
+import qualified Gren.ModuleName as ModuleName
+import qualified Gren.Package as Pkg
 import qualified Nitpick.Debug as Nitpick
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Task as Task
@@ -125,7 +125,7 @@ loadObject root modul =
     Build.Cached name _ _ ->
       do
         mvar <- newEmptyMVar
-        _ <- forkIO $ putMVar mvar =<< File.readBinary (Dirs.elmo root name)
+        _ <- forkIO $ putMVar mvar =<< File.readBinary (Dirs.greno root name)
         return (name, mvar)
 
 -- FINALIZE OBJECTS
@@ -176,7 +176,7 @@ loadTypesHelp root modul =
               mvar <- newEmptyMVar
               _ <- forkIO $
                 do
-                  maybeIface <- File.readBinary (Dirs.elmi root name)
+                  maybeIface <- File.readBinary (Dirs.greni root name)
                   putMVar mvar (Extract.fromInterface name <$> maybeIface)
               return mvar
           Build.Loaded iface ->

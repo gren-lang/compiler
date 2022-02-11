@@ -25,8 +25,8 @@ import qualified Data.Name as Name
 import qualified Data.Set as Set
 import qualified Data.Utf8 as Utf8
 import Data.Word (Word8)
-import qualified Elm.ModuleName as ModuleName
-import qualified Elm.Package as Pkg
+import qualified Gren.ModuleName as ModuleName
+import qualified Gren.Package as Pkg
 
 -- NAME
 
@@ -101,7 +101,7 @@ usd =
 {-# NOINLINE reservedNames #-}
 reservedNames :: Set.Set Name.Name
 reservedNames =
-  Set.union jsReservedWords elmReservedWords
+  Set.union jsReservedWords grenReservedWords
 
 jsReservedWords :: Set.Set Name.Name
 jsReservedWords =
@@ -175,8 +175,8 @@ jsReservedWords =
       "synchronized"
     ]
 
-elmReservedWords :: Set.Set Name.Name
-elmReservedWords =
+grenReservedWords :: Set.Set Name.Name
+grenReservedWords =
   Set.fromList
     [ "F2",
       "F3",

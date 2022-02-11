@@ -9,7 +9,7 @@ This page aims to catalog these scenarios and offer alternative paths that can g
 
 It is common to try to get some extra type safety by creating really simple custom types:
 
-```elm
+```gren
 type Id = Id Int
 type Age = Age Int
 
@@ -19,11 +19,11 @@ type Description = Description String
 
 By wrapping the primitive values like this, the type system can now help you make sure that you never mix up a `Id` and an `Age`. Those are different types! This trick is extra cool because it has no runtime cost in `--optimize` mode. The compiler can just use an `Int` or `String` directly when you use that flag!
 
-The problem arises when you want to use a `Id` as a key in a dictionary. This is a totally reasonable thing to do, but the current version of Elm cannot handle this scenario.
+The problem arises when you want to use a `Id` as a key in a dictionary. This is a totally reasonable thing to do, but the current version of Gren cannot handle this scenario.
 
 Instead of creating a `Dict Id Info` type, one thing you can do is create a custom data structure like this:
 
-```elm
+```gren
 module User exposing (Id, Table, empty, get, add)
 
 import Dict exposing (Dict)
@@ -67,7 +67,7 @@ So while this approach is not as convenient as using a `Dict` directly, it has s
 
 Say you need to define a `trafficLightToInt` function:
 
-```elm
+```gren
 type TrafficLight = Green | Yellow | Red
 
 trafficLightToInt : TrafficLight -> Int
@@ -79,7 +79,7 @@ We have heard that some people would prefer to use a dictionary for this sort of
 
 I would recommend using a `case` expression though:
 
-```elm
+```gren
 type TrafficLight = Green | Yellow | Red
 
 trafficLightToInt : TrafficLight -> Int
@@ -95,4 +95,4 @@ This is really straight-forward while avoiding questions like “is `Green` less
 
 ## Something else?
 
-If you have some other situation, please tell us about it [here](https://github.com/elm/error-message-catalog/issues). That is a log of error messages that can be improved, and we can use the particulars of your scenario to add more advice on this page!
+If you have some other situation, please tell us about it [here](https://github.com/gren/error-message-catalog/issues). That is a log of error messages that can be improved, and we can use the particulars of your scenario to add more advice on this page!

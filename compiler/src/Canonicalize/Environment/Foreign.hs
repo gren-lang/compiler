@@ -15,9 +15,9 @@ import qualified Data.List as List
 import Data.Map.Strict ((!))
 import qualified Data.Map.Strict as Map
 import qualified Data.Name as Name
-import qualified Elm.Interface as I
-import qualified Elm.ModuleName as ModuleName
-import qualified Elm.Package as Pkg
+import qualified Gren.Interface as I
+import qualified Gren.ModuleName as ModuleName
+import qualified Gren.Package as Pkg
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Result as Result

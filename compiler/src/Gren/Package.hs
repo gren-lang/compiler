@@ -4,7 +4,7 @@
 {-# LANGUAGE UnboxedTuples #-}
 {-# OPTIONS_GHC -Wall #-}
 
-module Elm.Package
+module Gren.Package
   ( Name (..),
     Author,
     Project,
@@ -24,8 +24,6 @@ module Elm.Package
     json,
     http,
     url,
-    webgl,
-    linearAlgebra,
     --
     suggestions,
     nearbyNames,
@@ -46,8 +44,8 @@ import qualified Data.Map as Map
 import qualified Data.Name as Name
 import qualified Data.Utf8 as Utf8
 import Data.Word (Word8)
-import qualified Elm.Version as V
 import Foreign.Ptr (Ptr, minusPtr, plusPtr)
+import qualified Gren.Version as V
 import qualified Json.Decode as D
 import qualified Json.Encode as E
 import qualified Json.String as Json
@@ -82,7 +80,7 @@ data Canonical = Canonical
 
 isKernel :: Name -> Bool
 isKernel (Name author _) =
-  author == elm || author == elm_explorations
+  author == gren
 
 toChars :: Name -> String
 toChars (Name author project) =
@@ -114,70 +112,55 @@ dummyName =
 {-# NOINLINE kernel #-}
 kernel :: Name
 kernel =
-  toName elm "kernel"
+  toName gren "kernel"
 
 {-# NOINLINE core #-}
 core :: Name
 core =
-  toName elm "core"
+  toName gren "core"
 
 {-# NOINLINE browser #-}
 browser :: Name
 browser =
-  toName elm "browser"
+  toName gren "browser"
 
 {-# NOINLINE virtualDom #-}
 virtualDom :: Name
 virtualDom =
-  toName elm "virtual-dom"
+  toName gren "virtual-dom"
 
 {-# NOINLINE html #-}
 html :: Name
 html =
-  toName elm "html"
+  toName gren "html"
 
 {-# NOINLINE json #-}
 json :: Name
 json =
-  toName elm "json"
+  toName gren "json"
 
 {-# NOINLINE http #-}
 http :: Name
 http =
-  toName elm "http"
+  toName gren "http"
 
 {-# NOINLINE url #-}
 url :: Name
 url =
-  toName elm "url"
+  toName gren "url"
 
-{-# NOINLINE webgl #-}
-webgl :: Name
-webgl =
-  toName elm_explorations "webgl"
-
-{-# NOINLINE linearAlgebra #-}
-linearAlgebra :: Name
-linearAlgebra =
-  toName elm_explorations "linear-algebra"
-
-{-# NOINLINE elm #-}
-elm :: Author
-elm =
-  Utf8.fromChars "elm"
-
-{-# NOINLINE elm_explorations #-}
-elm_explorations :: Author
-elm_explorations =
-  Utf8.fromChars "elm-explorations"
+{-# NOINLINE gren #-}
+gren :: Author
+gren =
+  Utf8.fromChars "gren"
 
 -- PACKAGE SUGGESTIONS
 
 suggestions :: Map.Map Name.Name Name
 suggestions =
-  let random = toName elm "random"
-      time = toName elm "time"
-      file = toName elm "file"
+  let random = toName gren "random"
+      time = toName gren "time"
+      file = toName gren "file"
    in Map.fromList
         [ "Browser" ==> browser,
           "File" ==> file,
@@ -212,7 +195,7 @@ nearbyNames (Name author1 project1) possibleNames =
 
 authorDistance :: [Char] -> Author -> Int
 authorDistance given possibility =
-  if possibility == elm || possibility == elm_explorations
+  if possibility == gren
     then 0
     else abs (Suggest.distance given (Utf8.toChars possibility))
 

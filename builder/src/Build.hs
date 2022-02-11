@@ -37,13 +37,13 @@ import qualified Data.NonEmptyList as NE
 import qualified Data.OneOrMore as OneOrMore
 import qualified Data.Set as Set
 import qualified Directories as Dirs
-import qualified Elm.Details as Details
-import qualified Elm.Docs as Docs
-import qualified Elm.Interface as I
-import qualified Elm.ModuleName as ModuleName
-import qualified Elm.Outline as Outline
-import qualified Elm.Package as Pkg
 import qualified File
+import qualified Gren.Details as Details
+import qualified Gren.Docs as Docs
+import qualified Gren.Interface as I
+import qualified Gren.ModuleName as ModuleName
+import qualified Gren.Outline as Outline
+import qualified Gren.Package as Pkg
 import qualified Json.Encode as E
 import qualified Parse.Module as Parse
 import qualified Reporting
@@ -240,7 +240,7 @@ crawlDeps env mvar deps blockedValue =
 crawlModule :: Env -> MVar StatusDict -> DocsNeed -> ModuleName.Raw -> IO Status
 crawlModule env@(Env _ root projectType srcDirs buildID locals foreigns) mvar docsNeed name =
   do
-    let fileName = ModuleName.toFilePath name <.> "elm"
+    let fileName = ModuleName.toFilePath name <.> "gren"
 
     paths <- filterM File.exists (map (`addRelative` fileName) srcDirs)
 
@@ -492,7 +492,7 @@ loadInterface root (name, ciMvar) =
           return (Just (name, iface))
       Unneeded ->
         do
-          maybeIface <- File.readBinary (Dirs.elmi root name)
+          maybeIface <- File.readBinary (Dirs.greni root name)
           case maybeIface of
             Nothing ->
               do
@@ -626,9 +626,9 @@ compile (Env key root projectType _ buildID _ _) docsNeed (Details.Local path ti
               do
                 let name = Src.getName modul
                 let iface = I.fromModule pkg canonical annotations
-                let elmi = Dirs.elmi root name
-                File.writeBinary (Dirs.elmo root name) objects
-                maybeOldi <- File.readBinary elmi
+                let greni = Dirs.greni root name
+                File.writeBinary (Dirs.greno root name) objects
+                maybeOldi <- File.readBinary greni
                 case maybeOldi of
                   Just oldi | oldi == iface ->
                     do
@@ -639,7 +639,7 @@ compile (Env key root projectType _ buildID _ _) docsNeed (Details.Local path ti
                   _ ->
                     do
                       -- iface may be lazy still
-                      File.writeBinary elmi iface
+                      File.writeBinary greni iface
                       Reporting.report key Reporting.BDone
                       let local = Details.Local path time deps main buildID buildID
                       return (RNew local iface objects docs)
@@ -885,7 +885,7 @@ getRootInfoHelp :: Env -> FilePath -> FilePath -> IO (Either Exit.BuildProjectPr
 getRootInfoHelp (Env _ _ _ srcDirs _ _ _) path absolutePath =
   let (dirs, file) = FP.splitFileName absolutePath
       (final, ext) = FP.splitExtension file
-   in if ext /= ".elm"
+   in if ext /= ".gren"
         then return $ Left $ Exit.BP_WithBadExtension path
         else
           let absoluteSegments = FP.splitDirectories dirs ++ [final]
@@ -899,8 +899,8 @@ getRootInfoHelp (Env _ _ _ srcDirs _ _ _) path absolutePath =
                     case matchingDirs of
                       d1 : d2 : _ ->
                         do
-                          let p1 = addRelative d1 (FP.joinPath names <.> "elm")
-                          let p2 = addRelative d2 (FP.joinPath names <.> "elm")
+                          let p1 = addRelative d1 (FP.joinPath names <.> "gren")
+                          let p2 = addRelative d2 (FP.joinPath names <.> "gren")
                           return $ Left $ Exit.BP_RootNameDuplicate name p1 p2
                       _ ->
                         return $ Right $ RootInfo absolutePath path (LInside name)
@@ -911,7 +911,7 @@ getRootInfoHelp (Env _ _ _ srcDirs _ _ _) path absolutePath =
 
 isInsideSrcDirByName :: [String] -> AbsoluteSrcDir -> IO Bool
 isInsideSrcDirByName names srcDir =
-  File.exists (addRelative srcDir (FP.joinPath names <.> "elm"))
+  File.exists (addRelative srcDir (FP.joinPath names <.> "gren"))
 
 isInsideSrcDirByPath :: [String] -> AbsoluteSrcDir -> Maybe (FilePath, Either [String] [String])
 isInsideSrcDirByPath segments (AbsoluteSrcDir srcDir) =

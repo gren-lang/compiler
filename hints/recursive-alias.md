@@ -1,4 +1,3 @@
-
 # Hints for Recursive Type Aliases
 
 At the root of this issue is the distinction between a `type` and a `type alias`.
@@ -8,7 +7,7 @@ At the root of this issue is the distinction between a `type` and a `type alias`
 
 When you create a type alias, you are just creating a shorthand to refer to an existing type. So when you say the following:
 
-```elm
+```gren
 type alias Time = Float
 
 type alias Degree = Float
@@ -18,7 +17,7 @@ type alias Weight = Float
 
 You have not created any *new* types, you just made some alternate names for `Float`. You can write down things like this and it'll work fine:
 
-```elm
+```gren
 add : Time -> Degree -> Weight
 add time degree =
   time + degree
@@ -26,7 +25,7 @@ add time degree =
 
 This is kind of a weird way to use type aliases though. The typical usage would be for records, where you do not want to write out the whole thing every time. Stuff like this:
 
-```elm
+```gren
 type alias Person =
   { name : String
   , age : Int
@@ -39,9 +38,9 @@ It is much easier to write down `Person` in a type, and then it will just expand
 
 ## Recursive type aliases?
 
-Okay, so let's say you have some type that may contain itself. In Elm, a common example of this is a comment that might have subcomments:
+Okay, so let's say you have some type that may contain itself. In Gren, a common example of this is a comment that might have subcomments:
 
-```elm
+```gren
 type alias Comment =
   { message : String
   , upvotes : Int
@@ -52,7 +51,7 @@ type alias Comment =
 
 Now remember that type *aliases* are just alternate names for the real type. So to make `Comment` into a concrete type, the compiler would start expanding it out.
 
-```elm
+```gren
   { message : String
   , upvotes : Int
   , downvotes : Int
@@ -79,7 +78,7 @@ The compiler cannot deal with values like this. It would just keep expanding for
 
 In cases where you want a recursive type, you need to actually create a brand new type. This is what the `type` keyword is for. A simple example of this can be seen when defining a linked list:
 
-```elm
+```gren
 type List
     = Empty
     | Node Int List
@@ -92,7 +91,7 @@ So let's return to wanting to represent a `Comment` that may have responses. The
 
 ### Obvious, but kind of annoying
 
-```elm
+```gren
 type Comment =
    Comment
       { message : String
@@ -104,7 +103,7 @@ type Comment =
 
 Now let's say you want to register an upvote on a comment:
 
-```elm
+```gren
 upvote : Comment -> Comment
 upvote (Comment comment) =
   Comment { comment | upvotes = 1 + comment.upvotes }
@@ -115,7 +114,7 @@ It is kind of annoying that we now have to unwrap and wrap the record to do anyt
 
 ### Less obvious, but nicer
 
-```elm
+```gren
 type alias Comment =
   { message : String
   , upvotes : Int
@@ -128,7 +127,7 @@ type Responses = Responses (List Comment)
 
 In this world, we introduce the `Responses` type to capture the recursion, but `Comment` is still an alias for a record. This means the `upvote` function looks nice again:
 
-```elm
+```gren
 upvote : Comment -> Comment
 upvote comment =
   { comment | upvotes = 1 + comment.upvotes }
@@ -141,7 +140,7 @@ So rather than having to unwrap a `Comment` to do *anything* to it, you only hav
 
 It is also possible to build type aliases that are *mutually* recursive. That might be something like this:
 
-```elm
+```gren
 type alias Comment =
   { message : String
   , upvotes : Int

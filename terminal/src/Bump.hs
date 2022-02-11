@@ -12,11 +12,11 @@ import qualified Data.NonEmptyList as NE
 import qualified Deps.Diff as Diff
 import qualified Deps.Package as Package
 import qualified Directories as Dirs
-import qualified Elm.Details as Details
-import qualified Elm.Docs as Docs
-import qualified Elm.Magnitude as M
-import qualified Elm.Outline as Outline
-import qualified Elm.Version as V
+import qualified Gren.Details as Details
+import qualified Gren.Docs as Docs
+import qualified Gren.Magnitude as M
+import qualified Gren.Outline as Outline
+import qualified Gren.Version as V
 import qualified Reporting
 import Reporting.Doc ((<+>))
 import qualified Reporting.Doc as D
@@ -86,10 +86,10 @@ checkNewPackage root outline@(Outline.PkgOutline _ _ _ version _ _ _ _) =
   do
     putStrLn Exit.newPackageOverview
     if version == V.one
-      then putStrLn "The version number in elm.json is correct so you are all set!"
+      then putStrLn "The version number in gren.json is correct so you are all set!"
       else
         changeVersion root outline V.one $
-          "It looks like the version in elm.json has been changed though!\n\
+          "It looks like the version in gren.json has been changed though!\n\
           \Would you like me to change it back to "
             <> D.fromVersion V.one
             <> "? [Y/n] "
@@ -113,13 +113,13 @@ suggestVersion (Env root cache outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _))
             new = D.fromVersion newVersion
             mag = D.fromChars $ M.toChars (Diff.toMagnitude changes)
          in "Based on your new API, this should be a" <+> D.green mag <+> "change (" <> old <> " => " <> new <> ")\n"
-              <> "Bail out of this command and run 'elm diff' for a full explanation.\n"
+              <> "Bail out of this command and run 'gren diff' for a full explanation.\n"
               <> "\n"
               <> "Should I perform the update ("
               <> old
               <> " => "
               <> new
-              <> ") in elm.json? [Y/n] "
+              <> ") in gren.json? [Y/n] "
 
 generateDocs :: FilePath -> Outline.PkgOutline -> Task.Task Exit.Bump Docs.Documentation
 generateDocs root (Outline.PkgOutline _ _ _ _ exposed _ _ _) =

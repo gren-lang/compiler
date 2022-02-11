@@ -15,7 +15,7 @@ import Control.Monad (foldM)
 import qualified Data.Index as Index
 import qualified Data.Map as Map
 import qualified Data.Name as Name
-import qualified Elm.ModuleName as ModuleName
+import qualified Gren.ModuleName as ModuleName
 import qualified Optimize.Names as Names
 import Prelude hiding (maybe, null)
 
@@ -55,7 +55,7 @@ toEncoder tipe =
             do
               encoder <- toEncoder fieldType
               let value = Opt.Call encoder [Opt.Access (Opt.VarLocal Name.dollar) name]
-              return $ Opt.Tuple (Opt.Str (Name.toElmString name)) value Nothing
+              return $ Opt.Tuple (Opt.Str (Name.toGrenString name)) value Nothing
        in do
             object <- encode "object"
             keyValuePairs <- traverse encodeField (Map.toList fields)
@@ -271,7 +271,7 @@ fieldAndThen decoder (key, Can.FieldType _ tipe) =
       Opt.Call
         andThen
         [ Opt.Function [key] decoder,
-          Opt.Call field [Opt.Str (Name.toElmString key), typeDecoder]
+          Opt.Call field [Opt.Str (Name.toGrenString key), typeDecoder]
         ]
 
 -- GLOBALS HELPERS

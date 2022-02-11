@@ -14,8 +14,8 @@ where
 
 import qualified AST.Utils.Binop as Binop
 import Data.Word (Word8)
-import qualified Elm.Float as EF
 import Foreign.Ptr (Ptr, minusPtr, plusPtr)
+import qualified Gren.Float as EF
 import Parse.Primitives (Col, Parser, Row)
 import qualified Parse.Primitives as P
 import qualified Parse.Variable as Var

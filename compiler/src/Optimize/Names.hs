@@ -22,7 +22,7 @@ import qualified Data.Index as Index
 import qualified Data.Map as Map
 import qualified Data.Name as Name
 import qualified Data.Set as Set
-import qualified Elm.ModuleName as ModuleName
+import qualified Gren.ModuleName as ModuleName
 import qualified Reporting.Annotation as A
 
 -- GENERATOR

@@ -12,9 +12,9 @@ import qualified AST.Source as Src
 import qualified Canonicalize.Module as Canonicalize
 import qualified Data.Map as Map
 import qualified Data.Name as Name
-import qualified Elm.Interface as I
-import qualified Elm.ModuleName as ModuleName
-import qualified Elm.Package as Pkg
+import qualified Gren.Interface as I
+import qualified Gren.ModuleName as ModuleName
+import qualified Gren.Package as Pkg
 import qualified Nitpick.PatternMatches as PatternMatches
 import qualified Optimize.Module as Optimize
 import qualified Reporting.Error as E
