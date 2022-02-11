@@ -279,7 +279,7 @@ fromTypeVariableScheme scheme =
 -- longer than 256 bytes relatively easily. So instead, the first given name
 -- (e.g. foo) is prefixed chars that are valid in JS but not Gren (e.g. _M$foo)
 --
--- This should be a unique name since 0.19 disallows shadowing. It would not
+-- This should be a unique name since shadowing is dissallowed. It would not
 -- be possible for multiple top-level cycles to include values with the same
 -- name, so the important thing is to make the cycle name distinct from the
 -- normal name. Same logic for destructuring patterns like (x,y)
