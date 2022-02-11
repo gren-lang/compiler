@@ -18,7 +18,7 @@ jobs:
 
     - uses: haskell/actions/setup@v1
       with:
-        ghc-version: '8.10'
+        ghc-version: '9.2.1'
         cabal-version: '3.6'
 
     - name: Cache
