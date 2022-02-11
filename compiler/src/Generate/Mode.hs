@@ -11,8 +11,8 @@ import qualified Data.List as List
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Name as Name
-import qualified Elm.Compiler.Type.Extract as Extract
 import qualified Generate.JavaScript.Name as JsName
+import qualified Gren.Compiler.Type.Extract as Extract
 
 -- MODE
 

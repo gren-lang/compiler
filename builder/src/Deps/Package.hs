@@ -7,10 +7,10 @@ where
 
 import qualified Data.List as List
 import qualified Directories as Dirs
-import qualified Elm.Magnitude as M
-import qualified Elm.Package as Pkg
-import qualified Elm.Version as V
 import qualified Git
+import qualified Gren.Magnitude as M
+import qualified Gren.Package as Pkg
+import qualified Gren.Version as V
 import qualified System.Directory as Dir
 
 -- GET VERSIONS

@@ -65,8 +65,8 @@ where
 import qualified Data.Index as Index
 import qualified Data.List as List
 import qualified Data.Name as Name
-import qualified Elm.Package as Pkg
-import qualified Elm.Version as V
+import qualified Gren.Package as Pkg
+import qualified Gren.Version as V
 import Json.Encode ((==>))
 import qualified Json.Encode as E
 import qualified Json.String as Json
@@ -172,11 +172,11 @@ fancyLink word before fileName after =
 
 makeLink :: [Char] -> [Char]
 makeLink fileName =
-  "<https://elm-lang.org/" <> V.toChars V.compiler <> "/" <> fileName <> ">"
+  "<https://gren-lang.org/" <> V.toChars V.compiler <> "/" <> fileName <> ">"
 
 makeNakedLink :: [Char] -> [Char]
 makeNakedLink fileName =
-  "https://elm-lang.org/" <> V.toChars V.compiler <> "/" <> fileName
+  "https://gren-lang.org/" <> V.toChars V.compiler <> "/" <> fileName
 
 reflowLink :: [Char] -> [Char] -> [Char] -> P.Doc
 reflowLink before fileName after =

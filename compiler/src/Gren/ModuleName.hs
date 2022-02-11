@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE UnboxedTuples #-}
 
-module Elm.ModuleName
+module Gren.ModuleName
   ( Raw,
     toChars,
     toFilePath,
@@ -29,12 +29,6 @@ module Elm.ModuleName
     virtualDom,
     jsonDecode,
     jsonEncode,
-    webgl,
-    texture,
-    vector2,
-    vector3,
-    vector4,
-    matrix4,
   )
 where
 
@@ -43,8 +37,8 @@ import Data.Binary (Binary (..))
 import qualified Data.Name as Name
 import qualified Data.Utf8 as Utf8
 import Data.Word (Word8)
-import qualified Elm.Package as Pkg
 import Foreign.Ptr (Ptr, minusPtr, plusPtr)
+import qualified Gren.Package as Pkg
 import qualified Json.Decode as D
 import qualified Json.Encode as E
 import Parse.Primitives (Col, Row)
@@ -208,29 +202,3 @@ jsonDecode = Canonical Pkg.json "Json.Decode"
 {-# NOINLINE jsonEncode #-}
 jsonEncode :: Canonical
 jsonEncode = Canonical Pkg.json "Json.Encode"
-
--- WEBGL
-
-{-# NOINLINE webgl #-}
-webgl :: Canonical
-webgl = Canonical Pkg.webgl "WebGL"
-
-{-# NOINLINE texture #-}
-texture :: Canonical
-texture = Canonical Pkg.webgl "WebGL.Texture"
-
-{-# NOINLINE vector2 #-}
-vector2 :: Canonical
-vector2 = Canonical Pkg.linearAlgebra "Math.Vector2"
-
-{-# NOINLINE vector3 #-}
-vector3 :: Canonical
-vector3 = Canonical Pkg.linearAlgebra "Math.Vector3"
-
-{-# NOINLINE vector4 #-}
-vector4 :: Canonical
-vector4 = Canonical Pkg.linearAlgebra "Math.Vector4"
-
-{-# NOINLINE matrix4 #-}
-matrix4 :: Canonical
-matrix4 = Canonical Pkg.linearAlgebra "Math.Matrix4"

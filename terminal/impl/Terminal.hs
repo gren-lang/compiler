@@ -34,8 +34,8 @@ where
 
 import qualified Data.List as List
 import qualified Data.Maybe as Maybe
-import qualified Elm.Version as V
 import GHC.IO.Encoding (setLocaleEncoding, utf8)
+import qualified Gren.Version as V
 import qualified System.Directory as Dir
 import qualified System.Environment as Env
 import qualified System.Exit as Exit
@@ -273,7 +273,7 @@ require5 func a b c d e =
 -- file names:
 --
 --    suggestFiles []             -- suggests any file
---    suggestFiles ["elm"]        -- suggests only .elm files
+--    suggestFiles ["gren"]        -- suggests only .gren files
 --    suggestFiles ["js","html"]  -- suggests only .js and .html files
 --
 -- Notice that you can limit the suggestion by the file extension! If you need

@@ -18,11 +18,11 @@ import qualified Data.ByteString.Builder as B
 import qualified Data.Maybe as Maybe
 import qualified Data.NonEmptyList as NE
 import qualified Directories as Dirs
-import qualified Elm.Details as Details
-import qualified Elm.ModuleName as ModuleName
 import qualified File
 import qualified Generate
 import qualified Generate.Html as Html
+import qualified Gren.Details as Details
+import qualified Gren.ModuleName as ModuleName
 import qualified Reporting
 import qualified Reporting.Exit as Exit
 import qualified Reporting.Task as Task
@@ -90,7 +90,7 @@ runHelp root paths style (Flags debug optimize maybeOutput _ maybeDocs) =
                       name : names ->
                         do
                           builder <- toBuilder root details desiredMode artifacts
-                          generate style "elm.js" builder (NE.List name names)
+                          generate style "gren.js" builder (NE.List name names)
                   Just DevNull ->
                     return ()
                   Just (JS target) ->
@@ -239,7 +239,7 @@ output =
       _plural = "output files",
       _parser = parseOutput,
       _suggest = \_ -> return [],
-      _examples = \_ -> return ["elm.js", "index.html", "/dev/null"]
+      _examples = \_ -> return ["gren.js", "index.html", "/dev/null"]
     }
 
 parseOutput :: String -> Maybe Output

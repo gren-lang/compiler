@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wall #-}
 
-module Elm.Outline
+module Gren.Outline
   ( Outline (..),
     AppOutline (..),
     PkgOutline (..),
@@ -22,13 +22,13 @@ import Data.Binary (Binary, get, getWord8, put, putWord8)
 import qualified Data.Map as Map
 import qualified Data.NonEmptyList as NE
 import qualified Data.OneOrMore as OneOrMore
-import qualified Elm.Constraint as Con
-import qualified Elm.Licenses as Licenses
-import qualified Elm.ModuleName as ModuleName
-import qualified Elm.Package as Pkg
-import qualified Elm.Version as V
 import qualified File
 import Foreign.Ptr (minusPtr)
+import qualified Gren.Constraint as Con
+import qualified Gren.Licenses as Licenses
+import qualified Gren.ModuleName as ModuleName
+import qualified Gren.Package as Pkg
+import qualified Gren.Version as V
 import qualified Json.Decode as D
 import Json.Encode ((==>))
 import qualified Json.Encode as E
@@ -47,7 +47,7 @@ data Outline
   | Pkg PkgOutline
 
 data AppOutline = AppOutline
-  { _app_elm_version :: V.Version,
+  { _app_gren_version :: V.Version,
     _app_source_dirs :: NE.List SrcDir,
     _app_deps_direct :: Map.Map Pkg.Name V.Version,
     _app_deps_indirect :: Map.Map Pkg.Name V.Version,
@@ -63,7 +63,7 @@ data PkgOutline = PkgOutline
     _pkg_exposed :: Exposed,
     _pkg_deps :: Map.Map Pkg.Name Con.Constraint,
     _pkg_test_deps :: Map.Map Pkg.Name Con.Constraint,
-    _pkg_elm_version :: Con.Constraint
+    _pkg_gren_version :: Con.Constraint
   }
 
 data Exposed
@@ -94,18 +94,18 @@ flattenExposed exposed =
 
 write :: FilePath -> Outline -> IO ()
 write root outline =
-  E.write (root </> "elm.json") (encode outline)
+  E.write (root </> "gren.json") (encode outline)
 
 -- JSON ENCODE
 
 encode :: Outline -> E.Value
 encode outline =
   case outline of
-    App (AppOutline elm srcDirs depsDirect depsTrans testDirect testTrans) ->
+    App (AppOutline gren srcDirs depsDirect depsTrans testDirect testTrans) ->
       E.object
         [ "type" ==> E.chars "application",
           "source-directories" ==> E.list encodeSrcDir (NE.toList srcDirs),
-          "elm-version" ==> V.encode elm,
+          "gren-version" ==> V.encode gren,
           "dependencies"
             ==> E.object
               [ "direct" ==> encodeDeps V.encode depsDirect,
@@ -117,7 +117,7 @@ encode outline =
                 "indirect" ==> encodeDeps V.encode testTrans
               ]
         ]
-    Pkg (PkgOutline name summary license version exposed deps tests elm) ->
+    Pkg (PkgOutline name summary license version exposed deps tests gren) ->
       E.object
         [ "type" ==> E.string (Json.fromChars "package"),
           "name" ==> Pkg.encode name,
@@ -125,7 +125,7 @@ encode outline =
           "license" ==> Licenses.encode license,
           "version" ==> V.encode version,
           "exposed-modules" ==> encodeExposed exposed,
-          "elm-version" ==> Con.encode elm,
+          "gren-version" ==> Con.encode gren,
           "dependencies" ==> encodeDeps Con.encode deps,
           "test-dependencies" ==> encodeDeps Con.encode tests
         ]
@@ -157,7 +157,7 @@ encodeSrcDir srcDir =
 read :: FilePath -> IO (Either Exit.Outline Outline)
 read root =
   do
-    bytes <- File.readUtf8 (root </> "elm.json")
+    bytes <- File.readUtf8 (root </> "gren.json")
     case D.fromByteString decoder bytes of
       Left err ->
         return $ Left (Exit.OutlineHasBadStructure err)
@@ -244,7 +244,7 @@ decoder =
 appDecoder :: Decoder AppOutline
 appDecoder =
   AppOutline
-    <$> D.field "elm-version" versionDecoder
+    <$> D.field "gren-version" versionDecoder
     <*> D.field "source-directories" dirsDecoder
     <*> D.field "dependencies" (D.field "direct" (depsDecoder versionDecoder))
     <*> D.field "dependencies" (D.field "indirect" (depsDecoder versionDecoder))
@@ -261,7 +261,7 @@ pkgDecoder =
     <*> D.field "exposed-modules" exposedDecoder
     <*> D.field "dependencies" (depsDecoder constraintDecoder)
     <*> D.field "test-dependencies" (depsDecoder constraintDecoder)
-    <*> D.field "elm-version" constraintDecoder
+    <*> D.field "gren-version" constraintDecoder
 
 -- JSON DECODE HELPERS
 

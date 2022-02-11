@@ -8,10 +8,10 @@ where
 import qualified Data.Map as Map
 import qualified Data.NonEmptyList as NE
 import qualified Deps.Solver as Solver
-import qualified Elm.Constraint as Con
-import qualified Elm.Outline as Outline
-import qualified Elm.Package as Pkg
-import qualified Elm.Version as V
+import qualified Gren.Constraint as Con
+import qualified Gren.Outline as Outline
+import qualified Gren.Package as Pkg
+import qualified Gren.Version as V
 import qualified Reporting
 import qualified Reporting.Doc as D
 import qualified Reporting.Exit as Exit
@@ -24,7 +24,7 @@ run :: () -> () -> IO ()
 run () () =
   Reporting.attempt Exit.initToReport $
     do
-      exists <- Dir.doesFileExist "elm.json"
+      exists <- Dir.doesFileExist "gren.json"
       if exists
         then return (Left Exit.InitAlreadyExists)
         else do
@@ -40,13 +40,13 @@ question =
   D.stack
     [ D.fillSep
         [ "Hello!",
-          "Elm",
+          "Gren",
           "projects",
           "always",
           "start",
           "with",
           "an",
-          D.green "elm.json",
+          D.green "gren.json",
           "file.",
           "I",
           "can",
@@ -54,7 +54,7 @@ question =
           "them!"
         ],
       D.reflow
-        "Now you may be wondering, what will be in this file? How do I add Elm files to\
+        "Now you may be wondering, what will be in this file? How do I add Gren files to\
         \ my project? How do I see it in the browser? How will my code grow? Do I need\
         \ more directories? What about tests? Etc.",
       D.fillSep
@@ -66,7 +66,7 @@ question =
           "the",
           "answers!"
         ],
-      "Knowing all that, would you like me to create an elm.json file now? [Y/n]: "
+      "Knowing all that, would you like me to create an gren.json file now? [Y/n]: "
     ]
 
 -- INIT

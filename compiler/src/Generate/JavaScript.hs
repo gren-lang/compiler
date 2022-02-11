@@ -17,13 +17,13 @@ import qualified Data.Map as Map
 import qualified Data.Name as Name
 import qualified Data.Set as Set
 import qualified Data.Utf8 as Utf8
-import qualified Elm.Kernel as K
-import qualified Elm.ModuleName as ModuleName
 import qualified Generate.JavaScript.Builder as JS
 import qualified Generate.JavaScript.Expression as Expr
 import qualified Generate.JavaScript.Functions as Functions
 import qualified Generate.JavaScript.Name as JsName
 import qualified Generate.Mode as Mode
+import qualified Gren.Kernel as K
+import qualified Gren.ModuleName as ModuleName
 import qualified Reporting.Doc as D
 import qualified Reporting.Render.Type as RT
 import qualified Reporting.Render.Type.Localizer as L
@@ -301,11 +301,11 @@ addChunk mode chunk builder =
   case chunk of
     K.JS javascript ->
       B.byteString javascript <> builder
-    K.ElmVar home name ->
+    K.GrenVar home name ->
       JsName.toBuilder (JsName.fromGlobal home name) <> builder
     K.JsVar home name ->
       JsName.toBuilder (JsName.fromKernel home name) <> builder
-    K.ElmField name ->
+    K.GrenField name ->
       JsName.toBuilder (Expr.generateField mode name) <> builder
     K.JsField int ->
       JsName.toBuilder (JsName.fromInt int) <> builder

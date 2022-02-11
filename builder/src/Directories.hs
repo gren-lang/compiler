@@ -5,8 +5,8 @@ module Directories
     interfaces,
     objects,
     prepublishDir,
-    elmi,
-    elmo,
+    greni,
+    greno,
     temp,
     findRoot,
     withRootLock,
@@ -20,9 +20,9 @@ module Directories
   )
 where
 
-import qualified Elm.ModuleName as ModuleName
-import qualified Elm.Package as Pkg
-import qualified Elm.Version as V
+import qualified Gren.ModuleName as ModuleName
+import qualified Gren.Package as Pkg
+import qualified Gren.Version as V
 import qualified System.Directory as Dir
 import qualified System.Environment as Env
 import qualified System.FileLock as Lock
@@ -55,15 +55,15 @@ compilerVersion :: FilePath
 compilerVersion =
   V.toChars V.compiler
 
--- ELMI and ELMO
+-- GRENI and GRENO
 
-elmi :: FilePath -> ModuleName.Raw -> FilePath
-elmi root name =
-  toArtifactPath root name "elmi"
+greni :: FilePath -> ModuleName.Raw -> FilePath
+greni root name =
+  toArtifactPath root name "greni"
 
-elmo :: FilePath -> ModuleName.Raw -> FilePath
-elmo root name =
-  toArtifactPath root name "elmo"
+greno :: FilePath -> ModuleName.Raw -> FilePath
+greno root name =
+  toArtifactPath root name "greno"
 
 toArtifactPath :: FilePath -> ModuleName.Raw -> String -> FilePath
 toArtifactPath root name ext =
@@ -90,7 +90,7 @@ findRootHelp dirs =
       return Nothing
     _ : _ ->
       do
-        exists <- Dir.doesFileExist (FP.joinPath dirs </> "elm.json")
+        exists <- Dir.doesFileExist (FP.joinPath dirs </> "gren.json")
         if exists
           then return (Just (FP.joinPath dirs))
           else findRootHelp (init dirs)

@@ -12,8 +12,8 @@ where
 
 import qualified Data.Utf8 as Utf8
 import Data.Word (Word16, Word8)
-import qualified Elm.String as ES
 import Foreign.Ptr (Ptr, minusPtr, plusPtr)
+import qualified Gren.String as ES
 import qualified Parse.Number as Number
 import Parse.Primitives (Col, Parser, Row)
 import qualified Parse.Primitives as P

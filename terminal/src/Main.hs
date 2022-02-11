@@ -8,7 +8,7 @@ where
 import qualified Bump
 import qualified Data.List as List
 import qualified Diff
-import qualified Elm.Version as V
+import qualified Gren.Version as V
 import qualified Init
 import qualified Install
 import qualified Make
@@ -45,14 +45,14 @@ intro =
           "for",
           "trying",
           "out",
-          P.green "Elm",
+          P.green "Gren",
           P.green (P.text (V.toChars V.compiler)) <> ".",
           "I hope you like it!"
         ],
       "",
       P.black "-------------------------------------------------------------------------------",
-      P.black "I highly recommend working through <https://guide.elm-lang.org> to get started.",
-      P.black "It teaches many important concepts, including how to use `elm` in the terminal.",
+      P.black "I highly recommend working through <https://guide.gren-lang.org> to get started.",
+      P.black "It teaches many important concepts, including how to use `gren` in the terminal.",
       P.black "-------------------------------------------------------------------------------"
     ]
 
@@ -61,7 +61,7 @@ outro =
   P.fillSep $
     map P.text $
       words
-        "Be sure to ask on the Elm slack if you run into trouble! Folks are friendly and\
+        "Be sure to ask on the Gren slack if you run into trouble! Folks are friendly and\
         \ happy to help out. They hang out there because it is fun, so be kind to get the\
         \ best results!"
 
@@ -70,16 +70,16 @@ outro =
 init :: Terminal.Command
 init =
   let summary =
-        "Start an Elm project. It creates a starter elm.json file and\
+        "Start an Gren project. It creates a starter gren.json file and\
         \ provides a link explaining what to do from there."
 
       details =
-        "The `init` command helps start Elm projects:"
+        "The `init` command helps start Gren projects:"
 
       example =
         reflow
-          "It will ask permission to create an elm.json file, the one thing common\
-          \ to all Elm projects. It also provides a link explaining what to do from there."
+          "It will ask permission to create an gren.json file, the one thing common\
+          \ to all Gren projects. It also provides a link explaining what to do from there."
    in Terminal.Command "init" (Common summary) details example noArgs noFlags Init.run
 
 -- REPL
@@ -87,7 +87,7 @@ init =
 repl :: Terminal.Command
 repl =
   let summary =
-        "Open up an interactive programming session. Type in Elm expressions\
+        "Open up an interactive programming session. Type in Gren expressions\
         \ like (2 + 2) or (String.length \"test\") and see if they equal four!"
 
       details =
@@ -95,7 +95,7 @@ repl =
 
       example =
         reflow
-          "Start working through <https://guide.elm-lang.org> to learn how to use this!\
+          "Start working through <https://guide.gren-lang.org> to learn how to use this!\
           \ It has a whole chapter that uses the REPL for everything, so that is probably\
           \ the quickest way to get started."
 
@@ -120,15 +120,15 @@ interpreter =
 make :: Terminal.Command
 make =
   let details =
-        "The `make` command compiles Elm code into JS or HTML:"
+        "The `make` command compiles Gren code into JS or HTML:"
 
       example =
         stack
           [ reflow
               "For example:",
-            P.indent 4 $ P.green "elm make src/Main.elm",
+            P.indent 4 $ P.green "gren make src/Main.gren",
             reflow
-              "This tries to compile an Elm file named src/Main.elm, generating an index.html\
+              "This tries to compile an Gren file named src/Main.gren, generating an index.html\
               \ file if possible."
           ]
 
@@ -136,17 +136,17 @@ make =
         flags Make.Flags
           |-- onOff "debug" "Turn on the time-travelling debugger. It allows you to rewind and replay events. The events can be imported/exported into a file, which makes for very precise bug reports!"
           |-- onOff "optimize" "Turn on optimizations to make code smaller and faster. For example, the compiler renames record fields to be as short as possible and unboxes values to reduce allocation."
-          |-- flag "output" Make.output "Specify the name of the resulting JS file. For example --output=assets/elm.js to generate the JS at assets/elm.js or --output=/dev/null to generate no output at all!"
+          |-- flag "output" Make.output "Specify the name of the resulting JS file. For example --output=assets/gren.js to generate the JS at assets/gren.js or --output=/dev/null to generate no output at all!"
           |-- flag "report" Make.reportType "You can say --report=json to get error messages as JSON. This is only really useful if you are an editor plugin. Humans should avoid it!"
           |-- flag "docs" Make.docsFile "Generate a JSON file of documentation for a package. Eventually it will be possible to preview docs with `reactor` because it is quite hard to deal with these JSON files directly."
-   in Terminal.Command "make" Uncommon details example (zeroOrMore elmFile) makeFlags Make.run
+   in Terminal.Command "make" Uncommon details example (zeroOrMore grenFile) makeFlags Make.run
 
 -- INSTALL
 
 install :: Terminal.Command
 install =
   let details =
-        "The `install` command fetches packages from <https://package.elm-lang.org> for\
+        "The `install` command fetches packages from <https://package.gren-lang.org> for\
         \ use in your project:"
 
       example =
@@ -156,8 +156,8 @@ install =
             P.indent 4 $
               P.green $
                 P.vcat $
-                  [ "elm install elm/http",
-                    "elm install elm/json"
+                  [ "gren install gren/http",
+                    "gren install gren/json"
                   ],
             reflow
               "Notice that you must say the AUTHOR name and PROJECT name! After running those\
@@ -179,18 +179,18 @@ install =
 publish :: Terminal.Command
 publish =
   let details =
-        "The `publish` command publishes your package on <https://package.elm-lang.org>\
-        \ so that anyone in the Elm community can use it."
+        "The `publish` command publishes your package on <https://package.gren-lang.org>\
+        \ so that anyone in the Gren community can use it."
 
       example =
         stack
           [ reflow
               "Think hard if you are ready to publish NEW packages though!",
             reflow
-              "Part of what makes Elm great is the packages ecosystem. The fact that\
+              "Part of what makes Gren great is the packages ecosystem. The fact that\
               \ there is usually one option (usually very well done) makes it way\
               \ easier to pick packages and become productive. So having a million\
-              \ packages would be a failure in Elm. We do not need twenty of\
+              \ packages would be a failure in Gren. We do not need twenty of\
               \ everything, all coded in a single weekend.",
             reflow
               "So as community members gain wisdom through experience, we want\
@@ -202,7 +202,7 @@ publish =
               \ it ends up as an experiment on GitHub only. Point is, try to be\
               \ respectful of the community and package ecosystem!",
             reflow
-              "Check out <https://package.elm-lang.org/help/design-guidelines> for guidance on how to create great packages!"
+              "Check out <https://package.gren-lang.org/help/design-guidelines> for guidance on how to create great packages!"
           ]
    in Terminal.Command "publish" Uncommon details example noArgs noFlags Publish.run
 
@@ -218,7 +218,7 @@ bump =
           "Say you just published version 1.0.0, but then decided to remove a function.\
           \ I will compare the published API to what you have locally, figure out that\
           \ it is a MAJOR change, and bump your version number to 2.0.0. I do this with\
-          \ all packages, so there cannot be MAJOR changes hiding in PATCH releases in Elm!"
+          \ all packages, so there cannot be MAJOR changes hiding in PATCH releases in Gren!"
    in Terminal.Command "bump" Uncommon details example noArgs noFlags Bump.run
 
 -- DIFF
@@ -233,7 +233,7 @@ diff =
           [ reflow
               "For example, to see what changed in the HTML package between\
               \ versions 1.0.0 and 2.0.0, you can say:",
-            P.indent 4 $ P.green $ "elm diff elm/html 1.0.0 2.0.0",
+            P.indent 4 $ P.green $ "gren diff gren/html 1.0.0 2.0.0",
             reflow
               "Sometimes a MAJOR change is not actually very big, so\
               \ this can help you plan your upgrade timelines."

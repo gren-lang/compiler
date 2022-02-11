@@ -2,7 +2,7 @@
 
 module Terminal.Helpers
   ( version,
-    elmFile,
+    grenFile,
     package,
   )
 where
@@ -10,8 +10,8 @@ where
 import qualified Data.ByteString.UTF8 as BS_UTF8
 import qualified Data.Char as Char
 import qualified Data.Utf8 as Utf8
-import qualified Elm.Package as Pkg
-import qualified Elm.Version as V
+import qualified Gren.Package as Pkg
+import qualified Gren.Version as V
 import qualified Parse.Primitives as P
 import qualified System.FilePath as FP
 import Terminal (Parser (..))
@@ -50,27 +50,27 @@ exampleVersions chars =
           _ -> ["1.0.0", "2.0.3"]
         else ["1.0.0", "2.0.3"]
 
--- ELM FILE
+-- GREN FILE
 
-elmFile :: Parser FilePath
-elmFile =
+grenFile :: Parser FilePath
+grenFile =
   Parser
-    { _singular = "elm file",
-      _plural = "elm files",
-      _parser = parseElmFile,
+    { _singular = "gren file",
+      _plural = "gren files",
+      _parser = parseGrenFile,
       _suggest = \_ -> return [],
-      _examples = exampleElmFiles
+      _examples = exampleGrenFiles
     }
 
-parseElmFile :: String -> Maybe FilePath
-parseElmFile chars =
-  if FP.takeExtension chars == ".elm"
+parseGrenFile :: String -> Maybe FilePath
+parseGrenFile chars =
+  if FP.takeExtension chars == ".gren"
     then Just chars
     else Nothing
 
-exampleElmFiles :: String -> IO [String]
-exampleElmFiles _ =
-  return ["Main.elm", "src/Main.elm"]
+exampleGrenFiles :: String -> IO [String]
+exampleGrenFiles _ =
+  return ["Main.gren", "src/Main.gren"]
 
 -- PACKAGE
 

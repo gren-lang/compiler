@@ -8,7 +8,7 @@ module Reporting.Error.Pattern
 where
 
 import qualified Data.List as List
-import qualified Elm.String as ES
+import qualified Gren.String as ES
 import qualified Nitpick.PatternMatches as P
 import qualified Reporting.Doc as D
 import qualified Reporting.Render.Code as Code

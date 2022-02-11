@@ -24,8 +24,8 @@ import qualified Data.Index as Index
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Name as Name
-import qualified Elm.ModuleName as ModuleName
-import qualified Elm.Package as Pkg
+import qualified Gren.ModuleName as ModuleName
+import qualified Gren.Package as Pkg
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Result as Result
@@ -127,8 +127,9 @@ canonicalize env (A.At region expression) =
           <$> canonicalize env a
           <*> canonicalize env b
           <*> canonicalizeTupleExtras region env cs
-      Src.Shader src tipe ->
-        Result.ok (Can.Shader src tipe)
+      Src.Shader _ _ ->
+        -- TODO: Remove shaders from language
+        Result.throw (Error.TupleLargerThanThree region)
 
 -- CANONICALIZE TUPLE EXTRAS
 

@@ -23,14 +23,14 @@ import qualified Data.Map as Map
 import qualified Data.Name as Name
 import qualified Data.Set as Set
 import qualified Data.Utf8 as Utf8
-import qualified Elm.Compiler.Type as Type
-import qualified Elm.Compiler.Type.Extract as Extract
-import qualified Elm.ModuleName as ModuleName
-import qualified Elm.Package as Pkg
-import qualified Elm.Version as V
 import qualified Generate.JavaScript.Builder as JS
 import qualified Generate.JavaScript.Name as JsName
 import qualified Generate.Mode as Mode
+import qualified Gren.Compiler.Type as Type
+import qualified Gren.Compiler.Type.Extract as Extract
+import qualified Gren.ModuleName as ModuleName
+import qualified Gren.Package as Pkg
+import qualified Gren.Version as V
 import Json.Encode ((==>))
 import qualified Json.Encode as Encode
 import qualified Optimize.DecisionTree as DT
@@ -227,7 +227,7 @@ generateCtor mode (Opt.Global home name) index arity =
 
 ctorToInt :: ModuleName.Canonical -> Name.Name -> Index.ZeroBased -> Int
 ctorToInt home name index =
-  if home == ModuleName.dict && name == "RBNode_elm_builtin" || name == "RBEmpty_elm_builtin"
+  if home == ModuleName.dict && name == "RBNode_gren_builtin" || name == "RBEmpty_gren_builtin"
     then 0 - Index.toHuman index
     else Index.toMachine index
 
@@ -407,24 +407,24 @@ generateBitwiseCall home name args =
 generateBasicsCall :: Mode.Mode -> ModuleName.Canonical -> Name.Name -> [Opt.Expr] -> JS.Expr
 generateBasicsCall mode home name args =
   case args of
-    [elmArg] ->
-      let arg = generateJsExpr mode elmArg
+    [grenArg] ->
+      let arg = generateJsExpr mode grenArg
        in case name of
             "not" -> JS.Prefix JS.PrefixNot arg
             "negate" -> JS.Prefix JS.PrefixNegate arg
             "toFloat" -> arg
             "truncate" -> JS.Infix JS.OpBitwiseOr arg (JS.Int 0)
             _ -> generateGlobalCall home name [arg]
-    [elmLeft, elmRight] ->
+    [grenLeft, grenRight] ->
       case name of
         -- NOTE: removed "composeL" and "composeR" because of this issue:
-        -- https://github.com/elm/compiler/issues/1722
-        "append" -> append mode elmLeft elmRight
-        "apL" -> generateJsExpr mode $ apply elmLeft elmRight
-        "apR" -> generateJsExpr mode $ apply elmRight elmLeft
+        -- https://github.com/gren/compiler/issues/1722
+        "append" -> append mode grenLeft grenRight
+        "apL" -> generateJsExpr mode $ apply grenLeft grenRight
+        "apR" -> generateJsExpr mode $ apply grenRight grenLeft
         _ ->
-          let left = generateJsExpr mode elmLeft
-              right = generateJsExpr mode elmRight
+          let left = generateJsExpr mode grenLeft
+              right = generateJsExpr mode grenRight
            in case name of
                 "add" -> JS.Infix JS.OpAdd left right
                 "sub" -> JS.Infix JS.OpSub left right
@@ -845,6 +845,6 @@ toDebugMetadata mode msgType =
     Mode.Dev (Just interfaces) ->
       JS.Json $
         Encode.object $
-          [ "versions" ==> Encode.object ["elm" ==> V.encode V.compiler],
+          [ "versions" ==> Encode.object ["gren" ==> V.encode V.compiler],
             "types" ==> Type.encodeMetadata (Extract.fromMsg interfaces msgType)
           ]

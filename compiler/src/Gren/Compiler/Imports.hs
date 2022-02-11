@@ -1,14 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wall #-}
 
-module Elm.Compiler.Imports
+module Gren.Compiler.Imports
   ( defaults,
   )
 where
 
 import qualified AST.Source as Src
 import qualified Data.Name as Name
-import qualified Elm.ModuleName as ModuleName
+import qualified Gren.ModuleName as ModuleName
 import qualified Reporting.Annotation as A
 
 -- DEFAULTS

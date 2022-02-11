@@ -35,7 +35,7 @@ module AST.Canonical
 where
 
 {- Creating a canonical AST means finding the home module for all variables.
-So if you have L.map, you need to figure out that it is from the elm/core
+So if you have L.map, you need to figure out that it is from the core/core
 package in the List module.
 
 In later phases (e.g. type inference, exhaustiveness checking, optimization)
@@ -55,16 +55,15 @@ So it is clear why the data is kept around.
 
 import qualified AST.Source as Src
 import qualified AST.Utils.Binop as Binop
-import qualified AST.Utils.Shader as Shader
 import Control.Monad (liftM, liftM2, liftM3, liftM4, replicateM)
 import Data.Binary
 import qualified Data.Index as Index
 import qualified Data.List as List
 import qualified Data.Map as Map
 import Data.Name (Name)
-import qualified Elm.Float as EF
-import qualified Elm.ModuleName as ModuleName
-import qualified Elm.String as ES
+import qualified Gren.Float as EF
+import qualified Gren.ModuleName as ModuleName
+import qualified Gren.String as ES
 import qualified Reporting.Annotation as A
 
 -- EXPRESSIONS
@@ -101,7 +100,6 @@ data Expr_
   | Record (Map.Map Name Expr)
   | Unit
   | Tuple Expr Expr (Maybe Expr)
-  | Shader Shader.Source Shader.Types
 
 data CaseBranch
   = CaseBranch Pattern Expr

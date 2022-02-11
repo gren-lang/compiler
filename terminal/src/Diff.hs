@@ -18,13 +18,13 @@ import Deps.Diff (Changes (..), ModuleChanges (..), PackageChanges (..))
 import qualified Deps.Diff as DD
 import qualified Deps.Package as Package
 import qualified Directories as Dirs
-import qualified Elm.Compiler.Type as Type
-import qualified Elm.Details as Details
-import qualified Elm.Docs as Docs
-import qualified Elm.Magnitude as M
-import qualified Elm.Outline as Outline
-import qualified Elm.Package as Pkg
-import qualified Elm.Version as V
+import qualified Gren.Compiler.Type as Type
+import qualified Gren.Details as Details
+import qualified Gren.Docs as Docs
+import qualified Gren.Magnitude as M
+import qualified Gren.Outline as Outline
+import qualified Gren.Package as Pkg
+import qualified Gren.Version as V
 import qualified Reporting
 import Reporting.Doc ((<+>))
 import qualified Reporting.Doc as D

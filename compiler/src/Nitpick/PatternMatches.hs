@@ -24,8 +24,8 @@ import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Name as Name
 import qualified Data.NonEmptyList as NE
-import qualified Elm.ModuleName as ModuleName
-import qualified Elm.String as ES
+import qualified Gren.ModuleName as ModuleName
+import qualified Gren.String as ES
 import qualified Reporting.Annotation as A
 
 -- PATTERN
@@ -262,8 +262,6 @@ checkExpr (A.At region expression) errors =
               errors
             Just c ->
               checkExpr c errors
-    Can.Shader _ _ ->
-      errors
 
 -- CHECK FIELD
 

@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wall #-}
 
-module Elm.Licenses
+module Gren.Licenses
   ( License,
     bsd3,
     encode,

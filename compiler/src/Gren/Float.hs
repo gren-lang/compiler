@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# OPTIONS_GHC -Wall #-}
 
-module Elm.Float
+module Gren.Float
   ( Float,
     fromPtr,
     toBuilder,
@@ -19,9 +19,9 @@ import Prelude hiding (Float)
 -- FLOATS
 
 type Float =
-  Utf8.Utf8 ELM_FLOAT
+  Utf8.Utf8 GREN_FLOAT
 
-data ELM_FLOAT
+data GREN_FLOAT
 
 -- HELPERS
 
@@ -36,6 +36,6 @@ toBuilder =
 
 -- BINARY
 
-instance Binary (Utf8.Utf8 ELM_FLOAT) where
+instance Binary (Utf8.Utf8 GREN_FLOAT) where
   get = Utf8.getUnder256
   put = Utf8.putUnder256

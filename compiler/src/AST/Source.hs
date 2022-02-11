@@ -32,8 +32,8 @@ import qualified AST.Utils.Binop as Binop
 import qualified AST.Utils.Shader as Shader
 import Data.Name (Name)
 import qualified Data.Name as Name
-import qualified Elm.Float as EF
-import qualified Elm.String as ES
+import qualified Gren.Float as EF
+import qualified Gren.String as ES
 import qualified Parse.Primitives as P
 import qualified Reporting.Annotation as A
 

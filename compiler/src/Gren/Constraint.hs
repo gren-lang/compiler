@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wall #-}
 
-module Elm.Constraint
+module Gren.Constraint
   ( Constraint,
     exactly,
     anything,
@@ -9,8 +9,8 @@ module Elm.Constraint
     satisfies,
     check,
     intersect,
-    goodElm,
-    defaultElm,
+    goodGren,
+    defaultGren,
     untilNextMajor,
     untilNextMinor,
     expand,
@@ -23,7 +23,7 @@ where
 
 import Control.Monad (liftM4)
 import Data.Binary (Binary, get, getWord8, put, putWord8)
-import qualified Elm.Version as V
+import qualified Gren.Version as V
 import qualified Json.Decode as D
 import qualified Json.Encode as E
 import Parse.Primitives (Col, Row)
@@ -111,14 +111,14 @@ intersect (Range lo lop hop hi) (Range lo_ lop_ hop_ hi_) =
         then Just (Range newLo newLop newHop newHi)
         else Nothing
 
--- ELM CONSTRAINT
+-- GREN CONSTRAINT
 
-goodElm :: Constraint -> Bool
-goodElm constraint =
+goodGren :: Constraint -> Bool
+goodGren constraint =
   satisfies constraint V.compiler
 
-defaultElm :: Constraint
-defaultElm =
+defaultGren :: Constraint
+defaultGren =
   if V._major V.compiler > 0
     then untilNextMajor V.compiler
     else untilNextMinor V.compiler

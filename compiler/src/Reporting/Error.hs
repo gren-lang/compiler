@@ -12,8 +12,8 @@ where
 import qualified Data.ByteString as B
 import qualified Data.NonEmptyList as NE
 import qualified Data.OneOrMore as OneOrMore
-import qualified Elm.ModuleName as ModuleName
 import qualified File
+import qualified Gren.ModuleName as ModuleName
 import Json.Encode ((==>))
 import qualified Json.Encode as E
 import qualified Reporting.Annotation as A

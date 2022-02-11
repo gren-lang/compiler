@@ -15,7 +15,7 @@ import qualified Canonicalize.Type as Type
 import qualified Data.Foldable as F
 import qualified Data.Map as Map
 import qualified Data.Name as Name
-import qualified Elm.ModuleName as ModuleName
+import qualified Gren.ModuleName as ModuleName
 import qualified Reporting.Annotation as A
 import qualified Reporting.Error.Canonicalize as Error
 import qualified Reporting.Result as Result

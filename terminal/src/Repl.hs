@@ -34,14 +34,14 @@ import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Name as N
 import qualified Directories as Dirs
-import qualified Elm.Constraint as C
-import qualified Elm.Details as Details
-import qualified Elm.Licenses as Licenses
-import qualified Elm.ModuleName as ModuleName
-import qualified Elm.Outline as Outline
-import qualified Elm.Package as Pkg
-import qualified Elm.Version as V
 import qualified Generate
+import qualified Gren.Constraint as C
+import qualified Gren.Details as Details
+import qualified Gren.Licenses as Licenses
+import qualified Gren.ModuleName as ModuleName
+import qualified Gren.Outline as Outline
+import qualified Gren.Package as Pkg
+import qualified Gren.Version as V
 import qualified Parse.Declaration as PD
 import qualified Parse.Expression as PE
 import qualified Parse.Module as PM
@@ -89,7 +89,7 @@ run () flags =
 printWelcomeMessage :: IO ()
 printWelcomeMessage =
   let vsn = V.toChars V.compiler
-      title = "Elm" <+> D.fromChars vsn
+      title = "Gren" <+> D.fromChars vsn
       dashes = replicate (70 - length vsn) '-'
    in D.toAnsi IO.stdout $
         D.vcat
@@ -513,7 +513,7 @@ getRoot =
                 (Outline.ExposedList [])
                 defaultDeps
                 Map.empty
-                C.defaultElm
+                C.defaultGren
 
           return root
 

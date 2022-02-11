@@ -12,11 +12,11 @@ import qualified Data.Map as Map
 import qualified Data.Map.Merge.Strict as Map
 import qualified Deps.Solver as Solver
 import qualified Directories as Dirs
-import qualified Elm.Constraint as C
-import qualified Elm.Details as Details
-import qualified Elm.Outline as Outline
-import qualified Elm.Package as Pkg
-import qualified Elm.Version as V
+import qualified Gren.Constraint as C
+import qualified Gren.Details as Details
+import qualified Gren.Outline as Outline
+import qualified Gren.Package as Pkg
+import qualified Gren.Version as V
 import qualified Reporting
 import Reporting.Doc ((<+>))
 import qualified Reporting.Doc as D
@@ -41,8 +41,8 @@ run args () =
           case args of
             NoArgs ->
               do
-                elmHome <- Dirs.getGrenHome
-                return (Left (Exit.InstallNoArgs elmHome))
+                grenHome <- Dirs.getGrenHome
+                return (Left (Exit.InstallNoArgs grenHome))
             Install pkg ->
               Task.run $
                 do
@@ -82,7 +82,7 @@ attemptChanges root env oldOutline toChars changes =
                 "it",
                 "in",
                 "your",
-                "elm.json",
+                "gren.json",
                 "file,",
                 "but",
                 "in",
@@ -114,7 +114,7 @@ attemptChanges root env oldOutline toChars changes =
                 "it",
                 "in",
                 "your",
-                "elm.json",
+                "gren.json",
                 "file,",
                 "but",
                 "in",
@@ -144,7 +144,7 @@ attemptChanges root env oldOutline toChars changes =
               [ "Here is my plan:",
                 viewChangeDocs changeDocs,
                 "",
-                "Would you like me to update your elm.json accordingly? [Y/n]: "
+                "Would you like me to update your gren.json accordingly? [Y/n]: "
               ]
 
 attemptChangesHelp :: FilePath -> Solver.Env -> Outline.Outline -> Outline.Outline -> D.Doc -> Task ()

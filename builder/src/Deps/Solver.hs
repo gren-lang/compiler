@@ -21,11 +21,11 @@ import Data.Map ((!))
 import qualified Data.Map as Map
 import qualified Deps.Package as Package
 import qualified Directories as Dirs
-import qualified Elm.Constraint as C
-import qualified Elm.Outline as Outline
-import qualified Elm.Package as Pkg
-import qualified Elm.Version as V
 import qualified File
+import qualified Gren.Constraint as C
+import qualified Gren.Outline as Outline
+import qualified Gren.Package as Pkg
+import qualified Gren.Version as V
 import qualified Json.Decode as D
 import qualified Reporting.Exit as Exit
 import System.FilePath ((</>))
@@ -48,7 +48,7 @@ data State = State
   }
 
 data Constraints = Constraints
-  { _elm :: C.Constraint,
+  { _gren :: C.Constraint,
     _deps :: Map.Map Pkg.Name C.Constraint
   }
 
@@ -60,7 +60,7 @@ data Result a
   | NoOfflineSolution
   | Err Exit.Solver
 
--- VERIFY -- used by Elm.Details
+-- VERIFY -- used by Gren.Details
 
 data Details
   = Details V.Version (Map.Map Pkg.Name C.Constraint)
@@ -114,12 +114,12 @@ addToApp cache pkg outline@(Outline.AppOutline _ _ direct indirect testDirect te
               (\e -> return $ Err e)
 
 toApp :: State -> Pkg.Name -> Outline.AppOutline -> Map.Map Pkg.Name V.Version -> Map.Map Pkg.Name V.Version -> AppSolution
-toApp (State _ constraints) pkg (Outline.AppOutline elm srcDirs direct _ testDirect _) old new =
+toApp (State _ constraints) pkg (Outline.AppOutline gren srcDirs direct _ testDirect _) old new =
   let d = Map.intersection new (Map.insert pkg V.one direct)
       i = Map.difference (getTransitive constraints new (Map.toList d) Map.empty) d
       td = Map.intersection new (Map.delete pkg testDirect)
       ti = Map.difference new (Map.unions [d, i, td])
-   in AppSolution old new (Outline.AppOutline elm srcDirs d i td ti)
+   in AppSolution old new (Outline.AppOutline gren srcDirs d i td ti)
 
 getTransitive :: Map.Map (Pkg.Name, V.Version) Constraints -> Map.Map Pkg.Name V.Version -> [(Pkg.Name, V.Version)] -> Map.Map Pkg.Name V.Version -> Map.Map Pkg.Name V.Version
 getTransitive constraints solution unvisited visited =
@@ -165,8 +165,8 @@ exploreGoals (Goals pending solved) =
 addVersion :: Goals -> Pkg.Name -> V.Version -> Solver Goals
 addVersion (Goals pending solved) name version =
   do
-    (Constraints elm deps) <- getConstraints name version
-    if C.goodElm elm
+    (Constraints gren deps) <- getConstraints name version
+    if C.goodGren gren
       then do
         newPending <- foldM (addConstraint solved) pending (Map.toList deps)
         return (Goals newPending (Map.insert name version solved))
@@ -225,7 +225,7 @@ getConstraints pkg vsn =
               Left gitErr ->
                 err $ Exit.SolverBadGitOperationVersionedPkg pkg vsn gitErr
               Right () -> do
-                let path = home </> "elm.json"
+                let path = home </> "gren.json"
                 outlineExists <- File.exists path
                 if outlineExists
                   then do
@@ -242,8 +242,8 @@ constraintsDecoder =
   do
     outline <- D.mapError (const ()) Outline.decoder
     case outline of
-      Outline.Pkg (Outline.PkgOutline _ _ _ _ _ deps _ elmConstraint) ->
-        return (Constraints elmConstraint deps)
+      Outline.Pkg (Outline.PkgOutline _ _ _ _ _ deps _ grenConstraint) ->
+        return (Constraints grenConstraint deps)
       Outline.App _ ->
         D.failure ()
 
