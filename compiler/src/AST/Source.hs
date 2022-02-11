@@ -29,7 +29,6 @@ module AST.Source
 where
 
 import qualified AST.Utils.Binop as Binop
-import qualified AST.Utils.Shader as Shader
 import Data.Name (Name)
 import qualified Data.Name as Name
 import qualified Gren.Float as EF
@@ -63,7 +62,6 @@ data Expr_
   | Record [(A.Located Name, Expr)]
   | Unit
   | Tuple Expr Expr [Expr]
-  | Shader Shader.Source Shader.Types
 
 data VarType = LowVar | CapVar
 

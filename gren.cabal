@@ -120,7 +120,6 @@ Executable gren
         AST.Optimized
         AST.Source
         AST.Utils.Binop
-        AST.Utils.Shader
         AST.Utils.Type
         Canonicalize.Effects
         Canonicalize.Environment

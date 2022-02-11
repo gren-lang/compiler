@@ -127,9 +127,6 @@ canonicalize env (A.At region expression) =
           <$> canonicalize env a
           <*> canonicalize env b
           <*> canonicalizeTupleExtras region env cs
-      Src.Shader _ _ ->
-        -- TODO: Remove shaders from language
-        Result.throw (Error.TupleLargerThanThree region)
 
 -- CANONICALIZE TUPLE EXTRAS
 

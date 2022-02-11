@@ -22,7 +22,6 @@ module AST.Optimized
 where
 
 import qualified AST.Canonical as Can
-import qualified AST.Utils.Shader as Shader
 import Control.Monad (liftM, liftM2, liftM3, liftM4)
 import Data.Binary (Binary, get, getWord8, put, putWord8)
 import qualified Data.Index as Index
@@ -67,7 +66,6 @@ data Expr
   | Record (Map.Map Name Expr)
   | Unit
   | Tuple Expr Expr (Maybe Expr)
-  | Shader Shader.Source (Set.Set Name) (Set.Set Name)
 
 data Global = Global ModuleName.Canonical Name
 
@@ -235,7 +233,6 @@ instance Binary Expr where
       Record a -> putWord8 23 >> put a
       Unit -> putWord8 24
       Tuple a b c -> putWord8 25 >> put a >> put b >> put c
-      Shader a b c -> putWord8 26 >> put a >> put b >> put c
 
   get =
     do
@@ -267,7 +264,6 @@ instance Binary Expr where
         23 -> liftM Record get
         24 -> pure Unit
         25 -> liftM3 Tuple get get get
-        26 -> liftM3 Shader get get get
         _ -> fail "problem getting Opt.Expr binary"
 
 instance Binary Def where

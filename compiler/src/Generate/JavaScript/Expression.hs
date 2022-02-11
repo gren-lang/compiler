@@ -14,14 +14,12 @@ where
 
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
-import qualified AST.Utils.Shader as Shader
 import qualified Data.Index as Index
 import qualified Data.IntMap as IntMap
 import qualified Data.List as List
 import Data.Map ((!))
 import qualified Data.Map as Map
 import qualified Data.Name as Name
-import qualified Data.Set as Set
 import qualified Data.Utf8 as Utf8
 import qualified Generate.JavaScript.Builder as JS
 import qualified Generate.JavaScript.Name as JsName
@@ -148,20 +146,6 @@ generate mode expression =
               [ generateJsExpr mode a,
                 generateJsExpr mode b,
                 generateJsExpr mode c
-              ]
-    Opt.Shader src attributes uniforms ->
-      let toTranlation field =
-            ( JsName.fromLocal field,
-              JS.String (JsName.toBuilder (generateField mode field))
-            )
-
-          toTranslationObject fields =
-            JS.Object (map toTranlation (Set.toList fields))
-       in JsExpr $
-            JS.Object $
-              [ (JsName.fromLocal "src", JS.String (Shader.toJsStringBuilder src)),
-                (JsName.fromLocal "attributes", toTranslationObject attributes),
-                (JsName.fromLocal "uniforms", toTranslationObject uniforms)
               ]
 
 -- CODE CHUNKS
