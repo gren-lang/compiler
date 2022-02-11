@@ -56,7 +56,6 @@ hasDebug expression =
     Opt.Record fs -> any hasDebug fs
     Opt.Unit -> False
     Opt.Tuple a b c -> hasDebug a || hasDebug b || maybe False hasDebug c
-    Opt.Shader _ _ _ -> False
 
 defHasDebug :: Opt.Def -> Bool
 defHasDebug def =
@@ -71,6 +70,3 @@ deciderHasDebug decider =
     Opt.Leaf (Opt.Jump _) -> False
     Opt.Chain _ success failure -> deciderHasDebug success || deciderHasDebug failure
     Opt.FanOut _ tests fallback -> any (deciderHasDebug . snd) tests || deciderHasDebug fallback
-
--- TODO: FIND GLOBALLY UNUSED DEFINITIONS?
--- TODO: FIND PACKAGE USAGE STATS? (e.g. gren/core = 142, author/project = 2, etc.)

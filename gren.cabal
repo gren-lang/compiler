@@ -120,7 +120,6 @@ Executable gren
         AST.Optimized
         AST.Source
         AST.Utils.Binop
-        AST.Utils.Shader
         AST.Utils.Type
         Canonicalize.Effects
         Canonicalize.Environment
@@ -153,7 +152,6 @@ Executable gren
         Parse.Module
         Parse.Number
         Parse.Pattern
-        Parse.Shader
         Parse.Space
         Parse.String
         Parse.Symbol
@@ -203,9 +201,7 @@ Executable gren
         filepath >= 1 && < 2.0,
         ghc-prim >= 0.5.2,
         haskeline,
-        language-glsl >= 0.3,
         mtl >= 2.2.1 && < 3,
-        parsec,
         process,
         raw-strings-qq,
         scientific,
