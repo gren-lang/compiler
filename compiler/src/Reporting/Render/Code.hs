@@ -18,6 +18,7 @@ import qualified Data.ByteString.UTF8 as UTF8_BS
 import qualified Data.Char as Char
 import qualified Data.IntSet as IntSet
 import qualified Data.List as List
+import qualified Data.Maybe as Maybe
 import qualified Data.Name as Name
 import qualified Data.Set as Set
 import Data.Word (Word16)
@@ -146,7 +147,7 @@ renderPair source@(Source sourceLines) region1 region2 =
               spaces2 = replicate (fromIntegral (startCol2 - endCol1)) ' '
               zigzag2 = replicate (fromIntegral (endCol2 - startCol2)) '^'
 
-              (Just line) = List.lookup startRow1 sourceLines
+              line = Maybe.fromJust $ List.lookup startRow1 sourceLines
            in OneLine $
                 D.vcat
                   [ D.fromChars lineNumber <> "| " <> D.fromChars line,

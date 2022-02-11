@@ -31,6 +31,7 @@ import qualified Data.ByteString.UTF8 as BS_UTF8
 import qualified Data.Char as Char
 import qualified Data.List as List
 import qualified Data.Map as Map
+import qualified Data.Maybe as Maybe
 import qualified Data.Name as N
 import qualified Directories as Dirs
 import qualified Elm.Constraint as C
@@ -423,8 +424,9 @@ attemptEval (Env root interpreter ansi) oldState newState output =
 interpret :: FilePath -> B.Builder -> IO Exit.ExitCode
 interpret interpreter javascript =
   let createProcess = (Proc.proc interpreter []) {Proc.std_in = Proc.CreatePipe}
-   in Proc.withCreateProcess createProcess $ \(Just stdin) _ _ handle ->
+   in Proc.withCreateProcess createProcess $ \maybeStdIn _ _ handle ->
         do
+          let stdin = Maybe.fromJust maybeStdIn
           B.hPutBuilder stdin javascript
           IO.hClose stdin
           Proc.waitForProcess handle

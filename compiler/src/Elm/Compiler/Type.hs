@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_GHC -Wall #-}
+{-# OPTIONS_GHC -Wall -Wno-incomplete-uni-patterns #-}
 
 module Elm.Compiler.Type
   ( Type (..),
