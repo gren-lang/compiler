@@ -8,7 +8,6 @@ on:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
@@ -28,9 +27,6 @@ jobs:
         key: ${{ runner.os }}-build-${{ hashFiles('**/*.cabal') }}
         restore-keys: |
           ${{ runner.os }}-build
-
-    - name: Install dependencies
-      run: cabal install --only-dependencies --overwrite-policy=always
 
     - name: Build
       run: cabal build -f dev
