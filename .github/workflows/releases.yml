@@ -1,0 +1,27 @@
+name: Release
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  pre-release:
+    name: Development Build
+    runs-on: macOS-latest
+
+    steps:
+      - name: Build
+        run: |
+          cabal build
+          strip dist-newstyle/build/x86_64-osx/ghc-9.2.1/gren-0.1.0/x/gren/build/gren/gren
+
+      - uses: "marvinpinto/action-automatic-releases@latest"
+        with:
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          automatic_release_tag: "latest"
+          prerelease: true
+          title: "Development Build"
+          files: |
+            LICENSE
+            dist-newstyle/build/x86_64-osx/ghc-9.2.1/gren-0.1.0/x/gren/build/gren/gren
+
