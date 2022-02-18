@@ -25,7 +25,7 @@ import qualified Data.Name as Name
 import qualified Data.Set as Set
 import Data.Word (Word8)
 import Foreign.Ptr (Ptr, plusPtr)
-import GHC.Exts (Char (C#), Int#, chr#, uncheckedIShiftL#, word2Int#, word8ToWord#, (+#), (-#))
+import GHC.Exts (Char (C#), Int#, chr#, int8ToInt#, uncheckedIShiftL#, word8ToInt8#, (+#), (-#))
 import GHC.Word (Word8 (W8#))
 import Parse.Primitives (Col, Parser, Row, unsafeIndex)
 import qualified Parse.Primitives as P
@@ -305,4 +305,4 @@ chr4 pos firstWord =
 
 unpack :: Word8 -> Int#
 unpack (W8# word#) =
-  word2Int# (word8ToWord# word#)
+  int8ToInt# (word8ToInt8# word#)

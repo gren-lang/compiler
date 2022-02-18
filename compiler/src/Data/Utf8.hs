@@ -116,11 +116,11 @@ startsWithChar isGood bytes@(Utf8 ba#) =
   if isEmpty bytes
     then False
     else
-      let !w# = indexWord8ArrayAsWord# ba# 0#
+      let !w# = indexWord8Array# ba# 0#
           !char
-            | isTrue# (ltWord# w# 0xC0##) = C# (chr# (word2Int# w#))
-            | isTrue# (ltWord# w# 0xE0##) = chr2 ba# 0# w#
-            | isTrue# (ltWord# w# 0xF0##) = chr3 ba# 0# w#
+            | isTrue# (ltWord8# w# (wordToWord8# 0xC0##)) = C# (chr# (word8ToInt# w#))
+            | isTrue# (ltWord8# w# (wordToWord8# 0xE0##)) = chr2 ba# 0# w#
+            | isTrue# (ltWord8# w# (wordToWord8# 0xF0##)) = chr3 ba# 0# w#
             | True = chr4 ba# 0# w#
        in isGood char
 
@@ -286,48 +286,52 @@ toCharsHelp ba# offset# len# =
   if isTrue# (offset# >=# len#)
     then []
     else
-      let !w# = indexWord8ArrayAsWord# ba# offset#
+      let !w# = indexWord8Array# ba# offset#
           !(# char, width# #)
-            | isTrue# (ltWord# w# 0xC0##) = (# C# (chr# (word2Int# w#)), 1# #)
-            | isTrue# (ltWord# w# 0xE0##) = (# chr2 ba# offset# w#, 2# #)
-            | isTrue# (ltWord# w# 0xF0##) = (# chr3 ba# offset# w#, 3# #)
+            | isTrue# (ltWord8# w# (wordToWord8# 0xC0##)) = (# C# (chr# (word8ToInt# w#)), 1# #)
+            | isTrue# (ltWord8# w# (wordToWord8# 0xE0##)) = (# chr2 ba# offset# w#, 2# #)
+            | isTrue# (ltWord8# w# (wordToWord8# 0xF0##)) = (# chr3 ba# offset# w#, 3# #)
             | True = (# chr4 ba# offset# w#, 4# #)
 
           !newOffset# = offset# +# width#
        in char : toCharsHelp ba# newOffset# len#
 
 {-# INLINE chr2 #-}
-chr2 :: ByteArray# -> Int# -> Word# -> Char
+chr2 :: ByteArray# -> Int# -> Word8# -> Char
 chr2 ba# offset# firstWord# =
-  let !i1# = word2Int# firstWord#
-      !i2# = word2Int# (indexWord8ArrayAsWord# ba# (offset# +# 1#))
+  let !i1# = word8ToInt# firstWord#
+      !i2# = word8ToInt# (indexWord8Array# ba# (offset# +# 1#))
       !c1# = uncheckedIShiftL# (i1# -# 0xC0#) 6#
       !c2# = i2# -# 0x80#
    in C# (chr# (c1# +# c2#))
 
 {-# INLINE chr3 #-}
-chr3 :: ByteArray# -> Int# -> Word# -> Char
+chr3 :: ByteArray# -> Int# -> Word8# -> Char
 chr3 ba# offset# firstWord# =
-  let !i1# = word2Int# firstWord#
-      !i2# = word2Int# (indexWord8ArrayAsWord# ba# (offset# +# 1#))
-      !i3# = word2Int# (indexWord8ArrayAsWord# ba# (offset# +# 2#))
+  let !i1# = word8ToInt# firstWord#
+      !i2# = word8ToInt# (indexWord8Array# ba# (offset# +# 1#))
+      !i3# = word8ToInt# (indexWord8Array# ba# (offset# +# 2#))
       !c1# = uncheckedIShiftL# (i1# -# 0xE0#) 12#
       !c2# = uncheckedIShiftL# (i2# -# 0x80#) 6#
       !c3# = i3# -# 0x80#
    in C# (chr# (c1# +# c2# +# c3#))
 
 {-# INLINE chr4 #-}
-chr4 :: ByteArray# -> Int# -> Word# -> Char
+chr4 :: ByteArray# -> Int# -> Word8# -> Char
 chr4 ba# offset# firstWord# =
-  let !i1# = word2Int# firstWord#
-      !i2# = word2Int# (indexWord8ArrayAsWord# ba# (offset# +# 1#))
-      !i3# = word2Int# (indexWord8ArrayAsWord# ba# (offset# +# 2#))
-      !i4# = word2Int# (indexWord8ArrayAsWord# ba# (offset# +# 3#))
+  let !i1# = word8ToInt# firstWord#
+      !i2# = word8ToInt# (indexWord8Array# ba# (offset# +# 1#))
+      !i3# = word8ToInt# (indexWord8Array# ba# (offset# +# 2#))
+      !i4# = word8ToInt# (indexWord8Array# ba# (offset# +# 3#))
       !c1# = uncheckedIShiftL# (i1# -# 0xF0#) 18#
       !c2# = uncheckedIShiftL# (i2# -# 0x80#) 12#
       !c3# = uncheckedIShiftL# (i3# -# 0x80#) 6#
       !c4# = i4# -# 0x80#
    in C# (chr# (c1# +# c2# +# c3# +# c4#))
+
+word8ToInt# :: Word8# -> Int#
+word8ToInt# word8 =
+  int8ToInt# (word8ToInt8# word8)
 
 -- TO BUILDER
 
