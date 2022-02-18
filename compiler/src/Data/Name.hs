@@ -145,11 +145,11 @@ getKernel name@(Utf8.Utf8 ba#) =
   assert
     (isKernel name)
     ( runST
-        ( let !size# = sizeofByteArray# ba# -# 11#
+        ( let !size# = sizeofByteArray# ba# -# 12#
            in ST $ \s ->
                 case newByteArray# size# s of
                   (# s, mba# #) ->
-                    case copyByteArray# ba# 11# mba# 0# size# s of
+                    case copyByteArray# ba# 12# mba# 0# size# s of
                       s ->
                         case unsafeFreezeByteArray# mba# s of
                           (# s, ba# #) -> (# s, Utf8.Utf8 ba# #)
