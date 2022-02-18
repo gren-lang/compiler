@@ -152,7 +152,7 @@ url =
 {-# NOINLINE gren #-}
 gren :: Author
 gren =
-  Utf8.fromChars "gren"
+  Utf8.fromChars "gren-lang"
 
 -- PACKAGE SUGGESTIONS
 

@@ -1197,7 +1197,7 @@ toOutlineReport problem =
       Help.report
         "MISSING DEPENDENCY"
         (Just "gren.json")
-        "I need to see an \"gren/core\" dependency your gren.json file. The default imports\
+        "I need to see an \"gren-lang/core\" dependency your gren.json file. The default imports\
         \ of `List` and `Maybe` do not work without it."
         [ D.reflow $
             "If you modified your gren.json by hand, try to change it back! And if you are\
@@ -1208,7 +1208,7 @@ toOutlineReport problem =
       Help.report
         "MISSING DEPENDENCY"
         (Just "gren.json")
-        "I need to see an \"gren/core\" dependency your gren.json file. The default imports\
+        "I need to see an \"gren-lang/core\" dependency your gren.json file. The default imports\
         \ of `List` and `Maybe` do not work without it."
         [ D.reflow $
             "If you modified your gren.json by hand, try to change it back! And if you are\
