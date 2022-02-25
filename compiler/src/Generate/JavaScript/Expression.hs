@@ -703,11 +703,15 @@ generateIfTest mode root (path, test) =
               Mode.Prod _ -> value
         DT.IsStr string ->
           strictEq value (JS.String (Utf8.toBuilder string))
-        DT.IsCons ->
-          JS.Access value (JsName.fromLocal "b")
-        DT.IsNil ->
-          JS.Prefix JS.PrefixNot $
-            JS.Access value (JsName.fromLocal "b")
+        DT.IsArray len ->
+          JS.Infix
+            JS.OpAnd
+            (JS.Call (JS.Access (JS.Ref $ JsName.fromLocal "Array") (JsName.fromLocal "isArray")) [value])
+            ( JS.Infix
+                JS.OpEq
+                (JS.Access value (JsName.fromLocal "length"))
+                (JS.Int len)
+            )
         DT.IsTuple ->
           error "COMPILER BUG - there should never be tests on a tuple"
 
@@ -732,10 +736,8 @@ generateCaseValue mode test =
       JS.String (Utf8.toBuilder string)
     DT.IsBool _ ->
       error "COMPILER BUG - there should never be three tests on a boolean"
-    DT.IsCons ->
-      error "COMPILER BUG - there should never be three tests on a list"
-    DT.IsNil ->
-      error "COMPILER BUG - there should never be three tests on a list"
+    DT.IsArray _ ->
+      error "COMPILER BUG - there should never be three tests on an array"
     DT.IsTuple ->
       error "COMPILER BUG - there should never be three tests on a tuple"
 
@@ -769,10 +771,8 @@ generateCaseTest mode root path exampleTest =
               value
         DT.IsBool _ ->
           error "COMPILER BUG - there should never be three tests on a list"
-        DT.IsCons ->
-          error "COMPILER BUG - there should never be three tests on a list"
-        DT.IsNil ->
-          error "COMPILER BUG - there should never be three tests on a list"
+        DT.IsArray _ ->
+          error "COMPILER BUG - there should never be three tests on an array"
         DT.IsTuple ->
           error "COMPILER BUG - there should never be three tests on a list"
 

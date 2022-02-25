@@ -104,8 +104,7 @@ data InfixOp
   | OpGe -- >=
   | OpAnd -- &&
   | OpOr
-  | -- | |
-    OpBitwiseAnd -- &
+  | OpBitwiseAnd -- &
   | OpBitwiseXor
   | OpBitwiseOr
   | OpLShift -- <<
