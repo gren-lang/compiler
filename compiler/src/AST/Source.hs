@@ -84,8 +84,7 @@ data Pattern_
   | PTuple Pattern Pattern [Pattern]
   | PCtor A.Region Name [Pattern]
   | PCtorQual A.Region Name Name [Pattern]
-  | PList [Pattern]
-  | PCons Pattern Pattern
+  | PArray [Pattern]
   | PChr ES.String
   | PStr ES.String
   | PInt Int

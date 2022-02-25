@@ -32,7 +32,7 @@ term =
       [ variable start >>= accessible start,
         string start,
         number start,
-        list start,
+        array start,
         record start >>= accessible start,
         tuple start >>= accessible start,
         accessor start,
@@ -86,36 +86,36 @@ accessible start expr =
     ]
     expr
 
--- LISTS
+-- ARRAYS
 
-list :: A.Position -> Parser E.Expr Src.Expr
-list start =
-  inContext E.List (word1 0x5B {-[-} E.Start) $
+array :: A.Position -> Parser E.Expr Src.Expr
+array start =
+  inContext E.Array (word1 0x5B {-[-} E.Start) $
     do
-      Space.chompAndCheckIndent E.ListSpace E.ListIndentOpen
+      Space.chompAndCheckIndent E.ArraySpace E.ArrayIndentOpen
       oneOf
-        E.ListOpen
+        E.ArrayOpen
         [ do
-            (entry, end) <- specialize E.ListExpr expression
-            Space.checkIndent end E.ListIndentEnd
-            chompListEnd start [entry],
+            (entry, end) <- specialize E.ArrayExpr expression
+            Space.checkIndent end E.ArrayIndentEnd
+            chompArrayEnd start [entry],
           do
-            word1 0x5D {-]-} E.ListOpen
+            word1 0x5D {-]-} E.ArrayOpen
             addEnd start (Src.Array [])
         ]
 
-chompListEnd :: A.Position -> [Src.Expr] -> Parser E.List Src.Expr
-chompListEnd start entries =
+chompArrayEnd :: A.Position -> [Src.Expr] -> Parser E.Array Src.Expr
+chompArrayEnd start entries =
   oneOf
-    E.ListEnd
+    E.ArrayEnd
     [ do
-        word1 0x2C {-,-} E.ListEnd
-        Space.chompAndCheckIndent E.ListSpace E.ListIndentExpr
-        (entry, end) <- specialize E.ListExpr expression
-        Space.checkIndent end E.ListIndentEnd
-        chompListEnd start (entry : entries),
+        word1 0x2C {-,-} E.ArrayEnd
+        Space.chompAndCheckIndent E.ArraySpace E.ArrayIndentExpr
+        (entry, end) <- specialize E.ArrayExpr expression
+        Space.checkIndent end E.ArrayIndentEnd
+        chompArrayEnd start (entry : entries),
       do
-        word1 0x5D {-]-} E.ListEnd
+        word1 0x5D {-]-} E.ArrayEnd
         addEnd start (Src.Array (reverse entries))
     ]
 

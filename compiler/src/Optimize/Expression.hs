@@ -230,8 +230,6 @@ destructHelp path (A.At region pattern) revDs =
       pure revDs
     Can.PList (hd : tl) ->
       destructTwo path hd (A.At region (Can.PList tl)) revDs
-    Can.PCons hd tl ->
-      destructTwo path hd tl revDs
     Can.PChr _ ->
       pure revDs
     Can.PStr _ ->

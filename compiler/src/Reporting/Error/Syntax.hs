@@ -18,7 +18,7 @@ module Reporting.Error.Syntax
     Expr (..),
     Record (..),
     Tuple (..),
-    List (..),
+    Array (..),
     Func (..),
     Case (..),
     If (..),
@@ -29,7 +29,7 @@ module Reporting.Error.Syntax
     Pattern (..),
     PRecord (..),
     PTuple (..),
-    PList (..),
+    PArray (..),
     --
     Type (..),
     TRecord (..),
@@ -93,12 +93,12 @@ data Module
   | ImportAs Row Col
   | ImportAlias Row Col
   | ImportExposing Row Col
-  | ImportExposingList Exposing Row Col
+  | ImportExposingArray Exposing Row Col
   | ImportEnd Row Col -- different based on col=1 or if greater
   --
   | ImportIndentName Row Col
   | ImportIndentAlias Row Col
-  | ImportIndentExposingList Row Col
+  | ImportIndentExposingArray Row Col
   | --
     Infix Row Col
   | --
@@ -189,7 +189,7 @@ data Expr
   = Let Let Row Col
   | Case Case Row Col
   | If If Row Col
-  | List List Row Col
+  | Array Array Row Col
   | Record Record Row Col
   | Tuple Tuple Row Col
   | Func Func Row Col
@@ -233,15 +233,15 @@ data Tuple
   | TupleIndentExprN Row Col
   | TupleIndentEnd Row Col
 
-data List
-  = ListSpace Space Row Col
-  | ListOpen Row Col
-  | ListExpr Expr Row Col
-  | ListEnd Row Col
+data Array
+  = ArraySpace Space Row Col
+  | ArrayOpen Row Col
+  | ArrayExpr Expr Row Col
+  | ArrayEnd Row Col
   | --
-    ListIndentOpen Row Col
-  | ListIndentEnd Row Col
-  | ListIndentExpr Row Col
+    ArrayIndentOpen Row Col
+  | ArrayIndentEnd Row Col
+  | ArrayIndentExpr Row Col
 
 data Func
   = FuncSpace Space Row Col
@@ -322,7 +322,7 @@ data Destruct
 data Pattern
   = PRecord PRecord Row Col
   | PTuple PTuple Row Col
-  | PList PList Row Col
+  | PArray PArray Row Col
   | --
     PStart Row Col
   | PChar Char Row Col
@@ -356,15 +356,15 @@ data PTuple
   | PTupleIndentExpr1 Row Col
   | PTupleIndentExprN Row Col
 
-data PList
-  = PListOpen Row Col
-  | PListEnd Row Col
-  | PListExpr Pattern Row Col
-  | PListSpace Space Row Col
+data PArray
+  = PArrayOpen Row Col
+  | PArrayEnd Row Col
+  | PArrayExpr Pattern Row Col
+  | PArraySpace Space Row Col
   | --
-    PListIndentOpen Row Col
-  | PListIndentEnd Row Col
-  | PListIndentExpr Row Col
+    PArrayIndentOpen Row Col
+  | PArrayIndentEnd Row Col
+  | PArrayIndentExpr Row Col
 
 -- TYPES
 
@@ -825,7 +825,7 @@ toParseErrorReport source modul =
               )
     ImportExposing row col ->
       toImportReport source row col
-    ImportExposingList exposing row col ->
+    ImportExposingArray exposing row col ->
       toExposingReport source exposing row col
     ImportEnd row col ->
       toImportReport source row col
@@ -833,7 +833,7 @@ toParseErrorReport source modul =
       toImportReport source row col
     ImportIndentAlias row col ->
       toImportReport source row col
-    ImportIndentExposingList row col ->
+    ImportIndentExposingArray row col ->
       let region = toRegion row col
        in Report.Report "UNFINISHED IMPORT" region [] $
             Code.toSnippet
@@ -2531,7 +2531,7 @@ data Context
 data Node
   = NRecord
   | NParens
-  | NList
+  | NArray
   | NFunc
   | NCond
   | NThen
@@ -2565,8 +2565,8 @@ toExprReport source context expr startRow startCol =
       toCaseReport source context case_ row col
     If if_ row col ->
       toIfReport source context if_ row col
-    List list row col ->
-      toListReport source context list row col
+    Array list row col ->
+      toArrayReport source context list row col
     Record record row col ->
       toRecordReport source context record row col
     Tuple tuple row col ->
@@ -2709,7 +2709,7 @@ toExprReport source context expr startRow startCol =
               InDef name r c -> (r, c, "the `" ++ Name.toChars name ++ "` definition")
               InNode NRecord r c _ -> (r, c, "a record")
               InNode NParens r c _ -> (r, c, "some parentheses")
-              InNode NList r c _ -> (r, c, "a list")
+              InNode NArray r c _ -> (r, c, "a list")
               InNode NFunc r c _ -> (r, c, "an anonymous function")
               InNode NCond r c _ -> (r, c, "an `if` expression")
               InNode NThen r c _ -> (r, c, "an `if` expression")
@@ -3257,40 +3257,10 @@ toOperatorReport source context operator row col =
                 case getDefName context of
                   Nothing ->
                     D.fillSep
-                      [ "Maybe",
-                        "you",
-                        "want",
-                        D.green "::",
-                        "instead?",
-                        "To",
-                        "put",
-                        "something",
-                        "on",
-                        "the",
-                        "front",
-                        "of",
-                        "a",
-                        "list?"
-                      ]
+                      [ D.toSimpleNote "The single colon is reserved for type annotation and record types." ]
                   Just name ->
                     D.stack
-                      [ D.fillSep
-                          [ "Maybe",
-                            "you",
-                            "want",
-                            D.green "::",
-                            "instead?",
-                            "To",
-                            "put",
-                            "something",
-                            "on",
-                            "the",
-                            "front",
-                            "of",
-                            "a",
-                            "list?"
-                          ],
-                        D.toSimpleNote $
+                      [ D.toSimpleNote $
                           "The single colon is reserved for type annotations and record types, but I think\
                           \ I am parsing the definition of `"
                             ++ Name.toChars name
@@ -3861,34 +3831,6 @@ toCaseReport source context case_ startRow startCol =
                       "It looks like you are trying to use `" ++ keyword
                         ++ "` in one of your\
                            \ patterns, but it is a reserved word. Try using a different name?"
-                  )
-        Code.Operator ":" ->
-          let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-              region = toRegion row col
-           in Report.Report "UNEXPECTED OPERATOR" region [] $
-                Code.toSnippet
-                  source
-                  surroundings
-                  (Just region)
-                  ( D.reflow $
-                      "I am partway through parsing a `case` expression, but I got stuck here:",
-                    D.fillSep $
-                      [ "I",
-                        "am",
-                        "seeing",
-                        D.dullyellow ":",
-                        "but",
-                        "maybe",
-                        "you",
-                        "want",
-                        D.green "::",
-                        "instead?",
-                        "For",
-                        "pattern",
-                        "matching",
-                        "on",
-                        "lists?"
-                      ]
                   )
         Code.Operator "=" ->
           let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
@@ -4831,12 +4773,12 @@ toTupleReport source context tuple startRow startCol =
                   ]
               )
 
-toListReport :: Code.Source -> Context -> List -> Row -> Col -> Report.Report
-toListReport source context list startRow startCol =
+toArrayReport :: Code.Source -> Context -> Array -> Row -> Col -> Report.Report
+toArrayReport source context list startRow startCol =
   case list of
-    ListSpace space row col ->
+    ArraySpace space row col ->
       toSpaceReport source space row col
-    ListOpen row col ->
+    ArrayOpen row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
        in Report.Report "UNFINISHED LIST" region [] $
@@ -4875,7 +4817,7 @@ toListReport source context list startRow startCol =
                       \ or bracket somewhere earlier. It could also be a stray keyword or operator."
                   ]
               )
-    ListExpr expr row col ->
+    ArrayExpr expr row col ->
       case expr of
         Start r c ->
           let surroundings = A.Region (A.Position startRow startCol) (A.Position r c)
@@ -4905,8 +4847,8 @@ toListReport source context list startRow startCol =
                       ]
                   )
         _ ->
-          toExprReport source (InNode NList startRow startCol context) expr row col
-    ListEnd row col ->
+          toExprReport source (InNode NArray startRow startCol context) expr row col
+    ArrayEnd row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
        in Report.Report "UNFINISHED LIST" region [] $
@@ -4945,7 +4887,7 @@ toListReport source context list startRow startCol =
                       \ or bracket somewhere earlier. It could also be a stray keyword or operator."
                   ]
               )
-    ListIndentOpen row col ->
+    ArrayIndentOpen row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
        in Report.Report "UNFINISHED LIST" region [] $
@@ -5006,7 +4948,7 @@ toListReport source context list startRow startCol =
                       \ This is the stylistic convention in the Gren ecosystem."
                   ]
               )
-    ListIndentEnd row col ->
+    ArrayIndentEnd row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
        in Report.Report "UNFINISHED LIST" region [] $
@@ -5049,7 +4991,7 @@ toListReport source context list startRow startCol =
                       \ This is the stylistic convention in the Gren ecosystem."
                   ]
               )
-    ListIndentExpr row col ->
+    ArrayIndentExpr row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
        in Report.Report "UNFINISHED LIST" region [] $
@@ -5258,8 +5200,8 @@ toPatternReport source context pattern startRow startCol =
       toPRecordReport source record row col
     PTuple tuple row col ->
       toPTupleReport source context tuple row col
-    PList list row col ->
-      toPListReport source context list row col
+    PArray list row col ->
+      toPArrayReport source context list row col
     PStart row col ->
       case Code.whatIsNext source row col of
         Code.Keyword keyword ->
@@ -5854,10 +5796,10 @@ toPTupleReport source context tuple startRow startCol =
                   ]
               )
 
-toPListReport :: Code.Source -> PContext -> PList -> Row -> Col -> Report.Report
-toPListReport source context list startRow startCol =
+toPArrayReport :: Code.Source -> PContext -> PArray -> Row -> Col -> Report.Report
+toPArrayReport source context list startRow startCol =
   case list of
-    PListOpen row col ->
+    PArrayOpen row col ->
       case Code.whatIsNext source row col of
         Code.Keyword keyword ->
           let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
@@ -5881,7 +5823,7 @@ toPListReport source context list startRow startCol =
                       "I just saw an open square bracket, but then I got stuck here:",
                     D.fillSep ["Try", "adding", "a", D.dullyellow "]", "to", "see", "if", "that", "helps?"]
                   )
-    PListEnd row col ->
+    PArrayEnd row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
        in Report.Report "UNFINISHED LIST PATTERN" region [] $
@@ -5890,11 +5832,11 @@ toPListReport source context list startRow startCol =
                   "I was expecting a closing square bracket to end this list pattern:",
                 D.fillSep ["Try", "adding", "a", D.dullyellow "]", "to", "see", "if", "that", "helps?"]
               )
-    PListExpr pattern row col ->
+    PArrayExpr pattern row col ->
       toPatternReport source context pattern row col
-    PListSpace space row col ->
+    PArraySpace space row col ->
       toSpaceReport source space row col
-    PListIndentOpen row col ->
+    PArrayIndentOpen row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
        in Report.Report "UNFINISHED LIST PATTERN" region [] $
@@ -5908,7 +5850,7 @@ toPListReport source context list startRow startCol =
                       \ maybe there is something next, but it is not indented enough?"
                   ]
               )
-    PListIndentEnd row col ->
+    PArrayIndentEnd row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
        in Report.Report "UNFINISHED LIST PATTERN" region [] $
@@ -5922,7 +5864,7 @@ toPListReport source context list startRow startCol =
                       \ maybe you have a closing square bracket but it is not indented enough?"
                   ]
               )
-    PListIndentExpr row col ->
+    PArrayIndentExpr row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
        in Report.Report "UNFINISHED LIST PATTERN" region [] $
@@ -6497,7 +6439,7 @@ toTTupleReport source context tuple startRow startCol =
                         "like",
                         D.dullyellow "(Maybe Int)",
                         "or",
-                        D.dullyellow "(List Person)" <> ".",
+                        D.dullyellow "(Array Person)" <> ".",
                         "Anything",
                         "where",
                         "you",
@@ -6547,7 +6489,7 @@ toTTupleReport source context tuple startRow startCol =
                         "like",
                         D.dullyellow "(Maybe Int)",
                         "or",
-                        D.dullyellow "(List Person)" <> ".",
+                        D.dullyellow "(Array Person)" <> ".",
                         "Anything",
                         "where",
                         "you",

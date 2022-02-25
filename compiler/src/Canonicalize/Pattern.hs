@@ -76,12 +76,8 @@ canonicalize env (A.At region pattern) =
         canonicalizeCtor env region name patterns =<< Env.findCtor nameRegion env name
       Src.PCtorQual nameRegion home name patterns ->
         canonicalizeCtor env region name patterns =<< Env.findCtorQual nameRegion env home name
-      Src.PList patterns ->
+      Src.PArray patterns ->
         Can.PList <$> canonicalizeList env patterns
-      Src.PCons first rest ->
-        Can.PCons
-          <$> canonicalize env first
-          <*> canonicalize env rest
       Src.PAlias ptrn (A.At reg name) ->
         do
           cpattern <- canonicalize env ptrn

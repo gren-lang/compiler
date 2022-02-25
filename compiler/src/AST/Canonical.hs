@@ -133,7 +133,6 @@ data Pattern_
   | PUnit
   | PTuple Pattern Pattern (Maybe Pattern)
   | PList [Pattern]
-  | PCons Pattern Pattern
   | PBool Union Bool
   | PChr ES.String
   | PStr ES.String

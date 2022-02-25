@@ -62,21 +62,6 @@ add (A.At region pattern) expectation state =
 
         let listCon = CPattern region E.PList arrayType expectation
         return $ State headers (entryVar : vars) (listCon : revCons)
-    Can.PCons headPattern tailPattern ->
-      do
-        entryVar <- mkFlexVar
-        let entryType = VarN entryVar
-        let arrayType = AppN ModuleName.array Name.array [entryType]
-
-        let headExpectation = E.PNoExpectation entryType
-        let tailExpectation = E.PFromContext region E.PTail arrayType
-
-        (State headers vars revCons) <-
-          add headPattern headExpectation
-            =<< add tailPattern tailExpectation state
-
-        let listCon = CPattern region E.PList arrayType expectation
-        return $ State headers (entryVar : vars) (listCon : revCons)
     Can.PRecord fields ->
       do
         extVar <- mkFlexVar

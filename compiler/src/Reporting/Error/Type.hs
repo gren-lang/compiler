@@ -1100,7 +1100,6 @@ opRightToDocs localizer category op tipe expected =
     ">=" -> badCompRight localizer ">=" tipe expected
     "==" -> badEquality localizer "==" tipe expected
     "/=" -> badEquality localizer "/=" tipe expected
-    "::" -> badConsRight localizer category tipe expected
     "++" -> badAppendRight localizer category tipe expected
     "<|" ->
       EmphRight
@@ -1189,51 +1188,6 @@ isArray tipe =
       T.isArray home name
     _ ->
       False
-
--- BAD CONS
-
-badConsRight :: L.Localizer -> Category -> T.Type -> T.Type -> RightDocs
-badConsRight localizer category tipe expected =
-  case tipe of
-    T.Type home1 name1 [actualElement] | T.isArray home1 name1 ->
-      case expected of
-        T.Type home2 name2 [expectedElement]
-          | T.isArray home2 name2 ->
-              EmphBoth
-                ( D.reflow "I am having trouble with this (::) operator:",
-                  typeComparison
-                    localizer
-                    expectedElement
-                    actualElement
-                    "The left side of (::) is:"
-                    "But you are trying to put that into a list filled with:"
-                    ( case expectedElement of
-                        T.Type home name [_]
-                          | T.isArray home name ->
-                              [ D.toSimpleHint
-                                  "Are you trying to append two lists? The (++) operator\
-                                  \ appends lists, whereas the (::) operator is only for\
-                                  \ adding ONE element to a list."
-                              ]
-                        _ ->
-                          [ D.reflow
-                              "Lists need ALL elements to be the same type though."
-                          ]
-                    )
-                )
-        _ ->
-          badOpRightFallback localizer category "::" tipe expected
-    _ ->
-      EmphRight
-        ( D.reflow "The (::) operator can only add elements onto lists.",
-          loneType
-            localizer
-            tipe
-            expected
-            (D.reflow (addCategory "The right side is" category))
-            [ D.fillSep ["But", "(::)", "needs", "a", D.dullyellow "List", "on", "the", "right."]
-            ]
-        )
 
 -- BAD APPEND
 

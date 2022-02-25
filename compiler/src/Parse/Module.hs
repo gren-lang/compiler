@@ -387,8 +387,8 @@ chompExposing :: A.Located Name.Name -> Maybe Name.Name -> Parser E.Module Src.I
 chompExposing name maybeAlias =
   do
     Keyword.exposing_ E.ImportExposing
-    Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentExposingList
-    exposed <- specialize E.ImportExposingList exposing
+    Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentExposingArray
+    exposed <- specialize E.ImportExposingArray exposing
     freshLine E.ImportEnd
     return $ Src.Import name maybeAlias exposed
 

@@ -170,8 +170,6 @@ flatten pathPattern@(path, A.At region pattern) otherPathPatterns =
       pathPattern : otherPathPatterns
     Can.PList _ ->
       pathPattern : otherPathPatterns
-    Can.PCons _ _ ->
-      pathPattern : otherPathPatterns
     Can.PChr _ ->
       pathPattern : otherPathPatterns
     Can.PStr _ ->
@@ -247,8 +245,6 @@ testAtPath selectedPath (Branch _ pathPatterns) =
           Just (IsCtor home name index numAlts opts)
         Can.PList ps ->
           Just (case ps of [] -> IsNil; _ -> IsCons)
-        Can.PCons _ _ ->
-          Just IsCons
         Can.PTuple _ _ _ ->
           Just IsTuple
         Can.PUnit ->
@@ -307,12 +303,6 @@ toRelevantBranch test path branch@(Branch goal pathPatterns) =
             IsCons ->
               let tl' = A.At region (Can.PList tl)
                in Just (Branch goal (start ++ subPositions path [hd, tl'] ++ end))
-            _ ->
-              Nothing
-        Can.PCons hd tl ->
-          case test of
-            IsCons ->
-              Just (Branch goal (start ++ subPositions path [hd, tl] ++ end))
             _ ->
               Nothing
         Can.PChr chr ->
@@ -394,7 +384,6 @@ needsTests (A.At _ pattern) =
     Can.PRecord _ -> False
     Can.PCtor _ _ _ _ _ _ -> True
     Can.PList _ -> True
-    Can.PCons _ _ -> True
     Can.PUnit -> True
     Can.PTuple _ _ _ -> True
     Can.PChr _ -> True
