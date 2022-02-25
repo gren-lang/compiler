@@ -47,7 +47,7 @@ data Expr_
   | Float EF.Float
   | Var VarType Name
   | VarQual VarType Name Name
-  | List [Expr]
+  | Array [Expr]
   | Op Name
   | Negate Expr
   | Binops [(Expr, A.Located Name)] Expr

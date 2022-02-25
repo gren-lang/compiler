@@ -80,7 +80,7 @@ generate mode expression =
       JsExpr $ generateDebug name home region unhandledValueName
     Opt.VarKernel home name ->
       JsExpr $ JS.Ref (JsName.fromKernel home name)
-    Opt.List entries ->
+    Opt.Array entries ->
       case entries of
         [] ->
           JsExpr $ JS.Ref (JsName.fromKernel Name.list "Nil")

@@ -101,7 +101,7 @@ list start =
             chompListEnd start [entry],
           do
             word1 0x5D {-]-} E.ListOpen
-            addEnd start (Src.List [])
+            addEnd start (Src.Array [])
         ]
 
 chompListEnd :: A.Position -> [Src.Expr] -> Parser E.List Src.Expr
@@ -116,7 +116,7 @@ chompListEnd start entries =
         chompListEnd start (entry : entries),
       do
         word1 0x5D {-]-} E.ListEnd
-        addEnd start (Src.List (reverse entries))
+        addEnd start (Src.Array (reverse entries))
     ]
 
 -- TUPLES

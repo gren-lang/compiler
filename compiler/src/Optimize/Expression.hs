@@ -52,8 +52,8 @@ optimize cycle (A.At region expression) =
       pure (Opt.Int int)
     Can.Float float ->
       pure (Opt.Float float)
-    Can.List entries ->
-      Names.registerKernel Name.list Opt.List
+    Can.Array entries ->
+      Names.registerKernel Name.list Opt.Array
         <*> traverse (optimize cycle) entries
     Can.Negate expr ->
       do

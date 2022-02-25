@@ -58,7 +58,7 @@ constrain rtv (A.At region expression) expected =
         return $ exists [var] $ CEqual region E.Number (VarN var) expected
     Can.Float _ ->
       return $ CEqual region Float Type.float expected
-    Can.List elements ->
+    Can.Array elements ->
       constrainList rtv region elements expected
     Can.Negate expr ->
       do

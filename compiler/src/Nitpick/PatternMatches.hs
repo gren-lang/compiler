@@ -222,7 +222,7 @@ checkExpr (A.At region expression) errors =
       errors
     Can.Float _ ->
       errors
-    Can.List entries ->
+    Can.Array entries ->
       foldr checkExpr errors entries
     Can.Negate expr ->
       checkExpr expr errors

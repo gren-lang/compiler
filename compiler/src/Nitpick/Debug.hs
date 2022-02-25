@@ -42,7 +42,7 @@ hasDebug expression =
     Opt.VarCycle _ _ -> False
     Opt.VarDebug _ _ _ _ -> True
     Opt.VarKernel _ _ -> False
-    Opt.List exprs -> any hasDebug exprs
+    Opt.Array exprs -> any hasDebug exprs
     Opt.Function _ expr -> hasDebug expr
     Opt.Call e es -> hasDebug e || any hasDebug es
     Opt.TailCall _ args -> any (hasDebug . snd) args

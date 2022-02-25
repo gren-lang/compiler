@@ -60,7 +60,7 @@ toEncoder tipe =
             object <- encode "object"
             keyValuePairs <- traverse encodeField (Map.toList fields)
             Names.registerFieldDict fields $
-              Opt.Function [Name.dollar] (Opt.Call object [Opt.List keyValuePairs])
+              Opt.Function [Name.dollar] (Opt.Call object [Opt.Array keyValuePairs])
 
 -- ENCODE HELPERS
 
@@ -109,7 +109,7 @@ encodeTuple a b maybeC =
               Opt.Function [Name.dollar] $
                 let_ "a" Index.first $
                   let_ "b" Index.second $
-                    Opt.Call list [identity, Opt.List [arg1, arg2]]
+                    Opt.Call list [identity, Opt.Array [arg1, arg2]]
           Just c ->
             do
               arg3 <- encodeArg "c" c
@@ -118,7 +118,7 @@ encodeTuple a b maybeC =
                   let_ "a" Index.first $
                     let_ "b" Index.second $
                       let_ "c" Index.third $
-                        Opt.Call list [identity, Opt.List [arg1, arg2, arg3]]
+                        Opt.Call list [identity, Opt.Array [arg1, arg2, arg3]]
 
 -- FLAGS DECODER
 
@@ -183,7 +183,7 @@ decodeMaybe tipe =
     return $
       Opt.Call
         oneOf
-        [ Opt.List
+        [ Opt.Array
             [ Opt.Call null [nothing],
               Opt.Call map_ [just, subDecoder]
             ]
