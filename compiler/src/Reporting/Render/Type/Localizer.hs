@@ -44,7 +44,7 @@ toDoc localizer home name =
   D.fromChars (toChars localizer home name)
 
 toChars :: Localizer -> ModuleName.Canonical -> Name.Name -> String
-toChars (Localizer localizer) moduleName@(ModuleName.Canonical _ home) name =
+toChars (Localizer localizer) (ModuleName.Canonical _ home) name =
   case Map.lookup home localizer of
     Nothing ->
       Name.toChars home <> "." <> Name.toChars name
@@ -55,10 +55,7 @@ toChars (Localizer localizer) moduleName@(ModuleName.Canonical _ home) name =
         Only set ->
           if Set.member name set
             then Name.toChars name
-            else
-              if name == Name.list && moduleName == ModuleName.list
-                then "List"
-                else Name.toChars (maybe home id alias) <> "." <> Name.toChars name
+            else Name.toChars (maybe home id alias) <> "." <> Name.toChars name
 
 -- FROM NAMES
 

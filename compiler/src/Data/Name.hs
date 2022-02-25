@@ -37,7 +37,6 @@ module Data.Name
     string,
     maybe,
     result,
-    list,
     array,
     dict,
     tuple,
@@ -418,10 +417,6 @@ maybe = fromChars "Maybe"
 {-# NOINLINE result #-}
 result :: Name
 result = fromChars "Result"
-
-{-# NOINLINE list #-}
-list :: Name
-list = fromChars "List"
 
 {-# NOINLINE array #-}
 array :: Name

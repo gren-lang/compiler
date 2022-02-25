@@ -18,7 +18,6 @@ module Gren.ModuleName
     string,
     maybe,
     result,
-    list,
     array,
     dict,
     tuple,
@@ -154,10 +153,6 @@ maybe = Canonical Pkg.core Name.maybe
 {-# NOINLINE result #-}
 result :: Canonical
 result = Canonical Pkg.core Name.result
-
-{-# NOINLINE list #-}
-list :: Canonical
-list = Canonical Pkg.core Name.list
 
 {-# NOINLINE array #-}
 array :: Canonical

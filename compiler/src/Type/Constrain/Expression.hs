@@ -236,7 +236,7 @@ constrainList rtv region entries expected =
   do
     entryVar <- mkFlexVar
     let entryType = VarN entryVar
-    let listType = AppN ModuleName.list Name.list [entryType]
+    let listType = AppN ModuleName.array Name.array [entryType]
 
     entryCons <-
       Index.indexedTraverse (constrainListEntry rtv region entryType) entries

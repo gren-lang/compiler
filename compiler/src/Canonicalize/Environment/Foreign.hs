@@ -57,7 +57,7 @@ emptyState =
 
 emptyTypes :: Env.Exposed Env.Type
 emptyTypes =
-  Map.singleton "List" (Env.Specific ModuleName.list (Env.Union 1 ModuleName.list))
+  Map.empty
 
 -- TO SAFE IMPORTS
 

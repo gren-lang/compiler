@@ -120,7 +120,7 @@ list =
           Index.second
           2
           [ Can.TVar "a",
-            Can.TType ModuleName.list Name.list [Can.TVar "a"]
+            Can.TType ModuleName.array Name.array [Can.TVar "a"]
           ]
    in Can.Union ["a"] [nilCtor, consCtor] 2 Can.Normal
 

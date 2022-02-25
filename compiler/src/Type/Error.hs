@@ -14,7 +14,7 @@ module Type.Error
     isFloat,
     isString,
     isChar,
-    isList,
+    isArray,
   )
 where
 
@@ -248,7 +248,7 @@ toDiff localizer ctx tipe1 tipe2 =
             (toDoc localizer ctx t2)
             (Bag.one AnythingFromMaybe)
     (t1, Type home name [t2])
-      | isList home name && isSimilar (toDiff localizer ctx t1 t2) ->
+      | isArray home name && isSimilar (toDiff localizer ctx t1 t2) ->
           different
             (toDoc localizer ctx t1)
             (RT.apply ctx (D.dullyellow (L.toDoc localizer home name)) [toDoc localizer RT.App t2])
@@ -356,9 +356,9 @@ isMaybe :: ModuleName.Canonical -> Name.Name -> Bool
 isMaybe home name =
   home == ModuleName.maybe && name == Name.maybe
 
-isList :: ModuleName.Canonical -> Name.Name -> Bool
-isList home name =
-  home == ModuleName.list && name == Name.list
+isArray :: ModuleName.Canonical -> Name.Name -> Bool
+isArray home name =
+  home == ModuleName.array && name == Name.array
 
 -- IS SUPER?
 
@@ -368,9 +368,9 @@ isSuper super tipe =
     Type h n args ->
       case super of
         Number -> isInt h n || isFloat h n
-        Comparable -> isInt h n || isFloat h n || isString h n || isChar h n || isList h n && isSuper super (head args)
-        Appendable -> isString h n || isList h n
-        CompAppend -> isString h n || isList h n && isSuper Comparable (head args)
+        Comparable -> isInt h n || isFloat h n || isString h n || isChar h n || isArray h n && isSuper super (head args)
+        Appendable -> isString h n || isArray h n
+        CompAppend -> isString h n || isArray h n && isSuper Comparable (head args)
     Tuple a b maybeC ->
       case super of
         Number -> False

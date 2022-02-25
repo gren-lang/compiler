@@ -44,7 +44,6 @@ toEncoder tipe =
           | name == Name.value -> Names.registerGlobal ModuleName.basics Name.identity
         [arg]
           | name == Name.maybe -> encodeMaybe arg
-          | name == Name.list -> encodeList arg
           | name == Name.array -> encodeArray arg
         _ ->
           error "toEncoder: bad custom type"
@@ -73,13 +72,6 @@ encodeMaybe tipe =
     return $
       Opt.Function [Name.dollar] $
         Opt.Call destruct [null, encoder, Opt.VarLocal Name.dollar]
-
-encodeList :: Can.Type -> Names.Tracker Opt.Expr
-encodeList tipe =
-  do
-    list <- encode "list"
-    encoder <- toEncoder tipe
-    return $ Opt.Call list [encoder]
 
 encodeArray :: Can.Type -> Names.Tracker Opt.Expr
 encodeArray tipe =
@@ -157,7 +149,6 @@ toDecoder tipe =
           | name == Name.value -> decode "value"
         [arg]
           | name == Name.maybe -> decodeMaybe arg
-          | name == Name.list -> decodeList arg
           | name == Name.array -> decodeArray arg
         _ ->
           error "toDecoder: bad type"
@@ -188,15 +179,6 @@ decodeMaybe tipe =
               Opt.Call map_ [just, subDecoder]
             ]
         ]
-
--- DECODE LIST
-
-decodeList :: Can.Type -> Names.Tracker Opt.Expr
-decodeList tipe =
-  do
-    list <- decode "list"
-    decoder <- toDecoder tipe
-    return $ Opt.Call list [decoder]
 
 -- DECODE ARRAY
 

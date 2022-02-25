@@ -55,27 +55,27 @@ add (A.At region pattern) expectation state =
       do
         entryVar <- mkFlexVar
         let entryType = VarN entryVar
-        let listType = AppN ModuleName.list Name.list [entryType]
+        let arrayType = AppN ModuleName.array Name.array [entryType]
 
         (State headers vars revCons) <-
           foldM (addEntry region entryType) state (Index.indexedMap (,) patterns)
 
-        let listCon = CPattern region E.PList listType expectation
+        let listCon = CPattern region E.PList arrayType expectation
         return $ State headers (entryVar : vars) (listCon : revCons)
     Can.PCons headPattern tailPattern ->
       do
         entryVar <- mkFlexVar
         let entryType = VarN entryVar
-        let listType = AppN ModuleName.list Name.list [entryType]
+        let arrayType = AppN ModuleName.array Name.array [entryType]
 
         let headExpectation = E.PNoExpectation entryType
-        let tailExpectation = E.PFromContext region E.PTail listType
+        let tailExpectation = E.PFromContext region E.PTail arrayType
 
         (State headers vars revCons) <-
           add headPattern headExpectation
             =<< add tailPattern tailExpectation state
 
-        let listCon = CPattern region E.PList listType expectation
+        let listCon = CPattern region E.PList arrayType expectation
         return $ State headers (entryVar : vars) (listCon : revCons)
     Can.PRecord fields ->
       do

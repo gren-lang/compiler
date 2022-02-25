@@ -1022,10 +1022,10 @@ opLeftToDocs localizer category op tipe expected =
   case op of
     "+"
       | isString tipe -> badStringAdd
-      | isList tipe -> badListAdd localizer category "left" tipe expected
+      | isArray tipe -> badListAdd localizer category "left" tipe expected
       | otherwise -> badMath localizer category "Addition" "left" "+" tipe expected []
     "*"
-      | isList tipe -> badListMul localizer category "left" tipe expected
+      | isArray tipe -> badListMul localizer category "left" tipe expected
       | otherwise -> badMath localizer category "Multiplication" "left" "*" tipe expected []
     "-" -> badMath localizer category "Subtraction" "left" "-" tipe expected []
     "^" -> badMath localizer category "Exponentiation" "left" "^" tipe expected []
@@ -1073,12 +1073,12 @@ opRightToDocs localizer category op tipe expected =
       | isFloat expected && isInt tipe -> badCast op FloatInt
       | isInt expected && isFloat tipe -> badCast op IntFloat
       | isString tipe -> EmphRight $ badStringAdd
-      | isList tipe -> EmphRight $ badListAdd localizer category "right" tipe expected
+      | isArray tipe -> EmphRight $ badListAdd localizer category "right" tipe expected
       | otherwise -> EmphRight $ badMath localizer category "Addition" "right" "+" tipe expected []
     "*"
       | isFloat expected && isInt tipe -> badCast op FloatInt
       | isInt expected && isFloat tipe -> badCast op IntFloat
-      | isList tipe -> EmphRight $ badListMul localizer category "right" tipe expected
+      | isArray tipe -> EmphRight $ badListMul localizer category "right" tipe expected
       | otherwise -> EmphRight $ badMath localizer category "Multiplication" "right" "*" tipe expected []
     "-"
       | isFloat expected && isInt tipe -> badCast op FloatInt
@@ -1182,11 +1182,11 @@ isString tipe =
     _ ->
       False
 
-isList :: T.Type -> Bool
-isList tipe =
+isArray :: T.Type -> Bool
+isArray tipe =
   case tipe of
     T.Type home name [_] ->
-      T.isList home name
+      T.isArray home name
     _ ->
       False
 
@@ -1195,10 +1195,10 @@ isList tipe =
 badConsRight :: L.Localizer -> Category -> T.Type -> T.Type -> RightDocs
 badConsRight localizer category tipe expected =
   case tipe of
-    T.Type home1 name1 [actualElement] | T.isList home1 name1 ->
+    T.Type home1 name1 [actualElement] | T.isArray home1 name1 ->
       case expected of
         T.Type home2 name2 [expectedElement]
-          | T.isList home2 name2 ->
+          | T.isArray home2 name2 ->
               EmphBoth
                 ( D.reflow "I am having trouble with this (::) operator:",
                   typeComparison
@@ -1209,7 +1209,7 @@ badConsRight localizer category tipe expected =
                     "But you are trying to put that into a list filled with:"
                     ( case expectedElement of
                         T.Type home name [_]
-                          | T.isList home name ->
+                          | T.isArray home name ->
                               [ D.toSimpleHint
                                   "Are you trying to append two lists? The (++) operator\
                                   \ appends lists, whereas the (::) operator is only for\
@@ -1250,7 +1250,7 @@ toAppendType tipe =
       | T.isInt home name -> ANumber "Int" "String.fromInt"
       | T.isFloat home name -> ANumber "Float" "String.fromFloat"
       | T.isString home name -> AString
-      | T.isList home name -> AList
+      | T.isArray home name -> AList
     T.FlexSuper T.Number _ -> ANumber "number" "String.fromInt"
     _ -> AOther
 

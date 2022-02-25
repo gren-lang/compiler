@@ -138,7 +138,6 @@ checkPayload tipe =
           | isString home name -> Right ()
           | isIntFloatBool home name -> Right ()
         [arg]
-          | isList home name -> checkPayload arg
           | isMaybe home name -> checkPayload arg
           | isArray home name -> checkPayload arg
         _ ->
@@ -181,11 +180,6 @@ isJson :: ModuleName.Canonical -> Name.Name -> Bool
 isJson home name =
   home == ModuleName.jsonEncode
     && name == Name.value
-
-isList :: ModuleName.Canonical -> Name.Name -> Bool
-isList home name =
-  home == ModuleName.list
-    && name == Name.list
 
 isMaybe :: ModuleName.Canonical -> Name.Name -> Bool
 isMaybe home name =

@@ -149,12 +149,9 @@ extractAlias (Types dict) (Opt.Global home name) =
 
 extractUnion :: Types -> Opt.Global -> Extractor T.Union
 extractUnion (Types dict) (Opt.Global home name) =
-  if name == Name.list && home == ModuleName.list
-    then return $ T.Union (toPublicName home name) ["a"] []
-    else
-      let pname = toPublicName home name
-          (Can.Union vars ctors _ _) = _union_info (dict ! home) ! name
-       in T.Union pname vars <$> traverse extractCtor ctors
+  let pname = toPublicName home name
+      (Can.Union vars ctors _ _) = _union_info (dict ! home) ! name
+   in T.Union pname vars <$> traverse extractCtor ctors
 
 extractCtor :: Can.Ctor -> Extractor (Name.Name, [T.Type])
 extractCtor (Can.Ctor ctor _ _ args) =
