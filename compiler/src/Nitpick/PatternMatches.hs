@@ -61,7 +61,7 @@ simplify (A.At _ pattern) =
     Can.PCtor _ _ union name _ args ->
       Ctor union name $
         map (\(Can.PatternCtorArg _ _ arg) -> simplify arg) args
-    Can.PList entries ->
+    Can.PArray entries ->
       Array $ map simplify entries
     Can.PAlias subPattern _ ->
       simplify subPattern

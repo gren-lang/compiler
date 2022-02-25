@@ -226,10 +226,11 @@ destructHelp path (A.At region pattern) revDs =
             destructHelp (Opt.Index Index.third newRoot) c
               =<< destructHelp (Opt.Index Index.second newRoot) b
               =<< destructHelp (Opt.Index Index.first newRoot) a (Opt.Destructor name path : revDs)
-    Can.PList [] ->
+    Can.PArray [] ->
       pure revDs
-    Can.PList (hd : tl) ->
-      destructTwo path hd (A.At region (Can.PList tl)) revDs
+    Can.PArray (hd : tl) ->
+      -- TODO: This likely doesn't work anymore
+      destructTwo path hd (A.At region (Can.PArray tl)) revDs
     Can.PChr _ ->
       pure revDs
     Can.PStr _ ->

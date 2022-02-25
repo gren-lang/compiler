@@ -51,7 +51,7 @@ add (A.At region pattern) expectation state =
       addTuple region a b maybeC expectation state
     Can.PCtor home typeName (Can.Union typeVars _ _ _) ctorName _ args ->
       addCtor region home typeName typeVars ctorName args expectation state
-    Can.PList patterns ->
+    Can.PArray patterns ->
       do
         entryVar <- mkFlexVar
         let entryType = VarN entryVar
@@ -60,8 +60,8 @@ add (A.At region pattern) expectation state =
         (State headers vars revCons) <-
           foldM (addEntry region entryType) state (Index.indexedMap (,) patterns)
 
-        let listCon = CPattern region E.PList arrayType expectation
-        return $ State headers (entryVar : vars) (listCon : revCons)
+        let arrayCon = CPattern region E.PList arrayType expectation
+        return $ State headers (entryVar : vars) (arrayCon : revCons)
     Can.PRecord fields ->
       do
         extVar <- mkFlexVar

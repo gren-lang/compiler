@@ -132,7 +132,7 @@ data Pattern_
   | PAlias Pattern Name
   | PUnit
   | PTuple Pattern Pattern (Maybe Pattern)
-  | PList [Pattern]
+  | PArray [Pattern]
   | PBool Union Bool
   | PChr ES.String
   | PStr ES.String
