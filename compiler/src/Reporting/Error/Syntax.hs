@@ -3257,7 +3257,7 @@ toOperatorReport source context operator row col =
                 case getDefName context of
                   Nothing ->
                     D.fillSep
-                      [ D.toSimpleNote "The single colon is reserved for type annotation and record types." ]
+                      [D.toSimpleNote "The single colon is reserved for type annotation and record types."]
                   Just name ->
                     D.stack
                       [ D.toSimpleNote $
