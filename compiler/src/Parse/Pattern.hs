@@ -13,6 +13,7 @@ import qualified AST.Source as Src
 import qualified Data.Name as Name
 import qualified Data.Utf8 as Utf8
 import Foreign.Ptr (plusPtr)
+import qualified Parse.Keyword as Keyword
 import qualified Parse.Number as Number
 import Parse.Primitives (Parser, addEnd, addLocation, getPosition, inContext, oneOf, oneOfWithFallback, word1)
 import qualified Parse.Primitives as P
@@ -199,7 +200,34 @@ arrayHelp start patterns =
 -- EXPRESSION
 
 expression :: Space.Parser E.Pattern Src.Pattern
-expression =
+expression = do
+  start <- getPosition
+  ePart <- exprPart
+  exprHelp start ePart
+
+exprHelp :: A.Position -> (Src.Pattern, A.Position) -> Space.Parser E.Pattern Src.Pattern
+exprHelp start (pattern, end) =
+  oneOfWithFallback
+    [ do
+        Space.checkIndent end E.PIndentStart
+        Keyword.as_ E.PStart
+        Space.chompAndCheckIndent E.PSpace E.PIndentAlias
+        nameStart <- getPosition
+        name <- Var.lower E.PAlias
+        newEnd <- getPosition
+        Space.chomp E.PSpace
+        let alias = A.at nameStart newEnd name
+        return
+          ( A.at start newEnd (Src.PAlias pattern alias),
+            newEnd
+          )
+    ]
+    ( pattern,
+      end
+    )
+
+exprPart :: Space.Parser E.Pattern Src.Pattern
+exprPart =
   oneOf
     E.PStart
     [ do
