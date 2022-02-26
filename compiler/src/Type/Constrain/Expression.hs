@@ -245,12 +245,12 @@ constrainList rtv region entries expected =
       exists [entryVar] $
         CAnd
           [ CAnd entryCons,
-            CEqual region List listType expected
+            CEqual region Array listType expected
           ]
 
 constrainListEntry :: RTV -> A.Region -> Type -> Index.ZeroBased -> Can.Expr -> IO Constraint
 constrainListEntry rtv region tipe index expr =
-  constrain rtv expr (FromContext region (ListEntry index) tipe)
+  constrain rtv expr (FromContext region (ArrayEntry index) tipe)
 
 -- CONSTRAIN IF EXPRESSIONS
 

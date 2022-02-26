@@ -60,7 +60,7 @@ add (A.At region pattern) expectation state =
         (State headers vars revCons) <-
           foldM (addEntry region entryType) state (Index.indexedMap (,) patterns)
 
-        let arrayCon = CPattern region E.PList arrayType expectation
+        let arrayCon = CPattern region E.PArray arrayType expectation
         return $ State headers (entryVar : vars) (arrayCon : revCons)
     Can.PRecord fields ->
       do
@@ -124,7 +124,7 @@ getType expectation =
 addEntry :: A.Region -> Type -> State -> (Index.ZeroBased, Can.Pattern) -> IO State
 addEntry listRegion tipe state (index, pattern) =
   let expectation =
-        E.PFromContext listRegion (E.PListEntry index) tipe
+        E.PFromContext listRegion (E.PArrayEntry index) tipe
    in add pattern expectation state
 
 -- CONSTRAIN TUPLE
