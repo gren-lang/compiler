@@ -196,7 +196,7 @@ destruct pattern@(A.At _ ptrn) =
         pure (name, reverse revDs)
 
 destructHelp :: Opt.Path -> Can.Pattern -> [Opt.Destructor] -> Names.Tracker [Opt.Destructor]
-destructHelp path (A.At region pattern) revDs =
+destructHelp path (A.At _ pattern) revDs =
   case pattern of
     Can.PAnything ->
       pure revDs
@@ -228,9 +228,17 @@ destructHelp path (A.At region pattern) revDs =
               =<< destructHelp (Opt.Index Index.first newRoot) a (Opt.Destructor name path : revDs)
     Can.PArray [] ->
       pure revDs
-    Can.PArray (hd : tl) ->
-      -- TODO: This likely doesn't work anymore
-      destructTwo path hd (A.At region (Can.PArray tl)) revDs
+    Can.PArray [element] ->
+      destructHelp (Opt.Index Index.first path) element revDs
+    Can.PArray elements ->
+      let indexedElements = Index.indexedMap (,) elements
+       in case path of
+            Opt.Root _ ->
+              foldM (destructArrayElement path) revDs indexedElements
+            _ ->
+              do
+                name <- Names.generate
+                foldM (destructArrayElement (Opt.Root name)) (Opt.Destructor name path : revDs) indexedElements
     Can.PChr _ ->
       pure revDs
     Can.PStr _ ->
@@ -267,6 +275,10 @@ destructTwo path a b revDs =
         let newRoot = Opt.Root name
         destructHelp (Opt.Index Index.second newRoot) b
           =<< destructHelp (Opt.Index Index.first newRoot) a (Opt.Destructor name path : revDs)
+
+destructArrayElement :: Opt.Path -> [Opt.Destructor] -> (Index.ZeroBased, Can.Pattern) -> Names.Tracker [Opt.Destructor]
+destructArrayElement path revDs (index, arg) =
+  destructHelp (Opt.Index index path) arg revDs
 
 destructCtorArg :: Opt.Path -> [Opt.Destructor] -> Can.PatternCtorArg -> Names.Tracker [Opt.Destructor]
 destructCtorArg path revDs (Can.PatternCtorArg index _ arg) =
