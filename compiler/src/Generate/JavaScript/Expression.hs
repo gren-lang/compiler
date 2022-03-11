@@ -573,6 +573,8 @@ generatePath mode path =
   case path of
     Opt.Index index subPath ->
       JS.Access (generatePath mode subPath) (JsName.fromIndex index)
+    Opt.ArrayIndex index subPath ->
+      JS.Index (generatePath mode subPath) (JS.Int (Index.toMachine index))
     Opt.Root name ->
       JS.Ref (JsName.fromLocal name)
     Opt.Field field subPath ->
@@ -779,6 +781,8 @@ pathToJsExpr mode root path =
   case path of
     DT.Index index subPath ->
       JS.Access (pathToJsExpr mode root subPath) (JsName.fromIndex index)
+    DT.ArrayIndex index subPath ->
+      JS.Index (pathToJsExpr mode root subPath) (JS.Int (Index.toMachine index))
     DT.Unbox subPath ->
       case mode of
         Mode.Dev _ ->

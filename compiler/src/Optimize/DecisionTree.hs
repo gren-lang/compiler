@@ -72,6 +72,7 @@ data Test
 
 data Path
   = Index Index.ZeroBased Path
+  | ArrayIndex Index.ZeroBased Path
   | Unbox Path
   | Empty
   deriving (Eq)
@@ -179,6 +180,10 @@ flatten pathPattern@(path, A.At region pattern) otherPathPatterns =
 subPositions :: Path -> [Can.Pattern] -> [(Path, Can.Pattern)]
 subPositions path patterns =
   Index.indexedMap (\index pattern -> (Index index path, pattern)) patterns
+
+subIndices :: Path -> [Can.Pattern] -> [(Path, Can.Pattern)]
+subIndices path patterns =
+  Index.indexedMap (\index pattern -> (ArrayIndex index path, pattern)) patterns
 
 dearg :: Can.PatternCtorArg -> Can.Pattern
 dearg (Can.PatternCtorArg _ _ pattern) =
@@ -293,7 +298,7 @@ toRelevantBranch test path branch@(Branch goal pathPatterns) =
           case test of
             IsArray testLength
               | List.length arrayElements == testLength ->
-                  Just (Branch goal (start ++ subPositions path arrayElements ++ end))
+                  Just (Branch goal (start ++ subIndices path arrayElements ++ end))
             _ ->
               Nothing
         Can.PChr chr ->
@@ -463,6 +468,7 @@ instance Binary Path where
   put path =
     case path of
       Index a b -> putWord8 0 >> put a >> put b
+      ArrayIndex a b -> putWord8 1 >> put a >> put b
       Unbox a -> putWord8 1 >> put a
       Empty -> putWord8 2
 
@@ -471,6 +477,7 @@ instance Binary Path where
       word <- getWord8
       case word of
         0 -> liftM2 Index get get
-        1 -> liftM Unbox get
-        2 -> pure Empty
+        1 -> liftM2 ArrayIndex get get
+        2 -> liftM Unbox get
+        3 -> pure Empty
         _ -> fail "problem getting DecisionTree.Path binary"

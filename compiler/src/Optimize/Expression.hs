@@ -229,7 +229,7 @@ destructHelp path (A.At _ pattern) revDs =
     Can.PArray [] ->
       pure revDs
     Can.PArray [element] ->
-      destructHelp (Opt.Index Index.first path) element revDs
+      destructHelp (Opt.ArrayIndex Index.first path) element revDs
     Can.PArray elements ->
       let indexedElements = Index.indexedMap (,) elements
        in case path of
@@ -278,7 +278,7 @@ destructTwo path a b revDs =
 
 destructArrayElement :: Opt.Path -> [Opt.Destructor] -> (Index.ZeroBased, Can.Pattern) -> Names.Tracker [Opt.Destructor]
 destructArrayElement path revDs (index, arg) =
-  destructHelp (Opt.Index index path) arg revDs
+  destructHelp (Opt.ArrayIndex index path) arg revDs
 
 destructCtorArg :: Opt.Path -> [Opt.Destructor] -> Can.PatternCtorArg -> Names.Tracker [Opt.Destructor]
 destructCtorArg path revDs (Can.PatternCtorArg index _ arg) =
