@@ -291,8 +291,9 @@ toRelevantBranch test path branch@(Branch goal pathPatterns) =
               Nothing
         Can.PArray arrayElements ->
           case test of
-            IsArray _ ->
-              Just (Branch goal (start ++ subPositions path arrayElements ++ end))
+            IsArray testLength
+              | List.length arrayElements == testLength ->
+                  Just (Branch goal (start ++ subPositions path arrayElements ++ end))
             _ ->
               Nothing
         Can.PChr chr ->
