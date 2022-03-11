@@ -469,8 +469,8 @@ instance Binary Path where
     case path of
       Index a b -> putWord8 0 >> put a >> put b
       ArrayIndex a b -> putWord8 1 >> put a >> put b
-      Unbox a -> putWord8 1 >> put a
-      Empty -> putWord8 2
+      Unbox a -> putWord8 2 >> put a
+      Empty -> putWord8 3
 
   get =
     do
