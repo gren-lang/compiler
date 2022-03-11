@@ -47,7 +47,7 @@ data Expr_
   | Float EF.Float
   | Var VarType Name
   | VarQual VarType Name Name
-  | List [Expr]
+  | Array [Expr]
   | Op Name
   | Negate Expr
   | Binops [(Expr, A.Located Name)] Expr
@@ -84,8 +84,7 @@ data Pattern_
   | PTuple Pattern Pattern [Pattern]
   | PCtor A.Region Name [Pattern]
   | PCtorQual A.Region Name Name [Pattern]
-  | PList [Pattern]
-  | PCons Pattern Pattern
+  | PArray [Pattern]
   | PChr ES.String
   | PStr ES.String
   | PInt Int

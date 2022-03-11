@@ -139,7 +139,7 @@ constrainEffects home r0 r1 r2 manager =
 
 effectList :: ModuleName.Canonical -> Name.Name -> Type -> Type
 effectList home name msg =
-  AppN ModuleName.list Name.list [AppN home name [msg]]
+  AppN ModuleName.array Name.array [AppN home name [msg]]
 
 task :: Type -> Type
 task answer =

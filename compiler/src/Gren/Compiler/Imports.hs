@@ -17,7 +17,7 @@ defaults :: [Src.Import]
 defaults =
   [ import_ ModuleName.basics Nothing Src.Open,
     import_ ModuleName.debug Nothing closed,
-    import_ ModuleName.list Nothing (operator "::"),
+    import_ ModuleName.array Nothing (typeClosed Name.array),
     import_ ModuleName.maybe Nothing (typeOpen Name.maybe),
     import_ ModuleName.result Nothing (typeOpen Name.result),
     import_ ModuleName.string Nothing (typeClosed Name.string),
@@ -45,7 +45,3 @@ typeOpen name =
 typeClosed :: Name.Name -> Src.Exposing
 typeClosed name =
   Src.Explicit [Src.Upper (A.At A.zero name) Src.Private]
-
-operator :: Name.Name -> Src.Exposing
-operator op =
-  Src.Explicit [Src.Operator A.zero op]

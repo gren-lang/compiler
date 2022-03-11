@@ -51,32 +51,17 @@ add (A.At region pattern) expectation state =
       addTuple region a b maybeC expectation state
     Can.PCtor home typeName (Can.Union typeVars _ _ _) ctorName _ args ->
       addCtor region home typeName typeVars ctorName args expectation state
-    Can.PList patterns ->
+    Can.PArray patterns ->
       do
         entryVar <- mkFlexVar
         let entryType = VarN entryVar
-        let listType = AppN ModuleName.list Name.list [entryType]
+        let arrayType = AppN ModuleName.array Name.array [entryType]
 
         (State headers vars revCons) <-
           foldM (addEntry region entryType) state (Index.indexedMap (,) patterns)
 
-        let listCon = CPattern region E.PList listType expectation
-        return $ State headers (entryVar : vars) (listCon : revCons)
-    Can.PCons headPattern tailPattern ->
-      do
-        entryVar <- mkFlexVar
-        let entryType = VarN entryVar
-        let listType = AppN ModuleName.list Name.list [entryType]
-
-        let headExpectation = E.PNoExpectation entryType
-        let tailExpectation = E.PFromContext region E.PTail listType
-
-        (State headers vars revCons) <-
-          add headPattern headExpectation
-            =<< add tailPattern tailExpectation state
-
-        let listCon = CPattern region E.PList listType expectation
-        return $ State headers (entryVar : vars) (listCon : revCons)
+        let arrayCon = CPattern region E.PArray arrayType expectation
+        return $ State headers (entryVar : vars) (arrayCon : revCons)
     Can.PRecord fields ->
       do
         extVar <- mkFlexVar
@@ -139,7 +124,7 @@ getType expectation =
 addEntry :: A.Region -> Type -> State -> (Index.ZeroBased, Can.Pattern) -> IO State
 addEntry listRegion tipe state (index, pattern) =
   let expectation =
-        E.PFromContext listRegion (E.PListEntry index) tipe
+        E.PFromContext listRegion (E.PArrayEntry index) tipe
    in add pattern expectation state
 
 -- CONSTRAIN TUPLE

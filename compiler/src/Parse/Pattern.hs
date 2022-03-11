@@ -10,13 +10,12 @@ module Parse.Pattern
 where
 
 import qualified AST.Source as Src
-import qualified Data.List as List
 import qualified Data.Name as Name
 import qualified Data.Utf8 as Utf8
 import Foreign.Ptr (plusPtr)
 import qualified Parse.Keyword as Keyword
 import qualified Parse.Number as Number
-import Parse.Primitives (Parser, addEnd, addLocation, getPosition, inContext, oneOf, oneOfWithFallback, word1, word2)
+import Parse.Primitives (Parser, addEnd, addLocation, getPosition, inContext, oneOf, oneOfWithFallback, word1)
 import qualified Parse.Primitives as P
 import qualified Parse.Space as Space
 import qualified Parse.String as String
@@ -34,7 +33,7 @@ term =
       E.PStart
       [ record start,
         tuple start,
-        list start,
+        array start,
         termHelp start
       ]
 
@@ -165,58 +164,51 @@ tupleHelp start firstPattern revPatterns =
             addEnd start (Src.PTuple firstPattern secondPattern otherPatterns)
     ]
 
--- LIST
+-- ARRAY
 
-list :: A.Position -> Parser E.Pattern Src.Pattern
-list start =
-  inContext E.PList (word1 0x5B {-[-} E.PStart) $
+array :: A.Position -> Parser E.Pattern Src.Pattern
+array start =
+  inContext E.PArray (word1 0x5B {-[-} E.PStart) $
     do
-      Space.chompAndCheckIndent E.PListSpace E.PListIndentOpen
+      Space.chompAndCheckIndent E.PArraySpace E.PArrayIndentOpen
       oneOf
-        E.PListOpen
+        E.PArrayOpen
         [ do
-            (pattern, end) <- P.specialize E.PListExpr expression
-            Space.checkIndent end E.PListIndentEnd
-            listHelp start [pattern],
+            (pattern, end) <- P.specialize E.PArrayExpr expression
+            Space.checkIndent end E.PArrayIndentEnd
+            arrayHelp start [pattern],
           do
-            word1 0x5D {-]-} E.PListEnd
-            addEnd start (Src.PList [])
+            word1 0x5D {-]-} E.PArrayEnd
+            addEnd start (Src.PArray [])
         ]
 
-listHelp :: A.Position -> [Src.Pattern] -> Parser E.PList Src.Pattern
-listHelp start patterns =
+arrayHelp :: A.Position -> [Src.Pattern] -> Parser E.PArray Src.Pattern
+arrayHelp start patterns =
   oneOf
-    E.PListEnd
+    E.PArrayEnd
     [ do
-        word1 0x2C {-,-} E.PListEnd
-        Space.chompAndCheckIndent E.PListSpace E.PListIndentExpr
-        (pattern, end) <- P.specialize E.PListExpr expression
-        Space.checkIndent end E.PListIndentEnd
-        listHelp start (pattern : patterns),
+        word1 0x2C {-,-} E.PArrayEnd
+        Space.chompAndCheckIndent E.PArraySpace E.PArrayIndentExpr
+        (pattern, end) <- P.specialize E.PArrayExpr expression
+        Space.checkIndent end E.PArrayIndentEnd
+        arrayHelp start (pattern : patterns),
       do
-        word1 0x5D {-]-} E.PListEnd
-        addEnd start (Src.PList (reverse patterns))
+        word1 0x5D {-]-} E.PArrayEnd
+        addEnd start (Src.PArray (reverse patterns))
     ]
 
 -- EXPRESSION
 
 expression :: Space.Parser E.Pattern Src.Pattern
-expression =
-  do
-    start <- getPosition
-    ePart <- exprPart
-    exprHelp start [] ePart
+expression = do
+  start <- getPosition
+  ePart <- exprPart
+  exprHelp start ePart
 
-exprHelp :: A.Position -> [Src.Pattern] -> (Src.Pattern, A.Position) -> Space.Parser E.Pattern Src.Pattern
-exprHelp start revPatterns (pattern, end) =
+exprHelp :: A.Position -> (Src.Pattern, A.Position) -> Space.Parser E.Pattern Src.Pattern
+exprHelp start (pattern, end) =
   oneOfWithFallback
     [ do
-        Space.checkIndent end E.PIndentStart
-        word2 0x3A 0x3A {-::-} E.PStart
-        Space.chompAndCheckIndent E.PSpace E.PIndentStart
-        ePart <- exprPart
-        exprHelp start (pattern : revPatterns) ePart,
-      do
         Space.checkIndent end E.PIndentStart
         Keyword.as_ E.PStart
         Space.chompAndCheckIndent E.PSpace E.PIndentAlias
@@ -226,19 +218,13 @@ exprHelp start revPatterns (pattern, end) =
         Space.chomp E.PSpace
         let alias = A.at nameStart newEnd name
         return
-          ( A.at start newEnd (Src.PAlias (List.foldl' cons pattern revPatterns) alias),
+          ( A.at start newEnd (Src.PAlias pattern alias),
             newEnd
           )
     ]
-    ( List.foldl' cons pattern revPatterns,
+    ( pattern,
       end
     )
-
-cons :: Src.Pattern -> Src.Pattern -> Src.Pattern
-cons tl hd =
-  A.merge hd tl (Src.PCons hd tl)
-
--- EXPRESSION PART
 
 exprPart :: Space.Parser E.Pattern Src.Pattern
 exprPart =

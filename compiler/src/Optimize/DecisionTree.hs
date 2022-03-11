@@ -62,8 +62,7 @@ data DecisionTree
 
 data Test
   = IsCtor ModuleName.Canonical Name.Name Index.ZeroBased Int Can.CtorOpts
-  | IsCons
-  | IsNil
+  | IsArray Int
   | IsTuple
   | IsInt Int
   | IsChr ES.String
@@ -73,6 +72,7 @@ data Test
 
 data Path
   = Index Index.ZeroBased Path
+  | ArrayIndex Index.ZeroBased Path
   | Unbox Path
   | Empty
   deriving (Eq)
@@ -115,10 +115,8 @@ isComplete tests =
   case head tests of
     IsCtor _ _ _ numAlts _ ->
       numAlts == length tests
-    IsCons ->
-      length tests == 2
-    IsNil ->
-      length tests == 2
+    IsArray _ ->
+      False
     IsTuple ->
       True
     IsChr _ ->
@@ -168,9 +166,7 @@ flatten pathPattern@(path, A.At region pattern) otherPathPatterns =
         (path, A.At region (Can.PVar alias)) : otherPathPatterns
     Can.PRecord _ ->
       pathPattern : otherPathPatterns
-    Can.PList _ ->
-      pathPattern : otherPathPatterns
-    Can.PCons _ _ ->
+    Can.PArray _ ->
       pathPattern : otherPathPatterns
     Can.PChr _ ->
       pathPattern : otherPathPatterns
@@ -184,6 +180,10 @@ flatten pathPattern@(path, A.At region pattern) otherPathPatterns =
 subPositions :: Path -> [Can.Pattern] -> [(Path, Can.Pattern)]
 subPositions path patterns =
   Index.indexedMap (\index pattern -> (Index index path, pattern)) patterns
+
+subIndices :: Path -> [Can.Pattern] -> [(Path, Can.Pattern)]
+subIndices path patterns =
+  Index.indexedMap (\index pattern -> (ArrayIndex index path, pattern)) patterns
 
 dearg :: Can.PatternCtorArg -> Can.Pattern
 dearg (Can.PatternCtorArg _ _ pattern) =
@@ -245,10 +245,8 @@ testAtPath selectedPath (Branch _ pathPatterns) =
       case pattern of
         Can.PCtor home _ (Can.Union _ _ numAlts opts) name index _ ->
           Just (IsCtor home name index numAlts opts)
-        Can.PList ps ->
-          Just (case ps of [] -> IsNil; _ -> IsCons)
-        Can.PCons _ _ ->
-          Just IsCons
+        Can.PArray elements ->
+          Just $ IsArray $ List.length elements
         Can.PTuple _ _ _ ->
           Just IsTuple
         Can.PUnit ->
@@ -281,7 +279,7 @@ edgesFor path branches test =
 toRelevantBranch :: Test -> Path -> Branch -> Maybe Branch
 toRelevantBranch test path branch@(Branch goal pathPatterns) =
   case extract path pathPatterns of
-    Found start (A.At region pattern) end ->
+    Found start (A.At _ pattern) end ->
       case pattern of
         Can.PCtor _ _ (Can.Union _ _ numAlts _) name _ ctorArgs ->
           case test of
@@ -296,23 +294,11 @@ toRelevantBranch test path branch@(Branch goal pathPatterns) =
                       start ++ subPositions path args ++ end
             _ ->
               Nothing
-        Can.PList [] ->
+        Can.PArray arrayElements ->
           case test of
-            IsNil ->
-              Just (Branch goal (start ++ end))
-            _ ->
-              Nothing
-        Can.PList (hd : tl) ->
-          case test of
-            IsCons ->
-              let tl' = A.At region (Can.PList tl)
-               in Just (Branch goal (start ++ subPositions path [hd, tl'] ++ end))
-            _ ->
-              Nothing
-        Can.PCons hd tl ->
-          case test of
-            IsCons ->
-              Just (Branch goal (start ++ subPositions path [hd, tl] ++ end))
+            IsArray testLength
+              | List.length arrayElements == testLength ->
+                  Just (Branch goal (start ++ subIndices path arrayElements ++ end))
             _ ->
               Nothing
         Can.PChr chr ->
@@ -393,8 +379,7 @@ needsTests (A.At _ pattern) =
     Can.PAnything -> False
     Can.PRecord _ -> False
     Can.PCtor _ _ _ _ _ _ -> True
-    Can.PList _ -> True
-    Can.PCons _ _ -> True
+    Can.PArray _ -> True
     Can.PUnit -> True
     Can.PTuple _ _ _ -> True
     Can.PChr _ -> True
@@ -459,40 +444,40 @@ instance Binary Test where
   put test =
     case test of
       IsCtor a b c d e -> putWord8 0 >> put a >> put b >> put c >> put d >> put e
-      IsCons -> putWord8 1
-      IsNil -> putWord8 2
-      IsTuple -> putWord8 3
-      IsChr a -> putWord8 4 >> put a
-      IsStr a -> putWord8 5 >> put a
-      IsInt a -> putWord8 6 >> put a
-      IsBool a -> putWord8 7 >> put a
+      IsArray a -> putWord8 1 >> put a
+      IsTuple -> putWord8 2
+      IsChr a -> putWord8 3 >> put a
+      IsStr a -> putWord8 4 >> put a
+      IsInt a -> putWord8 5 >> put a
+      IsBool a -> putWord8 6 >> put a
 
   get =
     do
       word <- getWord8
       case word of
         0 -> liftM5 IsCtor get get get get get
-        1 -> pure IsCons
-        2 -> pure IsNil
-        3 -> pure IsTuple
-        4 -> liftM IsChr get
-        5 -> liftM IsStr get
-        6 -> liftM IsInt get
-        7 -> liftM IsBool get
+        1 -> liftM IsArray get
+        2 -> pure IsTuple
+        3 -> liftM IsChr get
+        4 -> liftM IsStr get
+        5 -> liftM IsInt get
+        6 -> liftM IsBool get
         _ -> fail "problem getting DecisionTree.Test binary"
 
 instance Binary Path where
   put path =
     case path of
       Index a b -> putWord8 0 >> put a >> put b
-      Unbox a -> putWord8 1 >> put a
-      Empty -> putWord8 2
+      ArrayIndex a b -> putWord8 1 >> put a >> put b
+      Unbox a -> putWord8 2 >> put a
+      Empty -> putWord8 3
 
   get =
     do
       word <- getWord8
       case word of
         0 -> liftM2 Index get get
-        1 -> liftM Unbox get
-        2 -> pure Empty
+        1 -> liftM2 ArrayIndex get get
+        2 -> liftM Unbox get
+        3 -> pure Empty
         _ -> fail "problem getting DecisionTree.Path binary"

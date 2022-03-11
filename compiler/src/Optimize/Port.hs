@@ -44,7 +44,6 @@ toEncoder tipe =
           | name == Name.value -> Names.registerGlobal ModuleName.basics Name.identity
         [arg]
           | name == Name.maybe -> encodeMaybe arg
-          | name == Name.list -> encodeList arg
           | name == Name.array -> encodeArray arg
         _ ->
           error "toEncoder: bad custom type"
@@ -60,7 +59,7 @@ toEncoder tipe =
             object <- encode "object"
             keyValuePairs <- traverse encodeField (Map.toList fields)
             Names.registerFieldDict fields $
-              Opt.Function [Name.dollar] (Opt.Call object [Opt.List keyValuePairs])
+              Opt.Function [Name.dollar] (Opt.Call object [Opt.Array keyValuePairs])
 
 -- ENCODE HELPERS
 
@@ -73,13 +72,6 @@ encodeMaybe tipe =
     return $
       Opt.Function [Name.dollar] $
         Opt.Call destruct [null, encoder, Opt.VarLocal Name.dollar]
-
-encodeList :: Can.Type -> Names.Tracker Opt.Expr
-encodeList tipe =
-  do
-    list <- encode "list"
-    encoder <- toEncoder tipe
-    return $ Opt.Call list [encoder]
 
 encodeArray :: Can.Type -> Names.Tracker Opt.Expr
 encodeArray tipe =
@@ -109,7 +101,7 @@ encodeTuple a b maybeC =
               Opt.Function [Name.dollar] $
                 let_ "a" Index.first $
                   let_ "b" Index.second $
-                    Opt.Call list [identity, Opt.List [arg1, arg2]]
+                    Opt.Call list [identity, Opt.Array [arg1, arg2]]
           Just c ->
             do
               arg3 <- encodeArg "c" c
@@ -118,7 +110,7 @@ encodeTuple a b maybeC =
                   let_ "a" Index.first $
                     let_ "b" Index.second $
                       let_ "c" Index.third $
-                        Opt.Call list [identity, Opt.List [arg1, arg2, arg3]]
+                        Opt.Call list [identity, Opt.Array [arg1, arg2, arg3]]
 
 -- FLAGS DECODER
 
@@ -157,7 +149,6 @@ toDecoder tipe =
           | name == Name.value -> decode "value"
         [arg]
           | name == Name.maybe -> decodeMaybe arg
-          | name == Name.list -> decodeList arg
           | name == Name.array -> decodeArray arg
         _ ->
           error "toDecoder: bad type"
@@ -183,20 +174,11 @@ decodeMaybe tipe =
     return $
       Opt.Call
         oneOf
-        [ Opt.List
+        [ Opt.Array
             [ Opt.Call null [nothing],
               Opt.Call map_ [just, subDecoder]
             ]
         ]
-
--- DECODE LIST
-
-decodeList :: Can.Type -> Names.Tracker Opt.Expr
-decodeList tipe =
-  do
-    list <- decode "list"
-    decoder <- toDecoder tipe
-    return $ Opt.Call list [decoder]
 
 -- DECODE ARRAY
 

@@ -84,7 +84,7 @@ data Expr_
   | Str ES.String
   | Int Int
   | Float EF.Float
-  | List [Expr]
+  | Array [Expr]
   | Negate Expr
   | Binop Name ModuleName.Canonical Name Annotation Expr Expr -- CACHE real name for optimization
   | Lambda [Pattern] Expr
@@ -132,8 +132,7 @@ data Pattern_
   | PAlias Pattern Name
   | PUnit
   | PTuple Pattern Pattern (Maybe Pattern)
-  | PList [Pattern]
-  | PCons Pattern Pattern
+  | PArray [Pattern]
   | PBool Union Bool
   | PChr ES.String
   | PStr ES.String

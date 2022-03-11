@@ -294,7 +294,7 @@ unifyFlexSuperStructure context super flatType =
       if atomMatchesSuper super home name
         then merge context (Structure flatType)
         else mismatch
-    App1 home name [variable] | home == ModuleName.list && name == Name.list ->
+    App1 home name [variable] | home == ModuleName.array && name == Name.array ->
       case super of
         Number ->
           mismatch

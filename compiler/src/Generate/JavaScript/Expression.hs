@@ -80,16 +80,8 @@ generate mode expression =
       JsExpr $ generateDebug name home region unhandledValueName
     Opt.VarKernel home name ->
       JsExpr $ JS.Ref (JsName.fromKernel home name)
-    Opt.List entries ->
-      case entries of
-        [] ->
-          JsExpr $ JS.Ref (JsName.fromKernel Name.list "Nil")
-        _ ->
-          JsExpr $
-            JS.Call
-              (JS.Ref (JsName.fromKernel Name.list "fromArray"))
-              [ JS.Array $ map (generateJsExpr mode) entries
-              ]
+    Opt.Array entries ->
+      JsExpr $ JS.Array $ map (generateJsExpr mode) entries
     Opt.Function args body ->
       generateFunction (map JsName.fromLocal args) (generate mode body)
     Opt.Call func args ->
@@ -581,6 +573,8 @@ generatePath mode path =
   case path of
     Opt.Index index subPath ->
       JS.Access (generatePath mode subPath) (JsName.fromIndex index)
+    Opt.ArrayIndex index subPath ->
+      JS.Index (generatePath mode subPath) (JS.Int (Index.toMachine index))
     Opt.Root name ->
       JS.Ref (JsName.fromLocal name)
     Opt.Field field subPath ->
@@ -711,11 +705,11 @@ generateIfTest mode root (path, test) =
               Mode.Prod _ -> value
         DT.IsStr string ->
           strictEq value (JS.String (Utf8.toBuilder string))
-        DT.IsCons ->
-          JS.Access value (JsName.fromLocal "b")
-        DT.IsNil ->
-          JS.Prefix JS.PrefixNot $
-            JS.Access value (JsName.fromLocal "b")
+        DT.IsArray len ->
+          JS.Infix
+            JS.OpEq
+            (JS.Access value (JsName.fromLocal "length"))
+            (JS.Int len)
         DT.IsTuple ->
           error "COMPILER BUG - there should never be tests on a tuple"
 
@@ -738,12 +732,10 @@ generateCaseValue mode test =
       JS.String (Utf8.toBuilder char)
     DT.IsStr string ->
       JS.String (Utf8.toBuilder string)
+    DT.IsArray len ->
+      JS.Int len
     DT.IsBool _ ->
       error "COMPILER BUG - there should never be three tests on a boolean"
-    DT.IsCons ->
-      error "COMPILER BUG - there should never be three tests on a list"
-    DT.IsNil ->
-      error "COMPILER BUG - there should never be three tests on a list"
     DT.IsTuple ->
       error "COMPILER BUG - there should never be three tests on a tuple"
 
@@ -775,14 +767,12 @@ generateCaseTest mode root path exampleTest =
               JS.Call (JS.Access value (JsName.fromLocal "valueOf")) []
             Mode.Prod _ ->
               value
+        DT.IsArray _ ->
+          JS.Access value (JsName.fromLocal "length")
         DT.IsBool _ ->
           error "COMPILER BUG - there should never be three tests on a list"
-        DT.IsCons ->
-          error "COMPILER BUG - there should never be three tests on a list"
-        DT.IsNil ->
-          error "COMPILER BUG - there should never be three tests on a list"
         DT.IsTuple ->
-          error "COMPILER BUG - there should never be three tests on a list"
+          error "COMPILER BUG - there should never be three tests on a tuple"
 
 -- PATTERN PATHS
 
@@ -791,6 +781,8 @@ pathToJsExpr mode root path =
   case path of
     DT.Index index subPath ->
       JS.Access (pathToJsExpr mode root subPath) (JsName.fromIndex index)
+    DT.ArrayIndex index subPath ->
+      JS.Index (pathToJsExpr mode root subPath) (JS.Int (Index.toMachine index))
     DT.Unbox subPath ->
       case mode of
         Mode.Dev _ ->

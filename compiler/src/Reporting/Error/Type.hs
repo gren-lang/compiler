@@ -48,7 +48,7 @@ data Expected tipe
   | FromAnnotation Name.Name Int SubContext tipe
 
 data Context
-  = ListEntry Index.ZeroBased
+  = ArrayEntry Index.ZeroBased
   | Negate
   | OpLeft Name.Name
   | OpRight Name.Name
@@ -74,7 +74,7 @@ data MaybeName
   | NoName
 
 data Category
-  = List
+  = Array
   | Number
   | Float
   | String
@@ -103,14 +103,13 @@ data PContext
   = PTypedArg Name.Name Index.ZeroBased
   | PCaseMatch Index.ZeroBased
   | PCtorArg Name.Name Index.ZeroBased
-  | PListEntry Index.ZeroBased
-  | PTail
+  | PArrayEntry Index.ZeroBased
 
 data PCategory
   = PRecord
   | PUnit
   | PTuple
-  | PList
+  | PArray
   | PCtor Name.Name
   | PInt
   | PStr
@@ -229,33 +228,22 @@ toPatternReport source localizer patternRegion category tipe expected =
                   )
                   []
               )
-            PListEntry index ->
+            PArrayEntry index ->
               ( D.reflow $
-                  "The " <> D.ordinal index <> " pattern in this list does not match all the previous ones:",
+                  "The " <> D.ordinal index <> " pattern in this array does not match all the previous ones:",
                 patternTypeComparison
                   localizer
                   tipe
                   expectedType
                   (addPatternCategory ("The " <> D.ordinal index <> " pattern is trying to match") category)
-                  "But all the previous patterns in the list are:"
+                  "But all the previous patterns in the array are:"
                   [ D.link
                       "Hint"
-                      "Everything in a list must be the same type of value. This way, we never\
-                      \ run into unexpected values partway through a List.map, List.foldl, etc. Read"
+                      "Everything in an array must be the same type of value. This way, we never\
+                      \ run into unexpected values partway through a Array.map, Array.foldl, etc. Read"
                       "custom-types"
                       "to learn how to “mix” types."
                   ]
-              )
-            PTail ->
-              ( D.reflow $
-                  "The pattern after (::) is causing issues.",
-                patternTypeComparison
-                  localizer
-                  tipe
-                  expectedType
-                  (addPatternCategory "The pattern after (::) is trying to match" category)
-                  "But it needs to match lists like this:"
-                  []
               )
 
 -- PATTERN HELPERS
@@ -280,7 +268,7 @@ addPatternCategory iAmTryingToMatch category =
       PRecord -> " record values of type:"
       PUnit -> " unit values:"
       PTuple -> " tuples of type:"
-      PList -> " lists of type:"
+      PArray -> " arrays of type:"
       PCtor name -> " `" <> Name.toChars name <> "` values of type:"
       PInt -> " integers:"
       PStr -> " strings:"
@@ -322,7 +310,7 @@ addCategory thisIs category =
     Accessor field -> "This ." <> Name.toChars field <> " field access function has type:"
     If -> "This `if` expression produces:"
     Case -> "This `case` expression produces:"
-    List -> thisIs <> " a list of type:"
+    Array -> thisIs <> " an array of type:"
     Number -> thisIs <> " a number of type:"
     Float -> thisIs <> " a float of type:"
     String -> thisIs <> " a string of type:"
@@ -443,7 +431,7 @@ problemToHint problem =
       ]
     T.AnythingToBool ->
       [ D.toSimpleHint $
-          "Gren does not have “truthiness” such that ints and strings and lists\
+          "Gren does not have “truthiness” such that ints and strings and arrays\
           \ are automatically converted to booleans. Do that conversion explicitly!"
       ]
     T.AnythingFromMaybe ->
@@ -593,7 +581,7 @@ badFlexSuper direction super tipe =
           [ D.link
               "Hint"
               "I do not know how to compare records. I can only compare ints, floats,\
-              \ chars, strings, lists of comparable values, and tuples of comparable values.\
+              \ chars, strings, arrays of comparable values, and tuples of comparable values.\
               \ Check out"
               "comparing-records"
               "for ideas on how to proceed."
@@ -602,7 +590,7 @@ badFlexSuper direction super tipe =
           [ D.toSimpleHint $
               "I do not know how to compare `" ++ Name.toChars name
                 ++ "` values. I can only\
-                   \ compare ints, floats, chars, strings, lists of comparable values, and tuples\
+                   \ compare ints, floats, chars, strings, arrays of comparable values, and tuples\
                    \ of comparable values.",
             D.reflowLink
               "Check out"
@@ -611,14 +599,14 @@ badFlexSuper direction super tipe =
           ]
         _ ->
           [ D.toSimpleHint $
-              "I only know how to compare ints, floats, chars, strings, lists of\
+              "I only know how to compare ints, floats, chars, strings, arrays of\
               \ comparable values, and tuples of comparable values."
           ]
     T.Appendable ->
-      [ D.toSimpleHint "I only know how to append strings and lists."
+      [ D.toSimpleHint "I only know how to append strings and arrays."
       ]
     T.CompAppend ->
-      [ D.toSimpleHint "Only strings and lists are both comparable and appendable."
+      [ D.toSimpleHint "Only strings and arrays are both comparable and appendable."
       ]
     T.Number ->
       case tipe of
@@ -639,9 +627,9 @@ badRigidSuper super aThing =
   let (superType, manyThings) =
         case super of
           T.Number -> ("number", "ints AND floats")
-          T.Comparable -> ("comparable", "ints, floats, chars, strings, lists, and tuples")
-          T.Appendable -> ("appendable", "strings AND lists")
-          T.CompAppend -> ("compappend", "strings AND lists")
+          T.Comparable -> ("comparable", "ints, floats, chars, strings, arrays, and tuples")
+          T.Appendable -> ("appendable", "strings AND arrays")
+          T.CompAppend -> ("compappend", "strings AND arrays")
    in [ D.toSimpleHint $
           "The `" ++ superType ++ "` in your type annotation is saying that "
             ++ manyThings
@@ -736,17 +724,17 @@ toExprReport source localizer exprRegion category tipe expected =
             Report.Report "TYPE MISMATCH" exprRegion [] $
               Code.toSnippet source region maybeHighlight docPair
        in case context of
-            ListEntry index ->
+            ArrayEntry index ->
               let ith = D.ordinal index
                in mismatch
                     ( Just exprRegion,
-                      "The " <> ith <> " element of this list does not match all the previous elements:",
+                      "The " <> ith <> " element of this array does not match all the previous elements:",
                       "The " <> ith <> " element is",
-                      "But all the previous elements in the list are:",
+                      "But all the previous elements in the array are:",
                       [ D.link
                           "Hint"
-                          "Everything in a list must be the same type of value. This way, we never\
-                          \ run into unexpected values partway through a List.map, List.foldl, etc. Read"
+                          "Everything in a array must be the same type of value. This way, we never\
+                          \ run into unexpected values partway through a Array.map, Array.foldl, etc. Read"
                           "custom-types"
                           "to learn how to “mix” types."
                       ]
@@ -1022,10 +1010,10 @@ opLeftToDocs localizer category op tipe expected =
   case op of
     "+"
       | isString tipe -> badStringAdd
-      | isList tipe -> badListAdd localizer category "left" tipe expected
+      | isArray tipe -> badArrayAdd localizer category "left" tipe expected
       | otherwise -> badMath localizer category "Addition" "left" "+" tipe expected []
     "*"
-      | isList tipe -> badListMul localizer category "left" tipe expected
+      | isArray tipe -> badArrayMul localizer category "left" tipe expected
       | otherwise -> badMath localizer category "Multiplication" "left" "*" tipe expected []
     "-" -> badMath localizer category "Subtraction" "left" "-" tipe expected []
     "^" -> badMath localizer category "Exponentiation" "left" "^" tipe expected []
@@ -1073,12 +1061,12 @@ opRightToDocs localizer category op tipe expected =
       | isFloat expected && isInt tipe -> badCast op FloatInt
       | isInt expected && isFloat tipe -> badCast op IntFloat
       | isString tipe -> EmphRight $ badStringAdd
-      | isList tipe -> EmphRight $ badListAdd localizer category "right" tipe expected
+      | isArray tipe -> EmphRight $ badArrayAdd localizer category "right" tipe expected
       | otherwise -> EmphRight $ badMath localizer category "Addition" "right" "+" tipe expected []
     "*"
       | isFloat expected && isInt tipe -> badCast op FloatInt
       | isInt expected && isFloat tipe -> badCast op IntFloat
-      | isList tipe -> EmphRight $ badListMul localizer category "right" tipe expected
+      | isArray tipe -> EmphRight $ badArrayMul localizer category "right" tipe expected
       | otherwise -> EmphRight $ badMath localizer category "Multiplication" "right" "*" tipe expected []
     "-"
       | isFloat expected && isInt tipe -> badCast op FloatInt
@@ -1100,7 +1088,6 @@ opRightToDocs localizer category op tipe expected =
     ">=" -> badCompRight localizer ">=" tipe expected
     "==" -> badEquality localizer "==" tipe expected
     "/=" -> badEquality localizer "/=" tipe expected
-    "::" -> badConsRight localizer category tipe expected
     "++" -> badAppendRight localizer category tipe expected
     "<|" ->
       EmphRight
@@ -1182,65 +1169,20 @@ isString tipe =
     _ ->
       False
 
-isList :: T.Type -> Bool
-isList tipe =
+isArray :: T.Type -> Bool
+isArray tipe =
   case tipe of
     T.Type home name [_] ->
-      T.isList home name
+      T.isArray home name
     _ ->
       False
-
--- BAD CONS
-
-badConsRight :: L.Localizer -> Category -> T.Type -> T.Type -> RightDocs
-badConsRight localizer category tipe expected =
-  case tipe of
-    T.Type home1 name1 [actualElement] | T.isList home1 name1 ->
-      case expected of
-        T.Type home2 name2 [expectedElement]
-          | T.isList home2 name2 ->
-              EmphBoth
-                ( D.reflow "I am having trouble with this (::) operator:",
-                  typeComparison
-                    localizer
-                    expectedElement
-                    actualElement
-                    "The left side of (::) is:"
-                    "But you are trying to put that into a list filled with:"
-                    ( case expectedElement of
-                        T.Type home name [_]
-                          | T.isList home name ->
-                              [ D.toSimpleHint
-                                  "Are you trying to append two lists? The (++) operator\
-                                  \ appends lists, whereas the (::) operator is only for\
-                                  \ adding ONE element to a list."
-                              ]
-                        _ ->
-                          [ D.reflow
-                              "Lists need ALL elements to be the same type though."
-                          ]
-                    )
-                )
-        _ ->
-          badOpRightFallback localizer category "::" tipe expected
-    _ ->
-      EmphRight
-        ( D.reflow "The (::) operator can only add elements onto lists.",
-          loneType
-            localizer
-            tipe
-            expected
-            (D.reflow (addCategory "The right side is" category))
-            [ D.fillSep ["But", "(::)", "needs", "a", D.dullyellow "List", "on", "the", "right."]
-            ]
-        )
 
 -- BAD APPEND
 
 data AppendType
   = ANumber D.Doc D.Doc
   | AString
-  | AList
+  | AArray
   | AOther
 
 toAppendType :: T.Type -> AppendType
@@ -1250,7 +1192,7 @@ toAppendType tipe =
       | T.isInt home name -> ANumber "Int" "String.fromInt"
       | T.isFloat home name -> ANumber "Float" "String.fromFloat"
       | T.isString home name -> AString
-      | T.isList home name -> AList
+      | T.isArray home name -> AArray
     T.FlexSuper T.Number _ -> ANumber "number" "String.fromInt"
     _ -> AOther
 
@@ -1264,7 +1206,7 @@ badAppendLeft localizer category tipe expected =
             "operator",
             "can",
             "append",
-            "List",
+            "Array",
             "and",
             "String",
             "values,",
@@ -1284,7 +1226,7 @@ badAppendLeft localizer category tipe expected =
             "it",
             "into",
             "a",
-            "string?",
+            "String?",
             "Or",
             "put",
             "it",
@@ -1293,14 +1235,8 @@ badAppendLeft localizer category tipe expected =
             "to",
             "make",
             "it",
-            "a",
-            "list?",
-            "Or",
-            "switch",
-            "to",
-            "the",
-            "(::)",
-            "operator?"
+            "an",
+            "array?"
           ]
       )
     _ ->
@@ -1320,7 +1256,7 @@ badAppendLeft localizer category tipe expected =
                 "only",
                 "for",
                 "appending",
-                D.dullyellow "List",
+                D.dullyellow "Array",
                 "and",
                 D.dullyellow "String",
                 "values.",
@@ -1333,8 +1269,8 @@ badAppendLeft localizer category tipe expected =
                 "to",
                 "make",
                 "it",
-                "a",
-                "list?"
+                "an",
+                "array?"
               ]
           ]
       )
@@ -1362,7 +1298,7 @@ badAppendRight localizer category tipe expected =
           D.fillSep
             ["Try", "using", D.green stringFromThing, "to", "turn", "it", "into", "a", "string?"]
         )
-    (AList, ANumber thing _) ->
+    (AArray, ANumber thing _) ->
       EmphRight
         ( D.fillSep
             [ "I",
@@ -1370,7 +1306,7 @@ badAppendRight localizer category tipe expected =
               "I",
               "was",
               "appending",
-              D.dullyellow "List",
+              D.dullyellow "Array",
               "values",
               "here,",
               "not",
@@ -1379,9 +1315,9 @@ badAppendRight localizer category tipe expected =
               "like",
               "this:"
             ],
-          D.reflow "Try putting it in [] to make it a list?"
+          D.reflow "Try putting it in [] to make it an array?"
         )
-    (AString, AList) ->
+    (AString, AArray) ->
       EmphBoth
         ( D.reflow $
             "The (++) operator needs the same type of value on both sides:",
@@ -1395,7 +1331,7 @@ badAppendRight localizer category tipe expected =
               "left",
               "and",
               "a",
-              D.dullyellow "List",
+              D.dullyellow "Array",
               "on",
               "the",
               "right.",
@@ -1412,19 +1348,19 @@ badAppendRight localizer category tipe expected =
               "it",
               "to",
               "become",
-              "a",
-              "list?"
+              "an",
+              "array?"
             ]
         )
-    (AList, AString) ->
+    (AArray, AString) ->
       EmphBoth
         ( D.reflow $
             "The (++) operator needs the same type of value on both sides:",
           D.fillSep
             [ "I",
               "see",
-              "a",
-              D.dullyellow "List",
+              "an",
+              D.dullyellow "Array",
               "on",
               "the",
               "left",
@@ -1447,8 +1383,8 @@ badAppendRight localizer category tipe expected =
               "it",
               "to",
               "become",
-              "a",
-              "list?"
+              "an",
+              "array?"
             ]
         )
     (_, _) ->
@@ -1542,9 +1478,9 @@ badStringAdd =
       ]
   )
 
-badListAdd :: L.Localizer -> Category -> String -> T.Type -> T.Type -> (D.Doc, D.Doc)
-badListAdd localizer category direction tipe expected =
-  ( "I cannot do addition with lists:",
+badArrayAdd :: L.Localizer -> Category -> String -> T.Type -> T.Type -> (D.Doc, D.Doc)
+badArrayAdd localizer category direction tipe expected =
+  ( "I cannot do addition with array:",
     loneType
       localizer
       tipe
@@ -1569,13 +1505,13 @@ badListAdd localizer category direction tipe expected =
             "operator",
             "to",
             "append",
-            "lists!"
+            "arrays!"
           ]
       ]
   )
 
-badListMul :: L.Localizer -> Category -> String -> T.Type -> T.Type -> (D.Doc, D.Doc)
-badListMul localizer category direction tipe expected =
+badArrayMul :: L.Localizer -> Category -> String -> T.Type -> T.Type -> (D.Doc, D.Doc)
+badArrayMul localizer category direction tipe expected =
   badMath
     localizer
     category
@@ -1588,11 +1524,11 @@ badListMul localizer category direction tipe expected =
         [ "Maybe",
           "you",
           "want",
-          D.green "List.repeat",
+          D.green "Array.repeat",
           "to",
           "build",
-          "a",
-          "list",
+          "an",
+          "array",
           "of",
           "repeated",
           "values?"
@@ -1805,7 +1741,7 @@ badCompLeft localizer category op direction tipe expected =
             "can",
             "work",
             "on",
-            "lists",
+            "arrays",
             "and",
             "tuples",
             "of",

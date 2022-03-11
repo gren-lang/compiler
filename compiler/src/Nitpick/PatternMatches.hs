@@ -24,7 +24,6 @@ import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Name as Name
 import qualified Data.NonEmptyList as NE
-import qualified Gren.ModuleName as ModuleName
 import qualified Gren.String as ES
 import qualified Reporting.Annotation as A
 
@@ -33,6 +32,7 @@ import qualified Reporting.Annotation as A
 data Pattern
   = Anything
   | Literal Literal
+  | Array [Pattern]
   | Ctor Can.Union Name.Name [Pattern]
 
 data Literal
@@ -61,10 +61,8 @@ simplify (A.At _ pattern) =
     Can.PCtor _ _ union name _ args ->
       Ctor union name $
         map (\(Can.PatternCtorArg _ _ arg) -> simplify arg) args
-    Can.PList entries ->
-      foldr cons nil entries
-    Can.PCons hd tl ->
-      cons hd (simplify tl)
+    Can.PArray entries ->
+      Array $ map simplify entries
     Can.PAlias subPattern _ ->
       simplify subPattern
     Can.PInt int ->
@@ -75,15 +73,6 @@ simplify (A.At _ pattern) =
       Literal (Chr chr)
     Can.PBool union bool ->
       Ctor union (if bool then Name.true else Name.false) []
-
-cons :: Can.Pattern -> Pattern -> Pattern
-cons hd tl =
-  Ctor list consName [simplify hd, tl]
-
-{-# NOINLINE nil #-}
-nil :: Pattern
-nil =
-  Ctor list nilName []
 
 -- BUILT-IN UNIONS
 
@@ -108,22 +97,6 @@ triple =
         Can.Ctor tripleName Index.first 3 [Can.TVar "a", Can.TVar "b", Can.TVar "c"]
    in Can.Union ["a", "b", "c"] [ctor] 1 Can.Normal
 
-{-# NOINLINE list #-}
-list :: Can.Union
-list =
-  let nilCtor =
-        Can.Ctor nilName Index.first 0 []
-
-      consCtor =
-        Can.Ctor
-          consName
-          Index.second
-          2
-          [ Can.TVar "a",
-            Can.TType ModuleName.list Name.list [Can.TVar "a"]
-          ]
-   in Can.Union ["a"] [nilCtor, consCtor] 2 Can.Normal
-
 {-# NOINLINE unitName #-}
 unitName :: Name.Name
 unitName = "#0"
@@ -135,14 +108,6 @@ pairName = "#2"
 {-# NOINLINE tripleName #-}
 tripleName :: Name.Name
 tripleName = "#3"
-
-{-# NOINLINE consName #-}
-consName :: Name.Name
-consName = "::"
-
-{-# NOINLINE nilName #-}
-nilName :: Name.Name
-nilName = "[]"
 
 -- ERROR
 
@@ -222,7 +187,7 @@ checkExpr (A.At region expression) errors =
       errors
     Can.Float _ ->
       errors
-    Can.List entries ->
+    Can.Array entries ->
       foldr checkExpr errors entries
     Can.Negate expr ->
       checkExpr expr errors
@@ -392,6 +357,11 @@ isUseful matrix vector =
               isUseful
                 (Maybe.mapMaybe (specializeRowByCtor name (length args)) matrix)
                 (args ++ patterns)
+            Array arrayPatterns ->
+              -- keep checking rows that start with Array
+              isUseful
+                (Maybe.mapMaybe (specializeRowByArray (length arrayPatterns)) matrix)
+                (arrayPatterns ++ patterns)
             Anything ->
               -- check if all alts appear in matrix
               case isComplete matrix of
@@ -425,6 +395,28 @@ specializeRowByCtor ctorName arity row =
         else Nothing
     Anything : patterns ->
       Just (replicate arity Anything ++ patterns)
+    Array _ : _ ->
+      Nothing
+    Literal _ : _ ->
+      error $
+        "Compiler bug! After type checking, constructors and literals\
+        \ should never align in pattern match exhaustiveness checks."
+    [] ->
+      error "Compiler error! Empty matrices should not get specialized."
+
+--
+-- INVARIANT: (length row == N) ==> (length result == arity + N - 1)
+specializeRowByArray :: Int -> [Pattern] -> Maybe [Pattern]
+specializeRowByArray arity row =
+  case row of
+    Ctor _ _ _ : _ ->
+      Nothing
+    Array arrayPatterns : patterns ->
+      if arity == (List.length arrayPatterns)
+        then Just (arrayPatterns ++ patterns)
+        else Nothing
+    Anything : patterns ->
+      Just (replicate arity Anything ++ patterns)
     Literal _ : _ ->
       error $
         "Compiler bug! After type checking, constructors and literals\
@@ -442,6 +434,10 @@ specializeRowByLiteral literal row =
         else Nothing
     Anything : patterns ->
       Just patterns
+    Array _ : _ ->
+      error $
+        "Compiler bug! After type checking, arrays and literals\
+        \ should never align in pattern match exhaustiveness checks."
     Ctor _ _ _ : _ ->
       error $
         "Compiler bug! After type checking, constructors and literals\
@@ -459,6 +455,8 @@ specializeRowByAnything row =
       Nothing
     Anything : patterns ->
       Just patterns
+    Array _ : _ ->
+      Nothing
     Literal _ : _ ->
       Nothing
 

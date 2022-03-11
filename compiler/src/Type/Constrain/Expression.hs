@@ -58,7 +58,7 @@ constrain rtv (A.At region expression) expected =
         return $ exists [var] $ CEqual region E.Number (VarN var) expected
     Can.Float _ ->
       return $ CEqual region Float Type.float expected
-    Can.List elements ->
+    Can.Array elements ->
       constrainList rtv region elements expected
     Can.Negate expr ->
       do
@@ -236,7 +236,7 @@ constrainList rtv region entries expected =
   do
     entryVar <- mkFlexVar
     let entryType = VarN entryVar
-    let listType = AppN ModuleName.list Name.list [entryType]
+    let listType = AppN ModuleName.array Name.array [entryType]
 
     entryCons <-
       Index.indexedTraverse (constrainListEntry rtv region entryType) entries
@@ -245,12 +245,12 @@ constrainList rtv region entries expected =
       exists [entryVar] $
         CAnd
           [ CAnd entryCons,
-            CEqual region List listType expected
+            CEqual region Array listType expected
           ]
 
 constrainListEntry :: RTV -> A.Region -> Type -> Index.ZeroBased -> Can.Expr -> IO Constraint
 constrainListEntry rtv region tipe index expr =
-  constrain rtv expr (FromContext region (ListEntry index) tipe)
+  constrain rtv expr (FromContext region (ArrayEntry index) tipe)
 
 -- CONSTRAIN IF EXPRESSIONS
 

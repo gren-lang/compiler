@@ -100,16 +100,15 @@ unhandledPatternsToDocBlock unhandledPatterns =
 
 data Context
   = Arg
-  | Head
   | Unambiguous
   deriving (Eq)
 
 patternToDoc :: Context -> P.Pattern -> D.Doc
 patternToDoc context pattern =
-  case delist pattern [] of
-    NonList P.Anything ->
+  case pattern of
+    P.Anything ->
       "_"
-    NonList (P.Literal literal) ->
+    P.Literal literal ->
       case literal of
         P.Chr chr ->
           "'" <> D.fromChars (ES.toChars chr) <> "'"
@@ -117,56 +116,28 @@ patternToDoc context pattern =
           "\"" <> D.fromChars (ES.toChars str) <> "\""
         P.Int int ->
           D.fromInt int
-    NonList (P.Ctor _ "#0" []) ->
+    P.Ctor _ "#0" [] ->
       "()"
-    NonList (P.Ctor _ "#2" [a, b]) ->
+    P.Ctor _ "#2" [a, b] ->
       "( " <> patternToDoc Unambiguous a
         <> ", "
         <> patternToDoc Unambiguous b
         <> " )"
-    NonList (P.Ctor _ "#3" [a, b, c]) ->
+    P.Ctor _ "#3" [a, b, c] ->
       "( " <> patternToDoc Unambiguous a
         <> ", "
         <> patternToDoc Unambiguous b
         <> ", "
         <> patternToDoc Unambiguous c
         <> " )"
-    NonList (P.Ctor _ name args) ->
+    P.Ctor _ name args ->
       let ctorDoc =
             D.hsep (D.fromName name : map (patternToDoc Arg) args)
        in if context == Arg && length args > 0
             then "(" <> ctorDoc <> ")"
             else ctorDoc
-    FiniteList [] ->
+    P.Array [] ->
       "[]"
-    FiniteList entries ->
+    P.Array entries ->
       let entryDocs = map (patternToDoc Unambiguous) entries
        in "[" <> D.hcat (List.intersperse "," entryDocs) <> "]"
-    Conses conses finalPattern ->
-      let consDoc =
-            foldr
-              (\hd tl -> patternToDoc Head hd <> " :: " <> tl)
-              (patternToDoc Unambiguous finalPattern)
-              conses
-       in if context == Unambiguous
-            then consDoc
-            else "(" <> consDoc <> ")"
-
-data Structure
-  = FiniteList [P.Pattern]
-  | Conses [P.Pattern] P.Pattern
-  | NonList P.Pattern
-
-delist :: P.Pattern -> [P.Pattern] -> Structure
-delist pattern revEntries =
-  case pattern of
-    P.Ctor _ "[]" [] ->
-      FiniteList revEntries
-    P.Ctor _ "::" [hd, tl] ->
-      delist tl (hd : revEntries)
-    _ ->
-      case revEntries of
-        [] ->
-          NonList pattern
-        _ ->
-          Conses (reverse revEntries) pattern
