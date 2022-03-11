@@ -21,7 +21,7 @@ jobs:
     - name: Cache
       uses: actions/cache@v1
       with:
-        path: ~/.cabal
+        path: dist-newstyle
         key: ${{ runner.os }}-build-${{ hashFiles('**/*.cabal') }}
         restore-keys: |
           ${{ runner.os }}-build

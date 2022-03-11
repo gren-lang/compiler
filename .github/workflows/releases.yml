@@ -20,7 +20,7 @@ jobs:
       - name: Cache
         uses: actions/cache@v1
         with:
-          path: ~/.cabal
+          path: dist-newstyle
           key: ${{ runner.os }}-build-${{ hashFiles('**/*.cabal') }}
           restore-keys: |
             ${{ runner.os }}-build
@@ -28,7 +28,9 @@ jobs:
       - name: Build
         run: |
           cabal build
-          strip dist-newstyle/build/x86_64-osx/ghc-9.2.1/gren-0.1.0/x/gren/build/gren/gren
+          cp dist-newstyle/build/x86_64-osx/ghc-9.2.2/gren-0.1.0/x/gren/build/gren/gren gren
+          strip gren
+          zip gren.zip gren
 
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
@@ -38,5 +40,5 @@ jobs:
           title: "Development Build"
           files: |
             LICENSE
-            dist-newstyle/build/x86_64-osx/ghc-9.2.1/gren-0.1.0/x/gren/build/gren/gren
+            gren.zip
 
