@@ -18,12 +18,12 @@ jobs:
           cabal-version: '3.6'
 
       - name: Cache
-        uses: actions/cache@v1
+        uses: actions/cache@v2
         with:
-          path: dist-newstyle
-          key: ${{ runner.os }}-build-${{ hashFiles('**/*.cabal') }}
-          restore-keys: |
-            ${{ runner.os }}-build
+          path: |
+            ~/.cabal
+            ~/.ghcup
+          key: ${{ runner.os }}-${{ hashFiles('**/*.cabal') }}
 
       - name: Build
         run: |
