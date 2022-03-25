@@ -266,7 +266,6 @@ addBindingsHelp bindings (A.At region pattern) =
           -- TODO: Proper canonicalization
           toNameTMP rf =
             case rf of
-              Src.RFVar var -> var
               Src.RFPattern (A.At _ var) _ -> var
        in List.foldl' addField bindings fields
     Src.PUnit ->
@@ -379,9 +378,8 @@ addEdge edges nodes aname@(A.At _ name) =
 getPatternNames :: [A.Located Name.Name] -> Src.Pattern -> [A.Located Name.Name]
 getPatternNames names (A.At region pattern) =
   let -- TODO: Proper canonicalization
-      toNameTMP (A.At fieldRegion rf) =
+      toNameTMP (A.At _ rf) =
         case rf of
-          Src.RFVar var -> (A.At fieldRegion var)
           Src.RFPattern var _ -> var
    in case pattern of
         Src.PAnything -> names

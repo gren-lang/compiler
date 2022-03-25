@@ -93,9 +93,7 @@ data Pattern_
 
 type RecordFieldPattern = A.Located RecordFieldPattern_
 
-data RecordFieldPattern_
-  = RFVar Name
-  | RFPattern (A.Located Name) Pattern
+data RecordFieldPattern_ = RFPattern (A.Located Name) Pattern
 
 -- TYPE
 

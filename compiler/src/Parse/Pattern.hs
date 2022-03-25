@@ -128,8 +128,12 @@ recordPatternHelp start revPatterns =
                   Src.RFPattern (A.at fieldStart varEnd var) pattern
           recordContinuationHelp start (namedPattern : revPatterns),
         do
-          let fieldPattern = A.at fieldStart varEnd (Src.RFVar var)
-          recordContinuationHelp start (fieldPattern : revPatterns)
+          let namedPattern =
+                A.at fieldStart varEnd $
+                  Src.RFPattern
+                    (A.at fieldStart varEnd var)
+                    (A.at fieldStart varEnd (Src.PVar var))
+          recordContinuationHelp start (namedPattern : revPatterns)
       ]
 
 recordContinuationHelp :: A.Position -> [Src.RecordFieldPattern] -> Parser E.PRecord Src.Pattern

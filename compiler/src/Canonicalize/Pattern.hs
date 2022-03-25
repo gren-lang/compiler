@@ -65,9 +65,8 @@ canonicalize env (A.At region pattern) =
         logVar name region (Can.PVar name)
       Src.PRecord fields ->
         -- TODO: Proper canonicalization
-        let toNameTMP (A.At rfRegion rf) =
+        let toNameTMP (A.At _ rf) =
               case rf of
-                Src.RFVar var -> A.At rfRegion var
                 Src.RFPattern locatedVar _ -> locatedVar
             fieldNames = map toNameTMP fields
          in logFields fieldNames (Can.PRecord (map A.toValue fieldNames))
