@@ -261,8 +261,13 @@ addBindingsHelp bindings (A.At region pattern) =
     Src.PVar name ->
       Dups.insert name region region bindings
     Src.PRecord fields ->
-      let addField dict (A.At fieldRegion name) =
-            Dups.insert name fieldRegion fieldRegion dict
+      let addField dict (A.At fieldRegion rfPattern) =
+            Dups.insert (toNameTMP rfPattern) fieldRegion fieldRegion dict
+          -- TODO: Proper canonicalization
+          toNameTMP rf =
+            case rf of
+              Src.RFVar var -> var
+              Src.RFPattern (A.At _ var) _ -> var
        in List.foldl' addField bindings fields
     Src.PUnit ->
       bindings
@@ -373,19 +378,24 @@ addEdge edges nodes aname@(A.At _ name) =
 
 getPatternNames :: [A.Located Name.Name] -> Src.Pattern -> [A.Located Name.Name]
 getPatternNames names (A.At region pattern) =
-  case pattern of
-    Src.PAnything -> names
-    Src.PVar name -> A.At region name : names
-    Src.PRecord fields -> fields ++ names
-    Src.PAlias ptrn name -> getPatternNames (name : names) ptrn
-    Src.PUnit -> names
-    Src.PTuple a b cs -> List.foldl' getPatternNames (getPatternNames (getPatternNames names a) b) cs
-    Src.PCtor _ _ args -> List.foldl' getPatternNames names args
-    Src.PCtorQual _ _ _ args -> List.foldl' getPatternNames names args
-    Src.PArray patterns -> List.foldl' getPatternNames names patterns
-    Src.PChr _ -> names
-    Src.PStr _ -> names
-    Src.PInt _ -> names
+  let -- TODO: Proper canonicalization
+      toNameTMP (A.At fieldRegion rf) =
+        case rf of
+          Src.RFVar var -> (A.At fieldRegion var)
+          Src.RFPattern var _ -> var
+   in case pattern of
+        Src.PAnything -> names
+        Src.PVar name -> A.At region name : names
+        Src.PRecord fields -> (map toNameTMP fields) ++ names
+        Src.PAlias ptrn name -> getPatternNames (name : names) ptrn
+        Src.PUnit -> names
+        Src.PTuple a b cs -> List.foldl' getPatternNames (getPatternNames (getPatternNames names a) b) cs
+        Src.PCtor _ _ args -> List.foldl' getPatternNames names args
+        Src.PCtorQual _ _ _ args -> List.foldl' getPatternNames names args
+        Src.PArray patterns -> List.foldl' getPatternNames names patterns
+        Src.PChr _ -> names
+        Src.PStr _ -> names
+        Src.PInt _ -> names
 
 -- GATHER TYPED ARGS
 
