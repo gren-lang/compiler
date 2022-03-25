@@ -104,27 +104,41 @@ record start =
       oneOf
         E.PRecordOpen
         [ do
-            var <- addLocation (Var.lower E.PRecordField)
-            Space.chompAndCheckIndent E.PRecordSpace E.PRecordIndentEnd
-            recordHelp start [var],
-          do
             word1 0x7D {-}-} E.PRecordEnd
-            addEnd start (Src.PRecord [])
+            addEnd start (Src.PRecord []),
+          recordPatternHelp start []
         ]
 
-recordHelp :: A.Position -> [A.Located Name.Name] -> Parser E.PRecord Src.Pattern
-recordHelp start vars =
+recordPatternHelp :: A.Position -> [Src.RecordFieldPattern] -> Parser E.PRecord Src.Pattern
+recordPatternHelp start revPatterns =
+  do
+    fieldStart <- getPosition
+    var <- Var.lower E.PRecordField
+    varEnd <- getPosition
+    Space.chompAndCheckIndent E.PRecordSpace E.PRecordIndentEnd
+    oneOf
+      E.PRecordEnd
+      [ do
+          word1 0x3D {-=-} E.PRecordEquals
+          Space.chompAndCheckIndent E.PRecordSpace E.PRecordIndentField
+          (pattern, fieldEnd) <- P.specialize E.PRecordExpr expression
+          Space.chompAndCheckIndent E.PRecordSpace E.PRecordIndentEnd
+          recordContinuationHelp start (var : revPatterns),
+        do
+          recordContinuationHelp start (var : revPatterns)
+      ]
+
+recordContinuationHelp :: A.Position -> [Src.RecordFieldPattern] -> Parser E.PRecord Src.Pattern
+recordContinuationHelp start revPatterns =
   oneOf
     E.PRecordEnd
     [ do
         word1 0x2C {-,-} E.PRecordEnd
         Space.chompAndCheckIndent E.PRecordSpace E.PRecordIndentField
-        var <- addLocation (Var.lower E.PRecordField)
-        Space.chompAndCheckIndent E.PRecordSpace E.PRecordIndentEnd
-        recordHelp start (var : vars),
+        recordPatternHelp start revPatterns,
       do
         word1 0x7D {-}-} E.PRecordEnd
-        addEnd start (Src.PRecord (reverse vars))
+        addEnd start (Src.PRecord (reverse revPatterns))
     ]
 
 -- TUPLES

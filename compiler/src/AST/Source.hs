@@ -7,6 +7,8 @@ module AST.Source
     Def (..),
     Pattern,
     Pattern_ (..),
+    RecordFieldPattern,
+    RecordFieldPattern_ (..),
     Type,
     Type_ (..),
     Module (..),
@@ -78,7 +80,7 @@ type Pattern = A.Located Pattern_
 data Pattern_
   = PAnything
   | PVar Name
-  | PRecord [A.Located Name]
+  | PRecord [RecordFieldPattern]
   | PAlias Pattern (A.Located Name)
   | PUnit
   | PTuple Pattern Pattern [Pattern]
@@ -88,6 +90,12 @@ data Pattern_
   | PChr ES.String
   | PStr ES.String
   | PInt Int
+
+type RecordFieldPattern = A.Located RecordFieldPattern_
+
+data RecordFieldPattern_
+  = RFVar Name
+  | RFPattern (A.Located Name) Pattern
 
 -- TYPE
 
