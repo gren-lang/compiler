@@ -261,13 +261,7 @@ addBindingsHelp bindings (A.At region pattern) =
     Src.PVar name ->
       Dups.insert name region region bindings
     Src.PRecord fields ->
-      let addField dict (A.At fieldRegion rfPattern) =
-            Dups.insert (toNameTMP rfPattern) fieldRegion fieldRegion dict
-          -- TODO: Proper canonicalization
-          toNameTMP rf =
-            case rf of
-              Src.RFPattern (A.At _ var) _ -> var
-       in List.foldl' addField bindings fields
+      List.foldl' addBindingsHelp bindings (map extractRecordFieldPattern fields)
     Src.PUnit ->
       bindings
     Src.PTuple a b cs ->
