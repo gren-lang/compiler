@@ -202,14 +202,6 @@ destructHelp path (A.At _ pattern) revDs =
       pure revDs
     Can.PVar name ->
       pure (Opt.Destructor name path : revDs)
-    Can.PRecord fieldPatterns ->
-      -- TODO: optimize proper
-      let toDestruct name =
-            Opt.Destructor name (Opt.Field name path)
-          fieldName (A.At _ (Can.PRFieldPattern name _)) =
-            name
-          fields = map fieldName fieldPatterns
-       in Names.registerFieldList fields (map toDestruct fields ++ revDs)
     Can.PAlias subPattern name ->
       destructHelp (Opt.Root name) subPattern $
         Opt.Destructor name path : revDs
@@ -230,6 +222,21 @@ destructHelp path (A.At _ pattern) revDs =
             destructHelp (Opt.Index Index.third newRoot) c
               =<< destructHelp (Opt.Index Index.second newRoot) b
               =<< destructHelp (Opt.Index Index.first newRoot) a (Opt.Destructor name path : revDs)
+    Can.PRecord [] ->
+      pure revDs
+    Can.PRecord [(A.At _ (Can.PRFieldPattern name fieldPattern))] ->
+      destructHelp (Opt.Field name path) fieldPattern revDs
+    Can.PRecord fieldPatterns ->
+      case path of
+        Opt.Root _ ->
+          foldM (destructRecordField path) revDs fieldPatterns
+        _ ->
+          do
+            name <- Names.generate
+            foldM
+              (destructRecordField (Opt.Root name))
+              (Opt.Destructor name path : revDs)
+              fieldPatterns
     Can.PArray [] ->
       pure revDs
     Can.PArray [element] ->
@@ -242,7 +249,10 @@ destructHelp path (A.At _ pattern) revDs =
             _ ->
               do
                 name <- Names.generate
-                foldM (destructArrayElement (Opt.Root name)) (Opt.Destructor name path : revDs) indexedElements
+                foldM
+                  (destructArrayElement (Opt.Root name))
+                  (Opt.Destructor name path : revDs)
+                  indexedElements
     Can.PChr _ ->
       pure revDs
     Can.PStr _ ->
@@ -265,7 +275,10 @@ destructHelp path (A.At _ pattern) revDs =
             _ ->
               do
                 name <- Names.generate
-                foldM (destructCtorArg (Opt.Root name)) (Opt.Destructor name path : revDs) args
+                foldM
+                  (destructCtorArg (Opt.Root name))
+                  (Opt.Destructor name path : revDs)
+                  args
 
 destructTwo :: Opt.Path -> Can.Pattern -> Can.Pattern -> [Opt.Destructor] -> Names.Tracker [Opt.Destructor]
 destructTwo path a b revDs =
@@ -279,6 +292,10 @@ destructTwo path a b revDs =
         let newRoot = Opt.Root name
         destructHelp (Opt.Index Index.second newRoot) b
           =<< destructHelp (Opt.Index Index.first newRoot) a (Opt.Destructor name path : revDs)
+
+destructRecordField :: Opt.Path -> [Opt.Destructor] -> Can.PatternRecordField -> Names.Tracker [Opt.Destructor]
+destructRecordField path revDs (A.At _ (Can.PRFieldPattern name pattern)) =
+  destructHelp (Opt.Field name path) pattern revDs
 
 destructArrayElement :: Opt.Path -> [Opt.Destructor] -> (Index.ZeroBased, Can.Pattern) -> Names.Tracker [Opt.Destructor]
 destructArrayElement path revDs (index, arg) =
