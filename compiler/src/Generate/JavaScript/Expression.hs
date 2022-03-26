@@ -533,8 +533,6 @@ strictNEq left right =
 
 -- TAIL CALL
 
--- TODO check if JS minifiers collapse unnecessary temporary variables
---
 generateTailCall :: Mode.Mode -> Name.Name -> [(Name.Name, Opt.Expr)] -> [JS.Stmt]
 generateTailCall mode name args =
   let toTempVars (argName, arg) =
