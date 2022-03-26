@@ -62,10 +62,14 @@ add (A.At region pattern) expectation state =
 
         let arrayCon = CPattern region E.PArray arrayType expectation
         return $ State headers (entryVar : vars) (arrayCon : revCons)
-    Can.PRecord fields ->
+    Can.PRecord fieldPatterns ->
       do
         extVar <- mkFlexVar
         let extType = VarN extVar
+
+        -- TODO: Do this properly
+        let toName (A.At _ (Can.PRFieldPattern name _)) = name
+        let fields = map toName fieldPatterns
 
         fieldVars <- traverse (\field -> (,) field <$> mkFlexVar) fields
         let fieldTypes = Map.fromList (map (fmap VarN) fieldVars)

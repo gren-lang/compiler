@@ -13,7 +13,6 @@ import qualified AST.Source as Src
 import qualified Canonicalize.Environment as Env
 import qualified Canonicalize.Environment.Dups as Dups
 import qualified Data.Index as Index
-import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Name as Name
 import qualified Gren.ModuleName as ModuleName
@@ -64,12 +63,7 @@ canonicalize env (A.At region pattern) =
       Src.PVar name ->
         logVar name region (Can.PVar name)
       Src.PRecord fields ->
-        -- TODO: Proper canonicalization
-        let toNameTMP (A.At _ rf) =
-              case rf of
-                Src.RFPattern locatedVar _ -> locatedVar
-            fieldNames = map toNameTMP fields
-         in logFields fieldNames (Can.PRecord (map A.toValue fieldNames))
+        Can.PRecord <$> canonicalizeRecordFields env fields
       Src.PUnit ->
         Result.ok Can.PUnit
       Src.PTuple a b cs ->
@@ -93,6 +87,21 @@ canonicalize env (A.At region pattern) =
         Result.ok (Can.PStr str)
       Src.PInt int ->
         Result.ok (Can.PInt int)
+
+canonicalizeRecordFields :: Env.Env -> [Src.RecordFieldPattern] -> Result DupsDict w [Can.PatternRecordField]
+canonicalizeRecordFields env patterns =
+  case patterns of
+    [] ->
+      Result.ok []
+    pattern : otherPatterns ->
+      (:)
+        <$> canonicalizeRecordField env pattern
+        <*> canonicalizeRecordFields env otherPatterns
+
+canonicalizeRecordField :: Env.Env -> Src.RecordFieldPattern -> Result DupsDict w Can.PatternRecordField
+canonicalizeRecordField env (A.At region (Src.RFPattern locatedName pattern)) =
+  A.At region . Can.PRFieldPattern (A.toValue locatedName)
+    <$> canonicalize env pattern
 
 canonicalizeCtor :: Env.Env -> A.Region -> Name.Name -> [Src.Pattern] -> Env.Ctor -> Result DupsDict w Can.Pattern_
 canonicalizeCtor env region name patterns ctor =
@@ -138,10 +147,3 @@ logVar :: Name.Name -> A.Region -> a -> Result DupsDict w a
 logVar name region value =
   Result.Result $ \bindings warnings _ ok ->
     ok (Dups.insert name region region bindings) warnings value
-
-logFields :: [A.Located Name.Name] -> a -> Result DupsDict w a
-logFields fields value =
-  let addField dict (A.At region name) =
-        Dups.insert name region region dict
-   in Result.Result $ \bindings warnings _ ok ->
-        ok (List.foldl' addField bindings fields) warnings value

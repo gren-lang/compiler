@@ -202,9 +202,13 @@ destructHelp path (A.At _ pattern) revDs =
       pure revDs
     Can.PVar name ->
       pure (Opt.Destructor name path : revDs)
-    Can.PRecord fields ->
+    Can.PRecord fieldPatterns ->
+      -- TODO: optimize proper
       let toDestruct name =
             Opt.Destructor name (Opt.Field name path)
+          fieldName (A.At _ (Can.PRFieldPattern name _)) =
+            name
+          fields = map fieldName fieldPatterns
        in Names.registerFieldList fields (map toDestruct fields ++ revDs)
     Can.PAlias subPattern name ->
       destructHelp (Opt.Root name) subPattern $
