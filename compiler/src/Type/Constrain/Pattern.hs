@@ -67,19 +67,24 @@ add (A.At region pattern) expectation state =
         extVar <- mkFlexVar
         let extType = VarN extVar
 
-        -- TODO: Do this properly
-        let toName (A.At _ (Can.PRFieldPattern name _)) = name
-        let fields = map toName fieldPatterns
+        let extractNameAndPattern (A.At _ (Can.PRFieldPattern name fieldPattern)) =
+              (name, fieldPattern)
+        let fields = map extractNameAndPattern fieldPatterns
 
-        fieldVars <- traverse (\field -> (,) field <$> mkFlexVar) fields
-        let fieldTypes = Map.fromList (map (fmap VarN) fieldVars)
-        let recordType = RecordN fieldTypes extType
-
-        let (State headers vars revCons) = state
+        fieldVars <- traverse (\(fieldName, _) -> (,) fieldName <$> mkFlexVar) fields
+        let fieldTypes = map (fmap VarN) fieldVars
+        let recordType = RecordN (Map.fromList fieldTypes) extType
         let recordCon = CPattern region E.PRecord recordType expectation
+
+        (State headers vars revCons) <-
+          foldM
+            (\s (tipe, fieldPattern) -> simpleAdd fieldPattern tipe s)
+            state
+            (zip (map snd fieldTypes) (map snd fields))
+
         return $
           State
-            { _headers = Map.union headers (Map.map (A.At region) fieldTypes),
+            { _headers = headers,
               _vars = map snd fieldVars ++ extVar : vars,
               _revCons = recordCon : revCons
             }
