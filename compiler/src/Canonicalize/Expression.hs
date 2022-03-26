@@ -377,23 +377,23 @@ addEdge edges nodes aname@(A.At _ name) =
 
 getPatternNames :: [A.Located Name.Name] -> Src.Pattern -> [A.Located Name.Name]
 getPatternNames names (A.At region pattern) =
-  let -- TODO: Proper canonicalization
-      toNameTMP (A.At _ rf) =
-        case rf of
-          Src.RFPattern var _ -> var
-   in case pattern of
-        Src.PAnything -> names
-        Src.PVar name -> A.At region name : names
-        Src.PRecord fields -> (map toNameTMP fields) ++ names
-        Src.PAlias ptrn name -> getPatternNames (name : names) ptrn
-        Src.PUnit -> names
-        Src.PTuple a b cs -> List.foldl' getPatternNames (getPatternNames (getPatternNames names a) b) cs
-        Src.PCtor _ _ args -> List.foldl' getPatternNames names args
-        Src.PCtorQual _ _ _ args -> List.foldl' getPatternNames names args
-        Src.PArray patterns -> List.foldl' getPatternNames names patterns
-        Src.PChr _ -> names
-        Src.PStr _ -> names
-        Src.PInt _ -> names
+  case pattern of
+    Src.PAnything -> names
+    Src.PVar name -> A.At region name : names
+    Src.PRecord fields ->
+      List.foldl' (\n f -> getPatternNames n (extractRecordFieldPattern f)) names fields
+    Src.PAlias ptrn name -> getPatternNames (name : names) ptrn
+    Src.PUnit -> names
+    Src.PTuple a b cs -> List.foldl' getPatternNames (getPatternNames (getPatternNames names a) b) cs
+    Src.PCtor _ _ args -> List.foldl' getPatternNames names args
+    Src.PCtorQual _ _ _ args -> List.foldl' getPatternNames names args
+    Src.PArray patterns -> List.foldl' getPatternNames names patterns
+    Src.PChr _ -> names
+    Src.PStr _ -> names
+    Src.PInt _ -> names
+
+extractRecordFieldPattern :: Src.RecordFieldPattern -> Src.Pattern
+extractRecordFieldPattern (A.At _ (Src.RFPattern _ pattern)) = pattern
 
 -- GATHER TYPED ARGS
 
