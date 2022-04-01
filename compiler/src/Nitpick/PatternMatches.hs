@@ -20,10 +20,13 @@ http://moscova.inria.fr/~maranget/papers/warn/warn.pdf
 import qualified AST.Canonical as Can
 import qualified Data.Index as Index
 import qualified Data.List as List
+import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Maybe as Maybe
 import qualified Data.Name as Name
 import qualified Data.NonEmptyList as NE
+import Data.Set (Set)
+import qualified Data.Set as Set
 import qualified Gren.String as ES
 import qualified Reporting.Annotation as A
 
@@ -33,7 +36,7 @@ data Pattern
   = Anything
   | Literal Literal
   | Array [Pattern]
-  | Record [(Name.Name, Pattern)]
+  | Record (Map Name.Name Pattern)
   | Ctor Can.Union Name.Name [Pattern]
 
 data Literal
@@ -52,7 +55,7 @@ simplify (A.At _ pattern) =
     Can.PVar _ ->
       Anything
     Can.PRecord fields ->
-      Record $ map extractRecordField fields
+      Record $ List.foldl' insertRecordField Map.empty fields
     Can.PUnit ->
       Ctor unit unitName []
     Can.PTuple a b Nothing ->
@@ -75,9 +78,9 @@ simplify (A.At _ pattern) =
     Can.PBool union bool ->
       Ctor union (if bool then Name.true else Name.false) []
 
-extractRecordField :: Can.PatternRecordField -> (Name.Name, Pattern)
-extractRecordField (A.At _ (Can.PRFieldPattern name pattern)) =
-  (name, simplify pattern)
+insertRecordField :: Map Name.Name Pattern -> Can.PatternRecordField -> Map Name.Name Pattern
+insertRecordField fields (A.At _ (Can.PRFieldPattern name pattern)) =
+  Map.insert name (simplify pattern) fields
 
 -- BUILT-IN UNIONS
 
@@ -294,8 +297,19 @@ isExhaustive matrix n =
               numSeen = Map.size ctors
            in if numSeen == 0
                 then
-                  (:) Anything
-                    <$> isExhaustive (Maybe.mapMaybe specializeRowByAnything matrix) (n - 1)
+                  let maybeBaseRecord = extractRecordPatterns matrix
+                   in case maybeBaseRecord of
+                        Nothing ->
+                          (:) Anything
+                            <$> isExhaustive (Maybe.mapMaybe specializeRowByAnything matrix) (n - 1)
+                        Just baseRecord ->
+                          let fieldNames = Map.keys baseRecord
+
+                              isAltExhaustive fieldName =
+                                isExhaustive
+                                  (Maybe.mapMaybe (specializeRowByRecordField fieldName) matrix)
+                                  n
+                           in concatMap isAltExhaustive fieldNames
                 else
                   let alts@(Can.Union _ altList numAlts _) = snd (Map.findMin ctors)
                    in if numSeen < numAlts
@@ -368,9 +382,10 @@ isUseful matrix vector =
                 (Maybe.mapMaybe (specializeRowByArray (length arrayPatterns)) matrix)
                 (arrayPatterns ++ patterns)
             Record recordNamedPatterns ->
-              isUseful
-                (Maybe.mapMaybe (specializeRowByRecord (map fst recordNamedPatterns)) matrix)
-                (map snd recordNamedPatterns ++ patterns)
+              let recordBaseMap = collectRecordFieldsWithAnyPattern matrix
+               in isUseful
+                    (Maybe.mapMaybe (specializeRowByRecord recordBaseMap) matrix)
+                    (Map.elems recordNamedPatterns ++ patterns)
             Anything ->
               -- check if all alts appear in matrix
               case isComplete matrix of
@@ -437,26 +452,47 @@ specializeRowByArray arity row =
       error "Compiler error! Empty matrices should not get specialized."
 
 -- INVARIANT: (length row == N) ==> (length result == arity + N - 1)
-specializeRowByRecord :: [Name.Name] -> [Pattern] -> Maybe [Pattern]
-specializeRowByRecord fieldNames row =
-  let arity = length fieldNames
-   in case row of
-        Ctor _ _ _ : _ ->
+specializeRowByRecord :: Map Name.Name Pattern -> [Pattern] -> Maybe [Pattern]
+specializeRowByRecord baseMap row =
+  case row of
+    Ctor _ _ _ : _ ->
+      Nothing
+    Array _ : _ ->
+      Nothing
+    Record namedPatterns : patterns ->
+      let specializedMap = Map.union namedPatterns baseMap
+       in Just (Map.elems specializedMap ++ patterns)
+    Anything : patterns ->
+      Just (Map.elems baseMap ++ patterns)
+    Literal _ : _ ->
+      error $
+        "Compiler bug! After type checking, records and literals\
+        \ should never align in pattern match exhaustiveness checks."
+    [] ->
+      error "Compiler error! Empty matrices should not get specialized."
+
+-- INVARIANT: (length row == N) ==> (length result == arity + N - 1)
+specializeRowByRecordField :: Name.Name -> [Pattern] -> Maybe [Pattern]
+specializeRowByRecordField fieldName row =
+  case row of
+    Ctor _ _ _ : _ ->
+      Nothing
+    Anything : patterns ->
+      Just (Anything : patterns)
+    Array _ : _ ->
+      Nothing
+    Record namedPatterns : patterns ->
+      case Map.lookup fieldName namedPatterns of
+        Just pattern ->
+          Just (pattern : patterns)
+        Nothing ->
           Nothing
-        Array _ : _ ->
-          Nothing
-        Record namedPatterns : patterns ->
-          if fieldNames == map fst namedPatterns
-            then Just (map snd namedPatterns ++ patterns)
-            else Nothing
-        Anything : patterns ->
-          Just (replicate arity Anything ++ patterns)
-        Literal _ : _ ->
-          error $
-            "Compiler bug! After type checking, records and literals\
-            \ should never align in pattern match exhaustiveness checks."
-        [] ->
-          error "Compiler error! Empty matrices should not get specialized."
+    Literal _ : _ ->
+      error $
+        "Compiler bug! After type checking, constructors and literals\
+        \ should never align in pattern match exhaustiveness checks."
+    [] ->
+      error "Compiler error! Empty matrices should not get specialized."
 
 -- INVARIANT: (length row == N) ==> (length result == N-1)
 specializeRowByLiteral :: Literal -> [Pattern] -> Maybe [Pattern]
@@ -529,3 +565,35 @@ collectCtorsHelp ctors row =
       Map.insert name union ctors
     _ ->
       ctors
+
+-- COLLECT RECORD FIELDS
+extractRecordPatterns :: [[Pattern]] -> Maybe (Map Name.Name Pattern)
+extractRecordPatterns matrix =
+  if containsRecord matrix
+    then Just $ collectRecordFieldsWithAnyPattern matrix
+    else Nothing
+
+containsRecord :: [[Pattern]] -> Bool
+containsRecord matrix =
+  case matrix of
+    [] ->
+      False
+    (Record _ : _) : _ ->
+      True
+    _ : rest ->
+      containsRecord rest
+
+collectRecordFieldsWithAnyPattern :: [[Pattern]] -> Map Name.Name Pattern
+collectRecordFieldsWithAnyPattern matrix =
+  let fieldNames = List.foldl' collectRecordFields Set.empty matrix
+   in Set.foldl' (\fields name -> Map.insert name Anything fields) Map.empty fieldNames
+
+collectRecordFields :: Set Name.Name -> [Pattern] -> Set Name.Name
+collectRecordFields nameCollection row =
+  case row of
+    Record namedPatterns : _ ->
+      Set.union
+        (Set.fromList (Map.keys namedPatterns))
+        nameCollection
+    _ ->
+      nameCollection
