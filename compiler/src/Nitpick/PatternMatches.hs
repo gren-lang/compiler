@@ -33,6 +33,7 @@ data Pattern
   = Anything
   | Literal Literal
   | Array [Pattern]
+  | Record [(Name.Name, Pattern)]
   | Ctor Can.Union Name.Name [Pattern]
 
 data Literal
@@ -50,8 +51,8 @@ simplify (A.At _ pattern) =
       Anything
     Can.PVar _ ->
       Anything
-    Can.PRecord _ ->
-      Anything
+    Can.PRecord fields ->
+      Record $ map extractRecordField fields
     Can.PUnit ->
       Ctor unit unitName []
     Can.PTuple a b Nothing ->
@@ -73,6 +74,10 @@ simplify (A.At _ pattern) =
       Literal (Chr chr)
     Can.PBool union bool ->
       Ctor union (if bool then Name.true else Name.false) []
+
+extractRecordField :: Can.PatternRecordField -> (Name.Name, Pattern)
+extractRecordField (A.At _ (Can.PRFieldPattern name pattern)) =
+  (name, simplify pattern)
 
 -- BUILT-IN UNIONS
 
@@ -362,6 +367,10 @@ isUseful matrix vector =
               isUseful
                 (Maybe.mapMaybe (specializeRowByArray (length arrayPatterns)) matrix)
                 (arrayPatterns ++ patterns)
+            Record recordNamedPatterns ->
+              isUseful
+                (Maybe.mapMaybe (specializeRowByRecord (map fst recordNamedPatterns)) matrix)
+                (map snd recordNamedPatterns ++ patterns)
             Anything ->
               -- check if all alts appear in matrix
               case isComplete matrix of
@@ -397,6 +406,8 @@ specializeRowByCtor ctorName arity row =
       Just (replicate arity Anything ++ patterns)
     Array _ : _ ->
       Nothing
+    Record _ : _ ->
+      Nothing
     Literal _ : _ ->
       error $
         "Compiler bug! After type checking, constructors and literals\
@@ -404,7 +415,6 @@ specializeRowByCtor ctorName arity row =
     [] ->
       error "Compiler error! Empty matrices should not get specialized."
 
---
 -- INVARIANT: (length row == N) ==> (length result == arity + N - 1)
 specializeRowByArray :: Int -> [Pattern] -> Maybe [Pattern]
 specializeRowByArray arity row =
@@ -415,6 +425,8 @@ specializeRowByArray arity row =
       if arity == (List.length arrayPatterns)
         then Just (arrayPatterns ++ patterns)
         else Nothing
+    Record _ : _ ->
+      Nothing
     Anything : patterns ->
       Just (replicate arity Anything ++ patterns)
     Literal _ : _ ->
@@ -423,6 +435,28 @@ specializeRowByArray arity row =
         \ should never align in pattern match exhaustiveness checks."
     [] ->
       error "Compiler error! Empty matrices should not get specialized."
+
+-- INVARIANT: (length row == N) ==> (length result == arity + N - 1)
+specializeRowByRecord :: [Name.Name] -> [Pattern] -> Maybe [Pattern]
+specializeRowByRecord fieldNames row =
+  let arity = length fieldNames
+   in case row of
+        Ctor _ _ _ : _ ->
+          Nothing
+        Array _ : _ ->
+          Nothing
+        Record namedPatterns : patterns ->
+          if fieldNames == map fst namedPatterns
+            then Just (map snd namedPatterns ++ patterns)
+            else Nothing
+        Anything : patterns ->
+          Just (replicate arity Anything ++ patterns)
+        Literal _ : _ ->
+          error $
+            "Compiler bug! After type checking, records and literals\
+            \ should never align in pattern match exhaustiveness checks."
+        [] ->
+          error "Compiler error! Empty matrices should not get specialized."
 
 -- INVARIANT: (length row == N) ==> (length result == N-1)
 specializeRowByLiteral :: Literal -> [Pattern] -> Maybe [Pattern]
@@ -437,6 +471,10 @@ specializeRowByLiteral literal row =
     Array _ : _ ->
       error $
         "Compiler bug! After type checking, arrays and literals\
+        \ should never align in pattern match exhaustiveness checks."
+    Record _ : _ ->
+      error $
+        "Compiler bug! After type checking, records and literals\
         \ should never align in pattern match exhaustiveness checks."
     Ctor _ _ _ : _ ->
       error $
@@ -456,6 +494,8 @@ specializeRowByAnything row =
     Anything : patterns ->
       Just patterns
     Array _ : _ ->
+      Nothing
+    Record _ : _ ->
       Nothing
     Literal _ : _ ->
       Nothing
