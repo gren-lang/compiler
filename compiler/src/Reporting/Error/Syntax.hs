@@ -5496,7 +5496,7 @@ toPatternReport source context pattern startRow startCol =
                   ]
               )
 
-toPRecordReport :: Code.Source ->PContext-> PRecord -> Row -> Col -> Report.Report
+toPRecordReport :: Code.Source -> PContext -> PRecord -> Row -> Col -> Report.Report
 toPRecordReport source context record startRow startCol =
   case record of
     PRecordOpen row col ->
@@ -5540,8 +5540,8 @@ toPRecordReport source context record startRow startCol =
           toUnfinishRecordPatternReport source row col startRow startCol $
             D.reflow "I was expecting to see a field name next."
     PRecordEquals row col ->
-        toUnfinishRecordPatternReport source row col startRow startCol $
-            D.reflow "I was expecting to see an equals sign next."
+      toUnfinishRecordPatternReport source row col startRow startCol $
+        D.reflow "I was expecting to see an equals sign next."
     PRecordExpr pattern row col ->
       toPatternReport source context pattern row col
     PRecordSpace space row col ->
