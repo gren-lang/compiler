@@ -708,6 +708,8 @@ generateIfTest mode root (path, test) =
             JS.OpEq
             (JS.Access value (JsName.fromLocal "length"))
             (JS.Int len)
+        DT.IsRecord ->
+          error "COMPILER BUG - there should never be tests on a record"
         DT.IsTuple ->
           error "COMPILER BUG - there should never be tests on a tuple"
 
@@ -734,6 +736,8 @@ generateCaseValue mode test =
       JS.Int len
     DT.IsBool _ ->
       error "COMPILER BUG - there should never be three tests on a boolean"
+    DT.IsRecord ->
+      error "COMPILER BUG - there should never be three tests on a record"
     DT.IsTuple ->
       error "COMPILER BUG - there should never be three tests on a tuple"
 
@@ -769,6 +773,8 @@ generateCaseTest mode root path exampleTest =
           JS.Access value (JsName.fromLocal "length")
         DT.IsBool _ ->
           error "COMPILER BUG - there should never be three tests on a list"
+        DT.IsRecord ->
+          error "COMPILER BUG - there should never be three tests on a record"
         DT.IsTuple ->
           error "COMPILER BUG - there should never be three tests on a tuple"
 
@@ -781,6 +787,8 @@ pathToJsExpr mode root path =
       JS.Access (pathToJsExpr mode root subPath) (JsName.fromIndex index)
     DT.ArrayIndex index subPath ->
       JS.Index (pathToJsExpr mode root subPath) (JS.Int (Index.toMachine index))
+    DT.RecordField fieldName subPath ->
+      JS.Access (pathToJsExpr mode root subPath) (JsName.fromLocal fieldName)
     DT.Unbox subPath ->
       case mode of
         Mode.Dev _ ->

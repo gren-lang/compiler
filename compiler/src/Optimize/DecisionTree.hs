@@ -63,6 +63,7 @@ data DecisionTree
 data Test
   = IsCtor ModuleName.Canonical Name.Name Index.ZeroBased Int Can.CtorOpts
   | IsArray Int
+  | IsRecord
   | IsTuple
   | IsInt Int
   | IsChr ES.String
@@ -73,6 +74,7 @@ data Test
 data Path
   = Index Index.ZeroBased Path
   | ArrayIndex Index.ZeroBased Path
+  | RecordField Name.Name Path
   | Unbox Path
   | Empty
   deriving (Eq)
@@ -117,6 +119,8 @@ isComplete tests =
       numAlts == length tests
     IsArray _ ->
       False
+    IsRecord ->
+      True
     IsTuple ->
       True
     IsChr _ ->
@@ -185,6 +189,12 @@ subIndices :: Path -> [Can.Pattern] -> [(Path, Can.Pattern)]
 subIndices path patterns =
   Index.indexedMap (\index pattern -> (ArrayIndex index path, pattern)) patterns
 
+subFields :: Path -> [Can.PatternRecordField] -> [(Path, Can.Pattern)]
+subFields path fields =
+  let fieldMapper (A.At _ (Can.PRFieldPattern name pattern)) =
+        (RecordField name path, pattern)
+   in map fieldMapper fields
+
 dearg :: Can.PatternCtorArg -> Can.Pattern
 dearg (Can.PatternCtorArg _ _ pattern) =
   pattern
@@ -247,6 +257,8 @@ testAtPath selectedPath (Branch _ pathPatterns) =
           Just (IsCtor home name index numAlts opts)
         Can.PArray elements ->
           Just $ IsArray $ List.length elements
+        Can.PRecord _ ->
+          Just IsRecord
         Can.PTuple _ _ _ ->
           Just IsTuple
         Can.PUnit ->
@@ -263,8 +275,6 @@ testAtPath selectedPath (Branch _ pathPatterns) =
           Just (IsChr chr)
         Can.PBool _ bool ->
           Just (IsBool bool)
-        Can.PRecord _ ->
-          Nothing
         Can.PAlias _ _ ->
           error "aliases should never reach 'testAtPath' function"
 
@@ -299,6 +309,12 @@ toRelevantBranch test path branch@(Branch goal pathPatterns) =
             IsArray testLength
               | List.length arrayElements == testLength ->
                   Just (Branch goal (start ++ subIndices path arrayElements ++ end))
+            _ ->
+              Nothing
+        Can.PRecord recordFields ->
+          case test of
+            IsRecord ->
+              Just (Branch goal (start ++ subFields path recordFields ++ end))
             _ ->
               Nothing
         Can.PChr chr ->
@@ -336,8 +352,6 @@ toRelevantBranch test path branch@(Branch goal pathPatterns) =
         Can.PVar _ ->
           Just branch
         Can.PAnything ->
-          Just branch
-        Can.PRecord _ ->
           Just branch
         Can.PAlias _ _ ->
           Just branch
@@ -377,9 +391,9 @@ needsTests (A.At _ pattern) =
   case pattern of
     Can.PVar _ -> False
     Can.PAnything -> False
-    Can.PRecord _ -> False
     Can.PCtor _ _ _ _ _ _ -> True
     Can.PArray _ -> True
+    Can.PRecord _ -> True
     Can.PUnit -> True
     Can.PTuple _ _ _ -> True
     Can.PChr _ -> True
@@ -445,11 +459,12 @@ instance Binary Test where
     case test of
       IsCtor a b c d e -> putWord8 0 >> put a >> put b >> put c >> put d >> put e
       IsArray a -> putWord8 1 >> put a
-      IsTuple -> putWord8 2
-      IsChr a -> putWord8 3 >> put a
-      IsStr a -> putWord8 4 >> put a
-      IsInt a -> putWord8 5 >> put a
-      IsBool a -> putWord8 6 >> put a
+      IsRecord -> putWord8 2
+      IsTuple -> putWord8 3
+      IsChr a -> putWord8 4 >> put a
+      IsStr a -> putWord8 5 >> put a
+      IsInt a -> putWord8 6 >> put a
+      IsBool a -> putWord8 7 >> put a
 
   get =
     do
@@ -457,11 +472,12 @@ instance Binary Test where
       case word of
         0 -> liftM5 IsCtor get get get get get
         1 -> liftM IsArray get
-        2 -> pure IsTuple
-        3 -> liftM IsChr get
-        4 -> liftM IsStr get
-        5 -> liftM IsInt get
-        6 -> liftM IsBool get
+        2 -> pure IsRecord
+        3 -> pure IsTuple
+        4 -> liftM IsChr get
+        5 -> liftM IsStr get
+        6 -> liftM IsInt get
+        7 -> liftM IsBool get
         _ -> fail "problem getting DecisionTree.Test binary"
 
 instance Binary Path where
@@ -469,8 +485,9 @@ instance Binary Path where
     case path of
       Index a b -> putWord8 0 >> put a >> put b
       ArrayIndex a b -> putWord8 1 >> put a >> put b
-      Unbox a -> putWord8 2 >> put a
-      Empty -> putWord8 3
+      RecordField a b -> putWord8 2 >> put a >> put b
+      Unbox a -> putWord8 3 >> put a
+      Empty -> putWord8 4
 
   get =
     do
@@ -478,6 +495,7 @@ instance Binary Path where
       case word of
         0 -> liftM2 Index get get
         1 -> liftM2 ArrayIndex get get
-        2 -> liftM Unbox get
-        3 -> pure Empty
+        2 -> liftM2 RecordField get get
+        3 -> liftM Unbox get
+        4 -> pure Empty
         _ -> fail "problem getting DecisionTree.Path binary"
