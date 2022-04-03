@@ -788,7 +788,7 @@ pathToJsExpr mode root path =
     DT.ArrayIndex index subPath ->
       JS.Index (pathToJsExpr mode root subPath) (JS.Int (Index.toMachine index))
     DT.RecordField fieldName subPath ->
-      JS.Access (pathToJsExpr mode root subPath) (JsName.fromLocal fieldName)
+      JS.Access (pathToJsExpr mode root subPath) (generateField mode fieldName)
     DT.Unbox subPath ->
       case mode of
         Mode.Dev _ ->
