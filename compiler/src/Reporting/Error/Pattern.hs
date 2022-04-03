@@ -8,6 +8,8 @@ module Reporting.Error.Pattern
 where
 
 import qualified Data.List as List
+import qualified Data.Map as Map
+import qualified Data.Name as Name
 import qualified Gren.String as ES
 import qualified Nitpick.PatternMatches as P
 import qualified Reporting.Doc as D
@@ -141,3 +143,13 @@ patternToDoc context pattern =
     P.Array entries ->
       let entryDocs = map (patternToDoc Unambiguous) entries
        in "[" <> D.hcat (List.intersperse "," entryDocs) <> "]"
+    P.Record fields
+      | Map.size fields == 0 ->
+          "{}"
+    P.Record fields ->
+      let fieldDocs = map recordFieldToDoc (Map.toList fields)
+       in "{" <> D.hcat (List.intersperse "," fieldDocs) <> "}"
+
+recordFieldToDoc :: (Name.Name, P.Pattern) -> D.Doc
+recordFieldToDoc (name, pattern) =
+  D.fromName name <> ": " <> patternToDoc Unambiguous pattern

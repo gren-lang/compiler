@@ -341,6 +341,8 @@ data PRecord
   | PRecordEnd Row Col
   | PRecordField Row Col
   | PRecordSpace Space Row Col
+  | PRecordEquals Row Col
+  | PRecordExpr Pattern Row Col
   | --
     PRecordIndentOpen Row Col
   | PRecordIndentEnd Row Col
@@ -5197,7 +5199,7 @@ toPatternReport :: Code.Source -> PContext -> Pattern -> Row -> Col -> Report.Re
 toPatternReport source context pattern startRow startCol =
   case pattern of
     PRecord record row col ->
-      toPRecordReport source record row col
+      toPRecordReport source context record row col
     PTuple tuple row col ->
       toPTupleReport source context tuple row col
     PArray list row col ->
@@ -5494,8 +5496,8 @@ toPatternReport source context pattern startRow startCol =
                   ]
               )
 
-toPRecordReport :: Code.Source -> PRecord -> Row -> Col -> Report.Report
-toPRecordReport source record startRow startCol =
+toPRecordReport :: Code.Source -> PContext -> PRecord -> Row -> Col -> Report.Report
+toPRecordReport source context record startRow startCol =
   case record of
     PRecordOpen row col ->
       toUnfinishRecordPatternReport source row col startRow startCol $
@@ -5537,6 +5539,11 @@ toPRecordReport source record startRow startCol =
         _ ->
           toUnfinishRecordPatternReport source row col startRow startCol $
             D.reflow "I was expecting to see a field name next."
+    PRecordEquals row col ->
+      toUnfinishRecordPatternReport source row col startRow startCol $
+        D.reflow "I was expecting to see an equals sign next."
+    PRecordExpr pattern row col ->
+      toPatternReport source context pattern row col
     PRecordSpace space row col ->
       toSpaceReport source space row col
     PRecordIndentOpen row col ->

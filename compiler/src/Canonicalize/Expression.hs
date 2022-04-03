@@ -261,9 +261,7 @@ addBindingsHelp bindings (A.At region pattern) =
     Src.PVar name ->
       Dups.insert name region region bindings
     Src.PRecord fields ->
-      let addField dict (A.At fieldRegion name) =
-            Dups.insert name fieldRegion fieldRegion dict
-       in List.foldl' addField bindings fields
+      List.foldl' addBindingsHelp bindings (map extractRecordFieldPattern fields)
     Src.PUnit ->
       bindings
     Src.PTuple a b cs ->
@@ -376,7 +374,8 @@ getPatternNames names (A.At region pattern) =
   case pattern of
     Src.PAnything -> names
     Src.PVar name -> A.At region name : names
-    Src.PRecord fields -> fields ++ names
+    Src.PRecord fields ->
+      List.foldl' (\n f -> getPatternNames n (extractRecordFieldPattern f)) names fields
     Src.PAlias ptrn name -> getPatternNames (name : names) ptrn
     Src.PUnit -> names
     Src.PTuple a b cs -> List.foldl' getPatternNames (getPatternNames (getPatternNames names a) b) cs
@@ -386,6 +385,9 @@ getPatternNames names (A.At region pattern) =
     Src.PChr _ -> names
     Src.PStr _ -> names
     Src.PInt _ -> names
+
+extractRecordFieldPattern :: Src.RecordFieldPattern -> Src.Pattern
+extractRecordFieldPattern (A.At _ (Src.RFPattern _ pattern)) = pattern
 
 -- GATHER TYPED ARGS
 

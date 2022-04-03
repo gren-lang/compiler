@@ -13,6 +13,8 @@ module AST.Canonical
     -- patterns
     Pattern,
     Pattern_ (..),
+    PatternRecordField,
+    PatternRecordField_ (..),
     PatternCtorArg (..),
     -- types
     Annotation (..),
@@ -128,7 +130,7 @@ type Pattern =
 data Pattern_
   = PAnything
   | PVar Name
-  | PRecord [Name]
+  | PRecord [PatternRecordField]
   | PAlias Pattern Name
   | PUnit
   | PTuple Pattern Pattern (Maybe Pattern)
@@ -145,6 +147,10 @@ data Pattern_
         _p_index :: Index.ZeroBased,
         _p_args :: [PatternCtorArg]
       }
+
+type PatternRecordField = A.Located PatternRecordField_
+
+data PatternRecordField_ = PRFieldPattern Name Pattern
 
 -- CACHE _p_home, _p_type, and _p_vars for type inference
 -- CACHE _p_index to replace _p_name in PROD code gen
