@@ -40,7 +40,6 @@ run constraint =
       e : es ->
         return $ Left (NE.List e es)
 
-{-# NOINLINE emptyState #-}
 emptyState :: State
 emptyState =
   State Map.empty (nextMark noMark) []

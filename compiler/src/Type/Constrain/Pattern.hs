@@ -104,7 +104,6 @@ add (A.At region pattern) expectation state =
 
 -- STATE HELPERS
 
-{-# NOINLINE emptyState #-}
 emptyState :: State
 emptyState =
   State Map.empty [] []

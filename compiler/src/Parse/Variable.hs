@@ -59,8 +59,7 @@ lower toError =
                           P.State src newPos end indent row newCol
                      in cok name newState
 
-{-# NOINLINE reservedWords #-}
-reservedWords :: Set.Set Name.Name -- PERF try using a trie instead
+reservedWords :: Set.Set Name.Name
 reservedWords =
   Set.fromList
     [ "if",
@@ -183,7 +182,6 @@ foreignAlphaHelp pos end col =
 
 -- DOTS
 
-{-# INLINE isDot #-}
 isDot :: Ptr Word8 -> Ptr Word8 -> Bool
 isDot pos end =
   pos < end && unsafeIndex pos == 0x2e {- . -}
@@ -197,14 +195,12 @@ chompUpper pos end col =
         then (# pos, col #)
         else chompInnerChars (plusPtr pos width) end (col + 1)
 
-{-# INLINE getUpperWidth #-}
 getUpperWidth :: Ptr Word8 -> Ptr Word8 -> Int
 getUpperWidth pos end =
   if pos < end
     then getUpperWidthHelp pos end (unsafeIndex pos)
     else 0
 
-{-# INLINE getUpperWidthHelp #-}
 getUpperWidthHelp :: Ptr Word8 -> Ptr Word8 -> Word8 -> Int
 getUpperWidthHelp pos _ word
   | 0x41 {- A -} <= word && word <= 0x5A {- Z -} = 1
@@ -223,14 +219,12 @@ chompLower pos end col =
         then (# pos, col #)
         else chompInnerChars (plusPtr pos width) end (col + 1)
 
-{-# INLINE getLowerWidth #-}
 getLowerWidth :: Ptr Word8 -> Ptr Word8 -> Int
 getLowerWidth pos end =
   if pos < end
     then getLowerWidthHelp pos end (unsafeIndex pos)
     else 0
 
-{-# INLINE getLowerWidthHelp #-}
 getLowerWidthHelp :: Ptr Word8 -> Ptr Word8 -> Word8 -> Int
 getLowerWidthHelp pos _ word
   | 0x61 {- a -} <= word && word <= 0x7A {- z -} = 1
@@ -255,7 +249,6 @@ getInnerWidth pos end =
     then getInnerWidthHelp pos end (unsafeIndex pos)
     else 0
 
-{-# INLINE getInnerWidthHelp #-}
 getInnerWidthHelp :: Ptr Word8 -> Ptr Word8 -> Word8 -> Int
 getInnerWidthHelp pos _ word
   | 0x61 {- a -} <= word && word <= 0x7A {- z -} = 1
@@ -270,7 +263,6 @@ getInnerWidthHelp pos _ word
 
 -- EXTRACT CHARACTERS
 
-{-# INLINE chr2 #-}
 chr2 :: Ptr Word8 -> Word8 -> Char
 chr2 pos firstWord =
   let !i1# = unpack firstWord
@@ -279,7 +271,6 @@ chr2 pos firstWord =
       !c2# = i2# -# 0x80#
    in C# (chr# (c1# +# c2#))
 
-{-# INLINE chr3 #-}
 chr3 :: Ptr Word8 -> Word8 -> Char
 chr3 pos firstWord =
   let !i1# = unpack firstWord
@@ -290,7 +281,6 @@ chr3 pos firstWord =
       !c3# = i3# -# 0x80#
    in C# (chr# (c1# +# c2# +# c3#))
 
-{-# INLINE chr4 #-}
 chr4 :: Ptr Word8 -> Word8 -> Char
 chr4 pos firstWord =
   let !i1# = unpack firstWord

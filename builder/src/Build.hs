@@ -113,7 +113,6 @@ fork work =
     _ <- forkIO $ putMVar mvar =<< work
     return mvar
 
-{-# INLINE forkWithKey #-}
 forkWithKey :: (k -> a -> IO b) -> Map.Map k a -> IO (Map.Map k (MVar b))
 forkWithKey func dict =
   Map.traverseWithKey (\k v -> fork (func k v)) dict

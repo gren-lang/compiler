@@ -156,7 +156,6 @@ data Deps = Deps
     _unions :: Set.Set Opt.Global
   }
 
-{-# NOINLINE noDeps #-}
 noDeps :: Deps
 noDeps =
   Deps Set.empty Set.empty

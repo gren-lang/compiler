@@ -37,7 +37,6 @@ onSuccess :: [Variable] -> () -> IO Answer
 onSuccess vars () =
   return (Ok vars)
 
-{-# NOINLINE errorDescriptor #-}
 errorDescriptor :: Descriptor
 errorDescriptor =
   Descriptor Error noRank noMark Nothing

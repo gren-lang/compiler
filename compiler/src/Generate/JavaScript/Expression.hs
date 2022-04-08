@@ -158,7 +158,6 @@ codeToStmt code =
 
 -- CHARS
 
-{-# NOINLINE toChar #-}
 toChar :: JS.Expr
 toChar =
   JS.Ref (JsName.fromKernel Name.utils "chr")
@@ -253,7 +252,6 @@ generateFunction args body =
                 codeToStmtList code
        in foldr addArg body args
 
-{-# NOINLINE funcHelpers #-}
 funcHelpers :: IntMap.IntMap JS.Expr
 funcHelpers =
   IntMap.fromList $
@@ -298,7 +296,6 @@ generateNormalCall func args =
     Nothing ->
       List.foldl' (\f a -> JS.Call f [a]) func args
 
-{-# NOINLINE callHelpers #-}
 callHelpers :: IntMap.IntMap JS.Expr
 callHelpers =
   IntMap.fromList $
@@ -313,17 +310,7 @@ generateCoreCall mode (Opt.Global home@(ModuleName.Canonical _ moduleName) name)
     else
       if moduleName == Name.bitwise
         then generateBitwiseCall home name (map (generateJsExpr mode) args)
-        else
-          if moduleName == Name.jsArray
-            then generateJsArrayCall home name (map (generateJsExpr mode) args)
-            else generateGlobalCall home name (map (generateJsExpr mode) args)
-
-generateJsArrayCall :: ModuleName.Canonical -> Name.Name -> [JS.Expr] -> JS.Expr
-generateJsArrayCall home name args =
-  case args of
-    [entry] | name == "singleton" -> JS.Array [entry]
-    [index, array] | name == "unsafeGet" -> JS.Index array index
-    _ -> generateGlobalCall home name args
+        else generateGlobalCall home name (map (generateJsExpr mode) args)
 
 generateBitwiseCall :: ModuleName.Canonical -> Name.Name -> [JS.Expr] -> JS.Expr
 generateBitwiseCall home name args =

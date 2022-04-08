@@ -29,7 +29,6 @@ fromPtr :: Ptr Word8 -> Ptr Word8 -> Float
 fromPtr =
   Utf8.fromPtr
 
-{-# INLINE toBuilder #-}
 toBuilder :: Float -> B.Builder
 toBuilder =
   Utf8.toBuilder

@@ -69,7 +69,6 @@ toChars :: String -> [Char]
 toChars =
   Utf8.toChars
 
-{-# INLINE toBuilder #-}
 toBuilder :: String -> B.Builder
 toBuilder =
   Utf8.toBuilder

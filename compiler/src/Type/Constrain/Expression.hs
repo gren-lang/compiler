@@ -470,7 +470,6 @@ data Info = Info
     _headers :: Map.Map Name.Name (A.Located Type)
   }
 
-{-# NOINLINE emptyInfo #-}
 emptyInfo :: Info
 emptyInfo =
   Info [] [] Map.empty

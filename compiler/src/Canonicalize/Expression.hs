@@ -462,7 +462,6 @@ logVar name value =
   Result.Result $ \freeLocals warnings _ good ->
     good (Map.insertWith combineUses name oneDirectUse freeLocals) warnings value
 
-{-# NOINLINE oneDirectUse #-}
 oneDirectUse :: Uses
 oneDirectUse =
   Uses 1 0

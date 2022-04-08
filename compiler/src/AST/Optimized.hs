@@ -140,7 +140,6 @@ data EffectsType = Cmd | Sub | Fx
 
 -- GRAPHS
 
-{-# NOINLINE empty #-}
 empty :: GlobalGraph
 empty =
   GlobalGraph Map.empty Map.empty

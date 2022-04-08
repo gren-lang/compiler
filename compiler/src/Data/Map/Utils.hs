@@ -26,7 +26,6 @@ fromValues toKey values =
 
 -- ANY
 
-{-# INLINE any #-}
 any :: (v -> Bool) -> Map.Map k v -> Bool
 any isGood = go
   where

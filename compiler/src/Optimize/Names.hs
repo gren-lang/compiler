@@ -120,7 +120,6 @@ instance Functor Tracker where
        in kv n d f ok1
 
 instance Applicative Tracker where
-  {-# INLINE pure #-}
   pure value =
     Tracker $ \n d f ok -> ok n d f value
 

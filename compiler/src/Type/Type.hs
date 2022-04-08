@@ -145,7 +145,6 @@ getVarNamesMark :: Mark
 getVarNamesMark =
   Mark 0
 
-{-# INLINE nextMark #-}
 nextMark :: Mark -> Mark
 nextMark (Mark mark) =
   Mark (mark + 1)
@@ -154,34 +153,27 @@ nextMark (Mark mark) =
 
 infixr 9 ==>
 
-{-# INLINE (==>) #-}
 (==>) :: Type -> Type -> Type
 (==>) =
   FunN
 
 -- PRIMITIVE TYPES
 
-{-# NOINLINE int #-}
 int :: Type
 int = AppN ModuleName.basics "Int" []
 
-{-# NOINLINE float #-}
 float :: Type
 float = AppN ModuleName.basics "Float" []
 
-{-# NOINLINE char #-}
 char :: Type
 char = AppN ModuleName.char "Char" []
 
-{-# NOINLINE string #-}
 string :: Type
 string = AppN ModuleName.string "String" []
 
-{-# NOINLINE bool #-}
 bool :: Type
 bool = AppN ModuleName.basics "Bool" []
 
-{-# NOINLINE never #-}
 never :: Type
 never = AppN ModuleName.basics "Never" []
 
@@ -191,12 +183,10 @@ mkFlexVar :: IO Variable
 mkFlexVar =
   UF.fresh flexVarDescriptor
 
-{-# NOINLINE flexVarDescriptor #-}
 flexVarDescriptor :: Descriptor
 flexVarDescriptor =
   makeDescriptor unnamedFlexVar
 
-{-# NOINLINE unnamedFlexVar #-}
 unnamedFlexVar :: Content
 unnamedFlexVar =
   FlexVar Nothing
@@ -207,7 +197,6 @@ mkFlexNumber :: IO Variable
 mkFlexNumber =
   UF.fresh flexNumberDescriptor
 
-{-# NOINLINE flexNumberDescriptor #-}
 flexNumberDescriptor :: Descriptor
 flexNumberDescriptor =
   makeDescriptor (unnamedFlexSuper Number)
