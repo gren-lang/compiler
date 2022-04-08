@@ -332,7 +332,6 @@ data PRecord
   | PRecordIndentEnd Row Col
   | PRecordIndentField Row Col
 
-
 data PArray
   = PArrayOpen Row Col
   | PArrayEnd Row Col
@@ -368,7 +367,6 @@ data TRecord
   | TRecordIndentColon Row Col
   | TRecordIndentType Row Col
   | TRecordIndentEnd Row Col
-
 
 -- LITERALS
 
@@ -5422,7 +5420,6 @@ toUnfinishRecordPatternReport source row col startRow startCol message =
               ]
           )
 
-
 toPArrayReport :: Code.Source -> PContext -> PArray -> Row -> Col -> Report.Report
 toPArrayReport source context list startRow startCol =
   case list of
@@ -6028,4 +6025,3 @@ noteForRecordTypeIndentError =
         "Notice that each line starts with some indentation. Usually two or four spaces.\
         \ This is the stylistic convention in the Gren ecosystem."
     ]
-
