@@ -33,6 +33,7 @@ term =
       E.PStart
       [ record start,
         array start,
+        parenthesized,
         termHelp start
       ]
 
@@ -92,6 +93,18 @@ wildcard =
               else
                 let !newState = P.State src newPos end indent row newCol
                  in cok () newState
+
+-- PARENTHESIZED PATTERNS
+
+parenthesized :: Parser E.Pattern Src.Pattern
+parenthesized =
+  inContext E.PParenthesized (word1 0x28 {-(-} E.PStart) $
+    do
+      Space.chompAndCheckIndent E.PParenthesizedSpace E.PParenthesizedIndentPattern
+      (pattern, end) <- P.specialize E.PParenthesizedPattern expression
+      Space.checkIndent end E.PParenthesizedIndentEnd
+      word1 0x29 {-)-} E.PParenthesizedEnd
+      return pattern
 
 -- RECORDS
 

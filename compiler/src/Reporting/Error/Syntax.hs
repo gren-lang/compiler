@@ -27,6 +27,7 @@ module Reporting.Error.Syntax
     Destruct (..),
     --
     Pattern (..),
+    PParenthesized (..),
     PRecord (..),
     PArray (..),
     --
@@ -320,7 +321,8 @@ data Destruct
 -- PATTERNS
 
 data Pattern
-  = PRecord PRecord Row Col
+  = PParenthesized PParenthesized Row Col
+  | PRecord PRecord Row Col
   | PArray PArray Row Col
   | --
     PStart Row Col
@@ -334,6 +336,13 @@ data Pattern
   | --
     PIndentStart Row Col
   | PIndentAlias Row Col
+
+data PParenthesized
+  = PParenthesizedSpace Space Row Col
+  | PParenthesizedIndentPattern Row Col
+  | PParenthesizedPattern Pattern Row Col
+  | PParenthesizedIndentEnd Row Col
+  | PParenthesizedEnd Row Col
 
 data PRecord
   = PRecordOpen Row Col
@@ -5209,6 +5218,8 @@ toPatternReport source context pattern startRow startCol =
       toPRecordReport source context record row col
     PArray list row col ->
       toPArrayReport source context list row col
+    PParenthesized parenthesizedPattern row col ->
+      toPParenthesizedReport source context parenthesizedPattern row col
     PStart row col ->
       case Code.whatIsNext source row col of
         Code.Keyword keyword ->
@@ -5694,6 +5705,105 @@ toPArrayReport source context list startRow startCol =
                     D.toSimpleNote $
                       "I can get confused by indentation in cases like this, so\
                       \ maybe there is more to this pattern but it is not indented enough?"
+                  ]
+              )
+
+toPParenthesizedReport :: Code.Source -> PContext -> PParenthesized -> Row -> Col -> Report.Report
+toPParenthesizedReport source context parenthesizedPattern startRow startCol =
+  case parenthesizedPattern of
+    PParenthesizedEnd row col ->
+      case Code.whatIsNext source row col of
+        Code.Keyword keyword ->
+          let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+              region = toKeywordRegion row col keyword
+           in Report.Report "RESERVED WORD" region [] $
+                Code.toSnippet source surroundings (Just region) $
+                  ( D.reflow $
+                      "I ran into a reserved word in this pattern:",
+                    D.reflow $
+                      "The `" ++ keyword ++ "` keyword is reserved. Try using a different name instead!"
+                  )
+        Code.Operator op ->
+          let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+              region = toKeywordRegion row col op
+           in Report.Report "UNEXPECTED SYMBOL" region [] $
+                Code.toSnippet source surroundings (Just region) $
+                  ( D.reflow $
+                      "I ran into the " ++ op ++ " symbol unexpectedly in this pattern:",
+                    D.reflow $
+                      "Symbols don't work in patterns."
+                  )
+        Code.Close term bracket ->
+          let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+              region = toRegion row col
+           in Report.Report ("STRAY " ++ map Char.toUpper term) region [] $
+                Code.toSnippet source surroundings (Just region) $
+                  ( D.reflow $
+                      "I ran into a an unexpected " ++ term ++ " in this pattern:",
+                    D.reflow $
+                      "This " ++ bracket : " does not match up with an earlier open " ++ term ++ ". Try deleting it?"
+                  )
+        _ ->
+          let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+              region = toRegion row col
+           in Report.Report "UNFINISHED PARENTHESES" region [] $
+                Code.toSnippet source surroundings (Just region) $
+                  ( D.reflow $
+                      "I was partway through parsing a pattern, but I got stuck here:",
+                    D.fillSep
+                      [ "I",
+                        "was",
+                        "expecting",
+                        "a",
+                        "closing",
+                        "parenthesis",
+                        "next,",
+                        "so",
+                        "try",
+                        "adding",
+                        "a",
+                        D.dullyellow ")",
+                        "to",
+                        "see",
+                        "if",
+                        "that",
+                        "helps?"
+                      ]
+                  )
+    PParenthesizedPattern pattern row col ->
+      toPatternReport source context pattern row col
+    PParenthesizedSpace space row col ->
+      toSpaceReport source space row col
+    PParenthesizedIndentEnd row col ->
+      let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+          region = toRegion row col
+       in Report.Report "UNFINISHED PARENTHESES" region [] $
+            Code.toSnippet source surroundings (Just region) $
+              ( D.reflow $
+                  "I was expecting a closing parenthesis next:",
+                D.stack
+                  [ D.fillSep ["Try", "adding", "a", D.dullyellow ")", "to", "see", "if", "that", "helps?"],
+                    D.toSimpleNote $
+                      "I can get confused by indentation in cases like this, so\
+                      \ maybe you have a closing parenthesis but it is not indented enough?"
+                  ]
+              )
+    PParenthesizedIndentPattern row col ->
+      let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+          region = toRegion row col
+       in Report.Report "UNFINISHED PARENTHESES" region [] $
+            Code.toSnippet source surroundings (Just region) $
+              ( D.reflow $
+                  "I just saw an open parenthesis, but then I got stuck here:",
+                D.fillSep
+                  [ "I",
+                    "was",
+                    "expecting",
+                    "to",
+                    "see",
+                    "a",
+                    "pattern",
+                    "next."
                   ]
               )
 
