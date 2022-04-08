@@ -37,7 +37,7 @@ Executable gren
     if flag(dev)
         ghc-options: -O0 -Wall -Werror
     else
-        ghc-options: -O2 -rtsopts -threaded "-with-rtsopts=-N -qg -A128m"
+        ghc-options: -O2 -threaded "-with-rtsopts=-N"
 
     Hs-Source-Dirs:
         compiler/src
