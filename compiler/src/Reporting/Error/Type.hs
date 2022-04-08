@@ -86,8 +86,6 @@ data Category
   | Accessor Name.Name
   | Access Name.Name
   | Record
-  | Unit
-  | Shader
   | Effects
   | Local Name.Name
   | Foreign Name.Name
@@ -106,7 +104,6 @@ data PContext
 
 data PCategory
   = PRecord
-  | PUnit
   | PArray
   | PCtor Name.Name
   | PInt
@@ -264,7 +261,6 @@ addPatternCategory iAmTryingToMatch category =
   iAmTryingToMatch
     <> case category of
       PRecord -> " record values of type:"
-      PUnit -> " unit values:"
       PArray -> " arrays of type:"
       PCtor name -> " `" <> Name.toChars name <> "` values of type:"
       PInt -> " integers:"
@@ -314,8 +310,6 @@ addCategory thisIs category =
     Char -> thisIs <> " a character of type:"
     Lambda -> thisIs <> " an anonymous function of type:"
     Record -> thisIs <> " a record of type:"
-    Unit -> thisIs <> " a unit value:"
-    Shader -> thisIs <> " a GLSL shader of type:"
     Effects -> thisIs <> " a thing for CORE LIBRARIES ONLY."
     CallResult maybeName ->
       case maybeName of

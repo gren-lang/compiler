@@ -39,6 +39,14 @@ term =
         do
           var <- Var.lower E.TStart
           addEnd start (Src.TVar var),
+        -- parenthesis
+        inContext E.TParenthesis (word1 0x28 {-(-} E.TStart) $
+          do
+            Space.chompAndCheckIndent E.TParenthesisSpace E.TParenthesisIndentOpen
+            (tipe, end) <- specialize E.TParenthesisType expression
+            Space.checkIndent end E.TParenthesisIndentEnd
+            word1 0x29 {-)-} E.TParenthesisEnd
+            return tipe,
         -- records
         inContext E.TRecord (word1 0x7B {- { -} E.TStart) $
           do
