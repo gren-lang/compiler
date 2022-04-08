@@ -204,8 +204,6 @@ data Expr
   | String String Row Col
   | Number Number Row Col
   | Space Space Row Col
-  | EndlessShader Row Col
-  | ShaderProblem [Char.Char] Row Col
   | IndentOperatorRight Name.Name Row Col
 
 data Record
@@ -2764,33 +2762,6 @@ toExprReport source context expr startRow startCol =
       toNumberReport source number row col
     Space space row col ->
       toSpaceReport source space row col
-    EndlessShader row col ->
-      let region = toWiderRegion row col 6
-       in Report.Report "ENDLESS SHADER" region [] $
-            Code.toSnippet
-              source
-              region
-              Nothing
-              ( D.reflow "I cannot find the end of this shader:",
-                D.reflow "Add a |] somewhere after this to end the shader."
-              )
-    ShaderProblem problem row col ->
-      let region = toRegion row col
-       in Report.Report "SHADER PROBLEM" region [] $
-            Code.toSnippet
-              source
-              region
-              Nothing
-              ( D.reflow $
-                  "I ran into a problem while parsing this GLSL block.",
-                D.stack
-                  [ D.reflow $
-                      "I use a 3rd party GLSL parser for now, and I did my best to extract their error message:",
-                    D.indent 4 $
-                      D.vcat $
-                        map D.fromChars (filter (/= "") (lines problem))
-                  ]
-              )
     IndentOperatorRight op row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
