@@ -2564,8 +2564,8 @@ toExprReport source context expr startRow startCol =
       toIfReport source context if_ row col
     Parenthesized parenthesizedExpr row col ->
       toParenthesizedReport source context parenthesizedExpr row col
-    Array list row col ->
-      toArrayReport source context list row col
+    Array array row col ->
+      toArrayReport source context array row col
     Record record row col ->
       toRecordReport source context record row col
     Func func row col ->
@@ -2706,7 +2706,7 @@ toExprReport source context expr startRow startCol =
               InDef name r c -> (r, c, "the `" ++ Name.toChars name ++ "` definition")
               InNode NRecord r c _ -> (r, c, "a record")
               InNode NParens r c _ -> (r, c, "some parentheses")
-              InNode NArray r c _ -> (r, c, "a list")
+              InNode NArray r c _ -> (r, c, "an array")
               InNode NFunc r c _ -> (r, c, "an anonymous function")
               InNode NCond r c _ -> (r, c, "an `if` expression")
               InNode NThen r c _ -> (r, c, "an `if` expression")
@@ -4792,20 +4792,20 @@ toParenthesizedReport source context parenthesized startRow startCol =
               )
 
 toArrayReport :: Code.Source -> Context -> Array -> Row -> Col -> Report.Report
-toArrayReport source context list startRow startCol =
-  case list of
+toArrayReport source context array startRow startCol =
+  case array of
     ArraySpace space row col ->
       toSpaceReport source space row col
     ArrayOpen row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
-       in Report.Report "UNFINISHED LIST" region [] $
+       in Report.Report "UNFINISHED ARRAY" region [] $
             Code.toSnippet
               source
               surroundings
               (Just region)
               ( D.reflow $
-                  "I am partway through parsing a list, but I got stuck here:",
+                  "I am partway through parsing an array, but I got stuck here:",
                 D.stack
                   [ D.fillSep
                       [ "I",
@@ -4840,18 +4840,18 @@ toArrayReport source context list startRow startCol =
         Start r c ->
           let surroundings = A.Region (A.Position startRow startCol) (A.Position r c)
               region = toRegion r c
-           in Report.Report "UNFINISHED LIST" region [] $
+           in Report.Report "UNFINISHED ARRAY" region [] $
                 Code.toSnippet
                   source
                   surroundings
                   (Just region)
                   ( D.reflow $
-                      "I was expecting to see another list entry after that last comma:",
+                      "I was expecting to see another array entry after that last comma:",
                     D.stack
                       [ D.reflow $
-                          "Trailing commas are not allowed in lists, so the fix may be to delete the comma?",
+                          "Trailing commas are not allowed in arrays, so the fix may be to delete the comma?",
                         D.toSimpleNote
-                          "I recommend using the following format for lists that span multiple lines:",
+                          "I recommend using the following format for arrays that span multiple lines:",
                         D.indent 4 $
                           D.vcat $
                             [ "[ " <> D.dullyellow "\"Alice\"",
@@ -4869,13 +4869,13 @@ toArrayReport source context list startRow startCol =
     ArrayEnd row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
-       in Report.Report "UNFINISHED LIST" region [] $
+       in Report.Report "UNFINISHED ARRAY" region [] $
             Code.toSnippet
               source
               surroundings
               (Just region)
               ( D.reflow $
-                  "I am partway through parsing a list, but I got stuck here:",
+                  "I am partway through parsing an array, but I got stuck here:",
                 D.stack
                   [ D.fillSep
                       [ "I",
@@ -4908,13 +4908,13 @@ toArrayReport source context list startRow startCol =
     ArrayIndentOpen row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
-       in Report.Report "UNFINISHED LIST" region [] $
+       in Report.Report "UNFINISHED ARRAY" region [] $
             Code.toSnippet
               source
               surroundings
               (Just region)
               ( D.reflow $
-                  "I cannot find the end of this list:",
+                  "I cannot find the end of this array:",
                 D.stack
                   [ D.fillSep $
                       [ "You",
@@ -4945,7 +4945,7 @@ toArrayReport source context list startRow startCol =
                         "elements",
                         "of",
                         "the",
-                        "list",
+                        "array",
                         "are",
                         "separated",
                         "by",
@@ -4953,7 +4953,7 @@ toArrayReport source context list startRow startCol =
                       ],
                     D.toSimpleNote
                       "I may be confused by indentation. For example, if you are trying to define\
-                      \ a list across multiple lines, I recommend using this format:",
+                      \ an array across multiple lines, I recommend using this format:",
                     D.indent 4 $
                       D.vcat $
                         [ "[ " <> D.dullyellow "\"Alice\"",
@@ -4969,13 +4969,13 @@ toArrayReport source context list startRow startCol =
     ArrayIndentEnd row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
-       in Report.Report "UNFINISHED LIST" region [] $
+       in Report.Report "UNFINISHED ARRAY" region [] $
             Code.toSnippet
               source
               surroundings
               (Just region)
               ( D.reflow $
-                  "I cannot find the end of this list:",
+                  "I cannot find the end of this array:",
                 D.stack
                   [ D.fillSep $
                       [ "You",
@@ -4996,7 +4996,7 @@ toArrayReport source context list startRow startCol =
                       ],
                     D.toSimpleNote
                       "I may be confused by indentation. For example, if you are trying to define\
-                      \ a list across multiple lines, I recommend using this format:",
+                      \ an array across multiple lines, I recommend using this format:",
                     D.indent 4 $
                       D.vcat $
                         [ "[ " <> D.dullyellow "\"Alice\"",
@@ -5012,18 +5012,18 @@ toArrayReport source context list startRow startCol =
     ArrayIndentExpr row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
-       in Report.Report "UNFINISHED LIST" region [] $
+       in Report.Report "UNFINISHED ARRAY" region [] $
             Code.toSnippet
               source
               surroundings
               (Just region)
               ( D.reflow $
-                  "I was expecting to see another list entry after this comma:",
+                  "I was expecting to see another array entry after this comma:",
                 D.stack
                   [ D.reflow $
-                      "Trailing commas are not allowed in lists, so the fix may be to delete the comma?",
+                      "Trailing commas are not allowed in arrays, so the fix may be to delete the comma?",
                     D.toSimpleNote
-                      "I recommend using the following format for lists that span multiple lines:",
+                      "I recommend using the following format for arrays that span multiple lines:",
                     D.indent 4 $
                       D.vcat $
                         [ "[ " <> D.dullyellow "\"Alice\"",
@@ -5216,8 +5216,8 @@ toPatternReport source context pattern startRow startCol =
   case pattern of
     PRecord record row col ->
       toPRecordReport source context record row col
-    PArray list row col ->
-      toPArrayReport source context list row col
+    PArray array row col ->
+      toPArrayReport source context array row col
     PParenthesized parenthesizedPattern row col ->
       toPParenthesizedReport source context parenthesizedPattern row col
     PStart row col ->
@@ -5625,8 +5625,8 @@ toUnfinishRecordPatternReport source row col startRow startCol message =
           )
 
 toPArrayReport :: Code.Source -> PContext -> PArray -> Row -> Col -> Report.Report
-toPArrayReport source context list startRow startCol =
-  case list of
+toPArrayReport source context array startRow startCol =
+  case array of
     PArrayOpen row col ->
       case Code.whatIsNext source row col of
         Code.Keyword keyword ->
@@ -5638,14 +5638,14 @@ toPArrayReport source context list startRow startCol =
                   surroundings
                   (Just region)
                   ( D.reflow $
-                      "It looks like you are trying to use `" ++ keyword ++ "` to name an element of a list:",
+                      "It looks like you are trying to use `" ++ keyword ++ "` to name an element of an array:",
                     D.reflow $
                       "This is a reserved word though! Try using some other name?"
                   )
         _ ->
           let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
               region = toRegion row col
-           in Report.Report "UNFINISHED LIST PATTERN" region [] $
+           in Report.Report "UNFINISHED ARRAY PATTERN" region [] $
                 Code.toSnippet source surroundings (Just region) $
                   ( D.reflow $
                       "I just saw an open square bracket, but then I got stuck here:",
@@ -5654,10 +5654,10 @@ toPArrayReport source context list startRow startCol =
     PArrayEnd row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
-       in Report.Report "UNFINISHED LIST PATTERN" region [] $
+       in Report.Report "UNFINISHED ARRAY PATTERN" region [] $
             Code.toSnippet source surroundings (Just region) $
               ( D.reflow $
-                  "I was expecting a closing square bracket to end this list pattern:",
+                  "I was expecting a closing square bracket to end this array pattern:",
                 D.fillSep ["Try", "adding", "a", D.dullyellow "]", "to", "see", "if", "that", "helps?"]
               )
     PArrayExpr pattern row col ->
@@ -5667,7 +5667,7 @@ toPArrayReport source context list startRow startCol =
     PArrayIndentOpen row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
-       in Report.Report "UNFINISHED LIST PATTERN" region [] $
+       in Report.Report "UNFINISHED ARRAY PATTERN" region [] $
             Code.toSnippet source surroundings (Just region) $
               ( D.reflow $
                   "I just saw an open square bracket, but then I got stuck here:",
@@ -5681,10 +5681,10 @@ toPArrayReport source context list startRow startCol =
     PArrayIndentEnd row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
-       in Report.Report "UNFINISHED LIST PATTERN" region [] $
+       in Report.Report "UNFINISHED ARRAY PATTERN" region [] $
             Code.toSnippet source surroundings (Just region) $
               ( D.reflow $
-                  "I was expecting a closing square bracket to end this list pattern:",
+                  "I was expecting a closing square bracket to end this array pattern:",
                 D.stack
                   [ D.fillSep ["Try", "adding", "a", D.dullyellow "]", "to", "see", "if", "that", "helps?"],
                     D.toSimpleNote $
@@ -5695,10 +5695,10 @@ toPArrayReport source context list startRow startCol =
     PArrayIndentExpr row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
-       in Report.Report "UNFINISHED LIST PATTERN" region [] $
+       in Report.Report "UNFINISHED ARRAY PATTERN" region [] $
             Code.toSnippet source surroundings (Just region) $
               ( D.reflow $
-                  "I am partway through parsing a list pattern, but I got stuck here:",
+                  "I am partway through parsing an array pattern, but I got stuck here:",
                 D.stack
                   [ D.reflow $
                       "I was expecting to see another pattern next. Maybe a variable name.",
@@ -6332,8 +6332,8 @@ noteForRecordTypeIndentError =
     ]
 
 toTParenthesisReport :: Code.Source -> TContext -> TParenthesis -> Row -> Col -> Report.Report
-toTParenthesisReport source context tuple startRow startCol =
-  case tuple of
+toTParenthesisReport source context parenthesizedType startRow startCol =
+  case parenthesizedType of
     TParenthesisEnd row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
