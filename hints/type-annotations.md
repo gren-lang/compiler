@@ -10,15 +10,15 @@ This document is going to outline the various things that can go wrong and show 
 The most common issue is with user-defined type variables that are too general. So let's say you have defined a function like this:
 
 ```gren
-addPair : (a, a) -> a
-addPair (x, y) =
+addPair : a -> a -> a
+addPair x y =
   x + y
 ```
 
-The issue is that the type annotation is saying "I will accept a tuple containing literally *anything*" but the definition is using `(+)` which requires things to be numbers. So the compiler is going to infer that the true type of the definition is this:
+The issue is that the type annotation is saying "I will accept two parameters that can be literally *anything*" but the definition is using `(+)` which requires things to be numbers. So the compiler is going to infer that the true type of the definition is this:
 
 ```gren
-addPair : (number, number) -> number
+addPair : number -> number -> -> number
 ```
 
 So you will probably see an error saying "I cannot match `a` with `number`" which is essentially saying, you are trying to provide a type annotation that is **too general**. You are saying `addPair` accepts anything, but in fact, it can only handle numbers.
@@ -31,8 +31,8 @@ In cases like this, you want to go with whatever the compiler inferred. It is go
 It is also possible to have a type annotation that clashes with itself. This is probably more rare, but someone will run into it eventually. Let's use another version of `addPair` with problems:
 
 ```gren
-addPair : (Int, Int) -> number
-addPair (x, y) =
+addPair : Int -> Int -> number
+addPair x y =
   x + y
 ```
 

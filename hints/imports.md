@@ -109,7 +109,6 @@ import List exposing (List, (::))
 import Maybe exposing (Maybe(..))
 import Result exposing (Result(..))
 import String
-import Tuple
 
 import Debug
 

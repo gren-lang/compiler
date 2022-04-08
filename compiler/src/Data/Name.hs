@@ -39,7 +39,6 @@ module Data.Name
     result,
     array,
     dict,
-    tuple,
     jsArray,
     task,
     router,
@@ -425,10 +424,6 @@ array = fromChars "Array"
 {-# NOINLINE dict #-}
 dict :: Name
 dict = fromChars "Dict"
-
-{-# NOINLINE tuple #-}
-tuple :: Name
-tuple = fromChars "Tuple"
 
 {-# NOINLINE jsArray #-}
 jsArray :: Name

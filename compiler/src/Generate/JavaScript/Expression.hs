@@ -314,23 +314,9 @@ generateCoreCall mode (Opt.Global home@(ModuleName.Canonical _ moduleName) name)
       if moduleName == Name.bitwise
         then generateBitwiseCall home name (map (generateJsExpr mode) args)
         else
-          if moduleName == Name.tuple
-            then generateTupleCall home name (map (generateJsExpr mode) args)
-            else
-              if moduleName == Name.jsArray
-                then generateJsArrayCall home name (map (generateJsExpr mode) args)
-                else generateGlobalCall home name (map (generateJsExpr mode) args)
-
-generateTupleCall :: ModuleName.Canonical -> Name.Name -> [JS.Expr] -> JS.Expr
-generateTupleCall home name args =
-  case args of
-    [value] ->
-      case name of
-        "first" -> JS.Access value (JsName.fromLocal "a")
-        "second" -> JS.Access value (JsName.fromLocal "b")
-        _ -> generateGlobalCall home name args
-    _ ->
-      generateGlobalCall home name args
+          if moduleName == Name.jsArray
+            then generateJsArrayCall home name (map (generateJsExpr mode) args)
+            else generateGlobalCall home name (map (generateJsExpr mode) args)
 
 generateJsArrayCall :: ModuleName.Canonical -> Name.Name -> [JS.Expr] -> JS.Expr
 generateJsArrayCall home name args =

@@ -97,7 +97,7 @@ toReport localizer source err =
                       D.indent 4 $
                         D.reflow $
                           "Ints, Floats, Bools, Strings, Maybes, Lists, Arrays,\
-                          \ tuples, records, and JSON values.",
+                          \ records, and JSON values.",
                       D.reflow $
                         "Since JSON values can flow through, you can use JSON encoders and decoders\
                         \ to allow other types through as well. More advanced users often just do\

@@ -20,7 +20,6 @@ module Gren.ModuleName
     result,
     array,
     dict,
-    tuple,
     platform,
     cmd,
     sub,
@@ -161,10 +160,6 @@ array = Canonical Pkg.core Name.array
 {-# NOINLINE dict #-}
 dict :: Canonical
 dict = Canonical Pkg.core Name.dict
-
-{-# NOINLINE tuple #-}
-tuple :: Canonical
-tuple = Canonical Pkg.core Name.tuple
 
 {-# NOINLINE platform #-}
 platform :: Canonical
