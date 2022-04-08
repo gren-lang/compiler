@@ -40,13 +40,6 @@ fromSrcType freeVars sourceType =
               fromSrcType freeVars realType
             Can.Holey realType ->
               fromSrcType (Map.fromList targs) realType
-    Can.TTuple a b maybeC ->
-      TupleN
-        <$> fromSrcType freeVars a
-        <*> fromSrcType freeVars b
-        <*> traverse (fromSrcType freeVars) maybeC
-    Can.TUnit ->
-      return UnitN
     Can.TRecord fields maybeExt ->
       RecordN
         <$> traverse (fromSrcFieldType freeVars) fields

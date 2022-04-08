@@ -120,25 +120,6 @@ canonicalize env (A.At region expression) =
         do
           fieldDict <- Dups.checkFields fields
           Can.Record <$> traverse (canonicalize env) fieldDict
-      Src.Unit ->
-        Result.ok Can.Unit
-      Src.Tuple a b cs ->
-        Can.Tuple
-          <$> canonicalize env a
-          <*> canonicalize env b
-          <*> canonicalizeTupleExtras region env cs
-
--- CANONICALIZE TUPLE EXTRAS
-
-canonicalizeTupleExtras :: A.Region -> Env.Env -> [Src.Expr] -> Result FreeLocals [W.Warning] (Maybe Can.Expr)
-canonicalizeTupleExtras region env extras =
-  case extras of
-    [] ->
-      Result.ok Nothing
-    [three] ->
-      Just <$> canonicalize env three
-    _ ->
-      Result.throw (Error.TupleLargerThanThree region)
 
 -- CANONICALIZE IF BRANCH
 
@@ -262,10 +243,6 @@ addBindingsHelp bindings (A.At region pattern) =
       Dups.insert name region region bindings
     Src.PRecord fields ->
       List.foldl' addBindingsHelp bindings (map extractRecordFieldPattern fields)
-    Src.PUnit ->
-      bindings
-    Src.PTuple a b cs ->
-      List.foldl' addBindingsHelp bindings (a : b : cs)
     Src.PCtor _ _ patterns ->
       List.foldl' addBindingsHelp bindings patterns
     Src.PCtorQual _ _ _ patterns ->
@@ -377,8 +354,6 @@ getPatternNames names (A.At region pattern) =
     Src.PRecord fields ->
       List.foldl' (\n f -> getPatternNames n (extractRecordFieldPattern f)) names fields
     Src.PAlias ptrn name -> getPatternNames (name : names) ptrn
-    Src.PUnit -> names
-    Src.PTuple a b cs -> List.foldl' getPatternNames (getPatternNames (getPatternNames names a) b) cs
     Src.PCtor _ _ args -> List.foldl' getPatternNames names args
     Src.PCtorQual _ _ _ args -> List.foldl' getPatternNames names args
     Src.PArray patterns -> List.foldl' getPatternNames names patterns

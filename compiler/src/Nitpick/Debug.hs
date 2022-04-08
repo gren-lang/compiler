@@ -54,8 +54,6 @@ hasDebug expression =
     Opt.Access r _ -> hasDebug r
     Opt.Update r fs -> hasDebug r || any hasDebug fs
     Opt.Record fs -> any hasDebug fs
-    Opt.Unit -> False
-    Opt.Tuple a b c -> hasDebug a || hasDebug b || maybe False hasDebug c
 
 defHasDebug :: Opt.Def -> Bool
 defHasDebug def =

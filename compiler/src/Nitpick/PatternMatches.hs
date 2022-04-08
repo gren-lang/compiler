@@ -18,7 +18,6 @@ http://moscova.inria.fr/~maranget/papers/warn/warn.pdf
 -}
 
 import qualified AST.Canonical as Can
-import qualified Data.Index as Index
 import qualified Data.List as List
 import Data.Map (Map)
 import qualified Data.Map as Map
@@ -56,12 +55,6 @@ simplify (A.At _ pattern) =
       Anything
     Can.PRecord fields ->
       Record $ List.foldl' insertRecordField Map.empty fields
-    Can.PUnit ->
-      Ctor unit unitName []
-    Can.PTuple a b Nothing ->
-      Ctor pair pairName [simplify a, simplify b]
-    Can.PTuple a b (Just c) ->
-      Ctor triple tripleName [simplify a, simplify b, simplify c]
     Can.PCtor _ _ union name _ args ->
       Ctor union name $
         map (\(Can.PatternCtorArg _ _ arg) -> simplify arg) args
@@ -81,41 +74,6 @@ simplify (A.At _ pattern) =
 insertRecordField :: Map Name.Name Pattern -> Can.PatternRecordField -> Map Name.Name Pattern
 insertRecordField fields (A.At _ (Can.PRFieldPattern name pattern)) =
   Map.insert name (simplify pattern) fields
-
--- BUILT-IN UNIONS
-
-{-# NOINLINE unit #-}
-unit :: Can.Union
-unit =
-  let ctor =
-        Can.Ctor unitName Index.first 0 []
-   in Can.Union [] [ctor] 1 Can.Normal
-
-{-# NOINLINE pair #-}
-pair :: Can.Union
-pair =
-  let ctor =
-        Can.Ctor pairName Index.first 2 [Can.TVar "a", Can.TVar "b"]
-   in Can.Union ["a", "b"] [ctor] 1 Can.Normal
-
-{-# NOINLINE triple #-}
-triple :: Can.Union
-triple =
-  let ctor =
-        Can.Ctor tripleName Index.first 3 [Can.TVar "a", Can.TVar "b", Can.TVar "c"]
-   in Can.Union ["a", "b", "c"] [ctor] 1 Can.Normal
-
-{-# NOINLINE unitName #-}
-unitName :: Name.Name
-unitName = "#0"
-
-{-# NOINLINE pairName #-}
-pairName :: Name.Name
-pairName = "#2"
-
-{-# NOINLINE tripleName #-}
-tripleName :: Name.Name
-tripleName = "#3"
 
 -- ERROR
 
@@ -225,16 +183,6 @@ checkExpr (A.At region expression) errors =
       checkExpr record $ Map.foldr checkField errors fields
     Can.Record fields ->
       Map.foldr checkExpr errors fields
-    Can.Unit ->
-      errors
-    Can.Tuple a b maybeC ->
-      checkExpr a $
-        checkExpr b $
-          case maybeC of
-            Nothing ->
-              errors
-            Just c ->
-              checkExpr c errors
 
 -- CHECK FIELD
 

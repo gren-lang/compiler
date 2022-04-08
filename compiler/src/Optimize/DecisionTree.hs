@@ -64,7 +64,6 @@ data Test
   = IsCtor ModuleName.Canonical Name.Name Index.ZeroBased Int Can.CtorOpts
   | IsArray Int
   | IsRecord
-  | IsTuple
   | IsInt Int
   | IsChr ES.String
   | IsStr ES.String
@@ -121,8 +120,6 @@ isComplete tests =
       False
     IsRecord ->
       True
-    IsTuple ->
-      True
     IsChr _ ->
       False
     IsStr _ ->
@@ -155,16 +152,6 @@ flatten pathPattern@(path, A.At region pattern) otherPathPatterns =
           args ->
             foldr flatten otherPathPatterns (subPositions path args)
         else pathPattern : otherPathPatterns
-    Can.PTuple a b maybeC ->
-      flatten (Index Index.first path, a) $
-        flatten (Index Index.second path, b) $
-          case maybeC of
-            Nothing ->
-              otherPathPatterns
-            Just c ->
-              flatten (Index Index.third path, c) otherPathPatterns
-    Can.PUnit ->
-      otherPathPatterns
     Can.PAlias realPattern alias ->
       flatten (path, realPattern) $
         (path, A.At region (Can.PVar alias)) : otherPathPatterns
@@ -259,10 +246,6 @@ testAtPath selectedPath (Branch _ pathPatterns) =
           Just $ IsArray $ List.length elements
         Can.PRecord _ ->
           Just IsRecord
-        Can.PTuple _ _ _ ->
-          Just IsTuple
-        Can.PUnit ->
-          Just IsTuple
         Can.PVar _ ->
           Nothing
         Can.PAnything ->
@@ -345,10 +328,6 @@ toRelevantBranch test path branch@(Branch goal pathPatterns) =
                   Just (Branch goal (start ++ end))
             _ ->
               Nothing
-        Can.PUnit ->
-          Just (Branch goal (start ++ end))
-        Can.PTuple a b maybeC ->
-          Just (Branch goal (start ++ subPositions path (a : b : Maybe.maybeToList maybeC) ++ end))
         Can.PVar _ ->
           Just branch
         Can.PAnything ->
@@ -394,8 +373,6 @@ needsTests (A.At _ pattern) =
     Can.PCtor _ _ _ _ _ _ -> True
     Can.PArray _ -> True
     Can.PRecord _ -> True
-    Can.PUnit -> True
-    Can.PTuple _ _ _ -> True
     Can.PChr _ -> True
     Can.PStr _ -> True
     Can.PInt _ -> True
@@ -460,11 +437,10 @@ instance Binary Test where
       IsCtor a b c d e -> putWord8 0 >> put a >> put b >> put c >> put d >> put e
       IsArray a -> putWord8 1 >> put a
       IsRecord -> putWord8 2
-      IsTuple -> putWord8 3
-      IsChr a -> putWord8 4 >> put a
-      IsStr a -> putWord8 5 >> put a
-      IsInt a -> putWord8 6 >> put a
-      IsBool a -> putWord8 7 >> put a
+      IsChr a -> putWord8 3 >> put a
+      IsStr a -> putWord8 4 >> put a
+      IsInt a -> putWord8 5 >> put a
+      IsBool a -> putWord8 6 >> put a
 
   get =
     do
@@ -473,11 +449,10 @@ instance Binary Test where
         0 -> liftM5 IsCtor get get get get get
         1 -> liftM IsArray get
         2 -> pure IsRecord
-        3 -> pure IsTuple
-        4 -> liftM IsChr get
-        5 -> liftM IsStr get
-        6 -> liftM IsInt get
-        7 -> liftM IsBool get
+        3 -> liftM IsChr get
+        4 -> liftM IsStr get
+        5 -> liftM IsInt get
+        6 -> liftM IsBool get
         _ -> fail "problem getting DecisionTree.Test binary"
 
 instance Binary Path where

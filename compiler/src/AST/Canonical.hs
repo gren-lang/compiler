@@ -100,8 +100,6 @@ data Expr_
   | Access Expr (A.Located Name)
   | Update Name Expr (Map.Map Name FieldUpdate)
   | Record (Map.Map Name Expr)
-  | Unit
-  | Tuple Expr Expr (Maybe Expr)
 
 data CaseBranch
   = CaseBranch Pattern Expr
@@ -132,8 +130,6 @@ data Pattern_
   | PVar Name
   | PRecord [PatternRecordField]
   | PAlias Pattern Name
-  | PUnit
-  | PTuple Pattern Pattern (Maybe Pattern)
   | PArray [Pattern]
   | PBool Union Bool
   | PChr ES.String
@@ -175,8 +171,6 @@ data Type
   | TVar Name
   | TType ModuleName.Canonical Name [Type]
   | TRecord (Map.Map Name FieldType) (Maybe Name)
-  | TUnit
-  | TTuple Type Type (Maybe Type)
   | TAlias ModuleName.Canonical Name [(Name, Type)] AliasType
   deriving (Eq)
 
@@ -307,18 +301,16 @@ instance Binary Type where
       TLambda a b -> putWord8 0 >> put a >> put b
       TVar a -> putWord8 1 >> put a
       TRecord a b -> putWord8 2 >> put a >> put b
-      TUnit -> putWord8 3
-      TTuple a b c -> putWord8 4 >> put a >> put b >> put c
-      TAlias a b c d -> putWord8 5 >> put a >> put b >> put c >> put d
+      TAlias a b c d -> putWord8 3 >> put a >> put b >> put c >> put d
       TType home name ts ->
-        let potentialWord = length ts + 7
+        let potentialWord = length ts + 5
          in if potentialWord <= fromIntegral (maxBound :: Word8)
               then do
                 putWord8 (fromIntegral potentialWord)
                 put home
                 put name
                 mapM_ put ts
-              else putWord8 6 >> put home >> put name >> put ts
+              else putWord8 4 >> put home >> put name >> put ts
 
   get =
     do
@@ -327,11 +319,9 @@ instance Binary Type where
         0 -> liftM2 TLambda get get
         1 -> liftM TVar get
         2 -> liftM2 TRecord get get
-        3 -> return TUnit
-        4 -> liftM3 TTuple get get get
-        5 -> liftM4 TAlias get get get get
-        6 -> liftM3 TType get get get
-        n -> liftM3 TType get get (replicateM (fromIntegral (n - 7)) get)
+        3 -> liftM4 TAlias get get get get
+        4 -> liftM3 TType get get get
+        n -> liftM3 TType get get (replicateM (fromIntegral (n - 5)) get)
 
 instance Binary AliasType where
   put aliasType =

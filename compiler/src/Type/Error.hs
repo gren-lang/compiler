@@ -20,7 +20,6 @@ where
 
 import qualified Data.Bag as Bag
 import qualified Data.Map as Map
-import qualified Data.Maybe as Maybe
 import qualified Data.Name as Name
 import qualified Gren.ModuleName as ModuleName
 import qualified Reporting.Doc as D
@@ -39,8 +38,6 @@ data Type
   | RigidSuper Super Name.Name
   | Type ModuleName.Canonical Name.Name [Type]
   | Record (Map.Map Name.Name Type) Extension
-  | Unit
-  | Tuple Type Type (Maybe Type)
   | Alias ModuleName.Canonical Name.Name [(Name.Name, Type)] Type
 
 data Super
@@ -93,13 +90,6 @@ toDoc localizer ctx tipe =
         (map (toDoc localizer RT.App) args)
     Record fields ext ->
       RT.record (fieldsToDocs localizer fields) (extToDoc ext)
-    Unit ->
-      "()"
-    Tuple a b maybeC ->
-      RT.tuple
-        (toDoc localizer RT.None a)
-        (toDoc localizer RT.None b)
-        (map (toDoc localizer RT.None) (Maybe.maybeToList maybeC))
     Alias home name args _ ->
       aliasToDoc localizer ctx home name args
 
@@ -189,7 +179,6 @@ toComparison localizer tipe1 tipe2 =
 toDiff :: L.Localizer -> RT.Context -> Type -> Type -> Diff D.Doc
 toDiff localizer ctx tipe1 tipe2 =
   case (tipe1, tipe2) of
-    (Unit, Unit) -> same localizer ctx tipe1
     (Error, Error) -> same localizer ctx tipe1
     (Infinite, Infinite) -> same localizer ctx tipe1
     (FlexVar x, FlexVar y) | x == y -> same localizer ctx tipe1
@@ -213,16 +202,6 @@ toDiff localizer ctx tipe1 tipe2 =
                 (D.dullyellow (RT.lambda ctx (f a) (f b) (map f cs)))
                 (D.dullyellow (RT.lambda ctx (f x) (f y) (map f zs)))
                 (Bag.one (ArityMismatch (2 + length cs) (2 + length zs)))
-    (Tuple a b Nothing, Tuple x y Nothing) ->
-      RT.tuple
-        <$> toDiff localizer RT.None a x
-        <*> toDiff localizer RT.None b y
-        <*> pure []
-    (Tuple a b (Just c), Tuple x y (Just z)) ->
-      RT.tuple
-        <$> toDiff localizer RT.None a x
-        <*> toDiff localizer RT.None b y
-        <*> ((: []) <$> toDiff localizer RT.None c z)
     (Record fields1 ext1, Record fields2 ext2) ->
       diffRecord localizer fields1 ext1 fields2 ext2
     (Type home1 name1 args1, Type home2 name2 args2)
@@ -371,12 +350,6 @@ isSuper super tipe =
         Comparable -> isInt h n || isFloat h n || isString h n || isChar h n || isArray h n && isSuper super (head args)
         Appendable -> isString h n || isArray h n
         CompAppend -> isString h n || isArray h n && isSuper Comparable (head args)
-    Tuple a b maybeC ->
-      case super of
-        Number -> False
-        Comparable -> isSuper super a && isSuper super b && maybe True (isSuper super) maybeC
-        Appendable -> False
-        CompAppend -> False
     _ ->
       False
 

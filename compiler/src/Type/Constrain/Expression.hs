@@ -117,10 +117,6 @@ constrain rtv (A.At region expression) expected =
       constrainUpdate rtv region name expr fields expected
     Can.Record fields ->
       constrainRecord rtv region fields expected
-    Can.Unit ->
-      return $ CEqual region Unit UnitN expected
-    Can.Tuple a b maybeC ->
-      constrainTuple rtv region a b maybeC expected
 
 -- CONSTRAIN LAMBDA
 
@@ -392,37 +388,6 @@ constrainUpdateField rtv region field (Can.FieldUpdate _ expr) =
     let tipe = VarN var
     con <- constrain rtv expr (FromContext region (RecordUpdateValue field) tipe)
     return (var, tipe, con)
-
--- CONSTRAIN TUPLE
-
-constrainTuple :: RTV -> A.Region -> Can.Expr -> Can.Expr -> Maybe Can.Expr -> Expected Type -> IO Constraint
-constrainTuple rtv region a b maybeC expected =
-  do
-    aVar <- mkFlexVar
-    bVar <- mkFlexVar
-    let aType = VarN aVar
-    let bType = VarN bVar
-
-    aCon <- constrain rtv a (NoExpectation aType)
-    bCon <- constrain rtv b (NoExpectation bType)
-
-    case maybeC of
-      Nothing ->
-        do
-          let tupleType = TupleN aType bType Nothing
-          let tupleCon = CEqual region Tuple tupleType expected
-          return $ exists [aVar, bVar] $ CAnd [aCon, bCon, tupleCon]
-      Just c ->
-        do
-          cVar <- mkFlexVar
-          let cType = VarN cVar
-
-          cCon <- constrain rtv c (NoExpectation cType)
-
-          let tupleType = TupleN aType bType (Just cType)
-          let tupleCon = CEqual region Tuple tupleType expected
-
-          return $ exists [aVar, bVar, cVar] $ CAnd [aCon, bCon, cCon, tupleCon]
 
 -- CONSTRAIN DESTRUCTURES
 

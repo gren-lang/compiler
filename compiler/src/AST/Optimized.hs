@@ -64,8 +64,6 @@ data Expr
   | Access Expr Name
   | Update Expr (Map.Map Name Expr)
   | Record (Map.Map Name Expr)
-  | Unit
-  | Tuple Expr Expr (Maybe Expr)
 
 data Global = Global ModuleName.Canonical Name
 
@@ -232,8 +230,6 @@ instance Binary Expr where
       Access a b -> putWord8 21 >> put a >> put b
       Update a b -> putWord8 22 >> put a >> put b
       Record a -> putWord8 23 >> put a
-      Unit -> putWord8 24
-      Tuple a b c -> putWord8 25 >> put a >> put b >> put c
 
   get =
     do
@@ -263,8 +259,6 @@ instance Binary Expr where
         21 -> liftM2 Access get get
         22 -> liftM2 Update get get
         23 -> liftM Record get
-        24 -> pure Unit
-        25 -> liftM3 Tuple get get get
         _ -> fail "problem getting Opt.Expr binary"
 
 instance Binary Def where

@@ -34,7 +34,6 @@ term =
         number start,
         array start,
         record start >>= accessible start,
-        tuple start >>= accessible start,
         accessor start,
         character start
       ]
@@ -117,75 +116,6 @@ chompArrayEnd start entries =
       do
         word1 0x5D {-]-} E.ArrayEnd
         addEnd start (Src.Array (reverse entries))
-    ]
-
--- TUPLES
-
-tuple :: A.Position -> Parser E.Expr Src.Expr
-tuple start@(A.Position row col) =
-  inContext E.Tuple (word1 0x28 {-(-} E.Start) $
-    do
-      before <- getPosition
-      Space.chompAndCheckIndent E.TupleSpace E.TupleIndentExpr1
-      after <- getPosition
-      if before /= after
-        then do
-          (entry, end) <- specialize E.TupleExpr expression
-          Space.checkIndent end E.TupleIndentEnd
-          chompTupleEnd start entry []
-        else
-          oneOf
-            E.TupleIndentExpr1
-            [ do
-                op <- Symbol.operator E.TupleIndentExpr1 E.TupleOperatorReserved
-                if op == "-"
-                  then
-                    oneOf
-                      E.TupleOperatorClose
-                      [ do
-                          word1 0x29 {-)-} E.TupleOperatorClose
-                          addEnd start (Src.Op op),
-                        do
-                          (entry, end) <-
-                            specialize E.TupleExpr $
-                              do
-                                negatedExpr@(A.At (A.Region _ end) _) <- term
-                                Space.chomp E.Space
-                                let exprStart = A.Position row (col + 2)
-                                let expr = A.at exprStart end (Src.Negate negatedExpr)
-                                chompExprEnd exprStart (State [] expr [] end)
-                          Space.checkIndent end E.TupleIndentEnd
-                          chompTupleEnd start entry []
-                      ]
-                  else do
-                    word1 0x29 {-)-} E.TupleOperatorClose
-                    addEnd start (Src.Op op),
-              do
-                word1 0x29 {-)-} E.TupleIndentExpr1
-                addEnd start Src.Unit,
-              do
-                (entry, end) <- specialize E.TupleExpr expression
-                Space.checkIndent end E.TupleIndentEnd
-                chompTupleEnd start entry []
-            ]
-
-chompTupleEnd :: A.Position -> Src.Expr -> [Src.Expr] -> Parser E.Tuple Src.Expr
-chompTupleEnd start firstExpr revExprs =
-  oneOf
-    E.TupleEnd
-    [ do
-        word1 0x2C {-,-} E.TupleEnd
-        Space.chompAndCheckIndent E.TupleSpace E.TupleIndentExprN
-        (entry, end) <- specialize E.TupleExpr expression
-        Space.checkIndent end E.TupleIndentEnd
-        chompTupleEnd start firstExpr (entry : revExprs),
-      do
-        word1 0x29 {-)-} E.TupleEnd
-        case reverse revExprs of
-          [] ->
-            return firstExpr
-          secondExpr : otherExprs ->
-            addEnd start (Src.Tuple firstExpr secondExpr otherExprs)
     ]
 
 -- RECORDS

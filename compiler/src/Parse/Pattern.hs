@@ -32,7 +32,6 @@ term =
     oneOf
       E.PStart
       [ record start,
-        tuple start,
         array start,
         termHelp start
       ]
@@ -147,43 +146,6 @@ recordContinuationHelp start revPatterns =
       do
         word1 0x7D {-}-} E.PRecordEnd
         addEnd start (Src.PRecord (reverse revPatterns))
-    ]
-
--- TUPLES
-
-tuple :: A.Position -> Parser E.Pattern Src.Pattern
-tuple start =
-  inContext E.PTuple (word1 0x28 {-(-} E.PStart) $
-    do
-      Space.chompAndCheckIndent E.PTupleSpace E.PTupleIndentExpr1
-      oneOf
-        E.PTupleOpen
-        [ do
-            (pattern, end) <- P.specialize E.PTupleExpr expression
-            Space.checkIndent end E.PTupleIndentEnd
-            tupleHelp start pattern [],
-          do
-            word1 0x29 {-)-} E.PTupleEnd
-            addEnd start Src.PUnit
-        ]
-
-tupleHelp :: A.Position -> Src.Pattern -> [Src.Pattern] -> Parser E.PTuple Src.Pattern
-tupleHelp start firstPattern revPatterns =
-  oneOf
-    E.PTupleEnd
-    [ do
-        word1 0x2C {-,-} E.PTupleEnd
-        Space.chompAndCheckIndent E.PTupleSpace E.PTupleIndentExprN
-        (pattern, end) <- P.specialize E.PTupleExpr expression
-        Space.checkIndent end E.PTupleIndentEnd
-        tupleHelp start firstPattern (pattern : revPatterns),
-      do
-        word1 0x29 {-)-} E.PTupleEnd
-        case reverse revPatterns of
-          [] ->
-            return firstPattern
-          secondPattern : otherPatterns ->
-            addEnd start (Src.PTuple firstPattern secondPattern otherPatterns)
     ]
 
 -- ARRAY

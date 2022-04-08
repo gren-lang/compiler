@@ -79,8 +79,6 @@ data FlatType
   | Fun1 Variable Variable
   | EmptyRecord1
   | Record1 (Map.Map Name.Name Variable) Variable
-  | Unit1
-  | Tuple1 Variable Variable (Maybe Variable)
 
 data Type
   = PlaceHolder Name.Name
@@ -90,8 +88,6 @@ data Type
   | FunN Type Type
   | EmptyRecordN
   | RecordN (Map.Map Name.Name Type) Type
-  | UnitN
-  | TupleN Type Type (Maybe Type)
 
 -- DESCRIPTORS
 
@@ -319,13 +315,6 @@ termToCanType term =
               Can.TRecord canFields (Just name)
             _ ->
               error "Used toAnnotation on a type that is not well-formed"
-    Unit1 ->
-      return Can.TUnit
-    Tuple1 a b maybeC ->
-      Can.TTuple
-        <$> variableToCanType a
-        <*> variableToCanType b
-        <*> traverse variableToCanType maybeC
 
 fieldToCanType :: Variable -> StateT NameState IO Can.FieldType
 fieldToCanType variable =
@@ -428,13 +417,6 @@ termToErrorType term =
               ET.Record errFields (ET.RigidOpen ext)
             _ ->
               error "Used toErrorType on a type that is not well-formed"
-    Unit1 ->
-      return ET.Unit
-    Tuple1 a b maybeC ->
-      ET.Tuple
-        <$> variableToErrorType a
-        <*> variableToErrorType b
-        <*> traverse variableToErrorType maybeC
 
 -- MANAGE FRESH VARIABLE NAMES
 
@@ -543,12 +525,6 @@ getVarNames var takenNames =
               Record1 fields extension ->
                 getVarNames extension
                   =<< foldrM getVarNames takenNames (Map.elems fields)
-              Unit1 ->
-                return takenNames
-              Tuple1 a b Nothing ->
-                getVarNames a =<< getVarNames b takenNames
-              Tuple1 a b (Just c) ->
-                getVarNames a =<< getVarNames b =<< getVarNames c takenNames
 
 -- REGISTER NAME / RENAME DUPLICATES
 

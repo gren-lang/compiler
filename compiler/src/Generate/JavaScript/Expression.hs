@@ -117,28 +117,6 @@ generate mode expression =
           ]
     Opt.Record fields ->
       JsExpr $ generateRecord mode fields
-    Opt.Unit ->
-      case mode of
-        Mode.Dev _ ->
-          JsExpr $ JS.Ref (JsName.fromKernel Name.utils "Tuple0")
-        Mode.Prod _ ->
-          JsExpr $ JS.Int 0
-    Opt.Tuple a b maybeC ->
-      JsExpr $
-        case maybeC of
-          Nothing ->
-            JS.Call
-              (JS.Ref (JsName.fromKernel Name.utils "Tuple2"))
-              [ generateJsExpr mode a,
-                generateJsExpr mode b
-              ]
-          Just c ->
-            JS.Call
-              (JS.Ref (JsName.fromKernel Name.utils "Tuple3"))
-              [ generateJsExpr mode a,
-                generateJsExpr mode b,
-                generateJsExpr mode c
-              ]
 
 -- CODE CHUNKS
 
@@ -710,8 +688,6 @@ generateIfTest mode root (path, test) =
             (JS.Int len)
         DT.IsRecord ->
           error "COMPILER BUG - there should never be tests on a record"
-        DT.IsTuple ->
-          error "COMPILER BUG - there should never be tests on a tuple"
 
 generateCaseBranch :: Mode.Mode -> Name.Name -> Name.Name -> (DT.Test, Opt.Decider Opt.Choice) -> JS.Case
 generateCaseBranch mode label root (test, subTree) =
@@ -738,8 +714,6 @@ generateCaseValue mode test =
       error "COMPILER BUG - there should never be three tests on a boolean"
     DT.IsRecord ->
       error "COMPILER BUG - there should never be three tests on a record"
-    DT.IsTuple ->
-      error "COMPILER BUG - there should never be three tests on a tuple"
 
 generateCaseTest :: Mode.Mode -> Name.Name -> DT.Path -> DT.Test -> JS.Expr
 generateCaseTest mode root path exampleTest =
@@ -775,8 +749,6 @@ generateCaseTest mode root path exampleTest =
           error "COMPILER BUG - there should never be three tests on a list"
         DT.IsRecord ->
           error "COMPILER BUG - there should never be three tests on a record"
-        DT.IsTuple ->
-          error "COMPILER BUG - there should never be three tests on a tuple"
 
 -- PATTERN PATHS
 

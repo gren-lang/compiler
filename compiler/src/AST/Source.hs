@@ -62,8 +62,6 @@ data Expr_
   | Access Expr (A.Located Name)
   | Update (A.Located Name) [(A.Located Name, Expr)]
   | Record [(A.Located Name, Expr)]
-  | Unit
-  | Tuple Expr Expr [Expr]
 
 data VarType = LowVar | CapVar
 
@@ -82,8 +80,6 @@ data Pattern_
   | PVar Name
   | PRecord [RecordFieldPattern]
   | PAlias Pattern (A.Located Name)
-  | PUnit
-  | PTuple Pattern Pattern [Pattern]
   | PCtor A.Region Name [Pattern]
   | PCtorQual A.Region Name Name [Pattern]
   | PArray [Pattern]
@@ -106,8 +102,6 @@ data Type_
   | TType A.Region Name [Type]
   | TTypeQual A.Region Name Name [Type]
   | TRecord [(A.Located Name, Type)] (Maybe (A.Located Name))
-  | TUnit
-  | TTuple Type Type [Type]
 
 -- MODULE
 

@@ -149,16 +149,6 @@ diffType oldType newType =
           diffFields fields fields'
         (Just oldExt, Just newExt) ->
           (:) (oldExt, newExt) <$> diffFields fields fields'
-    (Type.Unit, Type.Unit) ->
-      Just []
-    (Type.Tuple a b cs, Type.Tuple x y zs) ->
-      if length cs /= length zs
-        then Nothing
-        else do
-          aVars <- diffType a x
-          bVars <- diffType b y
-          cVars <- concat <$> zipWithM diffType cs zs
-          return (aVars ++ bVars ++ cVars)
     (_, _) ->
       Nothing
 
