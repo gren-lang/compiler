@@ -32,6 +32,7 @@ term =
       [ variable start >>= accessible start,
         string start,
         number start,
+        parenthesizedExpr start >>= accessible start,
         array start,
         record start >>= accessible start,
         accessor start,
@@ -58,6 +59,44 @@ number start =
       case nmbr of
         Number.Int int -> Src.Int int
         Number.Float float -> Src.Float float
+
+parenthesizedExpr :: A.Position -> Parser E.Expr Src.Expr
+parenthesizedExpr start@(A.Position row col) =
+  inContext E.Parenthesized (word1 0x28 {-(-} E.Start) $
+    do
+      Space.chompAndCheckIndent E.ParenthesizedSpace E.ParenthesizedIndentOpen
+      oneOf
+        E.ParenthesizedOpen
+        [ do
+            op <- Symbol.operator E.ParenthesizedOpen E.ParenthesizedOperatorReserved
+            if op == "-"
+              then
+                oneOf
+                  E.ParenthesizedOperatorClose
+                  [ do
+                      word1 0x29 {-)-} E.ParenthesizedOperatorClose
+                      addEnd start (Src.Op op),
+                    do
+                      (expr, end) <-
+                        specialize E.ParenthesizedExpr $
+                          do
+                            negatedExpr@(A.At (A.Region _ end) _) <- term
+                            Space.chomp E.Space
+                            let exprStart = A.Position row (col + 2)
+                            let expr = A.at exprStart end (Src.Negate negatedExpr)
+                            chompExprEnd exprStart (State [] expr [] end)
+                      Space.checkIndent end E.ParenthesizedIndentEnd
+                      word1 0x29 {-)-} E.ParenthesizedOperatorClose
+                      return expr
+                  ]
+              else do
+                word1 0x29 {-)-} E.ParenthesizedOperatorClose
+                addEnd start (Src.Op op),
+          do
+            (expr, _) <- specialize E.ParenthesizedExpr expression
+            word1 0x29 {-)-} E.ParenthesizedEnd
+            return expr
+        ]
 
 accessor :: A.Position -> Parser E.Expr Src.Expr
 accessor start =
