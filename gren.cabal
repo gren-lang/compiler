@@ -68,6 +68,7 @@ Executable gren
         Terminal.Internal
 
         -- from builder/
+        AbsoluteSrcDir
         Build
         BackgroundWriter
         Deps.Diff
