@@ -8,6 +8,7 @@ where
 import qualified Bump
 import qualified Data.List as List
 import qualified Diff
+import qualified Format
 import qualified Gren.Version as V
 import qualified Init
 import qualified Install
@@ -30,6 +31,7 @@ main =
       init,
       make,
       install,
+      format,
       bump,
       diff,
       publish
@@ -247,6 +249,22 @@ diff =
             require3 Diff.GlobalInquiry package version version
           ]
    in Terminal.Command "diff" Uncommon details example diffArgs noFlags Diff.run
+
+-- FORMAT
+
+format :: Terminal.Command
+format =
+  let details =
+        "The `format` command rewrites .gren files to use Gren's preferred style:"
+
+      example =
+        reflow "If no files or directories are given, all .gren files in all source and test directories will be formatted."
+
+      formatFlags =
+        flags Format.Flags
+          |-- onOff "yes" "Assume yes for all interactive prompts."
+          |-- onOff "stdin" "Format stdin and write it to stdout."
+   in Terminal.Command "format" Uncommon details example (zeroOrMore grenFileOrDirectory) formatFlags Format.run
 
 -- HELPERS
 

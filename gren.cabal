@@ -54,6 +54,7 @@ Executable gren
     other-modules:
         Bump
         Diff
+        Format
         Init
         Install
         Make
@@ -68,6 +69,7 @@ Executable gren
         Terminal.Internal
 
         -- from builder/
+        AbsoluteSrcDir
         Build
         BackgroundWriter
         Deps.Diff

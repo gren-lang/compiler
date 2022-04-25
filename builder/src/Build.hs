@@ -20,6 +20,8 @@ where
 import qualified AST.Canonical as Can
 import qualified AST.Optimized as Opt
 import qualified AST.Source as Src
+import AbsoluteSrcDir (AbsoluteSrcDir (..))
+import qualified AbsoluteSrcDir
 import qualified Compile
 import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar
@@ -75,30 +77,12 @@ makeEnv key root (Details.Details _ validOutline buildID locals foreigns _) =
   case validOutline of
     Details.ValidApp givenSrcDirs ->
       do
-        srcDirs <- traverse (toAbsoluteSrcDir root) (NE.toList givenSrcDirs)
+        srcDirs <- traverse (Outline.toAbsoluteSrcDir root) (NE.toList givenSrcDirs)
         return $ Env key root Parse.Application srcDirs buildID locals foreigns
     Details.ValidPkg pkg _ _ ->
       do
-        srcDir <- toAbsoluteSrcDir root (Outline.RelativeSrcDir "src")
+        srcDir <- Outline.toAbsoluteSrcDir root (Outline.RelativeSrcDir "src")
         return $ Env key root (Parse.Package pkg) [srcDir] buildID locals foreigns
-
--- SOURCE DIRECTORY
-
-newtype AbsoluteSrcDir
-  = AbsoluteSrcDir FilePath
-
-toAbsoluteSrcDir :: FilePath -> Outline.SrcDir -> IO AbsoluteSrcDir
-toAbsoluteSrcDir root srcDir =
-  AbsoluteSrcDir
-    <$> Dir.canonicalizePath
-      ( case srcDir of
-          Outline.AbsoluteSrcDir dir -> dir
-          Outline.RelativeSrcDir dir -> root </> dir
-      )
-
-addRelative :: AbsoluteSrcDir -> FilePath -> FilePath
-addRelative (AbsoluteSrcDir srcDir) path =
-  srcDir </> path
 
 -- FORK
 
@@ -242,7 +226,7 @@ crawlModule env@(Env _ root projectType srcDirs buildID locals foreigns) mvar do
   do
     let fileName = ModuleName.toFilePath name <.> "gren"
 
-    paths <- filterM File.exists (map (`addRelative` fileName) srcDirs)
+    paths <- filterM File.exists (map (`AbsoluteSrcDir.addRelative` fileName) srcDirs)
 
     case paths of
       [path] ->
@@ -899,8 +883,8 @@ getRootInfoHelp (Env _ _ _ srcDirs _ _ _) path absolutePath =
                     case matchingDirs of
                       d1 : d2 : _ ->
                         do
-                          let p1 = addRelative d1 (FP.joinPath names <.> "gren")
-                          let p2 = addRelative d2 (FP.joinPath names <.> "gren")
+                          let p1 = AbsoluteSrcDir.addRelative d1 (FP.joinPath names <.> "gren")
+                          let p2 = AbsoluteSrcDir.addRelative d2 (FP.joinPath names <.> "gren")
                           return $ Left $ Exit.BP_RootNameDuplicate name p1 p2
                       _ ->
                         return $ Right $ RootInfo absolutePath path (LInside name)
@@ -911,7 +895,7 @@ getRootInfoHelp (Env _ _ _ srcDirs _ _ _) path absolutePath =
 
 isInsideSrcDirByName :: [String] -> AbsoluteSrcDir -> IO Bool
 isInsideSrcDirByName names srcDir =
-  File.exists (addRelative srcDir (FP.joinPath names <.> "gren"))
+  File.exists (AbsoluteSrcDir.addRelative srcDir (FP.joinPath names <.> "gren"))
 
 isInsideSrcDirByPath :: [String] -> AbsoluteSrcDir -> Maybe (FilePath, Either [String] [String])
 isInsideSrcDirByPath segments (AbsoluteSrcDir srcDir) =

@@ -14,9 +14,14 @@ module Gren.Outline
     decoder,
     defaultSummary,
     flattenExposed,
+    toAbsoluteSrcDir,
+    sourceDirs,
+    testDirs,
   )
 where
 
+import AbsoluteSrcDir (AbsoluteSrcDir)
+import qualified AbsoluteSrcDir
 import Control.Monad (filterM, liftM)
 import Data.Binary (Binary, get, getWord8, put, putWord8)
 import qualified Data.Map as Map
@@ -204,6 +209,10 @@ toAbsolute root srcDir =
     AbsoluteSrcDir dir -> dir
     RelativeSrcDir dir -> root </> dir
 
+toAbsoluteSrcDir :: FilePath -> SrcDir -> IO AbsoluteSrcDir
+toAbsoluteSrcDir root srcDir =
+  AbsoluteSrcDir.fromFilePath (toAbsolute root srcDir)
+
 detectDuplicates :: FilePath -> [SrcDir] -> IO (Maybe (FilePath, (FilePath, FilePath)))
 detectDuplicates root srcDirs =
   do
@@ -224,6 +233,18 @@ isDup paths =
   case paths of
     OneOrMore.One _ -> Nothing
     OneOrMore.More a b -> Just (OneOrMore.getFirstTwo a b)
+
+sourceDirs :: Outline -> NE.List SrcDir
+sourceDirs outline =
+  case outline of
+    App (AppOutline _ srcDirs _ _ _ _) ->
+      srcDirs
+    Pkg _ ->
+      NE.singleton (RelativeSrcDir "src")
+
+testDirs :: Outline -> NE.List SrcDir
+testDirs _ =
+  NE.singleton (RelativeSrcDir "tests")
 
 -- JSON DECODE
 
