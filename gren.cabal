@@ -54,6 +54,7 @@ Executable gren
     other-modules:
         Bump
         Diff
+        Format
         Init
         Install
         Make

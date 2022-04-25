@@ -17,6 +17,8 @@ module Reporting.Exit
     installToReport,
     Reactor (..),
     reactorToReport,
+    Format (..),
+    formatToReport,
     newPackageOverview,
     --
     Solver (..),
@@ -2448,3 +2450,45 @@ replToReport problem =
       corruptCacheReport
     ReplBlocked ->
       corruptCacheReport
+
+-- FORMAT
+
+data Format
+  = FormatPathUnknown FilePath
+  | FormatStdinWithFiles
+  | FormatNoOutline
+  | FormatBadOutline Outline
+
+formatToReport :: Format -> Help.Report
+formatToReport problem =
+  case problem of
+    FormatPathUnknown path ->
+      Help.report
+        "FILE NOT FOUND"
+        Nothing
+        "I cannot find this file:"
+        [ D.indent 4 $ D.red $ D.fromChars path,
+          D.reflow $ "Is there a typo?",
+          D.toSimpleNote $
+            "If you are just getting started, try working through the examples in the\
+            \ official guide https://guide.gren-lang.org to get an idea of the kinds of things\
+            \ that typically go in a src/Main.gren file."
+        ]
+    FormatStdinWithFiles ->
+      Help.report
+        "INCOMPATIBLE FLAGS"
+        Nothing
+        "Files and stdin cannot be formatted at the same time."
+        [ D.reflow "You'll need to run `gren format` two separate times if you want to do both."
+        ]
+    FormatNoOutline ->
+      Help.report
+        "FORMAT WHAT?"
+        Nothing
+        "I cannot find a gren.json so I am not sure what you want me to format.\
+        \ Normally you run `gren format` from within a project!"
+        [ D.reflow $ "If you need to format gren files outside of a project, tell me which files or directories to format:",
+          D.indent 4 $ D.green $ "gren format Example.gren"
+        ]
+    FormatBadOutline outline ->
+      toOutlineReport outline

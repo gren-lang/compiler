@@ -3,6 +3,7 @@
 module Terminal.Helpers
   ( version,
     grenFile,
+    grenFileOrDirectory,
     package,
   )
 where
@@ -71,6 +72,18 @@ parseGrenFile chars =
 exampleGrenFiles :: String -> IO [String]
 exampleGrenFiles _ =
   return ["Main.gren", "src/Main.gren"]
+
+-- GREN FILE OR DIRECTORY
+
+grenFileOrDirectory :: Parser FilePath
+grenFileOrDirectory =
+  Parser
+    { _singular = "gren file or directory",
+      _plural = "gren files and/or directories",
+      _parser = Just,
+      _suggest = \_ -> return [],
+      _examples = \_ -> return ["Main.gren", "src/Examples/"]
+    }
 
 -- PACKAGE
 
