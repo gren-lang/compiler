@@ -211,7 +211,7 @@ toAbsolute root srcDir =
 
 toAbsoluteSrcDir :: FilePath -> SrcDir -> IO AbsoluteSrcDir
 toAbsoluteSrcDir root srcDir =
-  AbsoluteSrcDir.mkAbsoluteSrcDir (toAbsolute root srcDir)
+  AbsoluteSrcDir.fromFilePath (toAbsolute root srcDir)
 
 detectDuplicates :: FilePath -> [SrcDir] -> IO (Maybe (FilePath, (FilePath, FilePath)))
 detectDuplicates root srcDirs =

@@ -1,6 +1,6 @@
 module AbsoluteSrcDir
   ( AbsoluteSrcDir (..),
-    mkAbsoluteSrcDir,
+    fromFilePath,
     addRelative,
     toFilePath,
   )
@@ -15,8 +15,8 @@ newtype AbsoluteSrcDir
 toFilePath :: AbsoluteSrcDir -> FilePath
 toFilePath (AbsoluteSrcDir path) = path
 
-mkAbsoluteSrcDir :: FilePath -> IO AbsoluteSrcDir
-mkAbsoluteSrcDir srcDir =
+fromFilePath :: FilePath -> IO AbsoluteSrcDir
+fromFilePath srcDir =
   AbsoluteSrcDir
     <$> Dir.canonicalizePath srcDir
 
