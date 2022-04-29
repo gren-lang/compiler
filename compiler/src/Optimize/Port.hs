@@ -36,6 +36,7 @@ toEncoder tipe =
           | name == Name.int -> encode "int"
           | name == Name.bool -> encode "bool"
           | name == Name.string -> encode "string"
+          | name == Name.unit -> encode "null"
           | name == Name.value -> Names.registerGlobal ModuleName.basics Name.identity
         [arg]
           | name == Name.maybe -> encodeMaybe arg
@@ -104,6 +105,7 @@ toDecoder tipe =
           | name == Name.int -> decode "int"
           | name == Name.bool -> decode "bool"
           | name == Name.string -> decode "string"
+          | name == Name.unit -> decodeUnit
           | name == Name.value -> decode "value"
         [arg]
           | name == Name.maybe -> decodeMaybe arg
@@ -114,6 +116,16 @@ toDecoder tipe =
       error "toDecoder: bad record"
     Can.TRecord fields Nothing ->
       decodeRecord fields
+
+
+-- DECODE UNIT
+
+decodeUnit :: Names.Tracker Opt.Expr
+decodeUnit =
+  do  null <- decode "null"
+      unit <- Names.registerGlobal ModuleName.basics Name.unit
+      return (Opt.Call null [ unit ])
+
 
 -- DECODE MAYBE
 
