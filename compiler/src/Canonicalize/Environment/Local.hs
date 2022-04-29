@@ -228,7 +228,7 @@ canonicalizeAlias env (A.At _ (Src.Alias (A.At _ name) args tipe)) =
     let vars = map A.toValue args
     ctipe <- Type.canonicalize env tipe
     Result.ok
-      ( (name, Can.Alias vars ctipe), Dups.none )
+      ((name, Can.Alias vars ctipe), Dups.none)
 
 -- CANONICALIZE UNION
 

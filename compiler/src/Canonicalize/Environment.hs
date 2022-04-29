@@ -91,12 +91,12 @@ data Type
 -- CTORS
 
 data Ctor = Ctor
-      { _c_home :: ModuleName.Canonical,
-        _c_type :: Name.Name,
-        _c_union :: Can.Union,
-        _c_index :: Index.ZeroBased,
-        _c_args :: [Can.Type]
-      }
+  { _c_home :: ModuleName.Canonical,
+    _c_type :: Name.Name,
+    _c_union :: Can.Union,
+    _c_index :: Index.ZeroBased,
+    _c_args :: [Can.Type]
+  }
 
 -- BINOPS
 

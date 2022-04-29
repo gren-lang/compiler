@@ -138,7 +138,7 @@ aliasToType home name alias =
 
 aliasToTypeHelp :: ModuleName.Canonical -> Name.Name -> Can.Alias -> (Env.Type, Env.Exposed Env.Ctor)
 aliasToTypeHelp home _ (Can.Alias vars tipe) =
-  ( Env.Alias (length vars) home vars tipe, Map.empty )
+  (Env.Alias (length vars) home vars tipe, Map.empty)
 
 -- BINOP
 

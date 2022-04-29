@@ -63,7 +63,6 @@ addCtorNode home opts nodes (Can.Ctor name index numArgs _) =
           Can.Enum -> Opt.Enum index
    in Map.insert (Opt.Global home name) node nodes
 
-
 -- ADD EFFECTS
 
 addEffects :: ModuleName.Canonical -> Can.Effects -> Opt.LocalGraph -> Opt.LocalGraph
