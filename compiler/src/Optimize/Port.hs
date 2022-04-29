@@ -122,9 +122,9 @@ toDecoder tipe =
 decodeUnit :: Names.Tracker Opt.Expr
 decodeUnit =
   do
-    null <- decode "null"
+    succeed <- decode "succeed"
     unit <- Names.registerGlobal ModuleName.basics Name.unit
-    return (Opt.Call null [unit])
+    return (Opt.Call succeed [unit])
 
 -- DECODE MAYBE
 
