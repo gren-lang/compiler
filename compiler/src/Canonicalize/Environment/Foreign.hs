@@ -137,20 +137,8 @@ aliasToType home name alias =
   aliasToTypeHelp home name <$> I.toPublicAlias alias
 
 aliasToTypeHelp :: ModuleName.Canonical -> Name.Name -> Can.Alias -> (Env.Type, Env.Exposed Env.Ctor)
-aliasToTypeHelp home name (Can.Alias vars tipe) =
-  ( Env.Alias (length vars) home vars tipe,
-    case tipe of
-      Can.TRecord fields Nothing ->
-        let avars = map (\var -> (var, Can.TVar var)) vars
-            alias =
-              foldr
-                (\(_, t1) t2 -> Can.TLambda t1 t2)
-                (Can.TAlias home name avars (Can.Filled tipe))
-                (Can.fieldsToList fields)
-         in Map.singleton name (Env.Specific home (Env.RecordCtor home vars alias))
-      _ ->
-        Map.empty
-  )
+aliasToTypeHelp home _ (Can.Alias vars tipe) =
+  (Env.Alias (length vars) home vars tipe, Map.empty)
 
 -- BINOP
 
@@ -228,7 +216,5 @@ checkForCtorMistake givenName types =
         else case info of
           Env.Specific _ (Env.Ctor _ tipeName _ _ _) ->
             tipeName : matches
-          Env.Specific _ (Env.RecordCtor _ _ _) ->
-            matches
           Env.Ambiguous _ _ ->
             matches

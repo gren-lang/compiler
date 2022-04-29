@@ -35,12 +35,11 @@ type Annotations =
   Map.Map Name.Name Can.Annotation
 
 optimize :: Annotations -> Can.Module -> Result i [W.Warning] Opt.LocalGraph
-optimize annotations (Can.Module home _ _ decls unions aliases _ effects) =
+optimize annotations (Can.Module home _ _ decls unions _ _ effects) =
   addDecls home annotations decls $
     addEffects home effects $
       addUnions home unions $
-        addAliases home aliases $
-          Opt.LocalGraph Nothing Map.empty Map.empty
+        Opt.LocalGraph Nothing Map.empty Map.empty
 
 -- UNION
 
@@ -63,34 +62,6 @@ addCtorNode home opts nodes (Can.Ctor name index numArgs _) =
           Can.Unbox -> Opt.Box
           Can.Enum -> Opt.Enum index
    in Map.insert (Opt.Global home name) node nodes
-
--- ALIAS
-
-addAliases :: ModuleName.Canonical -> Map.Map Name.Name Can.Alias -> Opt.LocalGraph -> Opt.LocalGraph
-addAliases home aliases graph =
-  Map.foldrWithKey (addAlias home) graph aliases
-
-addAlias :: ModuleName.Canonical -> Name.Name -> Can.Alias -> Opt.LocalGraph -> Opt.LocalGraph
-addAlias home name (Can.Alias _ tipe) graph@(Opt.LocalGraph main nodes fieldCounts) =
-  case tipe of
-    Can.TRecord fields Nothing ->
-      let function =
-            Opt.Function (map fst (Can.fieldsToList fields)) $
-              Opt.Record $
-                Map.mapWithKey (\field _ -> Opt.VarLocal field) fields
-
-          node =
-            Opt.Define function Set.empty
-       in Opt.LocalGraph
-            main
-            (Map.insert (Opt.Global home name) node nodes)
-            (Map.foldrWithKey addRecordCtorField fieldCounts fields)
-    _ ->
-      graph
-
-addRecordCtorField :: Name.Name -> Can.FieldType -> Map.Map Name.Name Int -> Map.Map Name.Name Int
-addRecordCtorField name _ fields =
-  Map.insertWith (+) name 1 fields
 
 -- ADD EFFECTS
 

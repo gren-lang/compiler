@@ -90,15 +90,13 @@ data Type
 
 -- CTORS
 
-data Ctor
-  = RecordCtor ModuleName.Canonical [Name.Name] Can.Type
-  | Ctor
-      { _c_home :: ModuleName.Canonical,
-        _c_type :: Name.Name,
-        _c_union :: Can.Union,
-        _c_index :: Index.ZeroBased,
-        _c_args :: [Can.Type]
-      }
+data Ctor = Ctor
+  { _c_home :: ModuleName.Canonical,
+    _c_type :: Name.Name,
+    _c_union :: Can.Union,
+    _c_index :: Index.ZeroBased,
+    _c_args :: [Can.Type]
+  }
 
 -- BINOPS
 
