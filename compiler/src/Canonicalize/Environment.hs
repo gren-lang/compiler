@@ -90,9 +90,7 @@ data Type
 
 -- CTORS
 
-data Ctor
-  = RecordCtor ModuleName.Canonical [Name.Name] Can.Type
-  | Ctor
+data Ctor = Ctor
       { _c_home :: ModuleName.Canonical,
         _c_type :: Name.Name,
         _c_union :: Can.Union,

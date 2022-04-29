@@ -223,28 +223,12 @@ type CtorDups = Dups.Dict (Env.Info Env.Ctor)
 -- CANONICALIZE ALIAS
 
 canonicalizeAlias :: Env.Env -> A.Located Src.Alias -> Result i w ((Name.Name, Can.Alias), CtorDups)
-canonicalizeAlias env@(Env.Env home _ _ _ _ _ _ _) (A.At _ (Src.Alias (A.At region name) args tipe)) =
+canonicalizeAlias env (A.At _ (Src.Alias (A.At _ name) args tipe)) =
   do
     let vars = map A.toValue args
     ctipe <- Type.canonicalize env tipe
     Result.ok
-      ( (name, Can.Alias vars ctipe),
-        case ctipe of
-          Can.TRecord fields Nothing ->
-            Dups.one name region (Env.Specific home (toRecordCtor home name vars fields))
-          _ ->
-            Dups.none
-      )
-
-toRecordCtor :: ModuleName.Canonical -> Name.Name -> [Name.Name] -> Map.Map Name.Name Can.FieldType -> Env.Ctor
-toRecordCtor home name vars fields =
-  let avars = map (\var -> (var, Can.TVar var)) vars
-      alias =
-        foldr
-          (\(_, t1) t2 -> Can.TLambda t1 t2)
-          (Can.TAlias home name avars (Can.Filled (Can.TRecord fields Nothing)))
-          (Can.fieldsToList fields)
-   in Env.RecordCtor home vars alias
+      ( (name, Can.Alias vars ctipe), Dups.none )
 
 -- CANONICALIZE UNION
 

@@ -62,7 +62,6 @@ data Error
   | NotFoundType A.Region (Maybe Name.Name) Name.Name PossibleNames
   | NotFoundVariant A.Region (Maybe Name.Name) Name.Name PossibleNames
   | NotFoundBinop A.Region Name.Name (Set.Set Name.Name)
-  | PatternHasRecordCtor A.Region Name.Name
   | PortPayloadInvalid A.Region Name.Name Can.Type InvalidPayload
   | PortTypeInvalid A.Region Name.Name PortProblem
   | RecursiveAlias A.Region Name.Name [Name.Name] Src.Type [Name.Name]
@@ -499,18 +498,6 @@ toReport source err =
                                       alts ->
                                         ["Maybe", "you", "want"] ++ D.commaSep "or" format alts ++ ["instead?"]
                               )
-    PatternHasRecordCtor region name ->
-      Report.Report "BAD PATTERN" region [] $
-        Code.toSnippet
-          source
-          region
-          Nothing
-          ( D.reflow $
-              "You can construct records by using `" <> Name.toChars name
-                <> "` as a function, but it is not available in pattern matching like this:",
-            D.reflow $
-              "I recommend matching the record as a variable and unpacking it later."
-          )
     PortPayloadInvalid region portName _badType invalidPayload ->
       let formatDetails (aBadKindOfThing, elaboration) =
             Report.Report "PORT ERROR" region [] $

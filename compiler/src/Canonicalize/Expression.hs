@@ -585,6 +585,3 @@ toVarCtor name ctor =
           result = Can.TType home typeName (map Can.TVar vars)
           tipe = foldr Can.TLambda result args
        in Can.VarCtor opts home name index (Can.Forall freeVars tipe)
-    Env.RecordCtor home vars tipe ->
-      let freeVars = Map.fromList (map (\v -> (v, ())) vars)
-       in Can.VarCtor Can.Normal home name Index.first (Can.Forall freeVars tipe)

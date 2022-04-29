@@ -111,8 +111,6 @@ canonicalizeCtor env region name patterns ctor =
                   else Result.ok (Can.PCtor home tipe union name index cargs)
               Index.LengthMismatch actualLength expectedLength ->
                 Result.throw (Error.BadArity region Error.PatternArity name expectedLength actualLength)
-    Env.RecordCtor _ _ _ ->
-      Result.throw (Error.PatternHasRecordCtor region name)
 
 canonicalizeList :: Env.Env -> [Src.Pattern] -> Result DupsDict w [Can.Pattern]
 canonicalizeList env list =
