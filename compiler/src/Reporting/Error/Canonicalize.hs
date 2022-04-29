@@ -69,7 +69,6 @@ data Error
   | RecursiveDecl A.Region Name.Name [Name.Name]
   | RecursiveLet (A.Located Name.Name) [Name.Name]
   | Shadowing Name.Name A.Region A.Region
-  | TupleLargerThanThree A.Region
   | TypeVarsUnboundInUnion A.Region Name.Name [Name.Name] (Name.Name, A.Region) [(Name.Name, A.Region)]
   | TypeVarsMessedUpInAlias A.Region Name.Name [Name.Name] [(Name.Name, A.Region)] [(Name.Name, A.Region)]
 
@@ -559,7 +558,7 @@ toReport source err =
                       D.indent 4 $
                         D.reflow $
                           "Ints, Floats, Bools, Strings, Maybes, Lists, Arrays,\
-                          \ tuples, records, and JSON values.",
+                          \ records, and JSON values.",
                       D.reflow $
                         "Since JSON values can flow through, you can use JSON encoders and decoders\
                         \ to allow other types through as well. More advanced users often just do\
@@ -591,8 +590,8 @@ toReport source err =
               CmdExtraArgs n ->
                 ( "The `" <> Name.toChars name <> "` port can only send ONE value out to JavaScript.",
                   let theseItemsInSomething
-                        | n == 2 = "both of these items into a tuple or record"
-                        | n == 3 = "these " ++ show n ++ " items into a tuple or record"
+                        | n == 2 = "both of these items into a record"
+                        | n == 3 = "these " ++ show n ++ " items into a record"
                         | True = "these " ++ show n ++ " items into a record"
                    in D.reflow $
                         "You can put " ++ theseItemsInSomething ++ " to send them out though."
@@ -735,24 +734,6 @@ toReport source err =
                 "shadowing"
                 "for more details on this choice."
             ]
-    TupleLargerThanThree region ->
-      Report.Report "BAD TUPLE" region [] $
-        Code.toSnippet
-          source
-          region
-          Nothing
-          ( "I only accept tuples with two or three items. This has too many:",
-            D.stack
-              [ D.reflow $
-                  "I recommend switching to records. Each item will be named, and you can use\
-                  \ the `point.x` syntax to access them.",
-                D.link
-                  "Note"
-                  "Read"
-                  "tuples"
-                  "for more comprehensive advice on working with large chunks of data in Gren."
-              ]
-          )
     TypeVarsUnboundInUnion unionRegion typeName allVars unbound unbounds ->
       unboundTypeVars source unionRegion ["type"] typeName allVars unbound unbounds
     TypeVarsMessedUpInAlias aliasRegion typeName allVars unusedVars unboundVars ->

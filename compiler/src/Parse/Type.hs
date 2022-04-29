@@ -39,19 +39,14 @@ term =
         do
           var <- Var.lower E.TStart
           addEnd start (Src.TVar var),
-        -- tuples
-        inContext E.TTuple (word1 0x28 {-(-} E.TStart) $
-          oneOf
-            E.TTupleOpen
-            [ do
-                word1 0x29 {-)-} E.TTupleOpen
-                addEnd start Src.TUnit,
-              do
-                Space.chompAndCheckIndent E.TTupleSpace E.TTupleIndentType1
-                (tipe, end) <- specialize E.TTupleType expression
-                Space.checkIndent end E.TTupleIndentEnd
-                chompTupleEnd start tipe []
-            ],
+        -- parenthesis
+        inContext E.TParenthesis (word1 0x28 {-(-} E.TStart) $
+          do
+            Space.chompAndCheckIndent E.TParenthesisSpace E.TParenthesisIndentOpen
+            (tipe, end) <- specialize E.TParenthesisType expression
+            Space.checkIndent end E.TParenthesisIndentEnd
+            word1 0x29 {-)-} E.TParenthesisEnd
+            return tipe,
         -- records
         inContext E.TRecord (word1 0x7B {- { -} E.TStart) $
           do
@@ -141,27 +136,6 @@ chompArgs args end =
         chompArgs (arg : args) newEnd
     ]
     (reverse args, end)
-
--- TUPLES
-
-chompTupleEnd :: A.Position -> Src.Type -> [Src.Type] -> Parser E.TTuple Src.Type
-chompTupleEnd start firstType revTypes =
-  oneOf
-    E.TTupleEnd
-    [ do
-        word1 0x2C {-,-} E.TTupleEnd
-        Space.chompAndCheckIndent E.TTupleSpace E.TTupleIndentTypeN
-        (tipe, end) <- specialize E.TTupleType expression
-        Space.checkIndent end E.TTupleIndentEnd
-        chompTupleEnd start firstType (tipe : revTypes),
-      do
-        word1 0x29 {-)-} E.TTupleEnd
-        case reverse revTypes of
-          [] ->
-            return firstType
-          secondType : otherTypes ->
-            addEnd start (Src.TTuple firstType secondType otherTypes)
-    ]
 
 -- RECORD
 

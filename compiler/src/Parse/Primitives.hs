@@ -71,7 +71,6 @@ type Col = Word16
 -- FUNCTOR
 
 instance Functor (Parser x) where
-  {-# INLINE fmap #-}
   fmap f (Parser parser) =
     Parser $ \state cok eok cerr eerr ->
       let cok' a s = cok (f a) s
@@ -81,12 +80,10 @@ instance Functor (Parser x) where
 -- APPLICATIVE
 
 instance Applicative.Applicative (Parser x) where
-  {-# INLINE pure #-}
   pure value =
     Parser $ \state _ eok _ _ ->
       eok value state
 
-  {-# INLINE (<*>) #-}
   (<*>) (Parser parserFunc) (Parser parserArg) =
     Parser $ \state cok eok cerr eerr ->
       let cokF func s1 =
@@ -101,7 +98,6 @@ instance Applicative.Applicative (Parser x) where
 
 -- ONE OF
 
-{-# INLINE oneOf #-}
 oneOf :: (Row -> Col -> x) -> [Parser x a] -> Parser x a
 oneOf toError parsers =
   Parser $ \state cok eok cerr eerr ->
@@ -128,7 +124,6 @@ oneOfHelp state cok eok cerr eerr toError parsers =
 
 -- ONE OF WITH FALLBACK
 
-{-# INLINE oneOfWithFallback #-}
 oneOfWithFallback :: [Parser x a] -> a -> Parser x a -- PERF is this function okay? Worried about allocation/laziness with fallback values.
 oneOfWithFallback parsers fallback =
   Parser $ \state cok eok cerr _ ->
@@ -154,7 +149,6 @@ oowfHelp state cok eok cerr parsers fallback =
 -- MONAD
 
 instance Monad (Parser x) where
-  {-# INLINE (>>=) #-}
   (Parser parserA) >>= callback =
     Parser $ \state cok eok cerr eerr ->
       let cok' a s =
@@ -217,7 +211,6 @@ getCol =
   Parser $ \state@(State _ _ _ _ _ col) _ eok _ _ ->
     eok col state
 
-{-# INLINE getPosition #-}
 getPosition :: Parser x A.Position
 getPosition =
   Parser $ \state@(State _ _ _ _ row col) _ eok _ _ ->
@@ -308,7 +301,6 @@ unsafeIndex :: Ptr Word8 -> Word8
 unsafeIndex ptr =
   B.accursedUnutterablePerformIO (peek ptr)
 
-{-# INLINE isWord #-}
 isWord :: Ptr Word8 -> Ptr Word8 -> Word8 -> Bool
 isWord pos end word =
   pos < end && unsafeIndex pos == word

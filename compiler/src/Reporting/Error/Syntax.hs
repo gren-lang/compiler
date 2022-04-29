@@ -16,8 +16,8 @@ module Reporting.Error.Syntax
     Port (..),
     --
     Expr (..),
+    Parenthesized (..),
     Record (..),
-    Tuple (..),
     Array (..),
     Func (..),
     Case (..),
@@ -27,13 +27,13 @@ module Reporting.Error.Syntax
     Destruct (..),
     --
     Pattern (..),
+    PParenthesized (..),
     PRecord (..),
-    PTuple (..),
     PArray (..),
     --
     Type (..),
+    TParenthesis (..),
     TRecord (..),
-    TTuple (..),
     --
     Char (..),
     String (..),
@@ -189,9 +189,9 @@ data Expr
   = Let Let Row Col
   | Case Case Row Col
   | If If Row Col
+  | Parenthesized Parenthesized Row Col
   | Array Array Row Col
   | Record Record Row Col
-  | Tuple Tuple Row Col
   | Func Func Row Col
   | --
     Dot Row Col
@@ -204,8 +204,6 @@ data Expr
   | String String Row Col
   | Number Number Row Col
   | Space Space Row Col
-  | EndlessShader Row Col
-  | ShaderProblem [Char.Char] Row Col
   | IndentOperatorRight Name.Name Row Col
 
 data Record
@@ -221,17 +219,6 @@ data Record
   | RecordIndentField Row Col
   | RecordIndentEquals Row Col
   | RecordIndentExpr Row Col
-
-data Tuple
-  = TupleExpr Expr Row Col
-  | TupleSpace Space Row Col
-  | TupleEnd Row Col
-  | TupleOperatorClose Row Col
-  | TupleOperatorReserved BadOperator Row Col
-  | --
-    TupleIndentExpr1 Row Col
-  | TupleIndentExprN Row Col
-  | TupleIndentEnd Row Col
 
 data Array
   = ArraySpace Space Row Col
@@ -296,6 +283,18 @@ data Let
   | LetIndentIn Row Col
   | LetIndentBody Row Col
 
+data Parenthesized
+  = ParenthesizedOpen Row Col
+  | ParenthesizedEnd Row Col
+  | ParenthesizedExpr Expr Row Col
+  | ParenthesizedOperatorReserved BadOperator Row Col
+  | ParenthesizedOperatorClose Row Col
+  | ParenthesizedSpace Space Row Col
+  | --
+    ParenthesizedIndentOpen Row Col
+  | ParenthesizedIndentEnd Row Col
+  | ParenthesizedIndentExpr Row Col
+
 data Def
   = DefSpace Space Row Col
   | DefType Type Row Col
@@ -320,8 +319,8 @@ data Destruct
 -- PATTERNS
 
 data Pattern
-  = PRecord PRecord Row Col
-  | PTuple PTuple Row Col
+  = PParenthesized PParenthesized Row Col
+  | PRecord PRecord Row Col
   | PArray PArray Row Col
   | --
     PStart Row Col
@@ -336,6 +335,13 @@ data Pattern
     PIndentStart Row Col
   | PIndentAlias Row Col
 
+data PParenthesized
+  = PParenthesizedSpace Space Row Col
+  | PParenthesizedIndentPattern Row Col
+  | PParenthesizedPattern Pattern Row Col
+  | PParenthesizedIndentEnd Row Col
+  | PParenthesizedEnd Row Col
+
 data PRecord
   = PRecordOpen Row Col
   | PRecordEnd Row Col
@@ -347,16 +353,6 @@ data PRecord
     PRecordIndentOpen Row Col
   | PRecordIndentEnd Row Col
   | PRecordIndentField Row Col
-
-data PTuple
-  = PTupleOpen Row Col
-  | PTupleEnd Row Col
-  | PTupleExpr Pattern Row Col
-  | PTupleSpace Space Row Col
-  | --
-    PTupleIndentEnd Row Col
-  | PTupleIndentExpr1 Row Col
-  | PTupleIndentExprN Row Col
 
 data PArray
   = PArrayOpen Row Col
@@ -372,7 +368,7 @@ data PArray
 
 data Type
   = TRecord TRecord Row Col
-  | TTuple TTuple Row Col
+  | TParenthesis TParenthesis Row Col
   | --
     TStart Row Col
   | TSpace Space Row Col
@@ -395,15 +391,13 @@ data TRecord
   | TRecordIndentType Row Col
   | TRecordIndentEnd Row Col
 
-data TTuple
-  = TTupleOpen Row Col
-  | TTupleEnd Row Col
-  | TTupleType Type Row Col
-  | TTupleSpace Space Row Col
+data TParenthesis
+  = TParenthesisEnd Row Col
+  | TParenthesisType Type Row Col
+  | TParenthesisSpace Space Row Col
   | --
-    TTupleIndentType1 Row Col
-  | TTupleIndentTypeN Row Col
-  | TTupleIndentEnd Row Col
+    TParenthesisIndentOpen Row Col
+  | TParenthesisIndentEnd Row Col
 
 -- LITERALS
 
@@ -975,12 +969,11 @@ toWeirdEndReport source row col =
                       "I got stuck on this comma:",
                     D.stack
                       [ D.reflow $
-                          "I do not think I am parsing a list or tuple right now. Try deleting the comma?",
+                          "I do not think I am parsing an array right now. Try deleting the comma?",
                         D.toSimpleNote $
-                          "If this is supposed to be part of a list, the problem may be a bit earlier.\
-                          \ Perhaps the opening [ is missing? Or perhaps some value in the list has an extra\
-                          \ closing ] that is making me think the list ended earlier? The same kinds of\
-                          \ things could be going wrong if this is supposed to be a tuple."
+                          "If this is supposed to be part of an array, the problem may be a bit earlier.\
+                          \ Perhaps the opening [ is missing? Or perhaps some value in the array has an extra\
+                          \ closing ] that is making me think the array ended earlier?"
                       ]
                   )
             Just '`' ->
@@ -2294,7 +2287,7 @@ toDeclDefReport source name declDef startRow startCol =
                                 "pattern",
                                 "matches",
                                 "like",
-                                "((x,y)",
+                                "([x,y]",
                                 D.cyan "as",
                                 "point)",
                                 "where",
@@ -2302,8 +2295,8 @@ toDeclDefReport source name declDef startRow startCol =
                                 "want",
                                 "to",
                                 "name",
-                                "a",
-                                "tuple",
+                                "an",
+                                "array",
                                 "and",
                                 "the",
                                 "values",
@@ -2567,12 +2560,12 @@ toExprReport source context expr startRow startCol =
       toCaseReport source context case_ row col
     If if_ row col ->
       toIfReport source context if_ row col
-    Array list row col ->
-      toArrayReport source context list row col
+    Parenthesized parenthesizedExpr row col ->
+      toParenthesizedReport source context parenthesizedExpr row col
+    Array array row col ->
+      toArrayReport source context array row col
     Record record row col ->
       toRecordReport source context record row col
-    Tuple tuple row col ->
-      toTupleReport source context tuple row col
     Func func row col ->
       toFuncReport source context func row col
     Dot row col ->
@@ -2711,7 +2704,7 @@ toExprReport source context expr startRow startCol =
               InDef name r c -> (r, c, "the `" ++ Name.toChars name ++ "` definition")
               InNode NRecord r c _ -> (r, c, "a record")
               InNode NParens r c _ -> (r, c, "some parentheses")
-              InNode NArray r c _ -> (r, c, "a list")
+              InNode NArray r c _ -> (r, c, "an array")
               InNode NFunc r c _ -> (r, c, "an anonymous function")
               InNode NCond r c _ -> (r, c, "an `if` expression")
               InNode NThen r c _ -> (r, c, "an `if` expression")
@@ -2769,33 +2762,6 @@ toExprReport source context expr startRow startCol =
       toNumberReport source number row col
     Space space row col ->
       toSpaceReport source space row col
-    EndlessShader row col ->
-      let region = toWiderRegion row col 6
-       in Report.Report "ENDLESS SHADER" region [] $
-            Code.toSnippet
-              source
-              region
-              Nothing
-              ( D.reflow "I cannot find the end of this shader:",
-                D.reflow "Add a |] somewhere after this to end the shader."
-              )
-    ShaderProblem problem row col ->
-      let region = toRegion row col
-       in Report.Report "SHADER PROBLEM" region [] $
-            Code.toSnippet
-              source
-              region
-              Nothing
-              ( D.reflow $
-                  "I ran into a problem while parsing this GLSL block.",
-                D.stack
-                  [ D.reflow $
-                      "I use a 3rd party GLSL parser for now, and I did my best to extract their error message:",
-                    D.indent 4 $
-                      D.vcat $
-                        map D.fromChars (filter (/= "") (lines problem))
-                  ]
-              )
     IndentOperatorRight op row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
@@ -3531,7 +3497,7 @@ toLetDefReport source name def startRow startCol =
                                 "pattern",
                                 "matches",
                                 "like",
-                                "((x,y)",
+                                "([x,y]",
                                 D.cyan "as",
                                 "point)",
                                 "where",
@@ -3539,8 +3505,8 @@ toLetDefReport source name def startRow startCol =
                                 "want",
                                 "to",
                                 "name",
-                                "a",
-                                "tuple",
+                                "an",
+                                "array",
                                 "and",
                                 "the",
                                 "values",
@@ -4629,16 +4595,54 @@ noteForRecordIndentError =
         \ This is the stylistic convention in the Gren ecosystem!"
     ]
 
--- TUPLE
+-- PARENTHESIZED
 
-toTupleReport :: Code.Source -> Context -> Tuple -> Row -> Col -> Report.Report
-toTupleReport source context tuple startRow startCol =
-  case tuple of
-    TupleExpr expr row col ->
+toParenthesizedReport :: Code.Source -> Context -> Parenthesized -> Row -> Col -> Report.Report
+toParenthesizedReport source context parenthesized startRow startCol =
+  case parenthesized of
+    ParenthesizedExpr expr row col ->
       toExprReport source (InNode NParens startRow startCol context) expr row col
-    TupleSpace space row col ->
+    ParenthesizedSpace space row col ->
       toSpaceReport source space row col
-    TupleEnd row col ->
+    ParenthesizedOpen row col ->
+      let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+          region = toRegion row col
+       in Report.Report "UNFINISHED PARENTHESIS" region [] $
+            Code.toSnippet
+              source
+              surroundings
+              (Just region)
+              ( D.reflow $
+                  "I am partway through parsing an expression, but I got stuck here:",
+                D.stack
+                  [ D.fillSep
+                      [ "I",
+                        "was",
+                        "expecting",
+                        "to",
+                        "see",
+                        "a",
+                        "closing",
+                        "parenthesis",
+                        "before",
+                        "this,",
+                        "so",
+                        "try",
+                        "adding",
+                        "a",
+                        D.dullyellow ")",
+                        "and",
+                        "see",
+                        "if",
+                        "that",
+                        "helps?"
+                      ],
+                    D.toSimpleNote $
+                      "When I get stuck like this, it usually means that there is a missing parenthesis\
+                      \ or bracket somewhere earlier. It could also be a stray keyword or operator."
+                  ]
+              )
+    ParenthesizedEnd row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
        in Report.Report "UNFINISHED PARENTHESES" region [] $
@@ -4656,7 +4660,7 @@ toTupleReport source context tuple startRow startCol =
                       \ or missing brackets) that is confusing me."
                   ]
               )
-    TupleOperatorClose row col ->
+    ParenthesizedOperatorClose row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
        in Report.Report "UNFINISHED OPERATOR FUNCTION" region [] $
@@ -4673,7 +4677,7 @@ toTupleReport source context tuple startRow startCol =
                       \ no extra spaces."
                   ]
               )
-    TupleOperatorReserved operator row col ->
+    ParenthesizedOperatorReserved operator row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
        in Report.Report "UNEXPECTED SYMBOL" region [] $
@@ -4689,9 +4693,9 @@ toTupleReport source context tuple startRow startCol =
                     BadPipe -> ["Try", D.dullyellow "(||)", "instead?", "To", "turn", "boolean", "OR", "into", "a", "function?"]
                     BadArrow -> ["Maybe", "you", "wanted", D.dullyellow "(>)", "or", D.dullyellow "(>=)", "instead?"]
                     BadEquals -> ["Try", D.dullyellow "(==)", "instead?", "To", "make", "a", "function", "that", "checks", "equality?"]
-                    BadHasType -> ["Try", D.dullyellow "(::)", "instead?", "To", "add", "values", "to", "the", "front", "of", "lists?"]
+                    BadHasType -> ["Maybe", "you", "wanted", D.dullyellow "Array.pushFront", "instead?"]
               )
-    TupleIndentExpr1 row col ->
+    ParenthesizedIndentExpr row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
        in Report.Report "UNFINISHED PARENTHESES" region [] $
@@ -4723,41 +4727,24 @@ toTupleReport source context tuple startRow startCol =
                       \ maybe you have an expression but it is not indented enough?"
                   ]
               )
-    TupleIndentExprN row col ->
+    ParenthesizedIndentOpen row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
-       in Report.Report "UNFINISHED TUPLE" region [] $
+       in Report.Report "UNFINISHED PARENTHESES" region [] $
             Code.toSnippet
               source
               surroundings
               (Just region)
               ( D.reflow $
-                  "I think I am in the middle of parsing a tuple. I just saw a comma, so I was expecting to see an expression next.",
+                  "I was expecting to see a closing parenthesis next:",
                 D.stack
-                  [ D.fillSep $
-                      [ "A",
-                        "tuple",
-                        "looks",
-                        "like",
-                        D.dullyellow "(3,4)",
-                        "or",
-                        D.dullyellow "(\"Tom\",42)" <> ",",
-                        "so",
-                        "I",
-                        "think",
-                        "there",
-                        "is",
-                        "an",
-                        "expression",
-                        "missing",
-                        "here?"
-                      ],
+                  [ D.fillSep ["Try", "adding", "a", D.dullyellow ")", "to", "see", "if", "that", "helps!"],
                     D.toSimpleNote $
                       "I can get confused by indentation in cases like this, so\
-                      \ maybe you have an expression but it is not indented enough?"
+                      \ maybe you have a closing parenthesis but it is not indented enough?"
                   ]
               )
-    TupleIndentEnd row col ->
+    ParenthesizedIndentEnd row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
        in Report.Report "UNFINISHED PARENTHESES" region [] $
@@ -4776,20 +4763,20 @@ toTupleReport source context tuple startRow startCol =
               )
 
 toArrayReport :: Code.Source -> Context -> Array -> Row -> Col -> Report.Report
-toArrayReport source context list startRow startCol =
-  case list of
+toArrayReport source context array startRow startCol =
+  case array of
     ArraySpace space row col ->
       toSpaceReport source space row col
     ArrayOpen row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
-       in Report.Report "UNFINISHED LIST" region [] $
+       in Report.Report "UNFINISHED ARRAY" region [] $
             Code.toSnippet
               source
               surroundings
               (Just region)
               ( D.reflow $
-                  "I am partway through parsing a list, but I got stuck here:",
+                  "I am partway through parsing an array, but I got stuck here:",
                 D.stack
                   [ D.fillSep
                       [ "I",
@@ -4824,18 +4811,18 @@ toArrayReport source context list startRow startCol =
         Start r c ->
           let surroundings = A.Region (A.Position startRow startCol) (A.Position r c)
               region = toRegion r c
-           in Report.Report "UNFINISHED LIST" region [] $
+           in Report.Report "UNFINISHED ARRAY" region [] $
                 Code.toSnippet
                   source
                   surroundings
                   (Just region)
                   ( D.reflow $
-                      "I was expecting to see another list entry after that last comma:",
+                      "I was expecting to see another array entry after that last comma:",
                     D.stack
                       [ D.reflow $
-                          "Trailing commas are not allowed in lists, so the fix may be to delete the comma?",
+                          "Trailing commas are not allowed in arrays, so the fix may be to delete the comma?",
                         D.toSimpleNote
-                          "I recommend using the following format for lists that span multiple lines:",
+                          "I recommend using the following format for arrays that span multiple lines:",
                         D.indent 4 $
                           D.vcat $
                             [ "[ " <> D.dullyellow "\"Alice\"",
@@ -4853,13 +4840,13 @@ toArrayReport source context list startRow startCol =
     ArrayEnd row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
-       in Report.Report "UNFINISHED LIST" region [] $
+       in Report.Report "UNFINISHED ARRAY" region [] $
             Code.toSnippet
               source
               surroundings
               (Just region)
               ( D.reflow $
-                  "I am partway through parsing a list, but I got stuck here:",
+                  "I am partway through parsing an array, but I got stuck here:",
                 D.stack
                   [ D.fillSep
                       [ "I",
@@ -4892,13 +4879,13 @@ toArrayReport source context list startRow startCol =
     ArrayIndentOpen row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
-       in Report.Report "UNFINISHED LIST" region [] $
+       in Report.Report "UNFINISHED ARRAY" region [] $
             Code.toSnippet
               source
               surroundings
               (Just region)
               ( D.reflow $
-                  "I cannot find the end of this list:",
+                  "I cannot find the end of this array:",
                 D.stack
                   [ D.fillSep $
                       [ "You",
@@ -4929,7 +4916,7 @@ toArrayReport source context list startRow startCol =
                         "elements",
                         "of",
                         "the",
-                        "list",
+                        "array",
                         "are",
                         "separated",
                         "by",
@@ -4937,7 +4924,7 @@ toArrayReport source context list startRow startCol =
                       ],
                     D.toSimpleNote
                       "I may be confused by indentation. For example, if you are trying to define\
-                      \ a list across multiple lines, I recommend using this format:",
+                      \ an array across multiple lines, I recommend using this format:",
                     D.indent 4 $
                       D.vcat $
                         [ "[ " <> D.dullyellow "\"Alice\"",
@@ -4953,13 +4940,13 @@ toArrayReport source context list startRow startCol =
     ArrayIndentEnd row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
-       in Report.Report "UNFINISHED LIST" region [] $
+       in Report.Report "UNFINISHED ARRAY" region [] $
             Code.toSnippet
               source
               surroundings
               (Just region)
               ( D.reflow $
-                  "I cannot find the end of this list:",
+                  "I cannot find the end of this array:",
                 D.stack
                   [ D.fillSep $
                       [ "You",
@@ -4980,7 +4967,7 @@ toArrayReport source context list startRow startCol =
                       ],
                     D.toSimpleNote
                       "I may be confused by indentation. For example, if you are trying to define\
-                      \ a list across multiple lines, I recommend using this format:",
+                      \ an array across multiple lines, I recommend using this format:",
                     D.indent 4 $
                       D.vcat $
                         [ "[ " <> D.dullyellow "\"Alice\"",
@@ -4996,18 +4983,18 @@ toArrayReport source context list startRow startCol =
     ArrayIndentExpr row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
-       in Report.Report "UNFINISHED LIST" region [] $
+       in Report.Report "UNFINISHED ARRAY" region [] $
             Code.toSnippet
               source
               surroundings
               (Just region)
               ( D.reflow $
-                  "I was expecting to see another list entry after this comma:",
+                  "I was expecting to see another array entry after this comma:",
                 D.stack
                   [ D.reflow $
-                      "Trailing commas are not allowed in lists, so the fix may be to delete the comma?",
+                      "Trailing commas are not allowed in arrays, so the fix may be to delete the comma?",
                     D.toSimpleNote
-                      "I recommend using the following format for lists that span multiple lines:",
+                      "I recommend using the following format for arrays that span multiple lines:",
                     D.indent 4 $
                       D.vcat $
                         [ "[ " <> D.dullyellow "\"Alice\"",
@@ -5200,10 +5187,10 @@ toPatternReport source context pattern startRow startCol =
   case pattern of
     PRecord record row col ->
       toPRecordReport source context record row col
-    PTuple tuple row col ->
-      toPTupleReport source context tuple row col
-    PArray list row col ->
-      toPArrayReport source context list row col
+    PArray array row col ->
+      toPArrayReport source context array row col
+    PParenthesized parenthesizedPattern row col ->
+      toPParenthesizedReport source context parenthesizedPattern row col
     PStart row col ->
       case Code.whatIsNext source row col of
         Code.Keyword keyword ->
@@ -5335,7 +5322,7 @@ toPatternReport source context pattern startRow startCol =
                         "write",
                         "patterns",
                         "like",
-                        "((" <> D.dullyellow "x" <> "," <> D.dullyellow "y" <> ") " <> D.cyan "as" <> D.dullyellow " point" <> ")",
+                        "([" <> D.dullyellow "x" <> "," <> D.dullyellow "y" <> "] " <> D.cyan "as" <> D.dullyellow " point" <> ")",
                         "so",
                         "you",
                         "can",
@@ -5345,7 +5332,7 @@ toPatternReport source context pattern startRow startCol =
                         "parts",
                         "of",
                         "the",
-                        "tuple",
+                        "array",
                         "with",
                         D.dullyellow "x",
                         "and",
@@ -5464,7 +5451,7 @@ toPatternReport source context pattern startRow startCol =
                         "write",
                         "patterns",
                         "like",
-                        "((" <> D.dullyellow "x" <> "," <> D.dullyellow "y" <> ") " <> D.cyan "as" <> D.dullyellow " point" <> ")",
+                        "([" <> D.dullyellow "x" <> "," <> D.dullyellow "y" <> "] " <> D.cyan "as" <> D.dullyellow " point" <> ")",
                         "so",
                         "you",
                         "can",
@@ -5474,7 +5461,7 @@ toPatternReport source context pattern startRow startCol =
                         "parts",
                         "of",
                         "the",
-                        "tuple",
+                        "array",
                         "with",
                         D.dullyellow "x",
                         "and",
@@ -5608,10 +5595,10 @@ toUnfinishRecordPatternReport source row col startRow startCol message =
               ]
           )
 
-toPTupleReport :: Code.Source -> PContext -> PTuple -> Row -> Col -> Report.Report
-toPTupleReport source context tuple startRow startCol =
-  case tuple of
-    PTupleOpen row col ->
+toPArrayReport :: Code.Source -> PContext -> PArray -> Row -> Col -> Report.Report
+toPArrayReport source context array startRow startCol =
+  case array of
+    PArrayOpen row col ->
       case Code.whatIsNext source row col of
         Code.Keyword keyword ->
           let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
@@ -5622,43 +5609,80 @@ toPTupleReport source context tuple startRow startCol =
                   surroundings
                   (Just region)
                   ( D.reflow $
-                      "It looks like you are trying to use `" ++ keyword ++ "` as a variable name:",
+                      "It looks like you are trying to use `" ++ keyword ++ "` to name an element of an array:",
                     D.reflow $
-                      "This is a reserved word! Try using some other name?"
+                      "This is a reserved word though! Try using some other name?"
                   )
         _ ->
           let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
               region = toRegion row col
-           in Report.Report "UNFINISHED PARENTHESES" region [] $
-                Code.toSnippet
-                  source
-                  surroundings
-                  (Just region)
+           in Report.Report "UNFINISHED ARRAY PATTERN" region [] $
+                Code.toSnippet source surroundings (Just region) $
                   ( D.reflow $
-                      "I just saw an open parenthesis, but I got stuck here:",
-                    D.fillSep
-                      [ "I",
-                        "was",
-                        "expecting",
-                        "to",
-                        "see",
-                        "a",
-                        "pattern",
-                        "next.",
-                        "Maybe",
-                        "it",
-                        "will",
-                        "end",
-                        "up",
-                        "being",
-                        "something",
-                        "like",
-                        D.dullyellow "(x,y)",
-                        "or",
-                        D.dullyellow "(name, _)" <> "?"
-                      ]
+                      "I just saw an open square bracket, but then I got stuck here:",
+                    D.fillSep ["Try", "adding", "a", D.dullyellow "]", "to", "see", "if", "that", "helps?"]
                   )
-    PTupleEnd row col ->
+    PArrayEnd row col ->
+      let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+          region = toRegion row col
+       in Report.Report "UNFINISHED ARRAY PATTERN" region [] $
+            Code.toSnippet source surroundings (Just region) $
+              ( D.reflow $
+                  "I was expecting a closing square bracket to end this array pattern:",
+                D.fillSep ["Try", "adding", "a", D.dullyellow "]", "to", "see", "if", "that", "helps?"]
+              )
+    PArrayExpr pattern row col ->
+      toPatternReport source context pattern row col
+    PArraySpace space row col ->
+      toSpaceReport source space row col
+    PArrayIndentOpen row col ->
+      let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+          region = toRegion row col
+       in Report.Report "UNFINISHED ARRAY PATTERN" region [] $
+            Code.toSnippet source surroundings (Just region) $
+              ( D.reflow $
+                  "I just saw an open square bracket, but then I got stuck here:",
+                D.stack
+                  [ D.fillSep ["Try", "adding", "a", D.dullyellow "]", "to", "see", "if", "that", "helps?"],
+                    D.toSimpleNote $
+                      "I can get confused by indentation in cases like this, so\
+                      \ maybe there is something next, but it is not indented enough?"
+                  ]
+              )
+    PArrayIndentEnd row col ->
+      let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+          region = toRegion row col
+       in Report.Report "UNFINISHED ARRAY PATTERN" region [] $
+            Code.toSnippet source surroundings (Just region) $
+              ( D.reflow $
+                  "I was expecting a closing square bracket to end this array pattern:",
+                D.stack
+                  [ D.fillSep ["Try", "adding", "a", D.dullyellow "]", "to", "see", "if", "that", "helps?"],
+                    D.toSimpleNote $
+                      "I can get confused by indentation in cases like this, so\
+                      \ maybe you have a closing square bracket but it is not indented enough?"
+                  ]
+              )
+    PArrayIndentExpr row col ->
+      let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+          region = toRegion row col
+       in Report.Report "UNFINISHED ARRAY PATTERN" region [] $
+            Code.toSnippet source surroundings (Just region) $
+              ( D.reflow $
+                  "I am partway through parsing an array pattern, but I got stuck here:",
+                D.stack
+                  [ D.reflow $
+                      "I was expecting to see another pattern next. Maybe a variable name.",
+                    D.toSimpleNote $
+                      "I can get confused by indentation in cases like this, so\
+                      \ maybe there is more to this pattern but it is not indented enough?"
+                  ]
+              )
+
+toPParenthesizedReport :: Code.Source -> PContext -> PParenthesized -> Row -> Col -> Report.Report
+toPParenthesizedReport source context parenthesizedPattern startRow startCol =
+  case parenthesizedPattern of
+    PParenthesizedEnd row col ->
       case Code.whatIsNext source row col of
         Code.Keyword keyword ->
           let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
@@ -5678,9 +5702,7 @@ toPTupleReport source context tuple startRow startCol =
                   ( D.reflow $
                       "I ran into the " ++ op ++ " symbol unexpectedly in this pattern:",
                     D.reflow $
-                      "Only the :: symbol that works in patterns. It is useful if you\
-                      \ are pattern matching on lists, trying to get the first element\
-                      \ off the front. Did you want that instead?"
+                      "Symbols don't work in patterns."
                   )
         Code.Close term bracket ->
           let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
@@ -5719,11 +5741,11 @@ toPTupleReport source context tuple startRow startCol =
                         "helps?"
                       ]
                   )
-    PTupleExpr pattern row col ->
+    PParenthesizedPattern pattern row col ->
       toPatternReport source context pattern row col
-    PTupleSpace space row col ->
+    PParenthesizedSpace space row col ->
       toSpaceReport source space row col
-    PTupleIndentEnd row col ->
+    PParenthesizedIndentEnd row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
        in Report.Report "UNFINISHED PARENTHESES" region [] $
@@ -5737,7 +5759,7 @@ toPTupleReport source context tuple startRow startCol =
                       \ maybe you have a closing parenthesis but it is not indented enough?"
                   ]
               )
-    PTupleIndentExpr1 row col ->
+    PParenthesizedIndentPattern row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
        in Report.Report "UNFINISHED PARENTHESES" region [] $
@@ -5752,138 +5774,7 @@ toPTupleReport source context tuple startRow startCol =
                     "see",
                     "a",
                     "pattern",
-                    "next.",
-                    "Maybe",
-                    "it",
-                    "will",
-                    "end",
-                    "up",
-                    "being",
-                    "something",
-                    "like",
-                    D.dullyellow "(x,y)",
-                    "or",
-                    D.dullyellow "(name, _)" <> "?"
-                  ]
-              )
-    PTupleIndentExprN row col ->
-      let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-          region = toRegion row col
-       in Report.Report "UNFINISHED TUPLE PATTERN" region [] $
-            Code.toSnippet source surroundings (Just region) $
-              ( D.reflow $
-                  "I am partway through parsing a tuple pattern, but I got stuck here:",
-                D.stack
-                  [ D.fillSep
-                      [ "I",
-                        "was",
-                        "expecting",
-                        "to",
-                        "see",
-                        "a",
-                        "pattern",
-                        "next.",
-                        "I",
-                        "am",
-                        "expecting",
-                        "the",
-                        "final",
-                        "result",
-                        "to",
-                        "be",
-                        "something",
-                        "like",
-                        D.dullyellow "(x,y)",
-                        "or",
-                        D.dullyellow "(name, _)" <> "."
-                      ],
-                    D.toSimpleNote $
-                      "I can get confused by indentation in cases like this, so the problem\
-                      \ may be that the next part is not indented enough?"
-                  ]
-              )
-
-toPArrayReport :: Code.Source -> PContext -> PArray -> Row -> Col -> Report.Report
-toPArrayReport source context list startRow startCol =
-  case list of
-    PArrayOpen row col ->
-      case Code.whatIsNext source row col of
-        Code.Keyword keyword ->
-          let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-              region = toKeywordRegion row col keyword
-           in Report.Report "RESERVED WORD" region [] $
-                Code.toSnippet
-                  source
-                  surroundings
-                  (Just region)
-                  ( D.reflow $
-                      "It looks like you are trying to use `" ++ keyword ++ "` to name an element of a list:",
-                    D.reflow $
-                      "This is a reserved word though! Try using some other name?"
-                  )
-        _ ->
-          let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-              region = toRegion row col
-           in Report.Report "UNFINISHED LIST PATTERN" region [] $
-                Code.toSnippet source surroundings (Just region) $
-                  ( D.reflow $
-                      "I just saw an open square bracket, but then I got stuck here:",
-                    D.fillSep ["Try", "adding", "a", D.dullyellow "]", "to", "see", "if", "that", "helps?"]
-                  )
-    PArrayEnd row col ->
-      let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-          region = toRegion row col
-       in Report.Report "UNFINISHED LIST PATTERN" region [] $
-            Code.toSnippet source surroundings (Just region) $
-              ( D.reflow $
-                  "I was expecting a closing square bracket to end this list pattern:",
-                D.fillSep ["Try", "adding", "a", D.dullyellow "]", "to", "see", "if", "that", "helps?"]
-              )
-    PArrayExpr pattern row col ->
-      toPatternReport source context pattern row col
-    PArraySpace space row col ->
-      toSpaceReport source space row col
-    PArrayIndentOpen row col ->
-      let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-          region = toRegion row col
-       in Report.Report "UNFINISHED LIST PATTERN" region [] $
-            Code.toSnippet source surroundings (Just region) $
-              ( D.reflow $
-                  "I just saw an open square bracket, but then I got stuck here:",
-                D.stack
-                  [ D.fillSep ["Try", "adding", "a", D.dullyellow "]", "to", "see", "if", "that", "helps?"],
-                    D.toSimpleNote $
-                      "I can get confused by indentation in cases like this, so\
-                      \ maybe there is something next, but it is not indented enough?"
-                  ]
-              )
-    PArrayIndentEnd row col ->
-      let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-          region = toRegion row col
-       in Report.Report "UNFINISHED LIST PATTERN" region [] $
-            Code.toSnippet source surroundings (Just region) $
-              ( D.reflow $
-                  "I was expecting a closing square bracket to end this list pattern:",
-                D.stack
-                  [ D.fillSep ["Try", "adding", "a", D.dullyellow "]", "to", "see", "if", "that", "helps?"],
-                    D.toSimpleNote $
-                      "I can get confused by indentation in cases like this, so\
-                      \ maybe you have a closing square bracket but it is not indented enough?"
-                  ]
-              )
-    PArrayIndentExpr row col ->
-      let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-          region = toRegion row col
-       in Report.Report "UNFINISHED LIST PATTERN" region [] $
-            Code.toSnippet source surroundings (Just region) $
-              ( D.reflow $
-                  "I am partway through parsing a list pattern, but I got stuck here:",
-                D.stack
-                  [ D.reflow $
-                      "I was expecting to see another pattern next. Maybe a variable name.",
-                    D.toSimpleNote $
-                      "I can get confused by indentation in cases like this, so\
-                      \ maybe there is more to this pattern but it is not indented enough?"
+                    "next."
                   ]
               )
 
@@ -5900,8 +5791,8 @@ toTypeReport source context tipe startRow startCol =
   case tipe of
     TRecord record row col ->
       toTRecordReport source context record row col
-    TTuple tuple row col ->
-      toTTupleReport source context tuple row col
+    TParenthesis parenthesizedType row col ->
+      toTParenthesisReport source context parenthesizedType row col
     TStart row col ->
       case Code.whatIsNext source row col of
         Code.Keyword keyword ->
@@ -6411,54 +6302,10 @@ noteForRecordTypeIndentError =
         \ This is the stylistic convention in the Gren ecosystem."
     ]
 
-toTTupleReport :: Code.Source -> TContext -> TTuple -> Row -> Col -> Report.Report
-toTTupleReport source context tuple startRow startCol =
-  case tuple of
-    TTupleOpen row col ->
-      case Code.whatIsNext source row col of
-        Code.Keyword keyword ->
-          let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-              region = toKeywordRegion row col keyword
-           in Report.Report "RESERVED WORD" region [] $
-                Code.toSnippet
-                  source
-                  surroundings
-                  (Just region)
-                  ( D.reflow $
-                      "I ran into a reserved word unexpectedly:",
-                    D.reflow $
-                      "It looks like you are trying to use `" ++ keyword
-                        ++ "` as a variable name, but \
-                           \ it is a reserved word. Try using a different name!"
-                  )
-        _ ->
-          let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-              region = toRegion row col
-           in Report.Report "UNFINISHED PARENTHESES" region [] $
-                Code.toSnippet
-                  source
-                  surroundings
-                  (Just region)
-                  ( D.reflow $
-                      "I just saw an open parenthesis, so I was expecting to see a type next.",
-                    D.fillSep $
-                      [ "Something",
-                        "like",
-                        D.dullyellow "(Maybe Int)",
-                        "or",
-                        D.dullyellow "(Array Person)" <> ".",
-                        "Anything",
-                        "where",
-                        "you",
-                        "are",
-                        "putting",
-                        "parentheses",
-                        "around",
-                        "normal",
-                        "types."
-                      ]
-                  )
-    TTupleEnd row col ->
+toTParenthesisReport :: Code.Source -> TContext -> TParenthesis -> Row -> Col -> Report.Report
+toTParenthesisReport source context parenthesizedType startRow startCol =
+  case parenthesizedType of
+    TParenthesisEnd row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
        in Report.Report "UNFINISHED PARENTHESES" region [] $
@@ -6476,11 +6323,11 @@ toTTupleReport source context tuple startRow startCol =
                       \ or missing brackets) that is confusing me."
                   ]
               )
-    TTupleType tipe row col ->
+    TParenthesisType tipe row col ->
       toTypeReport source context tipe row col
-    TTupleSpace space row col ->
+    TParenthesisSpace space row col ->
       toSpaceReport source space row col
-    TTupleIndentType1 row col ->
+    TParenthesisIndentOpen row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
        in Report.Report "UNFINISHED PARENTHESES" region [] $
@@ -6512,42 +6359,7 @@ toTTupleReport source context tuple startRow startCol =
                       \ maybe you have a type but it is not indented enough?"
                   ]
               )
-    TTupleIndentTypeN row col ->
-      let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
-          region = toRegion row col
-       in Report.Report "UNFINISHED TUPLE TYPE" region [] $
-            Code.toSnippet
-              source
-              surroundings
-              (Just region)
-              ( D.reflow $
-                  "I think I am in the middle of parsing a tuple type. I just saw a comma, so I was expecting to see a type next.",
-                D.stack
-                  [ D.fillSep $
-                      [ "A",
-                        "tuple",
-                        "type",
-                        "looks",
-                        "like",
-                        D.dullyellow "(Float,Float)",
-                        "or",
-                        D.dullyellow "(String,Int)" <> ",",
-                        "so",
-                        "I",
-                        "think",
-                        "there",
-                        "is",
-                        "a",
-                        "type",
-                        "missing",
-                        "here?"
-                      ],
-                    D.toSimpleNote $
-                      "I can get confused by indentation in cases like this, so\
-                      \ maybe you have an expression but it is not indented enough?"
-                  ]
-              )
-    TTupleIndentEnd row col ->
+    TParenthesisIndentEnd row col ->
       let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
           region = toRegion row col
        in Report.Report "UNFINISHED PARENTHESES" region [] $

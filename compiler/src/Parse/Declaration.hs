@@ -59,7 +59,6 @@ chompDocComment =
 
 -- DEFINITION and ANNOTATION
 
-{-# INLINE valueDecl #-}
 valueDecl :: Maybe Src.Comment -> A.Position -> Space.Parser E.Decl Decl
 valueDecl maybeDocs start =
   do
@@ -115,7 +114,6 @@ chompMatchingName expectedName =
 
 -- TYPE DECLARATIONS
 
-{-# INLINE typeDecl #-}
 typeDecl :: Maybe Src.Comment -> A.Position -> Space.Parser E.Decl Decl
 typeDecl maybeDocs start =
   inContext E.DeclType (Keyword.type_ E.DeclStart) $
@@ -199,7 +197,6 @@ chompVariants variants end =
 
 -- PORT
 
-{-# INLINE portDecl #-}
 portDecl :: Maybe Src.Comment -> Space.Parser E.Decl Decl
 portDecl maybeDocs =
   inContext E.Port (Keyword.port_ E.DeclStart) $

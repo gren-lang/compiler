@@ -52,19 +52,6 @@ canonicalize env (A.At typeRegion tipe) =
       do
         cfields <- sequenceA =<< Dups.checkFields (canonicalizeFields env fields)
         return $ Can.TRecord cfields (fmap A.toValue ext)
-    Src.TUnit ->
-      Result.ok Can.TUnit
-    Src.TTuple a b cs ->
-      Can.TTuple
-        <$> canonicalize env a
-        <*> canonicalize env b
-        <*> case cs of
-          [] ->
-            Result.ok Nothing
-          [c] ->
-            Just <$> canonicalize env c
-          _ ->
-            Result.throw $ Error.TupleLargerThanThree typeRegion
 
 canonicalizeFields :: Env.Env -> [(A.Located Name.Name, Src.Type)] -> [(A.Located Name.Name, Result i w Can.FieldType)]
 canonicalizeFields env fields =
@@ -109,14 +96,6 @@ addFreeVars freeVars tipe =
       Map.foldl addFieldFreeVars freeVars fields
     Can.TRecord fields (Just ext) ->
       Map.foldl addFieldFreeVars (Map.insert ext () freeVars) fields
-    Can.TUnit ->
-      freeVars
-    Can.TTuple a b maybeC ->
-      case maybeC of
-        Nothing ->
-          addFreeVars (addFreeVars freeVars a) b
-        Just c ->
-          addFreeVars (addFreeVars (addFreeVars freeVars a) b) c
     Can.TAlias _ _ args _ ->
       List.foldl' (\fvs (_, arg) -> addFreeVars fvs arg) freeVars args
 

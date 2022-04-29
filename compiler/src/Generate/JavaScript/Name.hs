@@ -60,7 +60,6 @@ fromKernel :: Name.Name -> Name.Name -> Name
 fromKernel home name =
   Name ("_" <> Name.toBuilder home <> "_" <> Name.toBuilder name)
 
-{-# INLINE homeToBuilder #-}
 homeToBuilder :: ModuleName.Canonical -> B.Builder
 homeToBuilder (ModuleName.Canonical (Pkg.Name author project) home) =
   usd
@@ -98,7 +97,6 @@ usd =
 
 -- RESERVED NAMES
 
-{-# NOINLINE reservedNames #-}
 reservedNames :: Set.Set Name.Name
 reservedNames =
   Set.union jsReservedWords grenReservedWords

@@ -47,13 +47,6 @@ dealiasHelp typeTable tipe =
       TAlias home name (map (fmap (dealiasHelp typeTable)) args) t'
     TType home name args ->
       TType home name (map (dealiasHelp typeTable) args)
-    TUnit ->
-      TUnit
-    TTuple a b maybeC ->
-      TTuple
-        (dealiasHelp typeTable a)
-        (dealiasHelp typeTable b)
-        (fmap (dealiasHelp typeTable) maybeC)
 
 dealiasField :: Map.Map Name.Name Type -> FieldType -> FieldType
 dealiasField typeTable (FieldType index tipe) =
@@ -74,10 +67,6 @@ deepDealias tipe =
       deepDealias (dealias args tipe')
     TType home name args ->
       TType home name (map deepDealias args)
-    TUnit ->
-      TUnit
-    TTuple a b c ->
-      TTuple (deepDealias a) (deepDealias b) (fmap deepDealias c)
 
 deepDealiasField :: FieldType -> FieldType
 deepDealiasField (FieldType index tipe) =

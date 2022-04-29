@@ -69,7 +69,6 @@ data Utf8 tipe
 
 -- EMPTY
 
-{-# NOINLINE empty #-}
 empty :: Utf8 t
 empty =
   runST (freeze =<< newByteArray 0)
@@ -101,7 +100,6 @@ containsHelp word# ba# !offset# len# =
 
 -- STARTS WITH
 
-{-# INLINE startsWith #-}
 startsWith :: Utf8 t -> Utf8 t -> Bool
 startsWith (Utf8 ba1#) (Utf8 ba2#) =
   let !len1# = sizeofByteArray# ba1#
@@ -265,7 +263,6 @@ writeChars !mba !offset chars =
       where
         n = Char.ord char
 
-{-# INLINE getWidth #-}
 getWidth :: Char -> Int
 getWidth char
   | code < 0x80 = 1
@@ -296,7 +293,6 @@ toCharsHelp ba# offset# len# =
           !newOffset# = offset# +# width#
        in char : toCharsHelp ba# newOffset# len#
 
-{-# INLINE chr2 #-}
 chr2 :: ByteArray# -> Int# -> Word8# -> Char
 chr2 ba# offset# firstWord# =
   let !i1# = word8ToInt# firstWord#
@@ -305,7 +301,6 @@ chr2 ba# offset# firstWord# =
       !c2# = i2# -# 0x80#
    in C# (chr# (c1# +# c2#))
 
-{-# INLINE chr3 #-}
 chr3 :: ByteArray# -> Int# -> Word8# -> Char
 chr3 ba# offset# firstWord# =
   let !i1# = word8ToInt# firstWord#
@@ -316,7 +311,6 @@ chr3 ba# offset# firstWord# =
       !c3# = i3# -# 0x80#
    in C# (chr# (c1# +# c2# +# c3#))
 
-{-# INLINE chr4 #-}
 chr4 :: ByteArray# -> Int# -> Word8# -> Char
 chr4 ba# offset# firstWord# =
   let !i1# = word8ToInt# firstWord#
@@ -335,12 +329,10 @@ word8ToInt# word8 =
 
 -- TO BUILDER
 
-{-# INLINE toBuilder #-}
 toBuilder :: Utf8 t -> B.Builder
 toBuilder =
   \bytes -> B.builder (toBuilderHelp bytes)
 
-{-# INLINE toBuilderHelp #-}
 toBuilderHelp :: Utf8 t -> B.BuildStep a -> B.BuildStep a
 toBuilderHelp !bytes@(Utf8 ba#) k =
   go 0 (I# (sizeofByteArray# ba#))
@@ -360,12 +352,10 @@ toBuilderHelp !bytes@(Utf8 ba#) k =
 
 -- TO ESCAPED BUILDER
 
-{-# INLINE toEscapedBuilder #-}
 toEscapedBuilder :: Word8 -> Word8 -> Utf8 t -> B.Builder
 toEscapedBuilder before after =
   \name -> B.builder (toEscapedBuilderHelp before after name)
 
-{-# INLINE toEscapedBuilderHelp #-}
 toEscapedBuilderHelp :: Word8 -> Word8 -> Utf8 t -> B.BuildStep a -> B.BuildStep a
 toEscapedBuilderHelp before after !name@(Utf8 ba#) k =
   go 0 (I# (sizeofByteArray# ba#))
@@ -456,7 +446,6 @@ getVeryLong =
 
 -- COPY FROM BYTESTRING
 
-{-# INLINE copyFromByteString #-}
 copyFromByteString :: Int -> B.ByteString -> Utf8 t
 copyFromByteString len (B.PS fptr offset _) =
   unsafeDupablePerformIO
@@ -502,14 +491,12 @@ copyToPtr (Utf8 ba#) (I# offset#) (Ptr mba#) (I# len#) =
     case copyByteArrayToAddr# ba# offset# mba# len# s of
       s -> (# s, () #)
 
-{-# INLINE writeWord8 #-}
 writeWord8 :: MBA s -> Int -> Word8 -> ST s ()
 writeWord8 (MBA# mba#) (I# offset#) (W8# w#) =
   ST $ \s ->
     case writeWord8Array# mba# offset# w# s of
       s -> (# s, () #)
 
-{-# INLINE writeWordToPtr #-}
 writeWordToPtr :: Ptr a -> Int -> Word8 -> IO ()
 writeWordToPtr (Ptr addr#) (I# offset#) (W8# word#) =
   IO $ \s ->

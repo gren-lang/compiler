@@ -64,13 +64,6 @@ canonicalize env (A.At region pattern) =
         logVar name region (Can.PVar name)
       Src.PRecord fields ->
         Can.PRecord <$> canonicalizeRecordFields env fields
-      Src.PUnit ->
-        Result.ok Can.PUnit
-      Src.PTuple a b cs ->
-        Can.PTuple
-          <$> canonicalize env a
-          <*> canonicalize env b
-          <*> canonicalizeTuple region env cs
       Src.PCtor nameRegion name patterns ->
         canonicalizeCtor env region name patterns =<< Env.findCtor nameRegion env name
       Src.PCtorQual nameRegion home name patterns ->
@@ -120,16 +113,6 @@ canonicalizeCtor env region name patterns ctor =
                 Result.throw (Error.BadArity region Error.PatternArity name expectedLength actualLength)
     Env.RecordCtor _ _ _ ->
       Result.throw (Error.PatternHasRecordCtor region name)
-
-canonicalizeTuple :: A.Region -> Env.Env -> [Src.Pattern] -> Result DupsDict w (Maybe Can.Pattern)
-canonicalizeTuple tupleRegion env extras =
-  case extras of
-    [] ->
-      Result.ok Nothing
-    [three] ->
-      Just <$> canonicalize env three
-    _ ->
-      Result.throw $ Error.TupleLargerThanThree tupleRegion
 
 canonicalizeList :: Env.Env -> [Src.Pattern] -> Result DupsDict w [Can.Pattern]
 canonicalizeList env list =

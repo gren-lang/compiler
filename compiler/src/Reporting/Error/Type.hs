@@ -86,9 +86,6 @@ data Category
   | Accessor Name.Name
   | Access Name.Name
   | Record
-  | Tuple
-  | Unit
-  | Shader
   | Effects
   | Local Name.Name
   | Foreign Name.Name
@@ -107,8 +104,6 @@ data PContext
 
 data PCategory
   = PRecord
-  | PUnit
-  | PTuple
   | PArray
   | PCtor Name.Name
   | PInt
@@ -266,8 +261,6 @@ addPatternCategory iAmTryingToMatch category =
   iAmTryingToMatch
     <> case category of
       PRecord -> " record values of type:"
-      PUnit -> " unit values:"
-      PTuple -> " tuples of type:"
       PArray -> " arrays of type:"
       PCtor name -> " `" <> Name.toChars name <> "` values of type:"
       PInt -> " integers:"
@@ -317,9 +310,6 @@ addCategory thisIs category =
     Char -> thisIs <> " a character of type:"
     Lambda -> thisIs <> " an anonymous function of type:"
     Record -> thisIs <> " a record of type:"
-    Tuple -> thisIs <> " a tuple of type:"
-    Unit -> thisIs <> " a unit value:"
-    Shader -> thisIs <> " a GLSL shader of type:"
     Effects -> thisIs <> " a thing for CORE LIBRARIES ONLY."
     CallResult maybeName ->
       case maybeName of
@@ -474,8 +464,6 @@ problemToHint problem =
         T.RigidSuper s _ -> badRigidSuper s (toASuperThing super)
         T.Type _ _ _ -> badFlexSuper direction super tipe
         T.Record _ _ -> badFlexSuper direction super tipe
-        T.Unit -> badFlexSuper direction super tipe
-        T.Tuple _ _ _ -> badFlexSuper direction super tipe
         T.Alias _ _ _ _ -> badFlexSuper direction super tipe
     T.BadRigidVar x tipe ->
       case tipe of
@@ -488,8 +476,6 @@ problemToHint problem =
         T.RigidSuper _ y -> badDoubleRigid x y
         T.Type _ n _ -> badRigidVar x ("a `" ++ Name.toChars n ++ "` value")
         T.Record _ _ -> badRigidVar x "a record"
-        T.Unit -> badRigidVar x "a unit value"
-        T.Tuple _ _ _ -> badRigidVar x "a tuple"
         T.Alias _ n _ _ -> badRigidVar x ("a `" ++ Name.toChars n ++ "` value")
     T.BadRigidSuper super x tipe ->
       case tipe of
@@ -502,8 +488,6 @@ problemToHint problem =
         T.RigidSuper _ y -> badDoubleRigid x y
         T.Type _ n _ -> badRigidSuper super ("a `" ++ Name.toChars n ++ "` value")
         T.Record _ _ -> badRigidSuper super "a record"
-        T.Unit -> badRigidSuper super "a unit value"
-        T.Tuple _ _ _ -> badRigidSuper super "a tuple"
         T.Alias _ n _ _ -> badRigidSuper super ("a `" ++ Name.toChars n ++ "` value")
     T.FieldsMissing fields ->
       case map (D.green . D.fromName) fields of
@@ -581,7 +565,7 @@ badFlexSuper direction super tipe =
           [ D.link
               "Hint"
               "I do not know how to compare records. I can only compare ints, floats,\
-              \ chars, strings, arrays of comparable values, and tuples of comparable values.\
+              \ chars, strings and arrays of comparable values.\
               \ Check out"
               "comparing-records"
               "for ideas on how to proceed."
@@ -590,8 +574,7 @@ badFlexSuper direction super tipe =
           [ D.toSimpleHint $
               "I do not know how to compare `" ++ Name.toChars name
                 ++ "` values. I can only\
-                   \ compare ints, floats, chars, strings, arrays of comparable values, and tuples\
-                   \ of comparable values.",
+                   \ compare ints, floats, chars, strings and arrays of comparable values.",
             D.reflowLink
               "Check out"
               "comparing-custom-types"
@@ -599,8 +582,7 @@ badFlexSuper direction super tipe =
           ]
         _ ->
           [ D.toSimpleHint $
-              "I only know how to compare ints, floats, chars, strings, arrays of\
-              \ comparable values, and tuples of comparable values."
+              "I only know how to compare ints, floats, chars, strings and arrays of comparable values."
           ]
     T.Appendable ->
       [ D.toSimpleHint "I only know how to append strings and arrays."
@@ -627,7 +609,7 @@ badRigidSuper super aThing =
   let (superType, manyThings) =
         case super of
           T.Number -> ("number", "ints AND floats")
-          T.Comparable -> ("comparable", "ints, floats, chars, strings, arrays, and tuples")
+          T.Comparable -> ("comparable", "ints, floats, chars, strings and arrays")
           T.Appendable -> ("appendable", "strings AND arrays")
           T.CompAppend -> ("compappend", "strings AND arrays")
    in [ D.toSimpleHint $
@@ -1742,8 +1724,6 @@ badCompLeft localizer category op direction tipe expected =
             "work",
             "on",
             "arrays",
-            "and",
-            "tuples",
             "of",
             "comparable",
             "values",

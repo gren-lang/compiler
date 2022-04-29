@@ -92,19 +92,16 @@ data DecodeExpectation
 -- INSTANCES
 
 instance Functor (Decoder x) where
-  {-# INLINE fmap #-}
   fmap func (Decoder decodeA) =
     Decoder $ \ast ok err ->
       let ok' a = ok (func a)
        in decodeA ast ok' err
 
 instance Applicative (Decoder x) where
-  {-# INLINE pure #-}
   pure a =
     Decoder $ \_ ok _ ->
       ok a
 
-  {-# INLINE (<*>) #-}
   (<*>) (Decoder decodeFunc) (Decoder decodeArg) =
     Decoder $ \ast ok err ->
       let okF func =
@@ -113,7 +110,6 @@ instance Applicative (Decoder x) where
        in decodeFunc ast okF err
 
 instance Monad (Decoder x) where
-  {-# INLINE (>>=) #-}
   (>>=) (Decoder decodeA) callback =
     Decoder $ \ast ok err ->
       let ok' a =
@@ -632,7 +628,6 @@ chompInt pos end n =
                 else (# GoodInt, n, pos #)
     else (# GoodInt, n, pos #)
 
-{-# INLINE isDecimalDigit #-}
 isDecimalDigit :: Word8 -> Bool
 isDecimalDigit word =
   word <= 0x39 {-9-} && word >= 0x30 {-0-}

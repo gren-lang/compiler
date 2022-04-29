@@ -20,7 +20,6 @@ import qualified AST.Optimized as Opt
 import qualified AST.Utils.Type as Type
 import Data.Map ((!))
 import qualified Data.Map as Map
-import qualified Data.Maybe as Maybe
 import qualified Data.Name as Name
 import qualified Data.Set as Set
 import qualified Gren.Compiler.Type as T
@@ -53,13 +52,6 @@ extract astType =
       do
         efields <- traverse (traverse extract) (Can.fieldsToList fields)
         pure (T.Record efields ext)
-    Can.TUnit ->
-      pure T.Unit
-    Can.TTuple a b maybeC ->
-      T.Tuple
-        <$> extract a
-        <*> extract b
-        <*> traverse extract (Maybe.maybeToList maybeC)
     Can.TAlias home name args aliasType ->
       do
         addAlias (Opt.Global home name) ()
@@ -164,7 +156,6 @@ data Deps = Deps
     _unions :: Set.Set Opt.Global
   }
 
-{-# NOINLINE noDeps #-}
 noDeps :: Deps
 noDeps =
   Deps Set.empty Set.empty

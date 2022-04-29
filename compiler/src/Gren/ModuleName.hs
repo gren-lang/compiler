@@ -20,7 +20,6 @@ module Gren.ModuleName
     result,
     array,
     dict,
-    tuple,
     platform,
     cmd,
     sub,
@@ -134,66 +133,48 @@ instance Binary Canonical where
 
 -- CORE
 
-{-# NOINLINE basics #-}
 basics :: Canonical
 basics = Canonical Pkg.core Name.basics
 
-{-# NOINLINE char #-}
 char :: Canonical
 char = Canonical Pkg.core Name.char
 
-{-# NOINLINE string #-}
 string :: Canonical
 string = Canonical Pkg.core Name.string
 
-{-# NOINLINE maybe #-}
 maybe :: Canonical
 maybe = Canonical Pkg.core Name.maybe
 
-{-# NOINLINE result #-}
 result :: Canonical
 result = Canonical Pkg.core Name.result
 
-{-# NOINLINE array #-}
 array :: Canonical
 array = Canonical Pkg.core Name.array
 
-{-# NOINLINE dict #-}
 dict :: Canonical
 dict = Canonical Pkg.core Name.dict
 
-{-# NOINLINE tuple #-}
-tuple :: Canonical
-tuple = Canonical Pkg.core Name.tuple
-
-{-# NOINLINE platform #-}
 platform :: Canonical
 platform = Canonical Pkg.core Name.platform
 
-{-# NOINLINE cmd #-}
 cmd :: Canonical
 cmd = Canonical Pkg.core "Platform.Cmd"
 
-{-# NOINLINE sub #-}
 sub :: Canonical
 sub = Canonical Pkg.core "Platform.Sub"
 
-{-# NOINLINE debug #-}
 debug :: Canonical
 debug = Canonical Pkg.core Name.debug
 
 -- HTML
 
-{-# NOINLINE virtualDom #-}
 virtualDom :: Canonical
 virtualDom = Canonical Pkg.virtualDom Name.virtualDom
 
 -- JSON
 
-{-# NOINLINE jsonDecode #-}
 jsonDecode :: Canonical
 jsonDecode = Canonical Pkg.json "Json.Decode"
 
-{-# NOINLINE jsonEncode #-}
 jsonEncode :: Canonical
 jsonEncode = Canonical Pkg.json "Json.Encode"

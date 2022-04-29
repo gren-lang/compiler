@@ -104,52 +104,42 @@ toName :: Author -> [Char] -> Name
 toName author project =
   Name author (Utf8.fromChars project)
 
-{-# NOINLINE dummyName #-}
 dummyName :: Name
 dummyName =
   toName (Utf8.fromChars "author") "project"
 
-{-# NOINLINE kernel #-}
 kernel :: Name
 kernel =
   toName gren "kernel"
 
-{-# NOINLINE core #-}
 core :: Name
 core =
   toName gren "core"
 
-{-# NOINLINE browser #-}
 browser :: Name
 browser =
   toName gren "browser"
 
-{-# NOINLINE virtualDom #-}
 virtualDom :: Name
 virtualDom =
   toName gren "virtual-dom"
 
-{-# NOINLINE html #-}
 html :: Name
 html =
   toName gren "html"
 
-{-# NOINLINE json #-}
 json :: Name
 json =
   toName gren "json"
 
-{-# NOINLINE http #-}
 http :: Name
 http =
   toName gren "http"
 
-{-# NOINLINE url #-}
 url :: Name
 url =
   toName gren "url"
 
-{-# NOINLINE gren #-}
 gren :: Author
 gren =
   Utf8.fromChars "gren-lang"

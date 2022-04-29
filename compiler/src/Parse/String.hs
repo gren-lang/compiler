@@ -100,7 +100,6 @@ string toExpectation toError =
                 cerr r c (toError x)
       else eerr row col toExpectation
 
-{-# INLINE isDoubleQuote #-}
 isDoubleQuote :: Ptr Word8 -> Ptr Word8 -> Bool
 isDoubleQuote pos end =
   pos < end && P.unsafeIndex pos == 0x22 {- " -}
@@ -253,27 +252,22 @@ eatUnicode pos end row col =
                           code
                     else EscapeUnicode (numDigits + 4) code
 
-{-# NOINLINE singleQuote #-}
 singleQuote :: ES.Chunk
 singleQuote =
   ES.Escape 0x27 {-'-}
 
-{-# NOINLINE doubleQuote #-}
 doubleQuote :: ES.Chunk
 doubleQuote =
   ES.Escape 0x22 {-"-}
 
-{-# NOINLINE newline #-}
 newline :: ES.Chunk
 newline =
   ES.Escape 0x6E {-n-}
 
-{-# NOINLINE carriageReturn #-}
 carriageReturn :: ES.Chunk
 carriageReturn =
   ES.Escape 0x72 {-r-}
 
-{-# NOINLINE placeholder #-}
 placeholder :: ES.Chunk
 placeholder =
   ES.CodePoint 0xFFFD {-replacement character-}

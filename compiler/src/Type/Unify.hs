@@ -37,7 +37,6 @@ onSuccess :: [Variable] -> () -> IO Answer
 onSuccess vars () =
   return (Ok vars)
 
-{-# NOINLINE errorDescriptor #-}
 errorDescriptor :: Descriptor
 errorDescriptor =
   Descriptor Error noRank noMark Nothing
@@ -310,23 +309,6 @@ unifyFlexSuperStructure context super flatType =
             comparableOccursCheck context
             unifyComparableRecursive variable
             merge context (Structure flatType)
-    Tuple1 a b maybeC ->
-      case super of
-        Number ->
-          mismatch
-        Appendable ->
-          mismatch
-        Comparable ->
-          do
-            comparableOccursCheck context
-            unifyComparableRecursive a
-            unifyComparableRecursive b
-            case maybeC of
-              Nothing -> return ()
-              Just c -> unifyComparableRecursive c
-            merge context (Structure flatType)
-        CompAppend ->
-          mismatch
     _ ->
       mismatch
 
@@ -443,19 +425,6 @@ unifyStructure context flatType content otherContent =
               case unifyRecord context structure1 structure2 of
                 Unify k ->
                   k vars ok err
-        (Tuple1 a b Nothing, Tuple1 x y Nothing) ->
-          do
-            subUnify a x
-            subUnify b y
-            merge context otherContent
-        (Tuple1 a b (Just c), Tuple1 x y (Just z)) ->
-          do
-            subUnify a x
-            subUnify b y
-            subUnify c z
-            merge context otherContent
-        (Unit1, Unit1) ->
-          merge context otherContent
         _ ->
           mismatch
     Error ->

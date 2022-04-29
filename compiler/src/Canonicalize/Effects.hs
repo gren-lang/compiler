@@ -142,17 +142,6 @@ checkPayload tipe =
           | isArray home name -> checkPayload arg
         _ ->
           Left (tipe, Error.UnsupportedType name)
-    Can.TUnit ->
-      Right ()
-    Can.TTuple a b maybeC ->
-      do
-        checkPayload a
-        checkPayload b
-        case maybeC of
-          Nothing ->
-            Right ()
-          Just c ->
-            checkPayload c
     Can.TVar name ->
       Left (tipe, Error.TypeVariable name)
     Can.TLambda _ _ ->

@@ -34,7 +34,6 @@ mapError func (Task task) =
 
 -- IO
 
-{-# INLINE io #-}
 io :: IO a -> Task x a
 io work =
   Task $ \ok _ -> work >>= ok
@@ -60,18 +59,15 @@ eio func work =
 -- INSTANCES
 
 instance Functor (Task x) where
-  {-# INLINE fmap #-}
   fmap func (Task taskA) =
     Task $ \ok err ->
       let okA arg = ok (func arg)
        in taskA okA err
 
 instance Applicative (Task x) where
-  {-# INLINE pure #-}
   pure a =
     Task $ \ok _ -> ok a
 
-  {-# INLINE (<*>) #-}
   (<*>) (Task taskFunc) (Task taskArg) =
     Task $ \ok err ->
       let okFunc func =
@@ -80,10 +76,8 @@ instance Applicative (Task x) where
        in taskFunc okFunc err
 
 instance Monad (Task x) where
-  {-# INLINE return #-}
   return = pure
 
-  {-# INLINE (>>=) #-}
   (>>=) (Task taskA) callback =
     Task $ \ok err ->
       let okA a =

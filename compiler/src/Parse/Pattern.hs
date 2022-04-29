@@ -32,8 +32,8 @@ term =
     oneOf
       E.PStart
       [ record start,
-        tuple start,
         array start,
+        parenthesized,
         termHelp start
       ]
 
@@ -94,6 +94,18 @@ wildcard =
                 let !newState = P.State src newPos end indent row newCol
                  in cok () newState
 
+-- PARENTHESIZED PATTERNS
+
+parenthesized :: Parser E.Pattern Src.Pattern
+parenthesized =
+  inContext E.PParenthesized (word1 0x28 {-(-} E.PStart) $
+    do
+      Space.chompAndCheckIndent E.PParenthesizedSpace E.PParenthesizedIndentPattern
+      (pattern, end) <- P.specialize E.PParenthesizedPattern expression
+      Space.checkIndent end E.PParenthesizedIndentEnd
+      word1 0x29 {-)-} E.PParenthesizedEnd
+      return pattern
+
 -- RECORDS
 
 record :: A.Position -> Parser E.Pattern Src.Pattern
@@ -147,43 +159,6 @@ recordContinuationHelp start revPatterns =
       do
         word1 0x7D {-}-} E.PRecordEnd
         addEnd start (Src.PRecord (reverse revPatterns))
-    ]
-
--- TUPLES
-
-tuple :: A.Position -> Parser E.Pattern Src.Pattern
-tuple start =
-  inContext E.PTuple (word1 0x28 {-(-} E.PStart) $
-    do
-      Space.chompAndCheckIndent E.PTupleSpace E.PTupleIndentExpr1
-      oneOf
-        E.PTupleOpen
-        [ do
-            (pattern, end) <- P.specialize E.PTupleExpr expression
-            Space.checkIndent end E.PTupleIndentEnd
-            tupleHelp start pattern [],
-          do
-            word1 0x29 {-)-} E.PTupleEnd
-            addEnd start Src.PUnit
-        ]
-
-tupleHelp :: A.Position -> Src.Pattern -> [Src.Pattern] -> Parser E.PTuple Src.Pattern
-tupleHelp start firstPattern revPatterns =
-  oneOf
-    E.PTupleEnd
-    [ do
-        word1 0x2C {-,-} E.PTupleEnd
-        Space.chompAndCheckIndent E.PTupleSpace E.PTupleIndentExprN
-        (pattern, end) <- P.specialize E.PTupleExpr expression
-        Space.checkIndent end E.PTupleIndentEnd
-        tupleHelp start firstPattern (pattern : revPatterns),
-      do
-        word1 0x29 {-)-} E.PTupleEnd
-        case reverse revPatterns of
-          [] ->
-            return firstPattern
-          secondPattern : otherPatterns ->
-            addEnd start (Src.PTuple firstPattern secondPattern otherPatterns)
     ]
 
 -- ARRAY

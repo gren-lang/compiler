@@ -27,7 +27,6 @@ isDirtyEnd :: Ptr Word8 -> Ptr Word8 -> Word8 -> Bool
 isDirtyEnd pos end word =
   Var.getInnerWidthHelp pos end word > 0
 
-{-# INLINE isDecimalDigit #-}
 isDecimalDigit :: Word8 -> Bool
 isDecimalDigit word =
   word <= 0x39 {-9-} && word >= 0x30 {-0-}
@@ -187,7 +186,6 @@ chompHexInt pos end =
 -- Return -1 if it has NO digits
 -- Return -2 if it has BAD digits
 
-{-# INLINE chompHex #-}
 chompHex :: Ptr Word8 -> Ptr Word8 -> (# Ptr Word8, Int #)
 chompHex pos end =
   chompHexHelp pos end (-1) 0
@@ -203,7 +201,6 @@ chompHexHelp pos end answer accumulator =
             then (# pos, if newAnswer == -1 then answer else -2 #)
             else chompHexHelp (plusPtr pos 1) end newAnswer newAnswer
 
-{-# INLINE stepHex #-}
 stepHex :: Ptr Word8 -> Ptr Word8 -> Word8 -> Int -> Int
 stepHex pos end word acc
   | 0x30 {-0-} <= word && word <= 0x39 {-9-} = 16 * acc + fromIntegral (word - 0x30 {-0-})

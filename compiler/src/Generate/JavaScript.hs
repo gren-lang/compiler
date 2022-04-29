@@ -346,7 +346,6 @@ generateBox mode global@(Opt.Global home name) =
       Mode.Prod _ ->
         JS.Ref (JsName.fromGlobal ModuleName.basics Name.identity)
 
-{-# NOINLINE identity #-}
 identity :: Opt.Global
 identity =
   Opt.Global ModuleName.basics Name.identity
@@ -386,7 +385,6 @@ generateLeaf home@(ModuleName.Canonical _ moduleName) name =
   JS.Var (JsName.fromGlobal home name) $
     JS.Call leaf [JS.String (Name.toBuilder moduleName)]
 
-{-# NOINLINE leaf #-}
 leaf :: JS.Expr
 leaf =
   JS.Ref (JsName.fromKernel Name.platform "leaf")

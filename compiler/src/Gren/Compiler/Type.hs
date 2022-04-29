@@ -34,8 +34,6 @@ data Type
   | Var Name.Name
   | Type Name.Name [Type]
   | Record [(Name.Name, Type)] (Maybe Name.Name)
-  | Unit
-  | Tuple Type Type [Type]
 
 data DebugMetadata = DebugMetadata
   { _message :: Type,
@@ -58,13 +56,6 @@ toDoc localizer context tipe =
        in RT.lambda context a b cs
     Var name ->
       D.fromName name
-    Unit ->
-      "()"
-    Tuple a b cs ->
-      RT.tuple
-        (toDoc localizer RT.None a)
-        (toDoc localizer RT.None b)
-        (map (toDoc localizer RT.None) cs)
     Type name args ->
       RT.apply
         context
@@ -106,13 +97,6 @@ fromRawType (A.At _ astType) =
       Lambda (fromRawType t1) (fromRawType t2)
     Src.TVar x ->
       Var x
-    Src.TUnit ->
-      Unit
-    Src.TTuple a b cs ->
-      Tuple
-        (fromRawType a)
-        (fromRawType b)
-        (map fromRawType cs)
     Src.TType _ name args ->
       Type name (map fromRawType args)
     Src.TTypeQual _ _ name args ->

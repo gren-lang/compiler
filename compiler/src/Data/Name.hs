@@ -39,15 +39,12 @@ module Data.Name
     result,
     array,
     dict,
-    tuple,
-    jsArray,
     task,
     router,
     cmd,
     sub,
     platform,
     virtualDom,
-    shader,
     debug,
     debugger,
     bitwise,
@@ -112,7 +109,6 @@ toGrenString :: Name -> ES.String
 toGrenString =
   Coerce.coerce
 
-{-# INLINE toBuilder #-}
 toBuilder :: Name -> B.Builder
 toBuilder =
   Utf8.toBuilder
@@ -172,23 +168,18 @@ isAppendableType = Utf8.startsWith prefix_appendable
 isCompappendType :: Name -> Bool
 isCompappendType = Utf8.startsWith prefix_compappend
 
-{-# NOINLINE prefix_kernel #-}
 prefix_kernel :: Name
 prefix_kernel = fromChars "Gren.Kernel."
 
-{-# NOINLINE prefix_number #-}
 prefix_number :: Name
 prefix_number = fromChars "number"
 
-{-# NOINLINE prefix_comparable #-}
 prefix_comparable :: Name
 prefix_comparable = fromChars "comparable"
 
-{-# NOINLINE prefix_appendable #-}
 prefix_appendable :: Name
 prefix_appendable = fromChars "appendable"
 
-{-# NOINLINE prefix_compappend #-}
 prefix_compappend :: Name
 prefix_compappend = fromChars "compappend"
 
@@ -206,7 +197,6 @@ fromVarIndex n =
         freeze mba
     )
 
-{-# INLINE getIndexSize #-}
 getIndexSize :: Int -> Int
 getIndexSize n
   | n < 10 = 1
@@ -309,7 +299,6 @@ fromManyNames names =
                                       (# s, ba# #) -> (# s, Utf8.Utf8 ba# #)
             )
 
-{-# NOINLINE blank #-}
 blank :: Name
 blank =
   fromWords [0x5F, 0x4D, 0x24 {-_M$-}]
@@ -360,28 +349,24 @@ sepBy (W8# sep#) (Utf8.Utf8 ba1#) (Utf8.Utf8 ba2#) =
 data MBA s
   = MBA# (MutableByteArray# s)
 
-{-# INLINE newByteArray #-}
 newByteArray :: Int -> ST s (MBA s)
 newByteArray (I# len#) =
   ST $ \s ->
     case newByteArray# len# s of
       (# s, mba# #) -> (# s, MBA# mba# #)
 
-{-# INLINE freeze #-}
 freeze :: MBA s -> ST s Name
 freeze (MBA# mba#) =
   ST $ \s ->
     case unsafeFreezeByteArray# mba# s of
       (# s, ba# #) -> (# s, Utf8.Utf8 ba# #)
 
-{-# INLINE writeWord8 #-}
 writeWord8 :: MBA s -> Int -> Word8 -> ST s ()
 writeWord8 (MBA# mba#) (I# offset#) (W8# w#) =
   ST $ \s ->
     case writeWord8Array# mba# offset# w# s of
       s -> (# s, () #)
 
-{-# INLINE copyToMBA #-}
 copyToMBA :: Name -> MBA s -> ST s ()
 copyToMBA (Utf8.Utf8 ba#) (MBA# mba#) =
   ST $ \s ->
@@ -390,142 +375,98 @@ copyToMBA (Utf8.Utf8 ba#) (MBA# mba#) =
 
 -- COMMON NAMES
 
-{-# NOINLINE int #-}
 int :: Name
 int = fromChars "Int"
 
-{-# NOINLINE float #-}
 float :: Name
 float = fromChars "Float"
 
-{-# NOINLINE bool #-}
 bool :: Name
 bool = fromChars "Bool"
 
-{-# NOINLINE char #-}
 char :: Name
 char = fromChars "Char"
 
-{-# NOINLINE string #-}
 string :: Name
 string = fromChars "String"
 
-{-# NOINLINE maybe #-}
 maybe :: Name
 maybe = fromChars "Maybe"
 
-{-# NOINLINE result #-}
 result :: Name
 result = fromChars "Result"
 
-{-# NOINLINE array #-}
 array :: Name
 array = fromChars "Array"
 
-{-# NOINLINE dict #-}
 dict :: Name
 dict = fromChars "Dict"
 
-{-# NOINLINE tuple #-}
-tuple :: Name
-tuple = fromChars "Tuple"
-
-{-# NOINLINE jsArray #-}
-jsArray :: Name
-jsArray = fromChars "JsArray"
-
-{-# NOINLINE task #-}
 task :: Name
 task = fromChars "Task"
 
-{-# NOINLINE router #-}
 router :: Name
 router = fromChars "Router"
 
-{-# NOINLINE cmd #-}
 cmd :: Name
 cmd = fromChars "Cmd"
 
-{-# NOINLINE sub #-}
 sub :: Name
 sub = fromChars "Sub"
 
-{-# NOINLINE platform #-}
 platform :: Name
 platform = fromChars "Platform"
 
-{-# NOINLINE virtualDom #-}
 virtualDom :: Name
 virtualDom = fromChars "VirtualDom"
 
-{-# NOINLINE shader #-}
-shader :: Name
-shader = fromChars "Shader"
-
-{-# NOINLINE debug #-}
 debug :: Name
 debug = fromChars "Debug"
 
-{-# NOINLINE debugger #-}
 debugger :: Name
 debugger = fromChars "Debugger"
 
-{-# NOINLINE bitwise #-}
 bitwise :: Name
 bitwise = fromChars "Bitwise"
 
-{-# NOINLINE basics #-}
 basics :: Name
 basics = fromChars "Basics"
 
-{-# NOINLINE utils #-}
 utils :: Name
 utils = fromChars "Utils"
 
-{-# NOINLINE negate #-}
 negate :: Name
 negate = fromChars "negate"
 
-{-# NOINLINE true #-}
 true :: Name
 true = fromChars "True"
 
-{-# NOINLINE false #-}
 false :: Name
 false = fromChars "False"
 
-{-# NOINLINE value #-}
 value :: Name
 value = fromChars "Value"
 
-{-# NOINLINE node #-}
 node :: Name
 node = fromChars "Node"
 
-{-# NOINLINE program #-}
 program :: Name
 program = fromChars "Program"
 
-{-# NOINLINE _main #-}
 _main :: Name
 _main = fromChars "main"
 
-{-# NOINLINE _Main #-}
 _Main :: Name
 _Main = fromChars "Main"
 
-{-# NOINLINE dollar #-}
 dollar :: Name
 dollar = fromChars "$"
 
-{-# NOINLINE identity #-}
 identity :: Name
 identity = fromChars "identity"
 
-{-# NOINLINE replModule #-}
 replModule :: Name
 replModule = fromChars "Gren_Repl"
 
-{-# NOINLINE replValueToPrint #-}
 replValueToPrint :: Name
 replValueToPrint = fromChars "repl_input_value_"

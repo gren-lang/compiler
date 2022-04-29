@@ -40,7 +40,6 @@ run constraint =
       e : es ->
         return $ Left (NE.List e es)
 
-{-# NOINLINE emptyState #-}
 emptyState :: State
 emptyState =
   State Map.empty (nextMark noMark) []
@@ -358,18 +357,6 @@ adjustRankContent youngMark visitMark groupRank content =
               do
                 extRank <- go extension
                 foldM (\rank field -> max rank <$> go field) extRank fields
-            Unit1 ->
-              -- THEORY: a unit never needs to get generalized
-              return outermostRank
-            Tuple1 a b maybeC ->
-              do
-                ma <- go a
-                mb <- go b
-                case maybeC of
-                  Nothing ->
-                    return (max ma mb)
-                  Just c ->
-                    max (max ma mb) <$> go c
         Alias _ _ args _ ->
           -- THEORY: anything in the realVar would be outermostRank
           foldM (\rank (_, argVar) -> max rank <$> go argVar) outermostRank args
@@ -428,14 +415,6 @@ typeToVar rank pools aliasDict tipe =
             register rank pools (Structure (Record1 fieldVars extVar))
         EmptyRecordN ->
           register rank pools emptyRecord1
-        UnitN ->
-          register rank pools unit1
-        TupleN a b c ->
-          do
-            aVar <- go a
-            bVar <- go b
-            cVar <- traverse go c
-            register rank pools (Structure (Tuple1 aVar bVar cVar))
 
 register :: Int -> Pools -> Content -> IO Variable
 register rank pools content =
@@ -444,15 +423,9 @@ register rank pools content =
     MVector.modify pools (var :) rank
     return var
 
-{-# NOINLINE emptyRecord1 #-}
 emptyRecord1 :: Content
 emptyRecord1 =
   Structure EmptyRecord1
-
-{-# NOINLINE unit1 #-}
-unit1 :: Content
-unit1 =
-  Structure Unit1
 
 -- SOURCE TYPE TO VARIABLE
 
@@ -495,14 +468,6 @@ srcTypeToVar rank pools flexVars srcType =
                 Nothing -> register rank pools emptyRecord1
                 Just ext -> return (flexVars ! ext)
             register rank pools (Structure (Record1 fieldVars extVar))
-        Can.TUnit ->
-          register rank pools unit1
-        Can.TTuple a b c ->
-          do
-            aVar <- go a
-            bVar <- go b
-            cVar <- traverse go c
-            register rank pools (Structure (Tuple1 aVar bVar cVar))
         Can.TAlias home name args aliasType ->
           do
             argVars <- traverse (traverse go) args
@@ -620,15 +585,6 @@ restoreContent content =
           do
             mapM_ restore fields
             restore ext
-        Unit1 ->
-          return ()
-        Tuple1 a b maybeC ->
-          do
-            restore a
-            restore b
-            case maybeC of
-              Nothing -> return ()
-              Just c -> restore c
     Alias _ _ args var ->
       do
         mapM_ (traverse restore) args
@@ -649,7 +605,3 @@ traverseFlatType f flatType =
       pure EmptyRecord1
     Record1 fields ext ->
       liftM2 Record1 (traverse f fields) (f ext)
-    Unit1 ->
-      pure Unit1
-    Tuple1 a b cs ->
-      liftM3 Tuple1 (f a) (f b) (traverse f cs)

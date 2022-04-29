@@ -35,7 +35,6 @@ third :: ZeroBased
 third =
   ZeroBased 2
 
-{-# INLINE next #-}
 next :: ZeroBased -> ZeroBased
 next (ZeroBased i) =
   ZeroBased (i + 1)
@@ -52,17 +51,14 @@ toHuman (ZeroBased index) =
 
 -- INDEXED MAP
 
-{-# INLINE indexedMap #-}
 indexedMap :: (ZeroBased -> a -> b) -> [a] -> [b]
 indexedMap func xs =
   zipWith func (map ZeroBased [0 .. length xs]) xs
 
-{-# INLINE indexedTraverse #-}
 indexedTraverse :: (Applicative f) => (ZeroBased -> a -> f b) -> [a] -> f [b]
 indexedTraverse func xs =
   sequenceA (indexedMap func xs)
 
-{-# INLINE indexedForA #-}
 indexedForA :: (Applicative f) => [a] -> (ZeroBased -> a -> f b) -> f [b]
 indexedForA xs func =
   sequenceA (indexedMap func xs)

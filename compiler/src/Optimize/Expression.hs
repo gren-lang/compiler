@@ -131,13 +131,6 @@ optimize cycle (A.At region expression) =
     Can.Record fields ->
       Names.registerFieldDict fields Opt.Record
         <*> traverse (optimize cycle) fields
-    Can.Unit ->
-      Names.registerKernel Name.utils Opt.Unit
-    Can.Tuple a b maybeC ->
-      Names.registerKernel Name.utils Opt.Tuple
-        <*> optimize cycle a
-        <*> optimize cycle b
-        <*> traverse (optimize cycle) maybeC
 
 -- UPDATE
 
@@ -205,23 +198,6 @@ destructHelp path (A.At _ pattern) revDs =
     Can.PAlias subPattern name ->
       destructHelp (Opt.Root name) subPattern $
         Opt.Destructor name path : revDs
-    Can.PUnit ->
-      pure revDs
-    Can.PTuple a b Nothing ->
-      destructTwo path a b revDs
-    Can.PTuple a b (Just c) ->
-      case path of
-        Opt.Root _ ->
-          destructHelp (Opt.Index Index.third path) c
-            =<< destructHelp (Opt.Index Index.second path) b
-            =<< destructHelp (Opt.Index Index.first path) a revDs
-        _ ->
-          do
-            name <- Names.generate
-            let newRoot = Opt.Root name
-            destructHelp (Opt.Index Index.third newRoot) c
-              =<< destructHelp (Opt.Index Index.second newRoot) b
-              =<< destructHelp (Opt.Index Index.first newRoot) a (Opt.Destructor name path : revDs)
     Can.PRecord [] ->
       pure revDs
     Can.PRecord [(A.At _ (Can.PRFieldPattern name fieldPattern))] ->
@@ -279,19 +255,6 @@ destructHelp path (A.At _ pattern) revDs =
                   (destructCtorArg (Opt.Root name))
                   (Opt.Destructor name path : revDs)
                   args
-
-destructTwo :: Opt.Path -> Can.Pattern -> Can.Pattern -> [Opt.Destructor] -> Names.Tracker [Opt.Destructor]
-destructTwo path a b revDs =
-  case path of
-    Opt.Root _ ->
-      destructHelp (Opt.Index Index.second path) b
-        =<< destructHelp (Opt.Index Index.first path) a revDs
-    _ ->
-      do
-        name <- Names.generate
-        let newRoot = Opt.Root name
-        destructHelp (Opt.Index Index.second newRoot) b
-          =<< destructHelp (Opt.Index Index.first newRoot) a (Opt.Destructor name path : revDs)
 
 destructRecordField :: Opt.Path -> [Opt.Destructor] -> Can.PatternRecordField -> Names.Tracker [Opt.Destructor]
 destructRecordField path revDs (A.At _ (Can.PRFieldPattern name pattern)) =

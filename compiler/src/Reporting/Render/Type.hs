@@ -5,7 +5,6 @@ module Reporting.Render.Type
   ( Context (..),
     lambda,
     apply,
-    tuple,
     record,
     vrecordSnippet,
     vrecord,
@@ -16,7 +15,6 @@ where
 
 import qualified AST.Canonical as Can
 import qualified AST.Source as Src
-import qualified Data.Maybe as Maybe
 import qualified Data.Name as Name
 import qualified Reporting.Annotation as A
 import Reporting.Doc (Doc, (<+>))
@@ -51,12 +49,6 @@ apply context name args =
             App -> D.cat ["(", applyDoc, ")"]
             Func -> applyDoc
             None -> applyDoc
-
-tuple :: Doc -> Doc -> [Doc] -> Doc
-tuple a b cs =
-  let entries =
-        zipWith (<+>) ("(" : repeat ",") (a : b : cs)
-   in D.align $ D.sep [D.cat entries, ")"]
 
 record :: [(Doc, Doc)] -> Maybe Doc -> Doc
 record entries maybeExt =
@@ -136,13 +128,6 @@ srcToDoc context (A.At _ tipe) =
       record
         (map srcFieldToDocs fields)
         (fmap (D.fromName . A.toValue) ext)
-    Src.TUnit ->
-      "()"
-    Src.TTuple a b cs ->
-      tuple
-        (srcToDoc None a)
-        (srcToDoc None b)
-        (map (srcToDoc None) cs)
 
 srcFieldToDocs :: (A.Located Name.Name, Src.Type) -> (Doc, Doc)
 srcFieldToDocs (A.At _ fieldName, fieldType) =
@@ -182,13 +167,6 @@ canToDoc localizer context tipe =
       record
         (map (canFieldToDoc localizer) (Can.fieldsToList fields))
         (fmap D.fromName ext)
-    Can.TUnit ->
-      "()"
-    Can.TTuple a b maybeC ->
-      tuple
-        (canToDoc localizer None a)
-        (canToDoc localizer None b)
-        (map (canToDoc localizer None) (Maybe.maybeToList maybeC))
     Can.TAlias home name args _ ->
       apply
         context

@@ -117,28 +117,6 @@ generate mode expression =
           ]
     Opt.Record fields ->
       JsExpr $ generateRecord mode fields
-    Opt.Unit ->
-      case mode of
-        Mode.Dev _ ->
-          JsExpr $ JS.Ref (JsName.fromKernel Name.utils "Tuple0")
-        Mode.Prod _ ->
-          JsExpr $ JS.Int 0
-    Opt.Tuple a b maybeC ->
-      JsExpr $
-        case maybeC of
-          Nothing ->
-            JS.Call
-              (JS.Ref (JsName.fromKernel Name.utils "Tuple2"))
-              [ generateJsExpr mode a,
-                generateJsExpr mode b
-              ]
-          Just c ->
-            JS.Call
-              (JS.Ref (JsName.fromKernel Name.utils "Tuple3"))
-              [ generateJsExpr mode a,
-                generateJsExpr mode b,
-                generateJsExpr mode c
-              ]
 
 -- CODE CHUNKS
 
@@ -180,7 +158,6 @@ codeToStmt code =
 
 -- CHARS
 
-{-# NOINLINE toChar #-}
 toChar :: JS.Expr
 toChar =
   JS.Ref (JsName.fromKernel Name.utils "chr")
@@ -275,7 +252,6 @@ generateFunction args body =
                 codeToStmtList code
        in foldr addArg body args
 
-{-# NOINLINE funcHelpers #-}
 funcHelpers :: IntMap.IntMap JS.Expr
 funcHelpers =
   IntMap.fromList $
@@ -320,7 +296,6 @@ generateNormalCall func args =
     Nothing ->
       List.foldl' (\f a -> JS.Call f [a]) func args
 
-{-# NOINLINE callHelpers #-}
 callHelpers :: IntMap.IntMap JS.Expr
 callHelpers =
   IntMap.fromList $
@@ -335,31 +310,7 @@ generateCoreCall mode (Opt.Global home@(ModuleName.Canonical _ moduleName) name)
     else
       if moduleName == Name.bitwise
         then generateBitwiseCall home name (map (generateJsExpr mode) args)
-        else
-          if moduleName == Name.tuple
-            then generateTupleCall home name (map (generateJsExpr mode) args)
-            else
-              if moduleName == Name.jsArray
-                then generateJsArrayCall home name (map (generateJsExpr mode) args)
-                else generateGlobalCall home name (map (generateJsExpr mode) args)
-
-generateTupleCall :: ModuleName.Canonical -> Name.Name -> [JS.Expr] -> JS.Expr
-generateTupleCall home name args =
-  case args of
-    [value] ->
-      case name of
-        "first" -> JS.Access value (JsName.fromLocal "a")
-        "second" -> JS.Access value (JsName.fromLocal "b")
-        _ -> generateGlobalCall home name args
-    _ ->
-      generateGlobalCall home name args
-
-generateJsArrayCall :: ModuleName.Canonical -> Name.Name -> [JS.Expr] -> JS.Expr
-generateJsArrayCall home name args =
-  case args of
-    [entry] | name == "singleton" -> JS.Array [entry]
-    [index, array] | name == "unsafeGet" -> JS.Index array index
-    _ -> generateGlobalCall home name args
+        else generateGlobalCall home name (map (generateJsExpr mode) args)
 
 generateBitwiseCall :: ModuleName.Canonical -> Name.Name -> [JS.Expr] -> JS.Expr
 generateBitwiseCall home name args =
@@ -710,8 +661,6 @@ generateIfTest mode root (path, test) =
             (JS.Int len)
         DT.IsRecord ->
           error "COMPILER BUG - there should never be tests on a record"
-        DT.IsTuple ->
-          error "COMPILER BUG - there should never be tests on a tuple"
 
 generateCaseBranch :: Mode.Mode -> Name.Name -> Name.Name -> (DT.Test, Opt.Decider Opt.Choice) -> JS.Case
 generateCaseBranch mode label root (test, subTree) =
@@ -738,8 +687,6 @@ generateCaseValue mode test =
       error "COMPILER BUG - there should never be three tests on a boolean"
     DT.IsRecord ->
       error "COMPILER BUG - there should never be three tests on a record"
-    DT.IsTuple ->
-      error "COMPILER BUG - there should never be three tests on a tuple"
 
 generateCaseTest :: Mode.Mode -> Name.Name -> DT.Path -> DT.Test -> JS.Expr
 generateCaseTest mode root path exampleTest =
@@ -775,8 +722,6 @@ generateCaseTest mode root path exampleTest =
           error "COMPILER BUG - there should never be three tests on a list"
         DT.IsRecord ->
           error "COMPILER BUG - there should never be three tests on a record"
-        DT.IsTuple ->
-          error "COMPILER BUG - there should never be three tests on a tuple"
 
 -- PATTERN PATHS
 

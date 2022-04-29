@@ -50,17 +50,14 @@ chompOps pos end =
     then chompOps (plusPtr pos 1) end
     else pos
 
-{-# INLINE isBinopCharHelp #-}
 isBinopCharHelp :: Word8 -> Bool
 isBinopCharHelp word =
   word < 128 && Vector.unsafeIndex binopCharVector (fromIntegral word)
 
-{-# NOINLINE binopCharVector #-}
 binopCharVector :: Vector.Vector Bool
 binopCharVector =
   Vector.generate 128 (\i -> IntSet.member i binopCharSet)
 
-{-# NOINLINE binopCharSet #-}
 binopCharSet :: IntSet.IntSet
 binopCharSet =
   IntSet.fromList (map Char.ord "+-/*=.<>:&|^?%!")
