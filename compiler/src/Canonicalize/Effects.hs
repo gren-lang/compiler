@@ -136,6 +136,7 @@ checkPayload tipe =
         []
           | isJson home name -> Right ()
           | isString home name -> Right ()
+          | isUnit home name -> Right ()
           | isIntFloatBool home name -> Right ()
         [arg]
           | isMaybe home name -> checkPayload arg
@@ -159,6 +160,11 @@ isIntFloatBool :: ModuleName.Canonical -> Name.Name -> Bool
 isIntFloatBool home name =
   home == ModuleName.basics
     && (name == Name.int || name == Name.float || name == Name.bool)
+
+isUnit :: ModuleName.Canonical -> Name.Name -> Bool
+isUnit home name =
+  home == ModuleName.basics
+    && name == Name.unit
 
 isString :: ModuleName.Canonical -> Name.Name -> Bool
 isString home name =
