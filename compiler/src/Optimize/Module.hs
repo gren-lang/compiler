@@ -35,7 +35,7 @@ type Annotations =
   Map.Map Name.Name Can.Annotation
 
 optimize :: Annotations -> Can.Module -> Result i [W.Warning] Opt.LocalGraph
-optimize annotations (Can.Module home _ _ decls unions aliases _ effects) =
+optimize annotations (Can.Module home _ _ decls unions _ _ effects) =
   addDecls home annotations decls $
     addEffects home effects $
       addUnions home unions $
