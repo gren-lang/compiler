@@ -117,15 +117,14 @@ toDecoder tipe =
     Can.TRecord fields Nothing ->
       decodeRecord fields
 
-
 -- DECODE UNIT
 
 decodeUnit :: Names.Tracker Opt.Expr
 decodeUnit =
-  do  null <- decode "null"
-      unit <- Names.registerGlobal ModuleName.basics Name.unit
-      return (Opt.Call null [ unit ])
-
+  do
+    null <- decode "null"
+    unit <- Names.registerGlobal ModuleName.basics Name.unit
+    return (Opt.Call null [unit])
 
 -- DECODE MAYBE
 
