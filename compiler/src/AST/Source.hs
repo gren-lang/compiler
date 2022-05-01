@@ -46,7 +46,7 @@ import qualified Reporting.Annotation as A
 
 data Comment
   = BlockComment (Utf8.Utf8 GREN_COMMENT)
-  | LineComment ES.String
+  | LineComment (Utf8.Utf8 GREN_COMMENT)
   | CommentTrickOpener
   | CommentTrickCloser
   | CommentTrickBlock ES.String

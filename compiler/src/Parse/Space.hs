@@ -105,7 +105,9 @@ eatSpaces pos end row col comments =
       0x2D {- - -} ->
         let !pos1 = plusPtr pos 1
          in if pos1 < end && P.unsafeIndex pos1 == 0x2D {- - -}
-              then eatLineComment (plusPtr pos 2) end row (col + 2) comments
+              then
+                let !start = plusPtr pos 2
+                 in eatLineComment start start end row (col + 2) comments
               else (# Good (reverse comments), pos, row, col #)
       0x0D {- \r -} ->
         eatSpaces (plusPtr pos 1) end row col comments
@@ -116,17 +118,23 @@ eatSpaces pos end row col comments =
 
 -- LINE COMMENTS
 
-eatLineComment :: Ptr Word8 -> Ptr Word8 -> Row -> Col -> [Src.Comment] -> (# Status, Ptr Word8, Row, Col #)
-eatLineComment pos end row col comments =
+eatLineComment :: Ptr Word8 -> Ptr Word8 -> Ptr Word8 -> Row -> Col -> [Src.Comment] -> (# Status, Ptr Word8, Row, Col #)
+eatLineComment start pos end row col comments =
   if pos >= end
-    then (# Good (reverse comments), pos, row, col #)
+    then
+      let !comment = Utf8.fromPtr start end
+          !finalComments = Src.LineComment comment : comments
+       in (# Good (reverse finalComments), pos, row, col #)
     else
       let !word = P.unsafeIndex pos
        in if word == 0x0A {- \n -}
-            then eatSpaces (plusPtr pos 1) end (row + 1) 1 comments
+            then
+              let !comment = Utf8.fromPtr start pos
+                  !newComments = Src.LineComment comment : comments
+               in eatSpaces (plusPtr pos 1) end (row + 1) 1 newComments
             else
               let !newPos = plusPtr pos (P.getCharWidth word)
-               in eatLineComment newPos end row (col + 1) comments
+               in eatLineComment start newPos end row (col + 1) comments
 
 -- MULTI COMMENTS
 

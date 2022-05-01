@@ -36,7 +36,7 @@ spec = do
     it "parses curly brace comments" $
       parseChomp "{- 1 -}" `shouldBe` Right [BlockComment " 1 "]
 
-    it "can parse curly brace token after whitespace" $
+    it "can parse curly brace token adjacent to whitespace" $
       parseChomp3 leftCurly leftCurly "{{- 1 -} {"
         `shouldBe` Right [BlockComment " 1 "]
 
@@ -44,9 +44,27 @@ spec = do
       parseChomp "{- {- inner -} outer -}"
         `shouldBe` Right [BlockComment " {- inner -} outer "]
 
+    it "parses hyphen comments" $
+      parseChomp "-- 1\n" `shouldBe` Right [LineComment " 1"]
+
+    it "parses hyphen comments at end of file" $
+      parseChomp "-- 1" `shouldBe` Right [LineComment " 1"]
+
+    it "can parse hyphen adjacent to whitespace" $
+      parseChomp3 hyphen hyphen "- -- 1\n-" `shouldBe` Right [LineComment " 1"]
+
+    it "can parse nested hyphen comments" $
+      parseChomp "-- outer -- inner" `shouldBe` Right [LineComment " outer -- inner"]
+
     it "returns comments in the correct order" $
-      parseChomp "{- 1 -}{- 2 -}  {- 3 -}\n{- 4 -}"
-        `shouldBe` Right (BlockComment <$> [" 1 ", " 2 ", " 3 ", " 4 "])
+      parseChomp "{- 1 -}{- 2 -}  -- 3\n{- 4 -}\n{- 5 -}"
+        `shouldBe` Right
+          [ BlockComment " 1 ",
+            BlockComment " 2 ",
+            LineComment " 3",
+            BlockComment " 4 ",
+            BlockComment " 5 "
+          ]
 
 parse :: P.Parser (ParseError x) a -> BS.ByteString -> Either (ParseError x) a
 parse parser =
@@ -60,3 +78,6 @@ b = P.word1 0x62 {- b -} (OtherError "Expected 'b'")
 
 leftCurly :: P.Parser (ParseError x) ()
 leftCurly = P.word1 0x7B {- { -} (OtherError "Expected '{'")
+
+hyphen :: P.Parser (ParseError x) ()
+hyphen = P.word1 0x2D {- - -} (OtherError "Expected '-'")
