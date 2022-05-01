@@ -29,3 +29,5 @@ jobs:
     - name: Build
       run: cabal build -f dev
 
+    - name: Tests
+      run: cabal test -f dev

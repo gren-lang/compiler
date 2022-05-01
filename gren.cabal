@@ -214,3 +214,22 @@ Executable gren
 
     Main-Is:
         Main.hs
+
+Test-Suite gren-tests
+    Import:
+        gren-common
+
+    Type:
+        exitcode-stdio-1.0
+
+    Hs-Source-Dirs:
+        tests
+
+    Main-Is:
+        Spec.hs
+
+    Build-Depends:
+        hspec >= 2.7.10 && < 3
+
+    Build-Tool-Depends:
+        hspec-discover:hspec-discover >= 2.7.10 && < 3
