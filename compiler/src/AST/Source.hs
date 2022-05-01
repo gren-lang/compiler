@@ -23,7 +23,7 @@ module AST.Source
     Effects (..),
     Manager (..),
     Docs (..),
-    Comment (..),
+    DocComment (..),
     Exposing (..),
     Exposed (..),
     Privacy (..),
@@ -157,10 +157,10 @@ data Manager
 
 data Docs
   = NoDocs A.Region
-  | YesDocs Comment [(Name, Comment)]
+  | YesDocs DocComment [(Name, DocComment)]
 
-newtype Comment
-  = Comment P.Snippet
+newtype DocComment
+  = DocComment P.Snippet
 
 -- EXPOSING
 

@@ -125,7 +125,7 @@ categorizeDecls values unions aliases ports decls =
 
 -- TO DOCS
 
-toDocs :: Either A.Region Src.Comment -> [Decl.Decl] -> Src.Docs
+toDocs :: Either A.Region Src.DocComment -> [Decl.Decl] -> Src.Docs
 toDocs comment decls =
   case comment of
     Right overview ->
@@ -133,7 +133,7 @@ toDocs comment decls =
     Left region ->
       Src.NoDocs region
 
-getComments :: [Decl.Decl] -> [(Name.Name, Src.Comment)] -> [(Name.Name, Src.Comment)]
+getComments :: [Decl.Decl] -> [(Name.Name, Src.DocComment)] -> [(Name.Name, Src.DocComment)]
 getComments decls comments =
   case decls of
     [] ->
@@ -145,7 +145,7 @@ getComments decls comments =
         Decl.Alias c (A.At _ (Src.Alias n _ _)) -> getComments otherDecls (addComment c n comments)
         Decl.Port c (Src.Port n _) -> getComments otherDecls (addComment c n comments)
 
-addComment :: Maybe Src.Comment -> A.Located Name.Name -> [(Name.Name, Src.Comment)] -> [(Name.Name, Src.Comment)]
+addComment :: Maybe Src.DocComment -> A.Located Name.Name -> [(Name.Name, Src.DocComment)] -> [(Name.Name, Src.DocComment)]
 addComment maybeComment (A.At _ name) comments =
   case maybeComment of
     Just comment -> (name, comment) : comments
@@ -183,7 +183,7 @@ chompInfixes infixes =
 
 -- MODULE DOC COMMENT
 
-chompModuleDocCommentSpace :: Parser E.Module (Either A.Region Src.Comment)
+chompModuleDocCommentSpace :: Parser E.Module (Either A.Region Src.DocComment)
 chompModuleDocCommentSpace =
   do
     (A.At region ()) <- addLocation (freshLine E.FreshLine)
@@ -199,7 +199,7 @@ chompModuleDocCommentSpace =
 -- HEADER
 
 data Header
-  = Header (A.Located Name.Name) Effects (A.Located Src.Exposing) (Either A.Region Src.Comment)
+  = Header (A.Located Name.Name) Effects (A.Located Src.Exposing) (Either A.Region Src.DocComment)
 
 data Effects
   = NoEffects A.Region

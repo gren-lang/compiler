@@ -270,8 +270,8 @@ fromModule modul@(Can.Module _ exports docs _ _ _ _ _) =
 
 -- PARSE OVERVIEW
 
-parseOverview :: Src.Comment -> Either E.Error [A.Located Name.Name]
-parseOverview (Src.Comment snippet) =
+parseOverview :: Src.DocComment -> Either E.Error [A.Located Name.Name]
+parseOverview (Src.DocComment snippet) =
   case P.fromSnippet (chompOverview []) E.BadEnd snippet of
     Left err ->
       Left (E.SyntaxProblem err)
@@ -394,7 +394,7 @@ onlyInExports name (A.At region _) =
 
 -- CHECK DEFS
 
-checkDefs :: Map.Map Name.Name (A.Located Can.Export) -> Src.Comment -> Map.Map Name.Name Src.Comment -> Can.Module -> Either E.Error Module
+checkDefs :: Map.Map Name.Name (A.Located Can.Export) -> Src.DocComment -> Map.Map Name.Name Src.DocComment -> Can.Module -> Either E.Error Module
 checkDefs exportDict overview comments (Can.Module name _ _ decls unions aliases infixes effects) =
   let types = gatherTypes decls Map.empty
       info = Info comments types unions aliases infixes effects
@@ -402,12 +402,12 @@ checkDefs exportDict overview comments (Can.Module name _ _ decls unions aliases
         (_, Left problems) -> Left $ E.DefProblems (OneOrMore.destruct NE.List problems)
         (_, Right inserters) -> Right $ foldr ($) (emptyModule name overview) inserters
 
-emptyModule :: ModuleName.Canonical -> Src.Comment -> Module
-emptyModule (ModuleName.Canonical _ name) (Src.Comment overview) =
+emptyModule :: ModuleName.Canonical -> Src.DocComment -> Module
+emptyModule (ModuleName.Canonical _ name) (Src.DocComment overview) =
   Module name (Json.fromComment overview) Map.empty Map.empty Map.empty Map.empty
 
 data Info = Info
-  { _iComments :: Map.Map Name.Name Src.Comment,
+  { _iComments :: Map.Map Name.Name Src.DocComment,
     _iValues :: Map.Map Name.Name (Either A.Region Can.Type),
     _iUnions :: Map.Map Name.Name Can.Union,
     _iAliases :: Map.Map Name.Name Can.Alias,
@@ -461,7 +461,7 @@ getComment region name info =
   case Map.lookup name (_iComments info) of
     Nothing ->
       Result.throw (E.NoComment name region)
-    Just (Src.Comment snippet) ->
+    Just (Src.DocComment snippet) ->
       Result.ok (Json.fromComment snippet)
 
 getType :: Name.Name -> Info -> Result.Result i w E.DefProblem Type.Type

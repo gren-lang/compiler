@@ -180,7 +180,7 @@ eatMultiCommentHelp pos end row col openComments =
 
 -- DOCUMENTATION COMMENT
 
-docComment :: (Row -> Col -> x) -> (E.Space -> Row -> Col -> x) -> P.Parser x Src.Comment
+docComment :: (Row -> Col -> x) -> (E.Space -> Row -> Col -> x) -> P.Parser x Src.DocComment
 docComment toExpectation toSpaceError =
   P.Parser $ \(P.State src pos end indent row col) cok _ cerr eerr ->
     let !pos3 = plusPtr pos 3
@@ -198,7 +198,7 @@ docComment toExpectation toSpaceError =
                     let !off = minusPtr pos3 (unsafeForeignPtrToPtr src)
                         !len = minusPtr newPos pos3 - 2
                         !snippet = P.Snippet src off len row col3
-                        !comment = Src.Comment snippet
+                        !comment = Src.DocComment snippet
                         !newState = P.State src newPos end indent newRow newCol
                      in cok comment newState
                   MultiTab -> cerr newRow newCol (toSpaceError E.HasTab)
