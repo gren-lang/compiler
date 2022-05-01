@@ -231,6 +231,12 @@ Test-Suite gren-tests
     Main-Is:
         Spec.hs
 
+    other-modules:
+        Helpers.Instances
+
+        -- tests
+        Parse.SpaceSpec
+
     Build-Depends:
         hspec >= 2.7.10 && < 3
 
