@@ -72,6 +72,7 @@ data Expr_
   | Access Expr (A.Located Name)
   | Update (A.Located Name) [(A.Located Name, Expr)]
   | Record [(A.Located Name, Expr)]
+  | Parens [Comment] Expr [Comment]
 
 data VarType = LowVar | CapVar
 

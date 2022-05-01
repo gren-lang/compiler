@@ -64,7 +64,7 @@ parenthesizedExpr :: A.Position -> Parser E.Expr Src.Expr
 parenthesizedExpr start@(A.Position row col) =
   inContext E.Parenthesized (word1 0x28 {-(-} E.Start) $
     do
-      Space.chompAndCheckIndent E.ParenthesizedSpace E.ParenthesizedIndentOpen
+      comments1 <- Space.chompAndCheckIndent E.ParenthesizedSpace E.ParenthesizedIndentOpen
       oneOf
         E.ParenthesizedOpen
         [ do
@@ -77,17 +77,17 @@ parenthesizedExpr start@(A.Position row col) =
                       word1 0x29 {-)-} E.ParenthesizedOperatorClose
                       addEnd start (Src.Op op),
                     do
-                      (expr, end) <-
+                      (comments2, (expr, end)) <-
                         specialize E.ParenthesizedExpr $
                           do
                             negatedExpr@(A.At (A.Region _ end) _) <- term
-                            Space.chomp E.Space
+                            comments2_ <- Space.chomp E.Space
                             let exprStart = A.Position row (col + 2)
                             let expr = A.at exprStart end (Src.Negate negatedExpr)
-                            chompExprEnd exprStart (State [] expr [] end)
+                            (,) comments2_ <$> chompExprEnd exprStart (State [] expr [] end)
                       Space.checkIndent end E.ParenthesizedIndentEnd
                       word1 0x29 {-)-} E.ParenthesizedOperatorClose
-                      return expr
+                      addEnd start (Src.Parens comments1 expr comments2)
                   ]
               else do
                 word1 0x29 {-)-} E.ParenthesizedOperatorClose
@@ -95,7 +95,7 @@ parenthesizedExpr start@(A.Position row col) =
           do
             (expr, _) <- specialize E.ParenthesizedExpr expression
             word1 0x29 {-)-} E.ParenthesizedEnd
-            return expr
+            addEnd start (Src.Parens comments1 expr [])
         ]
 
 accessor :: A.Position -> Parser E.Expr Src.Expr
