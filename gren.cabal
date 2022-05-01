@@ -33,7 +33,7 @@ Flag dev {
 }
 
 
-Executable gren
+Common gren-common
     if flag(dev)
         ghc-options: -O0 -Wall -Werror
     else
@@ -47,9 +47,6 @@ Executable gren
 
     other-extensions:
         TemplateHaskell
-
-    Main-Is:
-        Main.hs
 
     other-modules:
         Bump
@@ -210,3 +207,10 @@ Executable gren
         time >= 1.9.1,
         utf8-string,
         vector
+
+Executable gren
+    Import:
+        gren-common
+
+    Main-Is:
+        Main.hs
