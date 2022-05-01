@@ -33,14 +33,14 @@ type Parser x a =
 
 -- CHOMP
 
-chomp :: (E.Space -> Row -> Col -> x) -> P.Parser x ()
+chomp :: (E.Space -> Row -> Col -> x) -> P.Parser x [Src.Comment]
 chomp toError =
   P.Parser $ \(P.State src pos end indent row col) cok _ cerr _ ->
     let (# status, newPos, newRow, newCol #) = eatSpaces pos end row col
      in case status of
           Good ->
             let !newState = P.State src newPos end indent newRow newCol
-             in cok () newState
+             in cok [] {-TODO-} newState
           HasTab -> cerr newRow newCol (toError E.HasTab)
           EndlessMultiComment -> cerr newRow newCol (toError E.EndlessMultiComment)
 
@@ -69,7 +69,7 @@ checkFreshLine toError =
 
 -- CHOMP AND CHECK
 
-chompAndCheckIndent :: (E.Space -> Row -> Col -> x) -> (Row -> Col -> x) -> P.Parser x ()
+chompAndCheckIndent :: (E.Space -> Row -> Col -> x) -> (Row -> Col -> x) -> P.Parser x [Src.Comment]
 chompAndCheckIndent toSpaceError toIndentError =
   P.Parser $ \(P.State src pos end indent row col) cok _ cerr _ ->
     let (# status, newPos, newRow, newCol #) = eatSpaces pos end row col
@@ -78,7 +78,7 @@ chompAndCheckIndent toSpaceError toIndentError =
             if newCol > indent && newCol > 1
               then
                 let !newState = P.State src newPos end indent newRow newCol
-                 in cok () newState
+                 in cok [] {-TODO-} newState
               else cerr row col toIndentError
           HasTab -> cerr newRow newCol (toSpaceError E.HasTab)
           EndlessMultiComment -> cerr newRow newCol (toSpaceError E.EndlessMultiComment)

@@ -153,11 +153,12 @@ addComment maybeComment (A.At _ name) comments =
 
 -- FRESH LINES
 
-freshLine :: (Row -> Col -> E.Module) -> Parser E.Module ()
+freshLine :: (Row -> Col -> E.Module) -> Parser E.Module [Src.Comment]
 freshLine toFreshLineError =
   do
-    Space.chomp E.ModuleSpace
+    comments <- Space.chomp E.ModuleSpace
     Space.checkFreshLine toFreshLineError
+    return comments
 
 -- CHOMP DECLARATIONS
 
@@ -186,7 +187,7 @@ chompInfixes infixes =
 chompModuleDocCommentSpace :: Parser E.Module (Either A.Region Src.DocComment)
 chompModuleDocCommentSpace =
   do
-    (A.At region ()) <- addLocation (freshLine E.FreshLine)
+    (A.At region comments) <- addLocation (freshLine E.FreshLine)
     oneOfWithFallback
       [ do
           docComment <- Space.docComment E.ImportStart E.ModuleSpace
@@ -329,7 +330,7 @@ chompSubscription =
     spaces_em
     addLocation (Var.upper E.Effect)
 
-spaces_em :: Parser E.Module ()
+spaces_em :: Parser E.Module [Src.Comment]
 spaces_em =
   Space.chompAndCheckIndent E.ModuleSpace E.Effect
 

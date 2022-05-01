@@ -1,7 +1,8 @@
 {-# OPTIONS_GHC -Wall #-}
 
 module AST.Source
-  ( Expr,
+  ( Comment (..),
+    Expr,
     Expr_ (..),
     VarType (..),
     Def (..),
@@ -37,6 +38,15 @@ import qualified Gren.Float as EF
 import qualified Gren.String as ES
 import qualified Parse.Primitives as P
 import qualified Reporting.Annotation as A
+
+-- COMMENTS
+
+data Comment
+  = BlockComment [ES.String]
+  | LineComment ES.String
+  | CommentTrickOpener
+  | CommentTrickCloser
+  | CommentTrickBlock ES.String
 
 -- EXPRESSIONS
 
