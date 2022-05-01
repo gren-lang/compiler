@@ -33,7 +33,7 @@ Flag dev {
 }
 
 
-Executable gren
+Common gren-common
     if flag(dev)
         ghc-options: -O0 -Wall -Werror
     else
@@ -47,9 +47,6 @@ Executable gren
 
     other-extensions:
         TemplateHaskell
-
-    Main-Is:
-        Main.hs
 
     other-modules:
         Bump
@@ -210,3 +207,29 @@ Executable gren
         time >= 1.9.1,
         utf8-string,
         vector
+
+Executable gren
+    Import:
+        gren-common
+
+    Main-Is:
+        Main.hs
+
+Test-Suite gren-tests
+    Import:
+        gren-common
+
+    Type:
+        exitcode-stdio-1.0
+
+    Hs-Source-Dirs:
+        tests
+
+    Main-Is:
+        Spec.hs
+
+    Build-Depends:
+        hspec >= 2.7.10 && < 3
+
+    Build-Tool-Depends:
+        hspec-discover:hspec-discover >= 2.7.10 && < 3
