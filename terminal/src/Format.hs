@@ -12,7 +12,9 @@ import qualified Data.ByteString as BS
 import qualified Data.NonEmptyList as NE
 import qualified Directories as Dirs
 import qualified File
+import qualified Gren.Format as Format
 import qualified Gren.Outline as Outline
+import qualified Parse.Module as Parse
 import qualified Reporting
 import qualified Reporting.Doc as D
 import qualified Reporting.Exit as Exit
@@ -154,5 +156,9 @@ formatExistingFile path =
 
 formatByteString :: BS.ByteString -> BS.ByteString
 formatByteString original =
-  -- TODO: implement actual formating
-  original
+  case Parse.fromByteString Parse.Application original of
+    Left _ ->
+      -- TODO: report error
+      original
+    Right ast ->
+      Format.toByteString ast
