@@ -36,11 +36,8 @@ Flag dev {
 Common gren-common
     if flag(dev)
         ghc-options: -O0 -Wall -Werror
-
-        -- temporary while implementing gren format
-        ghc-options: -Wno-error=unused-do-bind -Wno-error=unused-matches
     else
-        ghc-options: -O2 -threaded "-with-rtsopts=-N"
+        ghc-options: -O2 -Wall -threaded "-with-rtsopts=-N"
 
     Hs-Source-Dirs:
         compiler/src
