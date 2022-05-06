@@ -2,7 +2,7 @@ name: Release
 
 on:
   push:
-    tags: '*'
+    branches: [ 'main' ]
 
 defaults:
   run:
@@ -47,4 +47,5 @@ jobs:
         with:
           name: gren-${{ runner.os }}
           path: dist/
+          retention-days: 30
 
