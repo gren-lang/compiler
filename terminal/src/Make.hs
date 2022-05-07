@@ -44,6 +44,7 @@ data Output
   = JS FilePath
   | Html FilePath
   | DevNull
+  | DevStdOut
 
 data ReportType
   = Json
@@ -91,6 +92,8 @@ runHelp root paths style (Flags debug optimize maybeOutput _ maybeDocs) =
                         do
                           builder <- toBuilder root details desiredMode artifacts
                           generate style "gren.js" builder (NE.List name names)
+                  Just DevStdOut ->
+                    return ()
                   Just DevNull ->
                     return ()
                   Just (JS target) ->
@@ -239,11 +242,12 @@ output =
       _plural = "output files",
       _parser = parseOutput,
       _suggest = \_ -> return [],
-      _examples = \_ -> return ["gren.js", "index.html", "/dev/null"]
+      _examples = \_ -> return ["gren.js", "index.html", "/dev/null", "/dev/stdout"]
     }
 
 parseOutput :: String -> Maybe Output
 parseOutput name
+  | name == "/dev/stdout" = Just DevStdOut
   | isDevNull name = Just DevNull
   | hasExt ".html" name = Just (Html name)
   | hasExt ".js" name = Just (JS name)
