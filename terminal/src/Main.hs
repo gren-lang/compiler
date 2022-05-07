@@ -53,7 +53,7 @@ intro =
         ],
       "",
       P.black "-------------------------------------------------------------------------------",
-      P.black "I highly recommend working through <https://guide.gren-lang.org> to get started.",
+      P.black "I highly recommend working through <https://gren-lang.org/learn> to get started.",
       P.black "It teaches many important concepts, including how to use `gren` in the terminal.",
       P.black "-------------------------------------------------------------------------------"
     ]
@@ -97,7 +97,7 @@ repl =
 
       example =
         reflow
-          "Start working through <https://guide.gren-lang.org> to learn how to use this!\
+          "Start working through <https://gren-lang.org/learn> to learn how to use this!\
           \ It has a whole chapter that uses the REPL for everything, so that is probably\
           \ the quickest way to get started."
 

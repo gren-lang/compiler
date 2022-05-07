@@ -956,7 +956,7 @@ toWeirdEndReport source row col =
                           \ choices. (E.g. side-effects, for loops, etc.) Gren manages effects with commands\
                           \ and subscriptions instead, so there is no special syntax for \"statements\" and\
                           \ therefore no need to use semicolons to separate them. I think this will make\
-                          \ more sense as you work through <https://guide.gren-lang.org> though!"
+                          \ more sense as you work through <https://gren-lang.org/learn> though!"
                       ]
                   )
             Just ',' ->
