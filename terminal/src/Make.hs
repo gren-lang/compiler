@@ -28,6 +28,7 @@ import qualified Reporting.Exit as Exit
 import qualified Reporting.Task as Task
 import qualified System.Directory as Dir
 import qualified System.FilePath as FP
+import qualified System.IO as IO
 import Terminal (Parser (..))
 
 -- FLAGS
@@ -93,7 +94,13 @@ runHelp root paths style (Flags debug optimize maybeOutput _ maybeDocs) =
                           builder <- toBuilder root details desiredMode artifacts
                           generate style "gren.js" builder (NE.List name names)
                   Just DevStdOut ->
-                    return ()
+                    case getMains artifacts of
+                      [] ->
+                        return ()
+                      _ ->
+                        do
+                          builder <- toBuilder root details desiredMode artifacts
+                          Task.io $ B.hPutBuilder IO.stdout builder
                   Just DevNull ->
                     return ()
                   Just (JS target) ->
