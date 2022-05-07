@@ -9,7 +9,7 @@ defaults:
     shell: bash
 
 jobs:
-  pre-release:
+  build:
     strategy:
       fail-fast: false
       matrix:
@@ -38,7 +38,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: ${{ steps.setup-haskell.outputs.cabal-store }}
-          key: cabal-${{ runner.os }}-${{ hashFiles('**/*.cabal') }}
+          key: cabal-${{ runner.os }}-${{ hashFiles('*.cabal') }}
 
       - name: Build
         run: cabal install --install-method=copy --installdir=dist/
