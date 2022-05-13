@@ -60,7 +60,7 @@ question =
       D.fillSep
         [ "Check",
           "out",
-          D.cyan (D.fromChars (D.makeLink "init")),
+          D.cyan "https://gren-lang.org/learn",
           "for",
           "all",
           "the",
