@@ -72,8 +72,7 @@ outro =
 init :: Terminal.Command
 init =
   let summary =
-        "Start an Gren project. It creates a starter gren.json file and\
-        \ provides a link explaining what to do from there."
+        "Start an Gren project. It creates a starter gren.json file."
 
       details =
         "The `init` command helps start Gren projects:"
@@ -81,8 +80,12 @@ init =
       example =
         reflow
           "It will ask permission to create an gren.json file, the one thing common\
-          \ to all Gren projects. It also provides a link explaining what to do from there."
-   in Terminal.Command "init" (Common summary) details example noArgs noFlags Init.run
+          \ to all Gren projects."
+
+      initFlags =
+        flags Init.Flags
+          |-- onOff "package" "Create a package specific gren.json file."
+   in Terminal.Command "init" (Common summary) details example noArgs initFlags Init.run
 
 -- REPL
 
