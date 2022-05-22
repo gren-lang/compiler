@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
+-- Temporary while implementing gren format
+{-# OPTIONS_GHC -Wno-error=unused-do-bind #-}
 
 module Parse.Declaration
   ( Decl (..),
@@ -27,10 +28,10 @@ import qualified Reporting.Error.Syntax as E
 -- DECLARATION
 
 data Decl
-  = Value (Maybe Src.Comment) (A.Located Src.Value)
-  | Union (Maybe Src.Comment) (A.Located Src.Union)
-  | Alias (Maybe Src.Comment) (A.Located Src.Alias)
-  | Port (Maybe Src.Comment) Src.Port
+  = Value (Maybe Src.DocComment) (A.Located Src.Value)
+  | Union (Maybe Src.DocComment) (A.Located Src.Union)
+  | Alias (Maybe Src.DocComment) (A.Located Src.Alias)
+  | Port (Maybe Src.DocComment) Src.Port
 
 declaration :: Space.Parser E.Decl Decl
 declaration =
@@ -46,7 +47,7 @@ declaration =
 
 -- DOC COMMENT
 
-chompDocComment :: Parser E.Decl (Maybe Src.Comment)
+chompDocComment :: Parser E.Decl (Maybe Src.DocComment)
 chompDocComment =
   oneOfWithFallback
     [ do
@@ -59,7 +60,7 @@ chompDocComment =
 
 -- DEFINITION and ANNOTATION
 
-valueDecl :: Maybe Src.Comment -> A.Position -> Space.Parser E.Decl Decl
+valueDecl :: Maybe Src.DocComment -> A.Position -> Space.Parser E.Decl Decl
 valueDecl maybeDocs start =
   do
     name <- Var.lower E.DeclStart
@@ -80,7 +81,7 @@ valueDecl maybeDocs start =
             chompDefArgsAndBody maybeDocs start (A.at start end name) Nothing []
           ]
 
-chompDefArgsAndBody :: Maybe Src.Comment -> A.Position -> A.Located Name.Name -> Maybe Src.Type -> [Src.Pattern] -> Space.Parser E.DeclDef Decl
+chompDefArgsAndBody :: Maybe Src.DocComment -> A.Position -> A.Located Name.Name -> Maybe Src.Type -> [Src.Pattern] -> Space.Parser E.DeclDef Decl
 chompDefArgsAndBody maybeDocs start name tipe revArgs =
   oneOf
     E.DeclDefEquals
@@ -114,7 +115,7 @@ chompMatchingName expectedName =
 
 -- TYPE DECLARATIONS
 
-typeDecl :: Maybe Src.Comment -> A.Position -> Space.Parser E.Decl Decl
+typeDecl :: Maybe Src.DocComment -> A.Position -> Space.Parser E.Decl Decl
 typeDecl maybeDocs start =
   inContext E.DeclType (Keyword.type_ E.DeclStart) $
     do
@@ -197,7 +198,7 @@ chompVariants variants end =
 
 -- PORT
 
-portDecl :: Maybe Src.Comment -> Space.Parser E.Decl Decl
+portDecl :: Maybe Src.DocComment -> Space.Parser E.Decl Decl
 portDecl maybeDocs =
   inContext E.Port (Keyword.port_ E.DeclStart) $
     do

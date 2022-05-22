@@ -1,5 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wall #-}
+-- Temporary while implementing gren format
+{-# OPTIONS_GHC -Wno-error=unused-do-bind #-}
+{-# OPTIONS_GHC -Wno-error=unused-matches #-}
 
 module Parse.Module
   ( fromByteString,
@@ -125,7 +128,7 @@ categorizeDecls values unions aliases ports decls =
 
 -- TO DOCS
 
-toDocs :: Either A.Region Src.Comment -> [Decl.Decl] -> Src.Docs
+toDocs :: Either A.Region Src.DocComment -> [Decl.Decl] -> Src.Docs
 toDocs comment decls =
   case comment of
     Right overview ->
@@ -133,7 +136,7 @@ toDocs comment decls =
     Left region ->
       Src.NoDocs region
 
-getComments :: [Decl.Decl] -> [(Name.Name, Src.Comment)] -> [(Name.Name, Src.Comment)]
+getComments :: [Decl.Decl] -> [(Name.Name, Src.DocComment)] -> [(Name.Name, Src.DocComment)]
 getComments decls comments =
   case decls of
     [] ->
@@ -145,7 +148,7 @@ getComments decls comments =
         Decl.Alias c (A.At _ (Src.Alias n _ _)) -> getComments otherDecls (addComment c n comments)
         Decl.Port c (Src.Port n _) -> getComments otherDecls (addComment c n comments)
 
-addComment :: Maybe Src.Comment -> A.Located Name.Name -> [(Name.Name, Src.Comment)] -> [(Name.Name, Src.Comment)]
+addComment :: Maybe Src.DocComment -> A.Located Name.Name -> [(Name.Name, Src.DocComment)] -> [(Name.Name, Src.DocComment)]
 addComment maybeComment (A.At _ name) comments =
   case maybeComment of
     Just comment -> (name, comment) : comments
@@ -153,11 +156,12 @@ addComment maybeComment (A.At _ name) comments =
 
 -- FRESH LINES
 
-freshLine :: (Row -> Col -> E.Module) -> Parser E.Module ()
+freshLine :: (Row -> Col -> E.Module) -> Parser E.Module [Src.Comment]
 freshLine toFreshLineError =
   do
-    Space.chomp E.ModuleSpace
+    comments <- Space.chomp E.ModuleSpace
     Space.checkFreshLine toFreshLineError
+    return comments
 
 -- CHOMP DECLARATIONS
 
@@ -183,10 +187,10 @@ chompInfixes infixes =
 
 -- MODULE DOC COMMENT
 
-chompModuleDocCommentSpace :: Parser E.Module (Either A.Region Src.Comment)
+chompModuleDocCommentSpace :: Parser E.Module (Either A.Region Src.DocComment)
 chompModuleDocCommentSpace =
   do
-    (A.At region ()) <- addLocation (freshLine E.FreshLine)
+    (A.At region comments) <- addLocation (freshLine E.FreshLine)
     oneOfWithFallback
       [ do
           docComment <- Space.docComment E.ImportStart E.ModuleSpace
@@ -199,7 +203,7 @@ chompModuleDocCommentSpace =
 -- HEADER
 
 data Header
-  = Header (A.Located Name.Name) Effects (A.Located Src.Exposing) (Either A.Region Src.Comment)
+  = Header (A.Located Name.Name) Effects (A.Located Src.Exposing) (Either A.Region Src.DocComment)
 
 data Effects
   = NoEffects A.Region
@@ -329,7 +333,7 @@ chompSubscription =
     spaces_em
     addLocation (Var.upper E.Effect)
 
-spaces_em :: Parser E.Module ()
+spaces_em :: Parser E.Module [Src.Comment]
 spaces_em =
   Space.chompAndCheckIndent E.ModuleSpace E.Effect
 

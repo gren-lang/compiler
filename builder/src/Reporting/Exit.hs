@@ -1956,7 +1956,7 @@ makeToReport make =
               D.indent 4 $ D.green "gren make src/This.gren src/That.gren"
             ],
           D.reflow $
-            "I recommend reading through https://guide.gren-lang.org for guidance on what to\
+            "I recommend reading through https://gren-lang.org/learn for guidance on what to\
             \ actually put in those files!"
         ]
     MakePkgNeedsExposing ->
@@ -2079,7 +2079,7 @@ makeToReport make =
             ],
           D.reflow $
             "From there I can create an HTML file that says \"Hello!\" on screen. I recommend\
-            \ looking through https://guide.gren-lang.org for more guidance on how to fill in\
+            \ looking through https://gren-lang.org/learn for more guidance on how to fill in\
             \ the `main` value."
         ]
     MakeNonMainFilesIntoJavaScript m ms ->
@@ -2179,7 +2179,7 @@ toProjectProblemReport projectProblem =
           D.reflow $ "Is there a typo?",
           D.toSimpleNote $
             "If you are just getting started, try working through the examples in the\
-            \ official guide https://guide.gren-lang.org to get an idea of the kinds of things\
+            \ official guide https://gren-lang.org/learn to get an idea of the kinds of things\
             \ that typically go in a src/Main.gren file."
         ]
     BP_WithBadExtension path ->
@@ -2471,7 +2471,7 @@ formatToReport problem =
           D.reflow $ "Is there a typo?",
           D.toSimpleNote $
             "If you are just getting started, try working through the examples in the\
-            \ official guide https://guide.gren-lang.org to get an idea of the kinds of things\
+            \ official guide https://gren-lang.org/learn to get an idea of the kinds of things\
             \ that typically go in a src/Main.gren file."
         ]
     FormatStdinWithFiles ->

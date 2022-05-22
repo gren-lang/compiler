@@ -14,7 +14,7 @@ You should generally not edit it by hand. It is better to add new dependencies w
 
 ## What goes in `src/`?
 
-This is where all of your Gren files live. It is best to start with a file called `src/Main.gren`. As you work through [the official guide](https://guide.gren-lang.org/), you can put the code examples in that `src/Main.gren` file.
+This is where all of your Gren files live. It is best to start with a file called `src/Main.gren`. As you work through [the official guide](https://gren-lang.org/learn), you can put the code examples in that `src/Main.gren` file.
 
 
 ## How do I compile it?

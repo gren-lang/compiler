@@ -326,9 +326,9 @@ annotation =
       err_ _ _ _ = ()
    in do
         name <- PV.lower err
-        PS.chompAndCheckIndent err_ err
+        _ <- PS.chompAndCheckIndent err_ err
         P.word1 0x3A {-:-} err
-        PS.chompAndCheckIndent err_ err
+        _ <- PS.chompAndCheckIndent err_ err
         (_, _) <- P.specialize err_ PT.expression
         PS.checkFreshLine err
         return name

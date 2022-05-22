@@ -2,43 +2,50 @@ name: Release
 
 on:
   push:
-    branches: [ main ]
+    branches: [ 'main' ]
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
-  pre-release:
-    name: Development Build
-    runs-on: macOS-latest
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+        - ubuntu-latest
+        - macOS-latest
+        - windows-latest
+    
+    name: release-${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
 
     steps:
+      - name: Configure environment
+        run: |
+          git config --global core.autocrlf false
+      
       - uses: actions/checkout@v2
 
-      - name: Cache
-        uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cabal
-            ~/.ghcup
-          key: ${{ runner.os }}-${{ hashFiles('**/*.cabal') }}
-
       - uses: haskell/actions/setup@v1
+        id: setup-haskell
         with:
           ghc-version: '9.2.2'
           cabal-version: '3.6'
 
-      - name: Build
-        run: |
-          cabal build
-          cp dist-newstyle/build/x86_64-osx/ghc-9.2.2/gren-0.1.0/x/gren/build/gren/gren gren
-          strip gren
-          zip gren.zip gren
-
-      - uses: "marvinpinto/action-automatic-releases@latest"
+      - name: Cache
+        uses: actions/cache@v2
         with:
-          repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          automatic_release_tag: "latest"
-          prerelease: true
-          title: "Development Build"
-          files: |
-            LICENSE
-            gren.zip
+          path: ${{ steps.setup-haskell.outputs.cabal-store }}
+          key: cabal-${{ runner.os }}-${{ hashFiles('*.cabal') }}
+
+      - name: Build
+        run: cabal install --install-method=copy --installdir=dist/
+      
+      - uses: actions/upload-artifact@v3
+        with:
+          name: gren-${{ runner.os }}
+          path: dist/
+          retention-days: 30
 

@@ -37,7 +37,7 @@ Common gren-common
     if flag(dev)
         ghc-options: -O0 -Wall -Werror
     else
-        ghc-options: -O2 -threaded "-with-rtsopts=-N"
+        ghc-options: -O2 -Wall -threaded "-with-rtsopts=-N"
 
     Hs-Source-Dirs:
         compiler/src
@@ -228,6 +228,12 @@ Test-Suite gren-tests
 
     Main-Is:
         Spec.hs
+
+    other-modules:
+        Helpers.Instances
+
+        -- tests
+        Parse.SpaceSpec
 
     Build-Depends:
         hspec >= 2.7.10 && < 3

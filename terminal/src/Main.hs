@@ -53,7 +53,7 @@ intro =
         ],
       "",
       P.black "-------------------------------------------------------------------------------",
-      P.black "I highly recommend working through <https://guide.gren-lang.org> to get started.",
+      P.black "I highly recommend working through <https://gren-lang.org/learn> to get started.",
       P.black "It teaches many important concepts, including how to use `gren` in the terminal.",
       P.black "-------------------------------------------------------------------------------"
     ]
@@ -72,8 +72,7 @@ outro =
 init :: Terminal.Command
 init =
   let summary =
-        "Start an Gren project. It creates a starter gren.json file and\
-        \ provides a link explaining what to do from there."
+        "Start an Gren project. It creates a starter gren.json file."
 
       details =
         "The `init` command helps start Gren projects:"
@@ -81,8 +80,12 @@ init =
       example =
         reflow
           "It will ask permission to create an gren.json file, the one thing common\
-          \ to all Gren projects. It also provides a link explaining what to do from there."
-   in Terminal.Command "init" (Common summary) details example noArgs noFlags Init.run
+          \ to all Gren projects."
+
+      initFlags =
+        flags Init.Flags
+          |-- onOff "package" "Create a package specific gren.json file."
+   in Terminal.Command "init" (Common summary) details example noArgs initFlags Init.run
 
 -- REPL
 
@@ -97,7 +100,7 @@ repl =
 
       example =
         reflow
-          "Start working through <https://guide.gren-lang.org> to learn how to use this!\
+          "Start working through <https://gren-lang.org/learn> to learn how to use this!\
           \ It has a whole chapter that uses the REPL for everything, so that is probably\
           \ the quickest way to get started."
 
@@ -138,7 +141,7 @@ make =
         flags Make.Flags
           |-- onOff "debug" "Turn on the time-travelling debugger. It allows you to rewind and replay events. The events can be imported/exported into a file, which makes for very precise bug reports!"
           |-- onOff "optimize" "Turn on optimizations to make code smaller and faster. For example, the compiler renames record fields to be as short as possible and unboxes values to reduce allocation."
-          |-- flag "output" Make.output "Specify the name of the resulting JS file. For example --output=assets/gren.js to generate the JS at assets/gren.js or --output=/dev/null to generate no output at all!"
+          |-- flag "output" Make.output "Specify the name of the resulting JS file. For example --output=assets/gren.js to generate the JS at assets/gren.js. You can also use --output=/dev/stdout to output the JS to the terminal, or --output=/dev/null to generate no output at all!"
           |-- flag "report" Make.reportType "You can say --report=json to get error messages as JSON. This is only really useful if you are an editor plugin. Humans should avoid it!"
           |-- flag "docs" Make.docsFile "Generate a JSON file of documentation for a package. Eventually it will be possible to preview docs with `reactor` because it is quite hard to deal with these JSON files directly."
    in Terminal.Command "make" Uncommon details example (zeroOrMore grenFile) makeFlags Make.run

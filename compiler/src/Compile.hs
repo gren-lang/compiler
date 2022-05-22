@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
-
 module Compile
   ( Artifacts (..),
     compile,

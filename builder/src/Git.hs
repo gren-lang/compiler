@@ -112,7 +112,7 @@ update pkg path = do
       putStrLn "Error!"
       return $ Left MissingGit
     Just git -> do
-      let args = ["fetch"]
+      let args = ["fetch", "-t"]
       (exitCode, _, stderr) <-
         Process.readCreateProcessWithExitCode
           ( (Process.proc git args)
