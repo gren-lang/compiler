@@ -1,7 +1,10 @@
+{-# LANGUAGE EmptyDataDecls #-}
 {-# OPTIONS_GHC -Wall #-}
 
 module AST.Source
-  ( Expr,
+  ( Comment (..),
+    GREN_COMMENT,
+    Expr,
     Expr_ (..),
     VarType (..),
     Def (..),
@@ -23,7 +26,7 @@ module AST.Source
     Effects (..),
     Manager (..),
     Docs (..),
-    Comment (..),
+    DocComment (..),
     Exposing (..),
     Exposed (..),
     Privacy (..),
@@ -33,10 +36,19 @@ where
 import qualified AST.Utils.Binop as Binop
 import Data.Name (Name)
 import qualified Data.Name as Name
+import qualified Data.Utf8 as Utf8
 import qualified Gren.Float as EF
 import qualified Gren.String as ES
 import qualified Parse.Primitives as P
 import qualified Reporting.Annotation as A
+
+-- COMMENTS
+
+data Comment
+  = BlockComment (Utf8.Utf8 GREN_COMMENT)
+  | LineComment (Utf8.Utf8 GREN_COMMENT)
+
+data GREN_COMMENT
 
 -- EXPRESSIONS
 
@@ -157,10 +169,10 @@ data Manager
 
 data Docs
   = NoDocs A.Region
-  | YesDocs Comment [(Name, Comment)]
+  | YesDocs DocComment [(Name, DocComment)]
 
-newtype Comment
-  = Comment P.Snippet
+newtype DocComment
+  = DocComment P.Snippet
 
 -- EXPOSING
 

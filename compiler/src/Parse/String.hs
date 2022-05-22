@@ -2,7 +2,6 @@
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE UnboxedTuples #-}
-{-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 
 module Parse.String
   ( string,
