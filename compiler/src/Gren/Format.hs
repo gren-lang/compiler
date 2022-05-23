@@ -1,9 +1,9 @@
-module Gren.Format (toByteString) where
+module Gren.Format (toByteStringBuilder) where
 
 import qualified AST.Source as Src
-import qualified Data.ByteString as BS
+import qualified Data.ByteString.Builder as B
 
-toByteString :: Src.Module -> BS.ByteString
-toByteString =
+toByteStringBuilder :: Src.Module -> B.Builder
+toByteStringBuilder =
   -- TODO: implement actual formating
   undefined
