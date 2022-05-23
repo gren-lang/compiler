@@ -120,6 +120,8 @@ canonicalize env (A.At region expression) =
         do
           fieldDict <- Dups.checkFields fields
           Can.Record <$> traverse (canonicalize env) fieldDict
+      Src.Parens _ expr _ ->
+        A.toValue <$> (canonicalize env expr)
 
 -- CANONICALIZE IF BRANCH
 
