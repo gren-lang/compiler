@@ -76,7 +76,7 @@ chompModule projectType =
 
 checkModule :: ProjectType -> Module -> Either E.Error Src.Module
 checkModule projectType (Module maybeHeader imports infixes decls) =
-  let (values, unions, aliases, ports) = categorizeDecls [] [] [] [] decls
+  let (values, unions, aliases, ports) = categorizeDecls [] [] [] [] 0 decls
    in case maybeHeader of
         Just (Header name effects exports docs) ->
           Src.Module (Just name) exports (toDocs docs decls) imports values unions aliases infixes
@@ -88,14 +88,14 @@ checkModule projectType (Module maybeHeader imports infixes decls) =
                 [] -> Src.NoEffects
                 _ : _ -> Src.Ports ports
 
-checkEffects :: ProjectType -> [Src.Port] -> Effects -> Either E.Error Src.Effects
+checkEffects :: ProjectType -> [(Src.SourceOrder, Src.Port)] -> Effects -> Either E.Error Src.Effects
 checkEffects projectType ports effects =
   case effects of
     NoEffects region ->
       case ports of
         [] ->
           Right Src.NoEffects
-        Src.Port name _ : _ ->
+        (_, Src.Port name _) : _ ->
           case projectType of
             Package _ -> Left (E.NoPortsInPackage name)
             Application -> Left (E.UnexpectedPort region)
@@ -114,17 +114,28 @@ checkEffects projectType ports effects =
           _ : _ -> Left (E.UnexpectedPort region)
         else Left (E.NoEffectsOutsideKernel region)
 
-categorizeDecls :: [A.Located Src.Value] -> [A.Located Src.Union] -> [A.Located Src.Alias] -> [Src.Port] -> [Decl.Decl] -> ([A.Located Src.Value], [A.Located Src.Union], [A.Located Src.Alias], [Src.Port])
-categorizeDecls values unions aliases ports decls =
+categorizeDecls ::
+  [(Src.SourceOrder, A.Located Src.Value)] ->
+  [(Src.SourceOrder, A.Located Src.Union)] ->
+  [(Src.SourceOrder, A.Located Src.Alias)] ->
+  [(Src.SourceOrder, Src.Port)] ->
+  Src.SourceOrder ->
+  [Decl.Decl] ->
+  ( [(Src.SourceOrder, A.Located Src.Value)],
+    [(Src.SourceOrder, A.Located Src.Union)],
+    [(Src.SourceOrder, A.Located Src.Alias)],
+    [(Src.SourceOrder, Src.Port)]
+  )
+categorizeDecls values unions aliases ports index decls =
   case decls of
     [] ->
       (values, unions, aliases, ports)
     decl : otherDecls ->
       case decl of
-        Decl.Value _ value -> categorizeDecls (value : values) unions aliases ports otherDecls
-        Decl.Union _ union -> categorizeDecls values (union : unions) aliases ports otherDecls
-        Decl.Alias _ alias -> categorizeDecls values unions (alias : aliases) ports otherDecls
-        Decl.Port _ port_ -> categorizeDecls values unions aliases (port_ : ports) otherDecls
+        Decl.Value _ value -> categorizeDecls ((index, value) : values) unions aliases ports (index + 1) otherDecls
+        Decl.Union _ union -> categorizeDecls values ((index, union) : unions) aliases ports (index + 1) otherDecls
+        Decl.Alias _ alias -> categorizeDecls values unions ((index, alias) : aliases) ports (index + 1) otherDecls
+        Decl.Port _ port_ -> categorizeDecls values unions aliases ((index, port_) : ports) (index + 1) otherDecls
 
 -- TO DOCS
 
