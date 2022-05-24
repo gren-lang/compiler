@@ -171,17 +171,20 @@ record start =
             word1 0x7D {-}-} E.RecordOpen
             addEnd start (Src.Record []),
           do
-            starter <- addLocation (Var.lower E.RecordField)
-            Space.chompAndCheckIndent E.RecordSpace E.RecordIndentEquals
+            -- TODO: Fix call to specialize
             oneOf
               E.RecordEquals
               [ do
+                  starter <- specialize undefined (addLocation term)
+                  Space.chompAndCheckIndent E.RecordSpace E.RecordIndentEquals
                   word1 0x7C E.RecordEquals
                   Space.chompAndCheckIndent E.RecordSpace E.RecordIndentField
                   firstField <- chompField
                   fields <- chompFields [firstField]
                   addEnd start (Src.Update starter fields),
                 do
+                  starter <- addLocation (Var.lower E.RecordField)
+                  Space.chompAndCheckIndent E.RecordSpace E.RecordIndentEquals
                   word1 0x3D {-=-} E.RecordEquals
                   Space.chompAndCheckIndent E.RecordSpace E.RecordIndentExpr
                   (value, end) <- specialize E.RecordExpr expression
@@ -516,7 +519,6 @@ chompMatchingName expectedName =
               if expectedName == name
                 then cok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) name) newState
                 else cerr sr sc (E.DefNameMatch name)
-
             eokL name newState@(P.State _ _ _ _ er ec) =
               if expectedName == name
                 then eok (A.At (A.Region (A.Position sr sc) (A.Position er ec)) name) newState

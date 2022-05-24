@@ -72,7 +72,7 @@ data Expr_
   | Case Expr [(Pattern, Expr)]
   | Accessor Name
   | Access Expr (A.Located Name)
-  | Update (A.Located Name) [(A.Located Name, Expr)]
+  | Update (A.Located Expr) [(A.Located Name, Expr)] -- { expr | [ name = expr  ]}
   | Record [(A.Located Name, Expr)]
 
 data VarType = LowVar | CapVar

@@ -89,7 +89,6 @@ instance Applicative.Applicative (Parser x) where
       let cokF func s1 =
             let cokA arg s2 = cok (func arg) s2
              in parserArg s1 cokA cokA cerr cerr
-
           eokF func s1 =
             let cokA arg s2 = cok (func arg) s2
                 eokA arg s2 = eok (func arg) s2
@@ -154,7 +153,6 @@ instance Monad (Parser x) where
       let cok' a s =
             case callback a of
               Parser parserB -> parserB s cok cok cerr cerr
-
           eok' a s =
             case callback a of
               Parser parserB -> parserB s cok eok cerr eerr
@@ -262,11 +260,11 @@ inContext addContext (Parser parserStart) (Parser parserA) =
   Parser $ \state@(State _ _ _ _ row col) cok eok cerr eerr ->
     let cerrA r c tx = cerr row col (addContext (tx r c))
         eerrA r c tx = eerr row col (addContext (tx r c))
-
         cokS _ s = parserA s cok cok cerrA cerrA
         eokS _ s = parserA s cok eok cerrA eerrA
      in parserStart state cokS eokS cerr eerr
 
+-- | Map error?
 specialize :: (x -> Row -> Col -> y) -> Parser x a -> Parser y a
 specialize addContext (Parser parser) =
   Parser $ \state@(State _ _ _ _ row col) cok eok cerr eerr ->
