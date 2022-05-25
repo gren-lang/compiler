@@ -113,6 +113,7 @@ data Canonical = Canonical
   { _package :: !Pkg.Name,
     _module :: !Name.Name
   }
+  deriving (Show)
 
 -- INSTANCES
 

@@ -72,16 +72,19 @@ data Expr_
   | Case Expr [(Pattern, Expr)]
   | Accessor Name
   | Access Expr (A.Located Name)
-  | Update (A.Located Expr) [(A.Located Name, Expr)] -- { expr | [ name = expr  ]}
+  | Update (A.Located Name) [(A.Located Name, Expr)]
   | Record [(A.Located Name, Expr)]
+  deriving (Show)
 
 data VarType = LowVar | CapVar
+  deriving (Show)
 
 -- DEFINITIONS
 
 data Def
   = Define (A.Located Name) [Pattern] Expr (Maybe Type)
   | Destruct Pattern Expr
+  deriving (Show)
 
 -- PATTERN
 
@@ -98,10 +101,12 @@ data Pattern_
   | PChr ES.String
   | PStr ES.String
   | PInt Int
+  deriving (Show)
 
 type RecordFieldPattern = A.Located RecordFieldPattern_
 
 data RecordFieldPattern_ = RFPattern (A.Located Name) Pattern
+  deriving (Show)
 
 -- TYPE
 
@@ -114,6 +119,7 @@ data Type_
   | TType A.Region Name [Type]
   | TTypeQual A.Region Name Name [Type]
   | TRecord [(A.Located Name, Type)] (Maybe (A.Located Name))
+  deriving (Show)
 
 -- MODULE
 
@@ -128,6 +134,7 @@ data Module = Module
     _binops :: [A.Located Infix],
     _effects :: Effects
   }
+  deriving (Show)
 
 getName :: Module -> Name
 getName (Module maybeName _ _ _ _ _ _ _ _) =
@@ -146,45 +153,58 @@ data Import = Import
     _alias :: Maybe Name,
     _exposing :: Exposing
   }
+  deriving (Show)
 
 data Value = Value (A.Located Name) [Pattern] Expr (Maybe Type)
+  deriving (Show)
 
 data Union = Union (A.Located Name) [A.Located Name] [(A.Located Name, [Type])]
+  deriving (Show)
 
 data Alias = Alias (A.Located Name) [A.Located Name] Type
+  deriving (Show)
 
 data Infix = Infix Name Binop.Associativity Binop.Precedence Name
+  deriving (Show)
 
 data Port = Port (A.Located Name) Type
+  deriving (Show)
 
 data Effects
   = NoEffects
   | Ports [Port]
   | Manager A.Region Manager
+  deriving (Show)
 
 data Manager
   = Cmd (A.Located Name)
   | Sub (A.Located Name)
   | Fx (A.Located Name) (A.Located Name)
+  deriving (Show)
 
 data Docs
   = NoDocs A.Region
   | YesDocs DocComment [(Name, DocComment)]
+  deriving (Show)
 
 newtype DocComment
   = DocComment P.Snippet
+  deriving (Show)
 
 -- EXPOSING
 
 data Exposing
   = Open
   | Explicit [Exposed]
+  deriving (Show)
 
 data Exposed
   = Lower (A.Located Name)
   | Upper (A.Located Name) Privacy
   | Operator A.Region Name
+  deriving (Show)
 
 data Privacy
   = Public A.Region
   | Private
+  deriving (Show)
