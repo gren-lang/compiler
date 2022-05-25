@@ -176,7 +176,7 @@ record start =
             oneOf
               E.RecordEquals
               [ do
-                  word1 0x7C {- | -} E.RecordEquals
+                  word1 0x7C E.RecordEquals
                   Space.chompAndCheckIndent E.RecordSpace E.RecordIndentField
                   firstField <- chompField
                   fields <- chompFields [firstField]
