@@ -113,7 +113,7 @@ canonicalize env (A.At region expression) =
       Src.Update (A.At reg name) fields ->
         let makeCanFields =
               Dups.checkFields' (\r t -> Can.FieldUpdate r <$> canonicalize env t) fields
-         in Can.Update name
+         in Can.Update
               <$> (A.At reg <$> findVar reg env name)
               <*> (sequenceA =<< makeCanFields)
       Src.Record fields ->

@@ -113,7 +113,7 @@ constrain rtv (A.At region expression) expected =
               [ recordCon,
                 CEqual region (Access field) fieldType expected
               ]
-    Can.Update _ expr fields ->
+    Can.Update expr fields ->
       constrainUpdate rtv region expr fields expected
     Can.Record fields ->
       constrainRecord rtv region fields expected
