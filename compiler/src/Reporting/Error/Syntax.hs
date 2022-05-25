@@ -428,6 +428,7 @@ data Number
 data Space
   = HasTab
   | EndlessMultiComment
+  deriving (Show)
 
 -- TO REPORT
 
