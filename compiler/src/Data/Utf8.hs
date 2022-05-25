@@ -41,7 +41,7 @@ where
 import Data.Binary (Get, Put, get, getWord8, put, putWord8)
 import Data.Binary.Get.Internal (readN)
 import Data.Binary.Put (putBuilder)
-import Data.Bits ((.&.), shiftR)
+import Data.Bits (shiftR, (.&.))
 import qualified Data.ByteString.Builder.Internal as B
 import qualified Data.ByteString.Internal as B
 import qualified Data.Char as Char
@@ -242,27 +242,27 @@ writeChars !mba !offset chars =
       freeze mba
     char : chars
       | n < 0x80 ->
-        do
-          writeWord8 mba (offset) (fromIntegral n)
-          writeChars mba (offset + 1) chars
+          do
+            writeWord8 mba (offset) (fromIntegral n)
+            writeChars mba (offset + 1) chars
       | n < 0x800 ->
-        do
-          writeWord8 mba (offset) (fromIntegral ((shiftR n 6) + 0xC0))
-          writeWord8 mba (offset + 1) (fromIntegral ((n .&. 0x3F) + 0x80))
-          writeChars mba (offset + 2) chars
+          do
+            writeWord8 mba (offset) (fromIntegral ((shiftR n 6) + 0xC0))
+            writeWord8 mba (offset + 1) (fromIntegral ((n .&. 0x3F) + 0x80))
+            writeChars mba (offset + 2) chars
       | n < 0x10000 ->
-        do
-          writeWord8 mba (offset) (fromIntegral ((shiftR n 12) + 0xE0))
-          writeWord8 mba (offset + 1) (fromIntegral ((shiftR n 6 .&. 0x3F) + 0x80))
-          writeWord8 mba (offset + 2) (fromIntegral ((n .&. 0x3F) + 0x80))
-          writeChars mba (offset + 3) chars
+          do
+            writeWord8 mba (offset) (fromIntegral ((shiftR n 12) + 0xE0))
+            writeWord8 mba (offset + 1) (fromIntegral ((shiftR n 6 .&. 0x3F) + 0x80))
+            writeWord8 mba (offset + 2) (fromIntegral ((n .&. 0x3F) + 0x80))
+            writeChars mba (offset + 3) chars
       | otherwise ->
-        do
-          writeWord8 mba (offset) (fromIntegral ((shiftR n 18) + 0xF0))
-          writeWord8 mba (offset + 1) (fromIntegral ((shiftR n 12 .&. 0x3F) + 0x80))
-          writeWord8 mba (offset + 2) (fromIntegral ((shiftR n 6 .&. 0x3F) + 0x80))
-          writeWord8 mba (offset + 3) (fromIntegral ((n .&. 0x3F) + 0x80))
-          writeChars mba (offset + 4) chars
+          do
+            writeWord8 mba (offset) (fromIntegral ((shiftR n 18) + 0xF0))
+            writeWord8 mba (offset + 1) (fromIntegral ((shiftR n 12 .&. 0x3F) + 0x80))
+            writeWord8 mba (offset + 2) (fromIntegral ((shiftR n 6 .&. 0x3F) + 0x80))
+            writeWord8 mba (offset + 3) (fromIntegral ((n .&. 0x3F) + 0x80))
+            writeChars mba (offset + 4) chars
       where
         n = Char.ord char
 
@@ -292,6 +292,7 @@ toCharsHelp ba# offset# len# =
             | isTrue# (ltWord8# w# (wordToWord8# 0xE0##)) = (# chr2 ba# offset# w#, 2# #)
             | isTrue# (ltWord8# w# (wordToWord8# 0xF0##)) = (# chr3 ba# offset# w#, 3# #)
             | True = (# chr4 ba# offset# w#, 4# #)
+
           !newOffset# = offset# +# width#
        in char : toCharsHelp ba# newOffset# len#
 

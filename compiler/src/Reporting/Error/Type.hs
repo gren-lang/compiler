@@ -664,14 +664,15 @@ toExprReport source localizer exprRegion category tipe expected =
               TypedIfBranch index -> D.ordinal index <> " branch of this `if` expression:"
               TypedCaseBranch index -> D.ordinal index <> " branch of this `case` expression:"
               TypedBody -> "body of the `" <> Name.toChars name <> "` definition:"
+
           itIs =
             case subContext of
               TypedIfBranch index -> "The " <> D.ordinal index <> " branch is"
               TypedCaseBranch index -> "The " <> D.ordinal index <> " branch is"
               TypedBody -> "The body is"
-       in Report.Report "TYPE MISMATCH" exprRegion []
-            $ Code.toSnippet source exprRegion Nothing
-            $ ( D.reflow ("Something is off with the " <> thing),
+       in Report.Report "TYPE MISMATCH" exprRegion [] $
+            Code.toSnippet source exprRegion Nothing $
+              ( D.reflow ("Something is off with the " <> thing),
                 typeComparison
                   localizer
                   tipe
@@ -690,6 +691,7 @@ toExprReport source localizer exprRegion category tipe expected =
                 ( D.reflow problem,
                   typeComparison localizer tipe expectedType (addCategory thisIs category) insteadOf furtherDetails
                 )
+
           badType (maybeHighlight, problem, thisIs, furtherDetails) =
             Report.Report "TYPE MISMATCH" exprRegion [] $
               Code.toSnippet
@@ -699,6 +701,7 @@ toExprReport source localizer exprRegion category tipe expected =
                 ( D.reflow problem,
                   loneType localizer tipe expectedType (D.reflow (addCategory thisIs category)) furtherDetails
                 )
+
           custom maybeHighlight docPair =
             Report.Report "TYPE MISMATCH" exprRegion [] $
               Code.toSnippet source region maybeHighlight docPair
@@ -786,31 +789,32 @@ toExprReport source localizer exprRegion category tipe expected =
                       ]
                     )
             CallArity maybeFuncName numGivenArgs ->
-              Report.Report "TOO MANY ARGS" exprRegion []
-                $ Code.toSnippet source region (Just exprRegion)
-                $ case countArgs tipe of
-                  0 ->
-                    let thisValue =
-                          case maybeFuncName of
-                            NoName -> "This value"
-                            FuncName name -> "The `" <> Name.toChars name <> "` value"
-                            CtorName name -> "The `" <> Name.toChars name <> "` value"
-                            OpName op -> "The (" <> Name.toChars op <> ") operator"
-                     in ( D.reflow $ thisValue <> " is not a function, but it was given " <> D.args numGivenArgs <> ".",
-                          D.reflow $ "Are there any missing commas? Or missing parentheses?"
-                        )
-                  n ->
-                    let thisFunction =
-                          case maybeFuncName of
-                            NoName -> "This function"
-                            FuncName name -> "The `" <> Name.toChars name <> "` function"
-                            CtorName name -> "The `" <> Name.toChars name <> "` constructor"
-                            OpName op -> "The (" <> Name.toChars op <> ") operator"
-                     in ( D.reflow $ thisFunction <> " expects " <> D.args n <> ", but it got " <> show numGivenArgs <> " instead.",
-                          D.reflow $ "Are there any missing commas? Or missing parentheses?"
-                        )
+              Report.Report "TOO MANY ARGS" exprRegion [] $
+                Code.toSnippet source region (Just exprRegion) $
+                  case countArgs tipe of
+                    0 ->
+                      let thisValue =
+                            case maybeFuncName of
+                              NoName -> "This value"
+                              FuncName name -> "The `" <> Name.toChars name <> "` value"
+                              CtorName name -> "The `" <> Name.toChars name <> "` value"
+                              OpName op -> "The (" <> Name.toChars op <> ") operator"
+                       in ( D.reflow $ thisValue <> " is not a function, but it was given " <> D.args numGivenArgs <> ".",
+                            D.reflow $ "Are there any missing commas? Or missing parentheses?"
+                          )
+                    n ->
+                      let thisFunction =
+                            case maybeFuncName of
+                              NoName -> "This function"
+                              FuncName name -> "The `" <> Name.toChars name <> "` function"
+                              CtorName name -> "The `" <> Name.toChars name <> "` constructor"
+                              OpName op -> "The (" <> Name.toChars op <> ") operator"
+                       in ( D.reflow $ thisFunction <> " expects " <> D.args n <> ", but it got " <> show numGivenArgs <> " instead.",
+                            D.reflow $ "Are there any missing commas? Or missing parentheses?"
+                          )
             CallArg maybeFuncName index ->
               let ith = D.ordinal index
+
                   thisFunction =
                     case maybeFuncName of
                       NoName -> "this function"
@@ -888,7 +892,7 @@ toExprReport source localizer exprRegion category tipe expected =
                       mismatch
                         ( Nothing,
                           "Something is off with this record update:",
-                          "The `" <> "[RECORD NAME]" <> "` record is",
+                          "The `" <> Name.toChars record <> "` record is",
                           "But this update needs it to be compatable with:",
                           [ D.reflow
                               "Do you mind creating an <http://sscce.org/> that produces this error message and\
@@ -897,7 +901,7 @@ toExprReport source localizer exprRegion category tipe expected =
                           ]
                         )
                     Just (field, Can.FieldUpdate fieldRegion _) ->
-                      let rStr = "`" <> "[RECORD NAME]" <> "`"
+                      let rStr = "`" <> Name.toChars record <> "`"
                           fStr = "`" <> Name.toChars field <> "`"
                        in custom
                             (Just fieldRegion)
@@ -1050,12 +1054,12 @@ opRightToDocs localizer category op tipe expected =
       | isFloat expected && isInt tipe -> badCast op FloatInt
       | isInt expected && isFloat tipe -> badCast op IntFloat
       | otherwise ->
-        EmphRight $ badMath localizer category "Subtraction" "right" "-" tipe expected []
+          EmphRight $ badMath localizer category "Subtraction" "right" "-" tipe expected []
     "^"
       | isFloat expected && isInt tipe -> badCast op FloatInt
       | isInt expected && isFloat tipe -> badCast op IntFloat
       | otherwise ->
-        EmphRight $ badMath localizer category "Exponentiation" "right" "^" tipe expected []
+          EmphRight $ badMath localizer category "Exponentiation" "right" "^" tipe expected []
     "/" -> EmphRight $ badFDiv localizer "right" tipe expected
     "//" -> EmphRight $ badIDiv localizer "right" tipe expected
     "&&" -> EmphRight $ badBool localizer "&&" "right" tipe expected

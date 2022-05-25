@@ -178,6 +178,7 @@ nearbyNames :: Name -> [Name] -> [Name]
 nearbyNames (Name author1 project1) possibleNames =
   let authorDist = authorDistance (Utf8.toChars author1)
       projectDist = projectDistance (Utf8.toChars project1)
+
       nameDistance (Name author2 project2) =
         authorDist author2 + projectDist project2
    in take 4 $ List.sortOn nameDistance possibleNames

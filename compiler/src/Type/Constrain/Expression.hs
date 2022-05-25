@@ -93,9 +93,9 @@ constrain rtv (A.At region expression) expected =
         let extType = VarN extVar
         let fieldType = VarN fieldVar
         let recordType = RecordN (Map.singleton field fieldType) extType
-        return
-          $ exists [fieldVar, extVar]
-          $ CEqual region (Accessor field) (FunN recordType fieldType) expected
+        return $
+          exists [fieldVar, extVar] $
+            CEqual region (Accessor field) (FunN recordType fieldType) expected
     Can.Access expr (A.At accessRegion field) ->
       do
         extVar <- mkFlexVar
@@ -107,12 +107,12 @@ constrain rtv (A.At region expression) expected =
         let context = RecordAccess (A.toRegion expr) (getAccessName expr) accessRegion field
         recordCon <- constrain rtv expr (FromContext region context recordType)
 
-        return
-          $ exists [fieldVar, extVar]
-          $ CAnd
-            [ recordCon,
-              CEqual region (Access field) fieldType expected
-            ]
+        return $
+          exists [fieldVar, extVar] $
+            CAnd
+              [ recordCon,
+                CEqual region (Access field) fieldType expected
+              ]
     Can.Update name expr fields ->
       constrainUpdate rtv region name expr fields expected
     Can.Record fields ->
@@ -129,18 +129,18 @@ constrainLambda rtv region args body expected =
     bodyCon <-
       constrain rtv body (NoExpectation resultType)
 
-    return
-      $ exists vars
-      $ CAnd
-        [ CLet
-            { _rigidVars = [],
-              _flexVars = pvars,
-              _header = headers,
-              _headerCon = CAnd (reverse revCons),
-              _bodyCon = bodyCon
-            },
-          CEqual region Lambda tipe expected
-        ]
+    return $
+      exists vars $
+        CAnd
+          [ CLet
+              { _rigidVars = [],
+                _flexVars = pvars,
+                _header = headers,
+                _headerCon = CAnd (reverse revCons),
+                _bodyCon = bodyCon
+              },
+            CEqual region Lambda tipe expected
+          ]
 
 -- CONSTRAIN CALL
 
@@ -162,14 +162,14 @@ constrainCall rtv region func@(A.At funcRegion _) args expected =
     let arityType = foldr FunN resultType argTypes
     let category = CallResult maybeName
 
-    return
-      $ exists (funcVar : resultVar : argVars)
-      $ CAnd
-        [ funcCon,
-          CEqual funcRegion category funcType (FromContext region (CallArity maybeName (length args)) arityType),
-          CAnd argCons,
-          CEqual region category resultType expected
-        ]
+    return $
+      exists (funcVar : resultVar : argVars) $
+        CAnd
+          [ funcCon,
+            CEqual funcRegion category funcType (FromContext region (CallArity maybeName (length args)) arityType),
+            CAnd argCons,
+            CEqual region category resultType expected
+          ]
 
 constrainArg :: RTV -> A.Region -> MaybeName -> Index.ZeroBased -> Can.Expr -> IO (Variable, Type, Constraint)
 constrainArg rtv region maybeName index arg =
@@ -216,14 +216,14 @@ constrainBinop rtv region op annotation leftExpr rightExpr expected =
     leftCon <- constrain rtv leftExpr (FromContext region (OpLeft op) leftType)
     rightCon <- constrain rtv rightExpr (FromContext region (OpRight op) rightType)
 
-    return
-      $ exists [leftVar, rightVar, answerVar]
-      $ CAnd
-        [ opCon,
-          leftCon,
-          rightCon,
-          CEqual region (CallResult (OpName op)) answerType expected
-        ]
+    return $
+      exists [leftVar, rightVar, answerVar] $
+        CAnd
+          [ opCon,
+            leftCon,
+            rightCon,
+            CEqual region (CallResult (OpName op)) answerType expected
+          ]
 
 -- CONSTRAIN LISTS
 
@@ -237,12 +237,12 @@ constrainList rtv region entries expected =
     entryCons <-
       Index.indexedTraverse (constrainListEntry rtv region entryType) entries
 
-    return
-      $ exists [entryVar]
-      $ CAnd
-        [ CAnd entryCons,
-          CEqual region Array listType expected
-        ]
+    return $
+      exists [entryVar] $
+        CAnd
+          [ CAnd entryCons,
+            CEqual region Array listType expected
+          ]
 
 constrainListEntry :: RTV -> A.Region -> Type -> Index.ZeroBased -> Can.Expr -> IO Constraint
 constrainListEntry rtv region tipe index expr =
@@ -277,13 +277,13 @@ constrainIf rtv region branches final expected =
           branchCons <- Index.indexedForA exprs $ \index expr ->
             constrain rtv expr (FromContext region (IfBranch index) branchType)
 
-          return
-            $ exists [branchVar]
-            $ CAnd
-              [ CAnd condCons,
-                CAnd branchCons,
-                CEqual region If branchType expected
-              ]
+          return $
+            exists [branchVar] $
+              CAnd
+                [ CAnd condCons,
+                  CAnd branchCons,
+                  CEqual region If branchType expected
+                ]
 
 -- CONSTRAIN CASE EXPRESSIONS
 
@@ -317,13 +317,13 @@ constrainCase rtv region expr branches expected =
               (PFromContext region (PCaseMatch index) ptrnType)
               (FromContext region (CaseBranch index) branchType)
 
-          return
-            $ exists [ptrnVar, branchVar]
-            $ CAnd
-              [ exprCon,
-                CAnd branchCons,
-                CEqual region Case branchType expected
-              ]
+          return $
+            exists [ptrnVar, branchVar] $
+              CAnd
+                [ exprCon,
+                  CAnd branchCons,
+                  CEqual region Case branchType expected
+                ]
 
 constrainCaseBranch :: RTV -> Can.CaseBranch -> PExpected Type -> Expected Type -> IO Constraint
 constrainCaseBranch rtv (Can.CaseBranch pattern expr) pExpect bExpect =
@@ -485,10 +485,10 @@ recDefsHelp rtv defs bodyCon rigidInfo flexInfo =
       do
         let (Info rigidVars rigidCons rigidHeaders) = rigidInfo
         let (Info flexVars flexCons flexHeaders) = flexInfo
-        return
-          $ CLet rigidVars [] rigidHeaders CTrue
-          $ CLet [] flexVars flexHeaders (CLet [] [] flexHeaders CTrue (CAnd flexCons))
-          $ CAnd [CAnd rigidCons, bodyCon]
+        return $
+          CLet rigidVars [] rigidHeaders CTrue $
+            CLet [] flexVars flexHeaders (CLet [] [] flexHeaders CTrue (CAnd flexCons)) $
+              CAnd [CAnd rigidCons, bodyCon]
     def : otherDefs ->
       case def of
         Can.Def (A.At region name) args expr ->

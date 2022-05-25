@@ -110,19 +110,7 @@ canonicalize env (A.At region expression) =
         Can.Access
           <$> canonicalize env record
           <*> Result.ok field
-      -- Src.Update (A.At _ name) fields -> -- { myRecord | fieldA = 42 }
-      --   let makeCanFields =
-      --         Dups.checkFields' (\r t -> Can.FieldUpdate r <$> canonicalize env t) fields
-
-      --       canName = canonicalize env name
-      --    in Can.Update
-      --         <$> canName
-      --         <*> canName
-      --         <*> (sequenceA =<< makeCanFields)
-
       Src.Update (A.At reg name) fields ->
-        -- Update name fields:
-        -- { myRecord | fieldA = 42 }
         let makeCanFields =
               Dups.checkFields' (\r t -> Can.FieldUpdate r <$> canonicalize env t) fields
          in Can.Update name
@@ -504,6 +492,7 @@ verifyBindings context bindings (Result.Result k) =
       ( \freeLocals warnings1 value ->
           let outerFreeLocals =
                 Map.difference freeLocals bindings
+
               warnings2 =
                 -- NOTE: Uses Map.size for O(1) lookup. This means there is
                 -- no dictionary allocation unless a problem is detected.
