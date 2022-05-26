@@ -21,7 +21,6 @@ import qualified Reporting.Result as R
 import System.IO.Unsafe (unsafePerformIO)
 import qualified Type.Constrain.Module as Type
 import qualified Type.Solve as Type
-import qualified Debug.Trace
 
 -- COMPILE
 
@@ -34,8 +33,8 @@ data Artifacts = Artifacts
 compile :: Pkg.Name -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> Either E.Error Artifacts
 compile pkg ifaces modul =
   do
-    canonical <- canonicalize pkg ifaces (Debug.Trace.traceShowId modul)
-    annotations <- typeCheck modul (Debug.Trace.traceShowId canonical)
+    canonical <- canonicalize pkg ifaces modul
+    annotations <- typeCheck modul canonical
     () <- nitpick canonical
     objects <- optimize modul annotations canonical
     return (Artifacts canonical annotations objects)
