@@ -67,6 +67,9 @@ import Prelude hiding (String, all, any, concat)
 data Utf8 tipe
   = Utf8 ByteArray#
 
+instance Show (Utf8 tipe) where
+  show str = '"' : toChars str ++ "\""
+
 -- EMPTY
 
 empty :: Utf8 t

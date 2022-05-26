@@ -192,6 +192,7 @@ data Snippet = Snippet
     _offRow :: Row,
     _offCol :: Col
   }
+  deriving (Show)
 
 fromSnippet :: Parser x a -> (Row -> Col -> x) -> Snippet -> Either x a
 fromSnippet (Parser parser) toBadEnd (Snippet fptr offset length row col) =

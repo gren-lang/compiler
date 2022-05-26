@@ -60,7 +60,7 @@ data Name = Name
   { _author :: !Author,
     _project :: !Project
   }
-  deriving (Ord)
+  deriving (Ord, Show)
 
 type Author = Utf8.Utf8 AUTHOR
 
