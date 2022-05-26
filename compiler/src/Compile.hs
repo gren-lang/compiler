@@ -10,7 +10,6 @@ import qualified AST.Source as Src
 import qualified Canonicalize.Module as Canonicalize
 import qualified Data.Map as Map
 import qualified Data.Name as Name
-import qualified Debug.Trace as Trace
 import qualified Gren.Interface as I
 import qualified Gren.ModuleName as ModuleName
 import qualified Gren.Package as Pkg
@@ -34,8 +33,8 @@ data Artifacts = Artifacts
 compile :: Pkg.Name -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> Either E.Error Artifacts
 compile pkg ifaces modul =
   do
-    canonical <- canonicalize pkg ifaces (Trace.traceShowId modul)
-    annotations <- typeCheck modul (Trace.traceShowId canonical)
+    canonical <- canonicalize pkg ifaces modul
+    annotations <- typeCheck modul canonical
     () <- nitpick canonical
     objects <- optimize modul annotations canonical
     return (Artifacts canonical annotations objects)
