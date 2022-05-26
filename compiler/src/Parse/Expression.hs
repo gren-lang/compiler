@@ -173,7 +173,8 @@ record start =
           do
             oneOf
               E.RecordEquals
-              [ do
+              [ P.backtrackable $
+                do
                   (A.At reg name) <- addLocation (Var.lower E.RecordField)
                   Space.chompAndCheckIndent E.RecordSpace E.RecordIndentEquals
                   word1 0x7C {- vertical bar -} E.RecordEquals
