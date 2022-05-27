@@ -60,7 +60,6 @@ backtrackable (Parser parser) =
   Parser $ \state cok eok _ eerr ->
     parser state cok eok eerr eerr
 
-
 data State -- PERF try taking some out to avoid allocation
   = State
   { _src :: ForeignPtr Word8,
