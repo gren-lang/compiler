@@ -63,7 +63,7 @@ outro =
   P.fillSep $
     map P.text $
       words
-        "Be sure to ask on the Gren slack if you run into trouble! Folks are friendly and\
+        "Be sure to ask on the Gren zulip if you run into trouble! Folks are friendly and\
         \ happy to help out. They hang out there because it is fun, so be kind to get the\
         \ best results!"
 
