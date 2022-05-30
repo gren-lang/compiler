@@ -8,7 +8,7 @@ where
 import qualified Bump
 import qualified Data.List as List
 import qualified Diff
---import qualified Format
+-- import qualified Format
 import qualified Gren.Version as V
 import qualified Init
 import qualified Install
@@ -31,7 +31,7 @@ main =
       init,
       make,
       install,
-      --format,
+      -- format,
       bump,
       diff,
       publish
@@ -254,7 +254,7 @@ diff =
    in Terminal.Command "diff" Uncommon details example diffArgs noFlags Diff.run
 
 -- FORMAT
-    {-
+{-
 format :: Terminal.Command
 format =
   let details =
