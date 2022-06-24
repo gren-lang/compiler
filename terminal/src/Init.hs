@@ -123,8 +123,7 @@ appDefaultDeps :: Map.Map Pkg.Name Con.Constraint
 appDefaultDeps =
   Map.fromList
     [ (Pkg.core, Con.anything),
-      (Pkg.browser, Con.anything),
-      (Pkg.html, Con.anything)
+      (Pkg.browser, Con.anything)
     ]
 
 pkgDefaultDeps :: Map.Map Pkg.Name Con.Constraint
