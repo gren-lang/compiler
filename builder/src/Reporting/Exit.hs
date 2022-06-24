@@ -1126,7 +1126,6 @@ data Outline
   | OutlineHasDuplicateSrcDirs FilePath FilePath FilePath
   | OutlineNoPkgCore
   | OutlineNoAppCore
-  | OutlineNoAppJson
 
 data OutlineProblem
   = OP_BadType
@@ -1212,17 +1211,6 @@ toOutlineReport problem =
         (Just "gren.json")
         "I need to see an \"gren-lang/core\" dependency your gren.json file. The default imports\
         \ of `List` and `Maybe` do not work without it."
-        [ D.reflow $
-            "If you modified your gren.json by hand, try to change it back! And if you are\
-            \ having trouble getting back to a working gren.json, it may be easier to delete it\
-            \ and use `gren init` to start fresh."
-        ]
-    OutlineNoAppJson ->
-      Help.report
-        "MISSING DEPENDENCY"
-        (Just "gren.json")
-        "I need to see an \"gren/json\" dependency your gren.json file. It helps me handle\
-        \ flags and ports."
         [ D.reflow $
             "If you modified your gren.json by hand, try to change it back! And if you are\
             \ having trouble getting back to a working gren.json, it may be easier to delete it\
