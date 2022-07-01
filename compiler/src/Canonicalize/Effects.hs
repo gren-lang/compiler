@@ -39,7 +39,7 @@ canonicalize env values unions effects =
       Result.ok Can.NoEffects
     Src.Ports ports ->
       do
-        pairs <- traverse (canonicalizePort env) ports
+        pairs <- traverse (canonicalizePort env) (fmap snd ports)
         return $ Can.Ports (Map.fromList pairs)
     Src.Manager region manager ->
       let dict = Map.fromList (map toNameRegion values)

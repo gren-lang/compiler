@@ -9,10 +9,14 @@ where
 import qualified AbsoluteSrcDir
 import Control.Monad (filterM)
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Builder as B
+import qualified Data.ByteString.Lazy as BSL
 import qualified Data.NonEmptyList as NE
 import qualified Directories as Dirs
 import qualified File
+import qualified Gren.Format as Format
 import qualified Gren.Outline as Outline
+import qualified Parse.Module as Parse
 import qualified Reporting
 import qualified Reporting.Doc as D
 import qualified Reporting.Exit as Exit
@@ -20,6 +24,7 @@ import qualified Reporting.Exit.Help as Help
 import qualified Reporting.Task as Task
 import qualified System.Directory as Dir
 import System.FilePath ((</>))
+import qualified System.IO
 
 -- FLAGS
 
@@ -106,8 +111,11 @@ format flags (Env inputs) =
     Stdin ->
       do
         original <- Task.io BS.getContents
-        let formatted = formatByteString original
-        Task.io $ BS.putStr formatted
+        case formatByteString original of
+          Nothing ->
+            error "TODO: report error"
+          Just formatted ->
+            Task.io $ B.hPutBuilder System.IO.stdout formatted
     Files paths ->
       do
         approved <-
@@ -144,15 +152,24 @@ formatExistingFile path =
   do
     putStr ("Formatting " ++ path)
     original <- File.readUtf8 path
-    let formatted = formatByteString original
-    if formatted == original
-      then do
-        Help.toStdout (" " <> D.dullwhite "(no changes)" <> "\n")
-      else do
-        File.writeUtf8 path formatted
-        Help.toStdout (" " <> D.green "CHANGED" <> "\n")
+    case formatByteString original of
+      Nothing ->
+        -- TODO: report error
+        Help.toStdout (" " <> D.red "ERROR: could not parse file" <> "\n")
+      Just builder ->
+        let formatted = B.toLazyByteString builder
+         in if formatted == BSL.fromStrict original
+              then do
+                Help.toStdout (" " <> D.dullwhite "(no changes)" <> "\n")
+              else do
+                B.writeFile path builder
+                Help.toStdout (" " <> D.green "CHANGED" <> "\n")
 
-formatByteString :: BS.ByteString -> BS.ByteString
+formatByteString :: BS.ByteString -> Maybe B.Builder
 formatByteString original =
-  -- TODO: implement actual formating
-  original
+  case Parse.fromByteString Parse.Application original of
+    Left _ ->
+      -- TODO: report error
+      Nothing
+    Right ast ->
+      Just (Format.toByteStringBuilder ast)

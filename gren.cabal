@@ -91,6 +91,7 @@ Common gren-common
         Gren.Constraint
         Gren.Docs
         Gren.Float
+        Gren.Format
         Gren.Interface
         Gren.Kernel
         Gren.Licenses
