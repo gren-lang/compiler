@@ -1,4 +1,3 @@
-
 # Local development commands
 
 - build: `cabal build -f dev`
