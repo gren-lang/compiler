@@ -73,7 +73,7 @@ data Expr_
   | Case Expr [(Pattern, Expr)]
   | Accessor Name
   | Access Expr (A.Located Name)
-  | Update (A.Located Name) [(A.Located Name, Expr)]
+  | Update Expr [(A.Located Name, Expr)]
   | Record [(A.Located Name, Expr)]
   deriving (Show)
 

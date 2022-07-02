@@ -124,7 +124,7 @@ optimize cycle (A.At region expression) =
       do
         optRecord <- optimize cycle record
         Names.registerField field (Opt.Access optRecord field)
-    Can.Update _ record updates ->
+    Can.Update record updates ->
       Names.registerFieldDict updates Opt.Update
         <*> optimize cycle record
         <*> traverse (optimizeUpdate cycle) updates

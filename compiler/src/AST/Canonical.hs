@@ -98,7 +98,7 @@ data Expr_
   | Case Expr [CaseBranch]
   | Accessor Name
   | Access Expr (A.Located Name)
-  | Update Name Expr (Map.Map Name FieldUpdate)
+  | Update Expr (Map.Map Name FieldUpdate)
   | Record (Map.Map Name Expr)
   deriving (Show)
 

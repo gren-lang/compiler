@@ -171,22 +171,25 @@ record start =
             word1 0x7D {-}-} E.RecordOpen
             addEnd start (Src.Record []),
           do
-            starter <- addLocation (Var.lower E.RecordField)
-            Space.chompAndCheckIndent E.RecordSpace E.RecordIndentEquals
             oneOf
               E.RecordEquals
-              [ do
-                  word1 0x7C E.RecordEquals
-                  Space.chompAndCheckIndent E.RecordSpace E.RecordIndentField
-                  firstField <- chompField
-                  fields <- chompFields [firstField]
-                  addEnd start (Src.Update starter fields),
+              [ P.backtrackable $
+                  do
+                    expr <- specialize undefined term
+                    Space.chompAndCheckIndent E.RecordSpace E.RecordIndentEquals
+                    word1 0x7C {- vertical bar -} E.RecordEquals
+                    Space.chompAndCheckIndent E.RecordSpace E.RecordIndentField
+                    firstField <- chompField
+                    fields <- chompFields [firstField]
+                    addEnd start (Src.Update expr fields),
                 do
+                  (A.At reg name) <- addLocation (Var.lower E.RecordField)
+                  Space.chompAndCheckIndent E.RecordSpace E.RecordIndentEquals
                   word1 0x3D {-=-} E.RecordEquals
                   Space.chompAndCheckIndent E.RecordSpace E.RecordIndentExpr
                   (value, end) <- specialize E.RecordExpr expression
                   Space.checkIndent end E.RecordIndentEnd
-                  fields <- chompFields [(starter, value)]
+                  fields <- chompFields [(A.At reg name, value)]
                   addEnd start (Src.Record fields)
               ]
         ]

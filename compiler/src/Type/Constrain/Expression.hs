@@ -113,8 +113,8 @@ constrain rtv (A.At region expression) expected =
               [ recordCon,
                 CEqual region (Access field) fieldType expected
               ]
-    Can.Update name expr fields ->
-      constrainUpdate rtv region name expr fields expected
+    Can.Update expr fields ->
+      constrainUpdate rtv region expr fields expected
     Can.Record fields ->
       constrainRecord rtv region fields expected
 
@@ -360,8 +360,8 @@ constrainField rtv expr =
 
 -- CONSTRAIN RECORD UPDATE
 
-constrainUpdate :: RTV -> A.Region -> Name.Name -> Can.Expr -> Map.Map Name.Name Can.FieldUpdate -> Expected Type -> IO Constraint
-constrainUpdate rtv region name expr fields expected =
+constrainUpdate :: RTV -> A.Region -> Can.Expr -> Map.Map Name.Name Can.FieldUpdate -> Expected Type -> IO Constraint
+constrainUpdate rtv region expr fields expected =
   do
     extVar <- mkFlexVar
     fieldDict <- Map.traverseWithKey (constrainUpdateField rtv region) fields
@@ -377,7 +377,7 @@ constrainUpdate rtv region name expr fields expected =
     let vars = Map.foldr (\(v, _, _) vs -> v : vs) [recordVar, extVar] fieldDict
     let cons = Map.foldr (\(_, _, c) cs -> c : cs) [recordCon] fieldDict
 
-    con <- constrain rtv expr (FromContext region (RecordUpdateKeys name fields) recordType)
+    con <- constrain rtv expr (FromContext region (RecordUpdateKeys fields) recordType)
 
     return $ exists vars $ CAnd (fieldsCon : con : cons)
 

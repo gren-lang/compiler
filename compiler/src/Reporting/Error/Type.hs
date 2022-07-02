@@ -58,7 +58,7 @@ data Context
   | CallArity MaybeName Int
   | CallArg MaybeName Index.ZeroBased
   | RecordAccess A.Region (Maybe Name.Name) A.Region Name.Name
-  | RecordUpdateKeys Name.Name (Map.Map Name.Name Can.FieldUpdate)
+  | RecordUpdateKeys (Map.Map Name.Name Can.FieldUpdate)
   | RecordUpdateValue Name.Name
   | Destructure
 
@@ -884,7 +884,7 @@ toExprReport source localizer exprRegion category tipe expected =
                           ]
                       ]
                     )
-            RecordUpdateKeys record expectedFields ->
+            RecordUpdateKeys expectedFields ->
               case T.iteratedDealias tipe of
                 T.Record actualFields ext ->
                   case Map.lookupMin (Map.difference expectedFields actualFields) of
@@ -892,7 +892,7 @@ toExprReport source localizer exprRegion category tipe expected =
                       mismatch
                         ( Nothing,
                           "Something is off with this record update:",
-                          "The `" <> Name.toChars record <> "` record is",
+                          "The record is",
                           "But this update needs it to be compatable with:",
                           [ D.reflow
                               "Do you mind creating an <http://sscce.org/> that produces this error message and\
@@ -901,19 +901,18 @@ toExprReport source localizer exprRegion category tipe expected =
                           ]
                         )
                     Just (field, Can.FieldUpdate fieldRegion _) ->
-                      let rStr = "`" <> Name.toChars record <> "`"
-                          fStr = "`" <> Name.toChars field <> "`"
+                      let fStr = "`" <> Name.toChars field <> "`"
                        in custom
                             (Just fieldRegion)
                             ( D.reflow $
-                                "The " <> rStr <> " record does not have a " <> fStr <> " field:",
+                                "The record does not have a " <> fStr <> " field:",
                               case Suggest.sort (Name.toChars field) (Name.toChars . fst) (Map.toList actualFields) of
                                 [] ->
-                                  D.reflow $ "In fact, " <> rStr <> " is a record with NO fields!"
+                                  D.reflow $ "In fact, this is a record with NO fields!"
                                 f : fs ->
                                   D.stack
                                     [ D.reflow $
-                                        "This is usually a typo. Here are the " <> rStr <> " fields that are most similar:",
+                                        "This is usually a typo. Here are the fields that are most similar:",
                                       toNearbyRecord localizer f fs ext,
                                       D.fillSep
                                         [ "So",
