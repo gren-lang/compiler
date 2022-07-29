@@ -489,7 +489,7 @@ crawlFile foreignDeps mvar pkg src docsStatus expectedName path =
   do
     bytes <- File.readUtf8 path
     case Parse.fromByteString (Parse.Package pkg) bytes of
-      Right modul@(Src.Module (Just (A.At _ actualName)) _ _ imports _ _ _ _ _) | expectedName == actualName ->
+      Right modul@(Src.Module (Just (A.At _ actualName)) _ _ imports _ _ _ _ _ _) | expectedName == actualName ->
         do
           deps <- crawlImports foreignDeps mvar pkg src imports
           return (Just (SLocal docsStatus deps modul))

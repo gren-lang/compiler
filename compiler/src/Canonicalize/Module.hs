@@ -35,7 +35,7 @@ type Result i w a =
 -- MODULES
 
 canonicalize :: Pkg.Name -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> Result i [W.Warning] Can.Module
-canonicalize pkg ifaces modul@(Src.Module _ exports docs imports values _ _ binops effects) =
+canonicalize pkg ifaces modul@(Src.Module _ exports docs imports values _ _ binops _ effects) =
   do
     let home = ModuleName.Canonical pkg (Src.getName modul)
     let cbinops = Map.fromList (map canonicalizeBinop binops)

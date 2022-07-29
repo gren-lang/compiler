@@ -125,11 +125,12 @@ data Module = Module
     _unions :: [A.Located Union],
     _aliases :: [A.Located Alias],
     _binops :: [A.Located Infix],
+    _comments :: [A.Located [Comment]],
     _effects :: Effects
   }
 
 getName :: Module -> Name
-getName (Module maybeName _ _ _ _ _ _ _ _) =
+getName (Module maybeName _ _ _ _ _ _ _ _ _) =
   case maybeName of
     Just (A.At _ name) ->
       name
