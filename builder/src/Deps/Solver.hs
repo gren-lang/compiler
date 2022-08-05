@@ -157,9 +157,8 @@ exploreGoals (Goals pending solved) =
     Just ((name, constraint), otherPending) ->
       do
         let goals1 = Goals otherPending solved
-        let addVsn = addVersion goals1 name
-        (v, vs) <- getRelevantVersions name constraint
-        goals2 <- oneOf (addVsn v) (map addVsn vs)
+        let lowestVersion = C.lowerBound constraint
+        goals2 <- addVersion goals1 name lowestVersion
         exploreGoals goals2
 
 addVersion :: Goals -> Pkg.Name -> V.Version -> Solver Goals
@@ -194,6 +193,7 @@ addConstraint solved unsolved (name, newConstraint) =
 
 -- GET RELEVANT VERSIONS
 
+{- TODO: do we still need this?
 getRelevantVersions :: Pkg.Name -> C.Constraint -> Solver (V.Version, [V.Version])
 getRelevantVersions name constraint =
   Solver $ \state@(State _ _) ok back err -> do
@@ -205,6 +205,7 @@ getRelevantVersions name constraint =
           v : vs -> ok state (v, vs) back
       Left gitErr ->
         err $ Exit.SolverBadGitOperationUnversionedPkg name gitErr
+        -}
 
 -- GET CONSTRAINTS
 
