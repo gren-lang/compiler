@@ -7,10 +7,10 @@ module Type.Instantiate
   )
 where
 
-import qualified AST.Canonical as Can
+import AST.Canonical qualified as Can
 import Data.Map.Strict ((!))
-import qualified Data.Map.Strict as Map
-import qualified Data.Name as Name
+import Data.Map.Strict qualified as Map
+import Data.Name qualified as Name
 import Type.Type
 
 -- FREE VARS

@@ -11,13 +11,13 @@ module Reporting.Render.Type.Localizer
   )
 where
 
-import qualified AST.Source as Src
-import qualified Data.Map as Map
-import qualified Data.Name as Name
-import qualified Data.Set as Set
-import qualified Gren.ModuleName as ModuleName
-import qualified Reporting.Annotation as A
-import qualified Reporting.Doc as D
+import AST.Source qualified as Src
+import Data.Map qualified as Map
+import Data.Name qualified as Name
+import Data.Set qualified as Set
+import Gren.ModuleName qualified as ModuleName
+import Reporting.Annotation qualified as A
+import Reporting.Doc qualified as D
 
 -- LOCALIZER
 

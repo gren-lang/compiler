@@ -15,7 +15,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
 
-    - uses: mrkkrp/ormolu-action@v5
+    - uses: mrkkrp/ormolu-action@v6
 
     - uses: haskell/actions/setup@v1
       id: setup-haskell

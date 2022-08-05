@@ -5,19 +5,19 @@ module Main
   )
 where
 
-import qualified Bump
-import qualified Data.List as List
-import qualified Diff
+import Bump qualified
+import Data.List qualified as List
+import Diff qualified
 -- import qualified Format
-import qualified Gren.Version as V
-import qualified Init
-import qualified Install
-import qualified Make
-import qualified Publish
-import qualified Repl
+import Gren.Version qualified as V
+import Init qualified
+import Install qualified
+import Make qualified
+import Publish qualified
+import Repl qualified
 import Terminal
 import Terminal.Helpers
-import qualified Text.PrettyPrint.ANSI.Leijen as P
+import Text.PrettyPrint.ANSI.Leijen qualified as P
 import Prelude hiding (init)
 
 -- MAIN

@@ -8,13 +8,13 @@ module Type.Unify
   )
 where
 
-import qualified Data.Map.Strict as Map
-import qualified Data.Name as Name
-import qualified Gren.ModuleName as ModuleName
-import qualified Type.Error as Error
-import qualified Type.Occurs as Occurs
+import Data.Map.Strict qualified as Map
+import Data.Name qualified as Name
+import Gren.ModuleName qualified as ModuleName
+import Type.Error qualified as Error
+import Type.Occurs qualified as Occurs
 import Type.Type as Type
-import qualified Type.UnionFind as UF
+import Type.UnionFind qualified as UF
 
 -- UNIFY
 

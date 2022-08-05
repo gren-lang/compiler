@@ -6,7 +6,7 @@ module Terminal.Chomp
   )
 where
 
-import qualified Data.List as List
+import Data.List qualified as List
 import Terminal.Error
 import Terminal.Internal
 

@@ -31,14 +31,14 @@ module Parse.Primitives
   )
 where
 
-import qualified Control.Applicative as Applicative (Applicative (..))
-import qualified Data.ByteString.Internal as B
+import Control.Applicative qualified as Applicative (Applicative (..))
+import Data.ByteString.Internal qualified as B
 import Data.Word (Word16, Word8)
 import Foreign.ForeignPtr (ForeignPtr, touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (Ptr, plusPtr)
 import Foreign.Storable (peek)
-import qualified Reporting.Annotation as A
+import Reporting.Annotation qualified as A
 import Prelude hiding (length)
 
 -- PARSER

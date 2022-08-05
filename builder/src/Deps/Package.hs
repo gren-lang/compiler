@@ -5,13 +5,13 @@ module Deps.Package
   )
 where
 
-import qualified Data.List as List
-import qualified Directories as Dirs
-import qualified Git
-import qualified Gren.Magnitude as M
-import qualified Gren.Package as Pkg
-import qualified Gren.Version as V
-import qualified System.Directory as Dir
+import Data.List qualified as List
+import Directories qualified as Dirs
+import Git qualified
+import Gren.Magnitude qualified as M
+import Gren.Package qualified as Pkg
+import Gren.Version qualified as V
+import System.Directory qualified as Dir
 
 -- GET VERSIONS
 
@@ -36,8 +36,8 @@ bumpPossibilities (latest, previous) =
   let allVersions = reverse (latest : previous)
       minorPoints = map last (List.groupBy sameMajor allVersions)
       patchPoints = map last (List.groupBy sameMinor allVersions)
-   in (latest, V.bumpMajor latest, M.MAJOR) :
-      map (\v -> (v, V.bumpMinor v, M.MINOR)) minorPoints
+   in (latest, V.bumpMajor latest, M.MAJOR)
+        : map (\v -> (v, V.bumpMinor v, M.MINOR)) minorPoints
         ++ map (\v -> (v, V.bumpPatch v, M.PATCH)) patchPoints
 
 sameMajor :: V.Version -> V.Version -> Bool

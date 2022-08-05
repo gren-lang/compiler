@@ -11,24 +11,24 @@ module Make
   )
 where
 
-import qualified AST.Optimized as Opt
-import qualified BackgroundWriter as BW
-import qualified Build
-import qualified Data.ByteString.Builder as B
-import qualified Data.Maybe as Maybe
-import qualified Data.NonEmptyList as NE
-import qualified Directories as Dirs
-import qualified File
-import qualified Generate
-import qualified Generate.Html as Html
-import qualified Gren.Details as Details
-import qualified Gren.ModuleName as ModuleName
-import qualified Reporting
-import qualified Reporting.Exit as Exit
-import qualified Reporting.Task as Task
-import qualified System.Directory as Dir
-import qualified System.FilePath as FP
-import qualified System.IO as IO
+import AST.Optimized qualified as Opt
+import BackgroundWriter qualified as BW
+import Build qualified
+import Data.ByteString.Builder qualified as B
+import Data.Maybe qualified as Maybe
+import Data.NonEmptyList qualified as NE
+import Directories qualified as Dirs
+import File qualified
+import Generate qualified
+import Generate.Html qualified as Html
+import Gren.Details qualified as Details
+import Gren.ModuleName qualified as ModuleName
+import Reporting qualified
+import Reporting.Exit qualified as Exit
+import Reporting.Task qualified as Task
+import System.Directory qualified as Dir
+import System.FilePath qualified as FP
+import System.IO qualified as IO
 import Terminal (Parser (..))
 
 -- FLAGS

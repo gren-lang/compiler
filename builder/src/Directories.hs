@@ -20,14 +20,14 @@ module Directories
   )
 where
 
-import qualified Gren.ModuleName as ModuleName
-import qualified Gren.Package as Pkg
-import qualified Gren.Version as V
-import qualified System.Directory as Dir
-import qualified System.Environment as Env
-import qualified System.FileLock as Lock
+import Gren.ModuleName qualified as ModuleName
+import Gren.Package qualified as Pkg
+import Gren.Version qualified as V
+import System.Directory qualified as Dir
+import System.Environment qualified as Env
+import System.FileLock qualified as Lock
 import System.FilePath ((<.>), (</>))
-import qualified System.FilePath as FP
+import System.FilePath qualified as FP
 
 -- PATHS
 

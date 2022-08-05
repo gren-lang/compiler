@@ -32,17 +32,17 @@ module Json.Decode
   )
 where
 
-import qualified Data.ByteString.Internal as B
-import qualified Data.Map as Map
-import qualified Data.NonEmptyList as NE
+import Data.ByteString.Internal qualified as B
+import Data.Map qualified as Map
+import Data.NonEmptyList qualified as NE
 import Data.Word (Word8)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (Ptr, minusPtr, plusPtr)
-import qualified Json.String as Json
-import qualified Parse.Keyword as K
+import Json.String qualified as Json
+import Parse.Keyword qualified as K
 import Parse.Primitives (Col, Row)
-import qualified Parse.Primitives as P
-import qualified Reporting.Annotation as A
+import Parse.Primitives qualified as P
+import Reporting.Annotation qualified as A
 
 -- RUNNERS
 

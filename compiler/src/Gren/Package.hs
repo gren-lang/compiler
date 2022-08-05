@@ -38,20 +38,20 @@ where
 
 import Control.Monad (liftM2)
 import Data.Binary (Binary, get, put)
-import qualified Data.Coerce as Coerce
-import qualified Data.List as List
-import qualified Data.Map as Map
-import qualified Data.Name as Name
-import qualified Data.Utf8 as Utf8
+import Data.Coerce qualified as Coerce
+import Data.List qualified as List
+import Data.Map qualified as Map
+import Data.Name qualified as Name
+import Data.Utf8 qualified as Utf8
 import Data.Word (Word8)
 import Foreign.Ptr (Ptr, minusPtr, plusPtr)
-import qualified Gren.Version as V
-import qualified Json.Decode as D
-import qualified Json.Encode as E
-import qualified Json.String as Json
+import Gren.Version qualified as V
+import Json.Decode qualified as D
+import Json.Encode qualified as E
+import Json.String qualified as Json
 import Parse.Primitives (Col, Row)
-import qualified Parse.Primitives as P
-import qualified Reporting.Suggest as Suggest
+import Parse.Primitives qualified as P
+import Reporting.Suggest qualified as Suggest
 import System.FilePath ((</>))
 
 -- PACKGE NAMES

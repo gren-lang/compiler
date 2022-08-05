@@ -7,16 +7,16 @@ module Canonicalize.Type
   )
 where
 
-import qualified AST.Canonical as Can
-import qualified AST.Source as Src
-import qualified Canonicalize.Environment as Env
-import qualified Canonicalize.Environment.Dups as Dups
-import qualified Data.List as List
-import qualified Data.Map as Map
-import qualified Data.Name as Name
-import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Canonicalize as Error
-import qualified Reporting.Result as Result
+import AST.Canonical qualified as Can
+import AST.Source qualified as Src
+import Canonicalize.Environment qualified as Env
+import Canonicalize.Environment.Dups qualified as Dups
+import Data.List qualified as List
+import Data.Map qualified as Map
+import Data.Name qualified as Name
+import Reporting.Annotation qualified as A
+import Reporting.Error.Canonicalize qualified as Error
+import Reporting.Result qualified as Result
 
 -- RESULT
 

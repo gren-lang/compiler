@@ -6,19 +6,19 @@ module Format
   )
 where
 
-import qualified AbsoluteSrcDir
+import AbsoluteSrcDir qualified
 import Control.Monad (filterM)
-import qualified Data.ByteString as BS
-import qualified Data.NonEmptyList as NE
-import qualified Directories as Dirs
-import qualified File
-import qualified Gren.Outline as Outline
-import qualified Reporting
-import qualified Reporting.Doc as D
-import qualified Reporting.Exit as Exit
-import qualified Reporting.Exit.Help as Help
-import qualified Reporting.Task as Task
-import qualified System.Directory as Dir
+import Data.ByteString qualified as BS
+import Data.NonEmptyList qualified as NE
+import Directories qualified as Dirs
+import File qualified
+import Gren.Outline qualified as Outline
+import Reporting qualified
+import Reporting.Doc qualified as D
+import Reporting.Exit qualified as Exit
+import Reporting.Exit.Help qualified as Help
+import Reporting.Task qualified as Task
+import System.Directory qualified as Dir
 import System.FilePath ((</>))
 
 -- FLAGS

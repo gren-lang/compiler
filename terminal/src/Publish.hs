@@ -5,40 +5,41 @@ module Publish
   )
 where
 
-import qualified BackgroundWriter as BW
-import qualified Build
+import BackgroundWriter qualified as BW
+import Build qualified
 import Control.Monad (void)
-import qualified Data.Either as Either
-import qualified Data.List as List
-import qualified Data.NonEmptyList as NE
-import qualified Deps.Diff as Diff
-import qualified Deps.Package as Package
-import qualified Directories as Dirs
-import qualified File
-import qualified Git
-import qualified Gren.Details as Details
-import qualified Gren.Docs as Docs
-import qualified Gren.Magnitude as M
-import qualified Gren.Outline as Outline
-import qualified Gren.Package as Pkg
-import qualified Gren.Version as V
-import qualified Json.String as Json
-import qualified Reporting
+import Data.Either qualified as Either
+import Data.List qualified as List
+import Data.NonEmptyList qualified as NE
+import Deps.Diff qualified as Diff
+import Deps.Package qualified as Package
+import Directories qualified as Dirs
+import File qualified
+import Git qualified
+import Gren.Details qualified as Details
+import Gren.Docs qualified as Docs
+import Gren.Magnitude qualified as M
+import Gren.Outline qualified as Outline
+import Gren.Package qualified as Pkg
+import Gren.Version qualified as V
+import Json.String qualified as Json
+import Reporting qualified
 import Reporting.Doc ((<+>))
-import qualified Reporting.Doc as D
-import qualified Reporting.Exit as Exit
-import qualified Reporting.Exit.Help as Help
-import qualified Reporting.Task as Task
+import Reporting.Doc qualified as D
+import Reporting.Exit qualified as Exit
+import Reporting.Exit.Help qualified as Help
+import Reporting.Task qualified as Task
 import System.FilePath ((</>))
-import qualified System.IO as IO
-import qualified System.Info as Info
+import System.IO qualified as IO
+import System.Info qualified as Info
 
 -- RUN
 
 run :: () -> () -> IO ()
 run () () =
   Reporting.attempt Exit.publishToReport $
-    Task.run $ publish =<< getEnv
+    Task.run $
+      publish =<< getEnv
 
 -- ENV
 
@@ -261,7 +262,9 @@ reportSemverCheck version work =
           GoodStart ->
             "All packages start at version " ++ V.toChars V.one
           GoodBump oldVersion magnitude ->
-            "Version number " ++ vsn ++ " verified ("
+            "Version number "
+              ++ vsn
+              ++ " verified ("
               ++ M.toChars magnitude
               ++ " change, "
               ++ V.toChars oldVersion
