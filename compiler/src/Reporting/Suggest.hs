@@ -8,9 +8,9 @@ module Reporting.Suggest
   )
 where
 
-import qualified Data.Char as Char
-import qualified Data.List as List
-import qualified Text.EditDistance as Dist
+import Data.Char qualified as Char
+import Data.List qualified as List
+import Text.EditDistance qualified as Dist
 
 -- DISTANCE
 

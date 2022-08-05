@@ -8,13 +8,13 @@ module Terminal.Helpers
   )
 where
 
-import qualified Data.ByteString.UTF8 as BS_UTF8
-import qualified Data.Char as Char
-import qualified Data.Utf8 as Utf8
-import qualified Gren.Package as Pkg
-import qualified Gren.Version as V
-import qualified Parse.Primitives as P
-import qualified System.FilePath as FP
+import Data.ByteString.UTF8 qualified as BS_UTF8
+import Data.Char qualified as Char
+import Data.Utf8 qualified as Utf8
+import Gren.Package qualified as Pkg
+import Gren.Version qualified as V
+import Parse.Primitives qualified as P
+import System.FilePath qualified as FP
 import Terminal (Parser (..))
 
 -- VERSION

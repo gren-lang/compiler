@@ -6,19 +6,19 @@ module Init
   )
 where
 
-import qualified Data.Map as Map
-import qualified Data.NonEmptyList as NE
-import qualified Deps.Solver as Solver
-import qualified Gren.Constraint as Con
-import qualified Gren.Licenses as Licenses
-import qualified Gren.Outline as Outline
-import qualified Gren.Package as Pkg
-import qualified Gren.Version as V
-import qualified Json.String as Json
-import qualified Reporting
-import qualified Reporting.Doc as D
-import qualified Reporting.Exit as Exit
-import qualified System.Directory as Dir
+import Data.Map qualified as Map
+import Data.NonEmptyList qualified as NE
+import Deps.Solver qualified as Solver
+import Gren.Constraint qualified as Con
+import Gren.Licenses qualified as Licenses
+import Gren.Outline qualified as Outline
+import Gren.Package qualified as Pkg
+import Gren.Version qualified as V
+import Json.String qualified as Json
+import Reporting qualified
+import Reporting.Doc qualified as D
+import Reporting.Exit qualified as Exit
+import System.Directory qualified as Dir
 import Prelude hiding (init)
 
 data Flags = Flags
@@ -123,8 +123,7 @@ appDefaultDeps :: Map.Map Pkg.Name Con.Constraint
 appDefaultDeps =
   Map.fromList
     [ (Pkg.core, Con.anything),
-      (Pkg.browser, Con.anything),
-      (Pkg.html, Con.anything)
+      (Pkg.browser, Con.anything)
     ]
 
 pkgDefaultDeps :: Map.Map Pkg.Name Con.Constraint

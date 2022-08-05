@@ -8,28 +8,28 @@ module Generate
   )
 where
 
-import qualified AST.Optimized as Opt
-import qualified Build
+import AST.Optimized qualified as Opt
+import Build qualified
 import Control.Concurrent (MVar, forkIO, newEmptyMVar, newMVar, putMVar, readMVar)
 import Control.Monad (liftM2)
-import qualified Data.ByteString.Builder as B
+import Data.ByteString.Builder qualified as B
 import Data.Map ((!))
-import qualified Data.Map as Map
-import qualified Data.Maybe as Maybe
-import qualified Data.Name as N
-import qualified Data.NonEmptyList as NE
-import qualified Directories as Dirs
-import qualified File
-import qualified Generate.JavaScript as JS
-import qualified Generate.Mode as Mode
-import qualified Gren.Compiler.Type.Extract as Extract
-import qualified Gren.Details as Details
-import qualified Gren.Interface as I
-import qualified Gren.ModuleName as ModuleName
-import qualified Gren.Package as Pkg
-import qualified Nitpick.Debug as Nitpick
-import qualified Reporting.Exit as Exit
-import qualified Reporting.Task as Task
+import Data.Map qualified as Map
+import Data.Maybe qualified as Maybe
+import Data.Name qualified as N
+import Data.NonEmptyList qualified as NE
+import Directories qualified as Dirs
+import File qualified
+import Generate.JavaScript qualified as JS
+import Generate.Mode qualified as Mode
+import Gren.Compiler.Type.Extract qualified as Extract
+import Gren.Details qualified as Details
+import Gren.Interface qualified as I
+import Gren.ModuleName qualified as ModuleName
+import Gren.Package qualified as Pkg
+import Nitpick.Debug qualified as Nitpick
+import Reporting.Exit qualified as Exit
+import Reporting.Task qualified as Task
 import Prelude hiding (cycle, print)
 
 -- NOTE: This is used by Make, Repl, and Reactor right now. But it may be

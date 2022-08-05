@@ -37,32 +37,32 @@ module Reporting.Exit
   )
 where
 
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.UTF8 as BS_UTF8
-import qualified Data.List as List
-import qualified Data.Map as Map
-import qualified Data.Name as N
-import qualified Data.NonEmptyList as NE
-import qualified File
-import qualified Git
-import qualified Gren.Constraint as C
-import qualified Gren.Magnitude as M
-import qualified Gren.ModuleName as ModuleName
-import qualified Gren.Package as Pkg
-import qualified Gren.Version as V
-import qualified Json.Decode as Decode
-import qualified Json.Encode as Encode
-import qualified Json.String as Json
+import Data.ByteString qualified as BS
+import Data.ByteString.UTF8 qualified as BS_UTF8
+import Data.List qualified as List
+import Data.Map qualified as Map
+import Data.Name qualified as N
+import Data.NonEmptyList qualified as NE
+import File qualified
+import Git qualified
+import Gren.Constraint qualified as C
+import Gren.Magnitude qualified as M
+import Gren.ModuleName qualified as ModuleName
+import Gren.Package qualified as Pkg
+import Gren.Version qualified as V
+import Json.Decode qualified as Decode
+import Json.Encode qualified as Encode
+import Json.String qualified as Json
 import Parse.Primitives (Col, Row)
-import qualified Reporting.Annotation as A
-import qualified Reporting.Doc as D
-import qualified Reporting.Error as Error
-import qualified Reporting.Error.Import as Import
-import qualified Reporting.Error.Json as Json
-import qualified Reporting.Exit.Help as Help
-import qualified Reporting.Render.Code as Code
+import Reporting.Annotation qualified as A
+import Reporting.Doc qualified as D
+import Reporting.Error qualified as Error
+import Reporting.Error.Import qualified as Import
+import Reporting.Error.Json qualified as Json
+import Reporting.Exit.Help qualified as Help
+import Reporting.Render.Code qualified as Code
 import System.FilePath ((<.>), (</>))
-import qualified System.FilePath as FP
+import System.FilePath qualified as FP
 
 -- RENDERERS
 
@@ -683,7 +683,9 @@ publishToReport publish =
       toBuildProblemReport buildProblem
     PublishCannotGetDocs old new docsProblem ->
       toDocsProblemReport docsProblem $
-        "I need the docs for " ++ V.toChars old ++ " to verify that "
+        "I need the docs for "
+          ++ V.toChars old
+          ++ " to verify that "
           ++ V.toChars new
           ++ " really does come next"
     PublishMissingTag version ->
@@ -982,7 +984,8 @@ installToReport exit =
       Help.report
         "CANNOT FIND COMPATIBLE VERSION"
         (Just "gren.json")
-        ( "I cannot find a version of " ++ Pkg.toChars pkg
+        ( "I cannot find a version of "
+            ++ Pkg.toChars pkg
             ++ " that is compatible\
                \ with your existing dependencies."
         )
@@ -1008,7 +1011,8 @@ installToReport exit =
       Help.report
         "CANNOT FIND COMPATIBLE VERSION LOCALLY"
         (Just "gren.json")
-        ( "I cannot find a version of " ++ Pkg.toChars pkg
+        ( "I cannot find a version of "
+            ++ Pkg.toChars pkg
             ++ " that is compatible\
                \ with your existing dependencies."
         )
@@ -1022,7 +1026,8 @@ installToReport exit =
       Help.report
         "CANNOT FIND COMPATIBLE VERSION"
         (Just "gren.json")
-        ( "I cannot find a version of " ++ Pkg.toChars pkg
+        ( "I cannot find a version of "
+            ++ Pkg.toChars pkg
             ++ " that is compatible\
                \ with your existing constraints."
         )
@@ -1042,7 +1047,8 @@ installToReport exit =
       Help.report
         "CANNOT FIND COMPATIBLE VERSION LOCALLY"
         (Just "gren.json")
-        ( "I cannot find a version of " ++ Pkg.toChars pkg
+        ( "I cannot find a version of "
+            ++ Pkg.toChars pkg
             ++ " that is compatible\
                \ with your existing constraints."
         )
@@ -1099,7 +1105,10 @@ toSolverReport problem =
       Help.report
         "PROBLEM SOLVING PACKAGE CONSTRAINTS"
         Nothing
-        ( "I need the gren.json of " ++ Pkg.toChars pkg ++ " " ++ V.toChars vsn
+        ( "I need the gren.json of "
+            ++ Pkg.toChars pkg
+            ++ " "
+            ++ V.toChars vsn
             ++ " to\
                \ help me search for a set of compatible packages. I had it cached locally, but\
                \ it looks like the file was corrupted!"
@@ -1111,11 +1120,15 @@ toSolverReport problem =
         ]
     SolverBadGitOperationUnversionedPkg pkg gitError ->
       toGitErrorReport "PROBLEM SOLVING PACKAGE CONSTRAINTS" gitError $
-        "I need the gren.json of " ++ Pkg.toChars pkg
+        "I need the gren.json of "
+          ++ Pkg.toChars pkg
           ++ " to help me search for a set of compatible packages"
     SolverBadGitOperationVersionedPkg pkg vsn gitError ->
       toGitErrorReport "PROBLEM SOLVING PACKAGE CONSTRAINTS" gitError $
-        "I need the gren.json of " ++ Pkg.toChars pkg ++ " " ++ V.toChars vsn
+        "I need the gren.json of "
+          ++ Pkg.toChars pkg
+          ++ " "
+          ++ V.toChars vsn
           ++ " to help me search for a set of compatible packages"
 
 -- OUTLINE
@@ -1126,7 +1139,6 @@ data Outline
   | OutlineHasDuplicateSrcDirs FilePath FilePath FilePath
   | OutlineNoPkgCore
   | OutlineNoAppCore
-  | OutlineNoAppJson
 
 data OutlineProblem
   = OP_BadType
@@ -1212,17 +1224,6 @@ toOutlineReport problem =
         (Just "gren.json")
         "I need to see an \"gren-lang/core\" dependency your gren.json file. The default imports\
         \ of `List` and `Maybe` do not work without it."
-        [ D.reflow $
-            "If you modified your gren.json by hand, try to change it back! And if you are\
-            \ having trouble getting back to a working gren.json, it may be easier to delete it\
-            \ and use `gren init` to start fresh."
-        ]
-    OutlineNoAppJson ->
-      Help.report
-        "MISSING DEPENDENCY"
-        (Just "gren.json")
-        "I need to see an \"gren/json\" dependency your gren.json file. It helps me handle\
-        \ flags and ports."
         [ D.reflow $
             "If you modified your gren.json by hand, try to change it back! And if you are\
             \ having trouble getting back to a working gren.json, it may be easier to delete it\
@@ -1825,7 +1826,8 @@ toDetailsReport details =
             Nothing
             "I am not sure what is going wrong though."
             [ D.reflow $
-                "I would try deleting the " ++ cacheDir
+                "I would try deleting the "
+                  ++ cacheDir
                   ++ " and .gren/ directories, then\
                      \ trying to build again. That will work if some cached files got corrupted\
                      \ somehow.",
@@ -2230,7 +2232,8 @@ toProjectProblemReport projectProblem =
         "These two files are causing a module name clash:"
         [ D.indent 4 $ D.red $ D.vcat $ map D.fromChars [outsidePath, otherPath],
           D.reflow $
-            "They both say `module " ++ ModuleName.toChars name
+            "They both say `module "
+              ++ ModuleName.toChars name
               ++ " exposing (..)` up\
                  \ at the top, but they cannot have the same name!",
           D.reflow $
@@ -2243,7 +2246,8 @@ toProjectProblemReport projectProblem =
         "I am having trouble with this file name:"
         [ D.indent 4 $ D.red $ D.fromChars givenPath,
           D.reflow $
-            "I found it in your " ++ FP.addTrailingPathSeparator srcDir
+            "I found it in your "
+              ++ FP.addTrailingPathSeparator srcDir
               ++ " directory\
                  \ which is good, but I expect all of the files in there to use the following\
                  \ module naming convention:",
@@ -2286,7 +2290,8 @@ toProjectProblemReport projectProblem =
             "The  \"exposed-modules\" of your gren.json lists the following module:"
             [ D.indent 4 $ D.red $ D.fromName name,
               D.reflow $
-                "But a module from " ++ Pkg.toChars pkg
+                "But a module from "
+                  ++ Pkg.toChars pkg
                   ++ " already uses that name. Try\
                      \ choosing a different name for your local file."
             ]

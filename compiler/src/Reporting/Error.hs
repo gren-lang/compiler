@@ -9,26 +9,26 @@ module Reporting.Error
   )
 where
 
-import qualified Data.ByteString as B
-import qualified Data.NonEmptyList as NE
-import qualified Data.OneOrMore as OneOrMore
-import qualified File
-import qualified Gren.ModuleName as ModuleName
+import Data.ByteString qualified as B
+import Data.NonEmptyList qualified as NE
+import Data.OneOrMore qualified as OneOrMore
+import File qualified
+import Gren.ModuleName qualified as ModuleName
 import Json.Encode ((==>))
-import qualified Json.Encode as E
-import qualified Reporting.Annotation as A
-import qualified Reporting.Doc as D
-import qualified Reporting.Error.Canonicalize as Canonicalize
-import qualified Reporting.Error.Docs as Docs
-import qualified Reporting.Error.Import as Import
-import qualified Reporting.Error.Main as Main
-import qualified Reporting.Error.Pattern as Pattern
-import qualified Reporting.Error.Syntax as Syntax
-import qualified Reporting.Error.Type as Type
-import qualified Reporting.Render.Code as Code
-import qualified Reporting.Render.Type.Localizer as L
-import qualified Reporting.Report as Report
-import qualified System.FilePath as FP
+import Json.Encode qualified as E
+import Reporting.Annotation qualified as A
+import Reporting.Doc qualified as D
+import Reporting.Error.Canonicalize qualified as Canonicalize
+import Reporting.Error.Docs qualified as Docs
+import Reporting.Error.Import qualified as Import
+import Reporting.Error.Main qualified as Main
+import Reporting.Error.Pattern qualified as Pattern
+import Reporting.Error.Syntax qualified as Syntax
+import Reporting.Error.Type qualified as Type
+import Reporting.Render.Code qualified as Code
+import Reporting.Render.Type.Localizer qualified as L
+import Reporting.Report qualified as Report
+import System.FilePath qualified as FP
 
 -- MODULE
 
@@ -86,9 +86,9 @@ toDocHelp root module1 modules =
         ""
       ]
     module2 : otherModules ->
-      moduleToDoc root module1 :
-      toSeparator module1 module2 :
-      toDocHelp root module2 otherModules
+      moduleToDoc root module1
+        : toSeparator module1 module2
+        : toDocHelp root module2 otherModules
 
 toSeparator :: Module -> Module -> D.Doc
 toSeparator beforeModule afterModule =
@@ -129,7 +129,8 @@ toMessageBar title filePath =
         4 + length title + 1 + length filePath
    in D.dullcyan $
         D.fromChars $
-          "-- " ++ title
+          "-- "
+            ++ title
             ++ " "
             ++ replicate (max 1 (80 - usedSpace)) '-'
             ++ " "

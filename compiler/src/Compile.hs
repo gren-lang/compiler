@@ -4,23 +4,23 @@ module Compile
   )
 where
 
-import qualified AST.Canonical as Can
-import qualified AST.Optimized as Opt
-import qualified AST.Source as Src
-import qualified Canonicalize.Module as Canonicalize
-import qualified Data.Map as Map
-import qualified Data.Name as Name
-import qualified Gren.Interface as I
-import qualified Gren.ModuleName as ModuleName
-import qualified Gren.Package as Pkg
-import qualified Nitpick.PatternMatches as PatternMatches
-import qualified Optimize.Module as Optimize
-import qualified Reporting.Error as E
-import qualified Reporting.Render.Type.Localizer as Localizer
-import qualified Reporting.Result as R
+import AST.Canonical qualified as Can
+import AST.Optimized qualified as Opt
+import AST.Source qualified as Src
+import Canonicalize.Module qualified as Canonicalize
+import Data.Map qualified as Map
+import Data.Name qualified as Name
+import Gren.Interface qualified as I
+import Gren.ModuleName qualified as ModuleName
+import Gren.Package qualified as Pkg
+import Nitpick.PatternMatches qualified as PatternMatches
+import Optimize.Module qualified as Optimize
+import Reporting.Error qualified as E
+import Reporting.Render.Type.Localizer qualified as Localizer
+import Reporting.Result qualified as R
 import System.IO.Unsafe (unsafePerformIO)
-import qualified Type.Constrain.Module as Type
-import qualified Type.Solve as Type
+import Type.Constrain.Module qualified as Type
+import Type.Solve qualified as Type
 
 -- COMPILE
 

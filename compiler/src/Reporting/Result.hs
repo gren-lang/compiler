@@ -11,8 +11,8 @@ module Reporting.Result
   )
 where
 
-import qualified Data.OneOrMore as OneOrMore
-import qualified Reporting.Warning as Warning
+import Data.OneOrMore qualified as OneOrMore
+import Reporting.Warning qualified as Warning
 
 -- RESULT
 

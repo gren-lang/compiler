@@ -21,28 +21,28 @@ module Gren.Outline
 where
 
 import AbsoluteSrcDir (AbsoluteSrcDir)
-import qualified AbsoluteSrcDir
+import AbsoluteSrcDir qualified
 import Control.Monad (filterM, liftM)
 import Data.Binary (Binary, get, getWord8, put, putWord8)
-import qualified Data.Map as Map
-import qualified Data.NonEmptyList as NE
-import qualified Data.OneOrMore as OneOrMore
-import qualified File
+import Data.Map qualified as Map
+import Data.NonEmptyList qualified as NE
+import Data.OneOrMore qualified as OneOrMore
+import File qualified
 import Foreign.Ptr (minusPtr)
-import qualified Gren.Constraint as Con
-import qualified Gren.Licenses as Licenses
-import qualified Gren.ModuleName as ModuleName
-import qualified Gren.Package as Pkg
-import qualified Gren.Version as V
-import qualified Json.Decode as D
+import Gren.Constraint qualified as Con
+import Gren.Licenses qualified as Licenses
+import Gren.ModuleName qualified as ModuleName
+import Gren.Package qualified as Pkg
+import Gren.Version qualified as V
+import Json.Decode qualified as D
 import Json.Encode ((==>))
-import qualified Json.Encode as E
-import qualified Json.String as Json
-import qualified Parse.Primitives as P
-import qualified Reporting.Exit as Exit
-import qualified System.Directory as Dir
+import Json.Encode qualified as E
+import Json.String qualified as Json
+import Parse.Primitives qualified as P
+import Reporting.Exit qualified as Exit
+import System.Directory qualified as Dir
 import System.FilePath ((</>))
-import qualified System.FilePath as FP
+import System.FilePath qualified as FP
 import Prelude hiding (read)
 
 -- OUTLINE
@@ -173,11 +173,9 @@ read root =
               if Map.notMember Pkg.core deps && pkg /= Pkg.core
                 then Left Exit.OutlineNoPkgCore
                 else Right outline
-          App (AppOutline _ srcDirs direct indirect _ _)
+          App (AppOutline _ srcDirs direct _ _ _)
             | Map.notMember Pkg.core direct ->
                 return $ Left Exit.OutlineNoAppCore
-            | Map.notMember Pkg.json direct && Map.notMember Pkg.json indirect ->
-                return $ Left Exit.OutlineNoAppJson
             | otherwise ->
                 do
                   badDirs <- filterM (isSrcDirMissing root) (NE.toList srcDirs)

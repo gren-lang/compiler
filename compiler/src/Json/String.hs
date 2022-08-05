@@ -17,18 +17,18 @@ module Json.String
   )
 where
 
-import qualified Data.ByteString.Builder as B
-import qualified Data.Coerce as Coerce
-import qualified Data.Name as Name
+import Data.ByteString.Builder qualified as B
+import Data.Coerce qualified as Coerce
+import Data.Name qualified as Name
 import Data.Utf8 (MBA, copyFromPtr, freeze, newByteArray, writeWord8)
-import qualified Data.Utf8 as Utf8
+import Data.Utf8 qualified as Utf8
 import Data.Word (Word8)
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (Ptr, minusPtr, plusPtr)
 import GHC.Exts (RealWorld)
 import GHC.IO (stToIO, unsafeDupablePerformIO, unsafePerformIO)
 import GHC.ST (ST)
-import qualified Parse.Primitives as P
+import Parse.Primitives qualified as P
 import Prelude hiding (String)
 
 -- JSON STRINGS

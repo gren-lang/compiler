@@ -13,16 +13,16 @@ module Git
   )
 where
 
-import qualified Data.ByteString.Char8 as BS
-import qualified Data.Either as Either
-import qualified Data.List as List
-import qualified Gren.Package as Pkg
-import qualified Gren.Version as V
-import qualified Parse.Primitives as Parser
+import Data.ByteString.Char8 qualified as BS
+import Data.Either qualified as Either
+import Data.List qualified as List
+import Gren.Package qualified as Pkg
+import Gren.Version qualified as V
+import Parse.Primitives qualified as Parser
 import System.Directory (findExecutable)
-import qualified System.Exit as Exit
-import qualified System.IO as IO
-import qualified System.Process as Process
+import System.Exit qualified as Exit
+import System.IO qualified as IO
+import System.Process qualified as Process
 
 data Error
   = MissingGit

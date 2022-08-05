@@ -13,13 +13,13 @@ module Reporting.Render.Type
   )
 where
 
-import qualified AST.Canonical as Can
-import qualified AST.Source as Src
-import qualified Data.Name as Name
-import qualified Reporting.Annotation as A
+import AST.Canonical qualified as Can
+import AST.Source qualified as Src
+import Data.Name qualified as Name
+import Reporting.Annotation qualified as A
 import Reporting.Doc (Doc, (<+>))
-import qualified Reporting.Doc as D
-import qualified Reporting.Render.Type.Localizer as L
+import Reporting.Doc qualified as D
+import Reporting.Render.Type.Localizer qualified as L
 
 -- TO DOC
 

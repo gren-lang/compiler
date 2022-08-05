@@ -16,15 +16,15 @@ module Parse.Space
   )
 where
 
-import qualified AST.Source as Src
-import qualified Data.Utf8 as Utf8
+import AST.Source qualified as Src
+import Data.Utf8 qualified as Utf8
 import Data.Word (Word16, Word8)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (Ptr, minusPtr, plusPtr)
 import Parse.Primitives (Col, Row)
-import qualified Parse.Primitives as P
-import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Syntax as E
+import Parse.Primitives qualified as P
+import Reporting.Annotation qualified as A
+import Reporting.Error.Syntax qualified as E
 
 -- SPACE PARSING
 

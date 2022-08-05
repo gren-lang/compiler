@@ -6,24 +6,24 @@ module Optimize.Module
   )
 where
 
-import qualified AST.Canonical as Can
-import qualified AST.Optimized as Opt
-import qualified AST.Utils.Type as Type
-import qualified Canonicalize.Effects as Effects
+import AST.Canonical qualified as Can
+import AST.Optimized qualified as Opt
+import AST.Utils.Type qualified as Type
+import Canonicalize.Effects qualified as Effects
 import Control.Monad (foldM)
-import qualified Data.List as List
+import Data.List qualified as List
 import Data.Map ((!))
-import qualified Data.Map as Map
-import qualified Data.Name as Name
-import qualified Data.Set as Set
-import qualified Gren.ModuleName as ModuleName
-import qualified Optimize.Expression as Expr
-import qualified Optimize.Names as Names
-import qualified Optimize.Port as Port
-import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Main as E
-import qualified Reporting.Result as Result
-import qualified Reporting.Warning as W
+import Data.Map qualified as Map
+import Data.Name qualified as Name
+import Data.Set qualified as Set
+import Gren.ModuleName qualified as ModuleName
+import Optimize.Expression qualified as Expr
+import Optimize.Names qualified as Names
+import Optimize.Port qualified as Port
+import Reporting.Annotation qualified as A
+import Reporting.Error.Main qualified as E
+import Reporting.Result qualified as Result
+import Reporting.Warning qualified as W
 import Prelude hiding (cycle)
 
 -- OPTIMIZE

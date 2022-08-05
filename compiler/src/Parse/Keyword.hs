@@ -32,8 +32,8 @@ where
 import Data.Word (Word8)
 import Foreign.Ptr (plusPtr)
 import Parse.Primitives (Col, Parser, Row)
-import qualified Parse.Primitives as P
-import qualified Parse.Variable as Var
+import Parse.Primitives qualified as P
+import Parse.Variable qualified as Var
 
 -- DECLARATIONS
 

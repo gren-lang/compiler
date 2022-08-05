@@ -1,6 +1,7 @@
 Cabal-version: 3.6
+
 Name: gren
-Version: 0.1.0
+Version: 0.2.0
 
 Synopsis:
     The `gren` command line interface.
@@ -9,14 +10,16 @@ Description:
     This includes commands like `gren make`, `gren repl`, and many others
     for helping make Gren developers happy and productive.
 
-Homepage: https://github.com/gren/compiler.git
+Author: Robin Heggelund Hansen
+Copyright:
+    Original work Copyright (c) 2011-2021, Evan Czaplicki.
+    Modified work Copyright (c) 2021-present, The Gren CONTRIBUTORS
 
 License: BSD-3-Clause
 License-file: LICENSE
 
-Author:     Robin Heggelund Hansen
-Maintainer: info@gren-lang.org
-Copyright:  Copyright (c) 2011-2021, Evan Czaplicki. Copyright (c) 2021-present, Robin Heggelund Hansen
+Homepage: https://gren-lang.org
+Bug-reports: https://github.com/gren-lang/compiler/issues
 
 Category: Compiler, Language
 
@@ -38,6 +41,8 @@ Common gren-common
         ghc-options: -O0 -Wall -Werror
     else
         ghc-options: -O2 -Wall -threaded "-with-rtsopts=-N"
+
+    default-language: GHC2021
 
     Hs-Source-Dirs:
         compiler/src

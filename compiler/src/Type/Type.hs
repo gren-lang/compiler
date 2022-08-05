@@ -33,19 +33,19 @@ module Type.Type
   )
 where
 
-import qualified AST.Canonical as Can
-import qualified AST.Utils.Type as Type
+import AST.Canonical qualified as Can
+import AST.Utils.Type qualified as Type
 import Control.Monad.State.Strict (StateT, liftIO)
-import qualified Control.Monad.State.Strict as State
+import Control.Monad.State.Strict qualified as State
 import Data.Foldable (foldrM)
-import qualified Data.Map.Strict as Map
-import qualified Data.Name as Name
+import Data.Map.Strict qualified as Map
+import Data.Name qualified as Name
 import Data.Word (Word32)
-import qualified Gren.ModuleName as ModuleName
-import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Type as E
-import qualified Type.Error as ET
-import qualified Type.UnionFind as UF
+import Gren.ModuleName qualified as ModuleName
+import Reporting.Annotation qualified as A
+import Reporting.Error.Type qualified as E
+import Type.Error qualified as ET
+import Type.UnionFind qualified as UF
 
 -- CONSTRAINTS
 

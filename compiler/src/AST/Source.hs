@@ -33,14 +33,14 @@ module AST.Source
   )
 where
 
-import qualified AST.Utils.Binop as Binop
+import AST.Utils.Binop qualified as Binop
 import Data.Name (Name)
-import qualified Data.Name as Name
-import qualified Data.Utf8 as Utf8
-import qualified Gren.Float as EF
-import qualified Gren.String as ES
-import qualified Parse.Primitives as P
-import qualified Reporting.Annotation as A
+import Data.Name qualified as Name
+import Data.Utf8 qualified as Utf8
+import Gren.Float qualified as EF
+import Gren.String qualified as ES
+import Parse.Primitives qualified as P
+import Reporting.Annotation qualified as A
 
 -- COMMENTS
 

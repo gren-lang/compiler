@@ -3,10 +3,10 @@
 
 module Helpers.Instances where
 
-import qualified AST.Source as Src
+import AST.Source qualified as Src
 import Data.String (IsString (..))
-import qualified Data.Utf8 as Utf8
-import qualified Reporting.Error.Syntax as E
+import Data.Utf8 qualified as Utf8
+import Reporting.Error.Syntax qualified as E
 
 deriving instance Eq Src.Comment
 
