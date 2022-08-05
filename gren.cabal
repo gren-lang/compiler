@@ -38,9 +38,9 @@ Flag dev {
 
 Common gren-common
     if flag(dev)
-        ghc-options: -O0 -Wall -Werror
+        ghc-options: -O0 -Wall
     else
-        ghc-options: -O2 -Wall -threaded "-with-rtsopts=-N"
+        ghc-options: -O2 -Wall -Werror -threaded "-with-rtsopts=-N"
 
     default-language: GHC2021
 
