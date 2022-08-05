@@ -14,7 +14,6 @@ module Directories
     PackageCache,
     getPackageCache,
     package,
-    basePackage,
     getReplCache,
     getGrenHome,
   )
@@ -119,10 +118,6 @@ getPackageCache =
 package :: PackageCache -> Pkg.Name -> V.Version -> FilePath
 package (PackageCache dir) name version =
   dir </> Pkg.toFilePath name </> V.toChars version
-
-basePackage :: PackageCache -> Pkg.Name -> FilePath
-basePackage (PackageCache dir) name =
-  dir </> Pkg.toFilePath name </> "repo.git"
 
 -- CACHE
 
