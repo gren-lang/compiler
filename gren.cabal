@@ -9,14 +9,16 @@ Description:
     This includes commands like `gren make`, `gren repl`, and many others
     for helping make Gren developers happy and productive.
 
-Homepage: https://github.com/gren/compiler.git
+Homepage: https://gren-lang.org
 
 License: BSD-3-Clause
 License-file: LICENSE
 
 Author:     Robin Heggelund Hansen
 Maintainer: info@gren-lang.org
-Copyright:  Copyright (c) 2011-2021, Evan Czaplicki. Copyright (c) 2021-present, Robin Heggelund Hansen
+Copyright:
+    Original work Copyright (c) 2011-2021, Evan Czaplicki.
+    Modified work Copyright (c) 2021-present, The Gren CONTRIBUTORS
 
 Category: Compiler, Language
 
