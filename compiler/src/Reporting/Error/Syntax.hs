@@ -212,6 +212,7 @@ data Record
   | RecordField Row Col
   | RecordEquals Row Col
   | RecordExpr Expr Row Col
+  | RecordUpdateExpr Expr Row Col
   | RecordSpace Space Row Col
   | --
     RecordIndentOpen Row Col
@@ -4417,6 +4418,8 @@ toRecordReport source context record startRow startCol =
                   ]
               )
     RecordExpr expr row col ->
+      toExprReport source (InNode NRecord startRow startCol context) expr row col
+    RecordUpdateExpr expr row col ->
       toExprReport source (InNode NRecord startRow startCol context) expr row col
     RecordSpace space row col ->
       toSpaceReport source space row col

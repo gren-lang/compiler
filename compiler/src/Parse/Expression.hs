@@ -175,7 +175,7 @@ record start =
               E.RecordEquals
               [ P.backtrackable $
                   do
-                    expr <- specialize undefined term
+                    expr <- specialize E.RecordUpdateExpr term
                     Space.chompAndCheckIndent E.RecordSpace E.RecordIndentEquals
                     word1 0x7C {- vertical bar -} E.RecordEquals
                     Space.chompAndCheckIndent E.RecordSpace E.RecordIndentField
