@@ -69,11 +69,11 @@ type Task a =
   Task.Task Exit.Diff a
 
 diff :: Env -> Args -> Task ()
-diff env@(Env _ cache) args =
+diff env@(Env _ _) args =
   case args of
     GlobalInquiry name v1 v2 ->
       do
-        versionResult <- Task.io $ Dirs.withRegistryLock cache $ Package.getVersions cache name
+        versionResult <- Task.io $ Package.getVersions name
         case versionResult of
           Right vsns ->
             do
@@ -116,7 +116,7 @@ getLatestDocs (Env _ cache) name (latest, _) =
 -- READ OUTLINE
 
 readOutline :: Env -> Task (Pkg.Name, (V.Version, [V.Version]))
-readOutline (Env maybeRoot cache) =
+readOutline (Env maybeRoot _) =
   case maybeRoot of
     Nothing ->
       Task.throw Exit.DiffNoOutline
@@ -132,7 +132,7 @@ readOutline (Env maybeRoot cache) =
                 Task.throw Exit.DiffApplication
               Outline.Pkg (Outline.PkgOutline pkg _ _ _ _ _ _ _) ->
                 do
-                  versionResult <- Task.io $ Dirs.withRegistryLock cache $ Package.getVersions cache pkg
+                  versionResult <- Task.io $ Package.getVersions pkg
                   case versionResult of
                     Right vsns ->
                       return (pkg, vsns)

@@ -50,9 +50,6 @@ Common gren-common
         terminal/impl
         terminal/src
 
-    other-extensions:
-        TemplateHaskell
-
     other-modules:
         Bump
         Diff
@@ -211,7 +208,8 @@ Common gren-common
         scientific,
         time >= 1.9.1,
         utf8-string,
-        vector
+        vector,
+        text >= 2 && < 3
 
 Executable gren
     Import:

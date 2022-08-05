@@ -196,8 +196,8 @@ addConstraint solved unsolved (name, newConstraint) =
 
 getRelevantVersions :: Pkg.Name -> C.Constraint -> Solver (V.Version, [V.Version])
 getRelevantVersions name constraint =
-  Solver $ \state@(State cache _) ok back err -> do
-    versionsResult <- Package.getVersions cache name
+  Solver $ \state@(State _ _) ok back err -> do
+    versionsResult <- Package.getVersions name
     case versionsResult of
       Right (newest, previous) ->
         case filter (C.satisfies constraint) (newest : previous) of

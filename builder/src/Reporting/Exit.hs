@@ -1888,9 +1888,9 @@ toGitErrorReport title err context =
             [ D.reflow "But it returned the following error message:",
               D.indent 4 $ D.reflow errorMsg
             ]
-        Git.NoVersions _ ->
+        Git.NoVersions ->
           toGitReport
-            (context ++ ", no valid semantic version tags in this repo.")
+            (context ++ ", no semver compatible tags in this repo.")
             [ D.reflow
                 "Gren packages are just git repositories with tags following the \
                 \ semantic versioning scheme. However, it seems that this particular repo \

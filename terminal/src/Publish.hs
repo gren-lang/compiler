@@ -60,13 +60,13 @@ getEnv =
 -- PUBLISH
 
 publish :: Env -> Task.Task Exit.Publish ()
-publish env@(Env root cache outline) =
+publish env@(Env root _ outline) =
   case outline of
     Outline.App _ ->
       Task.throw Exit.PublishApplication
     Outline.Pkg (Outline.PkgOutline pkg summary _ vsn exposed _ _ _) ->
       do
-        knownVersionsResult <- Task.io $ Dirs.withRegistryLock cache $ Package.getVersions cache pkg
+        knownVersionsResult <- Task.io $ Package.getVersions pkg
         let knownVersionsMaybe = Either.either (const Nothing) Just knownVersionsResult
         reportPublishStart pkg vsn knownVersionsMaybe
 

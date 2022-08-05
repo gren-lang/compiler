@@ -15,19 +15,9 @@ import System.Directory qualified as Dir
 
 -- GET VERSIONS
 
-getVersions :: Dirs.PackageCache -> Pkg.Name -> IO (Either Git.Error (V.Version, [V.Version]))
-getVersions cache name = do
-  let repoPath = Dirs.basePackage cache name
-  repoExists <- Dir.doesDirectoryExist repoPath
-  retVal <-
-    if repoExists
-      then Git.update name repoPath
-      else Git.clone (Git.githubUrl name) repoPath
-  case retVal of
-    Left problem ->
-      return $ Left problem
-    Right () ->
-      Git.tags repoPath
+getVersions :: Pkg.Name -> IO (Either Git.Error (V.Version, [V.Version]))
+getVersions name =
+  Git.tags (Git.githubUrl name)
 
 -- GET POSSIBILITIES
 
@@ -36,8 +26,8 @@ bumpPossibilities (latest, previous) =
   let allVersions = reverse (latest : previous)
       minorPoints = map last (List.groupBy sameMajor allVersions)
       patchPoints = map last (List.groupBy sameMinor allVersions)
-   in (latest, V.bumpMajor latest, M.MAJOR)
-        : map (\v -> (v, V.bumpMinor v, M.MINOR)) minorPoints
+   in (latest, V.bumpMajor latest, M.MAJOR) :
+      map (\v -> (v, V.bumpMinor v, M.MINOR)) minorPoints
         ++ map (\v -> (v, V.bumpPatch v, M.PATCH)) patchPoints
 
 sameMajor :: V.Version -> V.Version -> Bool
@@ -57,21 +47,4 @@ installPackageVersion cache pkg vsn = do
   if versionedPkgExists
     then return $ Right ()
     else do
-      let basePkgPath = Dirs.basePackage cache pkg
-      basePkgExists <- Dir.doesDirectoryExist basePkgPath
-      if basePkgExists
-        then do
-          updateResult <- Git.update pkg basePkgPath
-          case updateResult of
-            Left updateErr ->
-              return $ Left updateErr
-            Right () ->
-              Git.localClone basePkgPath vsn versionedPkgPath
-        else do
-          let gitUrl = Git.githubUrl pkg
-          baseCloneResult <- Git.clone gitUrl basePkgPath
-          case baseCloneResult of
-            Left cloneErr ->
-              return $ Left cloneErr
-            Right () ->
-              Git.localClone basePkgPath vsn versionedPkgPath
+      Git.clone (Git.githubUrl pkg) vsn versionedPkgPath
