@@ -26,8 +26,10 @@ import System.Process qualified as Process
 
 data Error
   = MissingGit
-  | FailedCommand (Maybe FilePath) [String] String
   | NoVersions
+  | NoSuchRepo
+  | NoSuchRepoOrVersion V.Version
+  | FailedCommand [String] String
 
 --
 
@@ -75,9 +77,12 @@ clone (GitUrl (pkgName, gitUrl)) vsn targetFolder = do
           (Process.proc git args)
           ""
       case exitCode of
+        Exit.ExitFailure 128 -> do
+          putStrLn "Error!"
+          return $ Left $ NoSuchRepoOrVersion vsn
         Exit.ExitFailure _ -> do
           putStrLn "Error!"
-          return $ Left $ FailedCommand Nothing ("git" : args) stderr
+          return $ Left $ FailedCommand ("git" : args) stderr
         Exit.ExitSuccess -> do
           putStrLn "Ok!"
           return $ Right ()
@@ -100,9 +105,12 @@ tags (GitUrl (pkgName, gitUrl)) = do
           (Process.proc git args)
           ""
       case exitCode of
+        Exit.ExitFailure 128 -> do
+          putStrLn "Error!"
+          return $ Left NoSuchRepo
         Exit.ExitFailure _ -> do
           putStrLn "Error!"
-          return $ Left $ FailedCommand Nothing ("git" : args) stderr
+          return $ Left $ FailedCommand ("git" : args) stderr
         Exit.ExitSuccess ->
           let tagList =
                 map (TE.encodeUtf8) $
@@ -148,7 +156,7 @@ hasLocalTag vsn = do
           ""
       case exitCode of
         Exit.ExitFailure _ -> do
-          return $ Left $ FailedCommand Nothing ("git" : args) stderr
+          return $ Left $ FailedCommand ("git" : args) stderr
         Exit.ExitSuccess ->
           return $ Right ()
 
@@ -166,6 +174,6 @@ hasLocalChangesSinceTag vsn = do
           ""
       case exitCode of
         Exit.ExitFailure _ -> do
-          return $ Left $ FailedCommand Nothing ("git" : args) stderr
+          return $ Left $ FailedCommand ("git" : args) stderr
         Exit.ExitSuccess ->
           return $ Right ()
