@@ -18,6 +18,9 @@ data ParseError
 spec :: Spec
 spec = do
   describe "record update" $ do
+    it "regression test" $
+      parseRecordLiteral "{ field = 2 }"
+
     it "basic case" $
       parse "{ record | prop = 1 }"
 
@@ -27,7 +30,7 @@ spec = do
     it "nested var" $
       parse "{ Module.record.nested | prop = 1 }"
 
-    it "literal var" $
+    it "update literal record" $
       parse "{ { prop = 2 } | prop = 1 }"
 
     it "if statement" $
@@ -57,4 +60,21 @@ isUpdateExpr :: Either x (Src.Expr, A.Position) -> Bool
 isUpdateExpr result =
   case result of
     Right (A.At _ (Src.Update _ _), _) -> True
+    _ -> False
+
+--
+
+parseRecordLiteral :: BS.ByteString -> IO ()
+parseRecordLiteral str =
+  ( P.fromByteString
+      (P.specialize (\_ row col -> ExprError row col) expression)
+      (OtherError "fromByteString failed")
+      str
+  )
+    `shouldSatisfy` isRecordLiteral
+
+isRecordLiteral :: Either x (Src.Expr, A.Position) -> Bool
+isRecordLiteral result =
+  case result of
+    Right (A.At _ (Src.Record _), _) -> True
     _ -> False
