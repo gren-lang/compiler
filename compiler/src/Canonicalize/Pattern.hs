@@ -8,17 +8,17 @@ module Canonicalize.Pattern
   )
 where
 
-import qualified AST.Canonical as Can
-import qualified AST.Source as Src
-import qualified Canonicalize.Environment as Env
-import qualified Canonicalize.Environment.Dups as Dups
-import qualified Data.Index as Index
-import qualified Data.Map.Strict as Map
-import qualified Data.Name as Name
-import qualified Gren.ModuleName as ModuleName
-import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Canonicalize as Error
-import qualified Reporting.Result as Result
+import AST.Canonical qualified as Can
+import AST.Source qualified as Src
+import Canonicalize.Environment qualified as Env
+import Canonicalize.Environment.Dups qualified as Dups
+import Data.Index qualified as Index
+import Data.Map.Strict qualified as Map
+import Data.Name qualified as Name
+import Gren.ModuleName qualified as ModuleName
+import Reporting.Annotation qualified as A
+import Reporting.Error.Canonicalize qualified as Error
+import Reporting.Result qualified as Result
 
 -- RESULTS
 

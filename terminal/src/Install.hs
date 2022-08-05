@@ -6,22 +6,22 @@ module Install
   )
 where
 
-import qualified BackgroundWriter as BW
+import BackgroundWriter qualified as BW
 import Data.Map ((!))
-import qualified Data.Map as Map
-import qualified Data.Map.Merge.Strict as Map
-import qualified Deps.Solver as Solver
-import qualified Directories as Dirs
-import qualified Gren.Constraint as C
-import qualified Gren.Details as Details
-import qualified Gren.Outline as Outline
-import qualified Gren.Package as Pkg
-import qualified Gren.Version as V
-import qualified Reporting
+import Data.Map qualified as Map
+import Data.Map.Merge.Strict qualified as Map
+import Deps.Solver qualified as Solver
+import Directories qualified as Dirs
+import Gren.Constraint qualified as C
+import Gren.Details qualified as Details
+import Gren.Outline qualified as Outline
+import Gren.Package qualified as Pkg
+import Gren.Version qualified as V
+import Reporting qualified
 import Reporting.Doc ((<+>))
-import qualified Reporting.Doc as D
-import qualified Reporting.Exit as Exit
-import qualified Reporting.Task as Task
+import Reporting.Doc qualified as D
+import Reporting.Exit qualified as Exit
+import Reporting.Task qualified as Task
 
 -- RUN
 

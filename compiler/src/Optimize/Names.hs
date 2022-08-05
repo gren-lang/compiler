@@ -16,14 +16,14 @@ module Optimize.Names
   )
 where
 
-import qualified AST.Canonical as Can
-import qualified AST.Optimized as Opt
-import qualified Data.Index as Index
-import qualified Data.Map as Map
-import qualified Data.Name as Name
-import qualified Data.Set as Set
-import qualified Gren.ModuleName as ModuleName
-import qualified Reporting.Annotation as A
+import AST.Canonical qualified as Can
+import AST.Optimized qualified as Opt
+import Data.Index qualified as Index
+import Data.Map qualified as Map
+import Data.Name qualified as Name
+import Data.Set qualified as Set
+import Gren.ModuleName qualified as ModuleName
+import Reporting.Annotation qualified as A
 
 -- GENERATOR
 

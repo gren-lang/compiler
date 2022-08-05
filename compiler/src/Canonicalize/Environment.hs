@@ -20,17 +20,17 @@ module Canonicalize.Environment
   )
 where
 
-import qualified AST.Canonical as Can
-import qualified AST.Utils.Binop as Binop
-import qualified Data.Index as Index
-import qualified Data.Map.Merge.Strict as Map
-import qualified Data.Map.Strict as Map
-import qualified Data.Name as Name
-import qualified Data.OneOrMore as OneOrMore
-import qualified Gren.ModuleName as ModuleName
-import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Canonicalize as Error
-import qualified Reporting.Result as Result
+import AST.Canonical qualified as Can
+import AST.Utils.Binop qualified as Binop
+import Data.Index qualified as Index
+import Data.Map.Merge.Strict qualified as Map
+import Data.Map.Strict qualified as Map
+import Data.Name qualified as Name
+import Data.OneOrMore qualified as OneOrMore
+import Gren.ModuleName qualified as ModuleName
+import Reporting.Annotation qualified as A
+import Reporting.Error.Canonicalize qualified as Error
+import Reporting.Result qualified as Result
 
 -- RESULT
 

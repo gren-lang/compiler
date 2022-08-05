@@ -14,42 +14,42 @@ module Gren.Details
   )
 where
 
-import qualified AST.Canonical as Can
-import qualified AST.Optimized as Opt
-import qualified AST.Source as Src
-import qualified BackgroundWriter as BW
-import qualified Compile
+import AST.Canonical qualified as Can
+import AST.Optimized qualified as Opt
+import AST.Source qualified as Src
+import BackgroundWriter qualified as BW
+import Compile qualified
 import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar (MVar, newEmptyMVar, newMVar, putMVar, readMVar, takeMVar)
 import Control.Monad (liftM, liftM2, liftM3)
 import Data.Binary (Binary, get, getWord8, put, putWord8)
-import qualified Data.Either as Either
-import qualified Data.Map as Map
-import qualified Data.Map.Merge.Strict as Map
-import qualified Data.Map.Utils as Map
-import qualified Data.Maybe as Maybe
-import qualified Data.Name as Name
-import qualified Data.NonEmptyList as NE
-import qualified Data.OneOrMore as OneOrMore
-import qualified Data.Set as Set
+import Data.Either qualified as Either
+import Data.Map qualified as Map
+import Data.Map.Merge.Strict qualified as Map
+import Data.Map.Utils qualified as Map
+import Data.Maybe qualified as Maybe
+import Data.Name qualified as Name
+import Data.NonEmptyList qualified as NE
+import Data.OneOrMore qualified as OneOrMore
+import Data.Set qualified as Set
 import Data.Word (Word64)
-import qualified Deps.Solver as Solver
-import qualified Directories as Dirs
-import qualified File
-import qualified Gren.Constraint as Con
-import qualified Gren.Docs as Docs
-import qualified Gren.Interface as I
-import qualified Gren.Kernel as Kernel
-import qualified Gren.ModuleName as ModuleName
-import qualified Gren.Outline as Outline
-import qualified Gren.Package as Pkg
-import qualified Gren.Version as V
-import qualified Json.Encode as E
-import qualified Parse.Module as Parse
-import qualified Reporting
-import qualified Reporting.Annotation as A
-import qualified Reporting.Exit as Exit
-import qualified Reporting.Task as Task
+import Deps.Solver qualified as Solver
+import Directories qualified as Dirs
+import File qualified
+import Gren.Constraint qualified as Con
+import Gren.Docs qualified as Docs
+import Gren.Interface qualified as I
+import Gren.Kernel qualified as Kernel
+import Gren.ModuleName qualified as ModuleName
+import Gren.Outline qualified as Outline
+import Gren.Package qualified as Pkg
+import Gren.Version qualified as V
+import Json.Encode qualified as E
+import Parse.Module qualified as Parse
+import Reporting qualified
+import Reporting.Annotation qualified as A
+import Reporting.Exit qualified as Exit
+import Reporting.Task qualified as Task
 import System.FilePath ((<.>), (</>))
 
 -- DETAILS
@@ -268,7 +268,9 @@ verifyDependencies env@(Env key scope root cache) time outline solution directDe
             return $
               Left $
                 Exit.DetailsBadDeps home $
-                  Maybe.catMaybes $ Either.lefts $ Map.elems deps
+                  Maybe.catMaybes $
+                    Either.lefts $
+                      Map.elems deps
         Right artifacts ->
           let objs = Map.foldr addObjects Opt.empty artifacts
               ifaces = Map.foldrWithKey (addInterfaces directDeps) Map.empty artifacts
@@ -600,7 +602,8 @@ writeDocs cache pkg vsn status results =
   case status of
     DocsNeeded ->
       E.writeUgly (Dirs.package cache pkg vsn </> "docs.json") $
-        Docs.encode $ Map.mapMaybe toDocs results
+        Docs.encode $
+          Map.mapMaybe toDocs results
     DocsNotNeeded ->
       return ()
 

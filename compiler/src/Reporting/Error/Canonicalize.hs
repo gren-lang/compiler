@@ -13,23 +13,23 @@ module Reporting.Error.Canonicalize
   )
 where
 
-import qualified AST.Canonical as Can
-import qualified AST.Source as Src
-import qualified Data.Char as Char
-import qualified Data.Index as Index
-import qualified Data.List as List
-import qualified Data.Map as Map
-import qualified Data.Name as Name
-import qualified Data.OneOrMore as OneOrMore
-import qualified Data.Set as Set
-import qualified Gren.ModuleName as ModuleName
-import qualified Reporting.Annotation as A
+import AST.Canonical qualified as Can
+import AST.Source qualified as Src
+import Data.Char qualified as Char
+import Data.Index qualified as Index
+import Data.List qualified as List
+import Data.Map qualified as Map
+import Data.Name qualified as Name
+import Data.OneOrMore qualified as OneOrMore
+import Data.Set qualified as Set
+import Gren.ModuleName qualified as ModuleName
+import Reporting.Annotation qualified as A
 import Reporting.Doc (Doc, (<+>))
-import qualified Reporting.Doc as D
-import qualified Reporting.Render.Code as Code
-import qualified Reporting.Render.Type as RT
-import qualified Reporting.Report as Report
-import qualified Reporting.Suggest as Suggest
+import Reporting.Doc qualified as D
+import Reporting.Render.Code qualified as Code
+import Reporting.Render.Type qualified as RT
+import Reporting.Report qualified as Report
+import Reporting.Suggest qualified as Suggest
 
 -- CANONICALIZATION ERRORS
 
@@ -134,7 +134,9 @@ toReport source err =
               region
               Nothing
               ( D.reflow $
-                  "The type annotation for `" <> Name.toChars name <> "` says it can accept "
+                  "The type annotation for `"
+                    <> Name.toChars name
+                    <> "` says it can accept "
                     <> D.args numTypeArgs
                     <> ", but the definition says it has "
                     <> D.args numDefArgs
@@ -165,7 +167,11 @@ toReport source err =
                   region
                   Nothing
                   ( D.reflow $
-                      "The `" <> Name.toChars name <> "` " <> thing <> " needs "
+                      "The `"
+                        <> Name.toChars name
+                        <> "` "
+                        <> thing
+                        <> " needs "
                         <> D.args expected
                         <> ", but I see "
                         <> show actual
@@ -180,7 +186,11 @@ toReport source err =
                   region
                   Nothing
                   ( D.reflow $
-                      "The `" <> Name.toChars name <> "` " <> thing <> " needs "
+                      "The `"
+                        <> Name.toChars name
+                        <> "` "
+                        <> thing
+                        <> " needs "
                         <> D.args expected
                         <> ", but I see "
                         <> show actual
@@ -328,7 +338,8 @@ toReport source err =
           region
           Nothing
           ( D.reflow $
-              "You are trying to import the `" <> Name.toChars ctor
+              "You are trying to import the `"
+                <> Name.toChars ctor
                 <> "` variant by name:",
             D.fillSep
               [ "Try",
@@ -391,7 +402,8 @@ toReport source err =
               region
               Nothing
               ( D.reflow $
-                  "The `" <> Name.toChars home
+                  "The `"
+                    <> Name.toChars home
                     <> "` module does not expose `"
                     <> Name.toChars value
                     <> "`:",
@@ -533,7 +545,8 @@ toReport source err =
               TypeVariable name ->
                 ( "an unspecified type",
                   D.reflow $
-                    "But type variables like `" <> Name.toChars name
+                    "But type variables like `"
+                      <> Name.toChars name
                       <> "` cannot flow through ports.\
                          \ I need to know exactly what type of data I am getting, so I can guarantee that\
                          \ unexpected data cannot sneak in and crash the Gren program."
@@ -624,12 +637,16 @@ toReport source err =
                       "The `" <> Name.toChars name <> "` value is defined directly in terms of itself, causing an infinite loop.",
                     D.stack
                       [ makeTheory "Are you trying to mutate a variable?" $
-                          "Gren does not have mutation, so when I see " ++ Name.toChars name
+                          "Gren does not have mutation, so when I see "
+                            ++ Name.toChars name
                             ++ " defined in terms of "
                             ++ Name.toChars name
                             ++ ", I treat it as a recursive definition. Try giving the new value a new name!",
                         makeTheory "Maybe you DO want a recursive value?" $
-                          "To define " ++ Name.toChars name ++ " we need to know what " ++ Name.toChars name
+                          "To define "
+                            ++ Name.toChars name
+                            ++ " we need to know what "
+                            ++ Name.toChars name
                             ++ " is, so let’s expand it. Wait, but now we need to know what "
                             ++ Name.toChars name
                             ++ " is, so let’s expand it... This will keep going infinitely!",
@@ -645,7 +662,8 @@ toReport source err =
                       "The `" <> Name.toChars name <> "` definition is causing a very tricky infinite loop.",
                     D.stack
                       [ D.reflow $
-                          "The `" <> Name.toChars name
+                          "The `"
+                            <> Name.toChars name
                             <> "` value depends on itself through the following chain of definitions:",
                         D.cycle 4 name names,
                         D.link
@@ -666,12 +684,16 @@ toReport source err =
                       "The `" <> Name.toChars name <> "` value is defined directly in terms of itself, causing an infinite loop.",
                     D.stack
                       [ makeTheory "Are you trying to mutate a variable?" $
-                          "Gren does not have mutation, so when I see " ++ Name.toChars name
+                          "Gren does not have mutation, so when I see "
+                            ++ Name.toChars name
                             ++ " defined in terms of "
                             ++ Name.toChars name
                             ++ ", I treat it as a recursive definition. Try giving the new value a new name!",
                         makeTheory "Maybe you DO want a recursive value?" $
-                          "To define " ++ Name.toChars name ++ " we need to know what " ++ Name.toChars name
+                          "To define "
+                            ++ Name.toChars name
+                            ++ " we need to know what "
+                            ++ Name.toChars name
                             ++ " is, so let’s expand it. Wait, but now we need to know what "
                             ++ Name.toChars name
                             ++ " is, so let’s expand it... This will keep going infinitely!",
@@ -687,7 +709,8 @@ toReport source err =
                   "I do not allow cyclic values in `let` expressions.",
                 D.stack
                   [ D.reflow $
-                      "The `" <> Name.toChars name
+                      "The `"
+                        <> Name.toChars name
                         <> "` value depends on itself through the following chain of definitions:",
                     D.cycle 4 name names,
                     D.link
@@ -886,7 +909,10 @@ unboundTypeVars source declRegion tipe typeName allVars (unboundVar, varRegion) 
                       ++ map (D.green . D.fromName) (unboundVar : map fst unboundVars)
                       ++ ["=", "..."],
                 D.reflow $
-                  "Why? Well, imagine one `" ++ Name.toChars typeName ++ "` where `" ++ Name.toChars unboundVar
+                  "Why? Well, imagine one `"
+                    ++ Name.toChars typeName
+                    ++ "` where `"
+                    ++ Name.toChars unboundVar
                     ++ "` is an Int and another where it is a Bool. When we explicitly list the type\
                        \ variables, the type checker can see that they are actually different types."
               ]
@@ -923,7 +949,8 @@ ambiguousName source region maybePrefix name h hs thing =
                in ( D.reflow $ "This usage of `" ++ Name.toChars name ++ "` is ambiguous:",
                     D.stack
                       [ D.reflow $
-                          "This name is exposed by " ++ show (length possibleHomes)
+                          "This name is exposed by "
+                            ++ show (length possibleHomes)
                             ++ " of your imports, so I am not\
                                \ sure which one to use:",
                         D.indent 4 $ D.vcat $ map homeToYellowDoc possibleHomes,
@@ -945,7 +972,9 @@ ambiguousName source region maybePrefix name h hs thing =
                in ( D.reflow $ "This usage of `" ++ toQualString prefix name ++ "` is ambiguous.",
                     D.stack
                       [ D.reflow $
-                          "It could refer to a " ++ thing ++ " from "
+                          "It could refer to a "
+                            ++ thing
+                            ++ " from "
                             ++ eitherOrAny
                             ++ " of these imports:",
                         D.indent 4 $ D.vcat $ map homeToYellowDoc possibleHomes,

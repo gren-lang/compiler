@@ -7,20 +7,20 @@ module Parse.Expression
   )
 where
 
-import qualified AST.Source as Src
-import qualified Data.Name as Name
-import qualified Parse.Keyword as Keyword
-import qualified Parse.Number as Number
-import qualified Parse.Pattern as Pattern
+import AST.Source qualified as Src
+import Data.Name qualified as Name
+import Parse.Keyword qualified as Keyword
+import Parse.Number qualified as Number
+import Parse.Pattern qualified as Pattern
 import Parse.Primitives hiding (State)
-import qualified Parse.Primitives as P
-import qualified Parse.Space as Space
-import qualified Parse.String as String
-import qualified Parse.Symbol as Symbol
-import qualified Parse.Type as Type
-import qualified Parse.Variable as Var
-import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Syntax as E
+import Parse.Primitives qualified as P
+import Parse.Space qualified as Space
+import Parse.String qualified as String
+import Parse.Symbol qualified as Symbol
+import Parse.Type qualified as Type
+import Parse.Variable qualified as Var
+import Reporting.Annotation qualified as A
+import Reporting.Error.Syntax qualified as E
 
 -- TERMS
 

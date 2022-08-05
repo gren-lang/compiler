@@ -7,15 +7,15 @@ module Reporting.Error.Main
   )
 where
 
-import qualified AST.Canonical as Can
-import qualified Data.Name as Name
-import qualified Reporting.Annotation as A
-import qualified Reporting.Doc as D
-import qualified Reporting.Error.Canonicalize as E
-import qualified Reporting.Render.Code as Code
-import qualified Reporting.Render.Type as RT
-import qualified Reporting.Render.Type.Localizer as L
-import qualified Reporting.Report as Report
+import AST.Canonical qualified as Can
+import Data.Name qualified as Name
+import Reporting.Annotation qualified as A
+import Reporting.Doc qualified as D
+import Reporting.Error.Canonicalize qualified as E
+import Reporting.Render.Code qualified as Code
+import Reporting.Render.Type qualified as RT
+import Reporting.Render.Type.Localizer qualified as L
+import Reporting.Report qualified as Report
 
 -- ERROR
 
@@ -85,7 +85,8 @@ toReport localizer source err =
               E.TypeVariable name ->
                 ( "an unspecified type",
                   D.reflow $
-                    "But type variables like `" ++ Name.toChars name
+                    "But type variables like `"
+                      ++ Name.toChars name
                       ++ "` cannot be given as flags.\
                          \ I need to know exactly what type of data I am getting, so I can guarantee that\
                          \ unexpected data cannot sneak in and crash the Gren program."

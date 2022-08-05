@@ -18,16 +18,16 @@ where
 
 import Control.Monad (foldM)
 import Data.Map ((!))
-import qualified Data.Map as Map
-import qualified Deps.Package as Package
-import qualified Directories as Dirs
-import qualified File
-import qualified Gren.Constraint as C
-import qualified Gren.Outline as Outline
-import qualified Gren.Package as Pkg
-import qualified Gren.Version as V
-import qualified Json.Decode as D
-import qualified Reporting.Exit as Exit
+import Data.Map qualified as Map
+import Deps.Package qualified as Package
+import Directories qualified as Dirs
+import File qualified
+import Gren.Constraint qualified as C
+import Gren.Outline qualified as Outline
+import Gren.Package qualified as Pkg
+import Gren.Version qualified as V
+import Json.Decode qualified as D
+import Reporting.Exit qualified as Exit
 import System.FilePath ((</>))
 
 -- SOLVER

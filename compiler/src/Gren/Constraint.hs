@@ -23,11 +23,11 @@ where
 
 import Control.Monad (liftM4)
 import Data.Binary (Binary, get, getWord8, put, putWord8)
-import qualified Gren.Version as V
-import qualified Json.Decode as D
-import qualified Json.Encode as E
+import Gren.Version qualified as V
+import Json.Decode qualified as D
+import Json.Encode qualified as E
 import Parse.Primitives (Col, Row)
-import qualified Parse.Primitives as P
+import Parse.Primitives qualified as P
 
 -- CONSTRAINTS
 

@@ -10,15 +10,15 @@ module Reporting.Error.Docs
   )
 where
 
-import qualified Data.Name as Name
-import qualified Data.NonEmptyList as NE
+import Data.Name qualified as Name
+import Data.NonEmptyList qualified as NE
 import Parse.Primitives (Col, Row)
 import Parse.Symbol (BadOperator (..))
-import qualified Reporting.Annotation as A
-import qualified Reporting.Doc as D
-import qualified Reporting.Error.Syntax as E
-import qualified Reporting.Render.Code as Code
-import qualified Reporting.Report as Report
+import Reporting.Annotation qualified as A
+import Reporting.Doc qualified as D
+import Reporting.Error.Syntax qualified as E
+import Reporting.Render.Code qualified as Code
+import Reporting.Report qualified as Report
 
 data Error
   = NoDocs A.Region
@@ -142,12 +142,14 @@ toNameProblemReport source problem =
           r1
           r2
           ( D.reflow $
-              "There can only be one `" <> Name.toChars name
+              "There can only be one `"
+                <> Name.toChars name
                 <> "` in your module documentation, but it is listed twice:",
             "Remove one of them!"
           )
           ( D.reflow $
-              "There can only be one `" <> Name.toChars name
+              "There can only be one `"
+                <> Name.toChars name
                 <> "` in your module documentation, but I see two. One here:",
             "And another one over here:",
             "Remove one of them!"
@@ -159,7 +161,8 @@ toNameProblemReport source problem =
           region
           Nothing
           ( D.reflow $
-              "I do not see `" <> Name.toChars name
+              "I do not see `"
+                <> Name.toChars name
                 <> "` in the `exposing` list, but it is in your module documentation:",
             D.reflow $
               "Does it need to be added to the `exposing` list as well? Or maybe you removed `"
@@ -173,11 +176,13 @@ toNameProblemReport source problem =
           region
           Nothing
           ( D.reflow $
-              "I do not see `" <> Name.toChars name
+              "I do not see `"
+                <> Name.toChars name
                 <> "` in your module documentation, but it is in your `exposing` list:",
             D.stack
               [ D.reflow $
-                  "Add a line like `@docs " <> Name.toChars name
+                  "Add a line like `@docs "
+                    <> Name.toChars name
                     <> "` to your module documentation!",
                 D.link "Note" "See" "docs" "for more guidance on writing high quality docs."
               ]

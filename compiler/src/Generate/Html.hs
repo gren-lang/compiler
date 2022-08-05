@@ -6,8 +6,8 @@ module Generate.Html
   )
 where
 
-import qualified Data.ByteString.Builder as B
-import qualified Data.Name as Name
+import Data.ByteString.Builder qualified as B
+import Data.Name qualified as Name
 import Text.RawString.QQ (r)
 
 -- SANDWICH

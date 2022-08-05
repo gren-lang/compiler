@@ -14,12 +14,12 @@ module Canonicalize.Environment.Dups
   )
 where
 
-import qualified Data.Map as Map
-import qualified Data.Name as Name
-import qualified Data.OneOrMore as OneOrMore
-import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Canonicalize as Error
-import qualified Reporting.Result as Result
+import Data.Map qualified as Map
+import Data.Name qualified as Name
+import Data.OneOrMore qualified as OneOrMore
+import Reporting.Annotation qualified as A
+import Reporting.Error.Canonicalize qualified as Error
+import Reporting.Result qualified as Result
 
 -- DUPLICATE TRACKER
 

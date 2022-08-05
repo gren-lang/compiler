@@ -8,13 +8,13 @@ module Parse.Type
   )
 where
 
-import qualified AST.Source as Src
-import qualified Data.Name as Name
+import AST.Source qualified as Src
+import Data.Name qualified as Name
 import Parse.Primitives (Parser, addEnd, addLocation, getPosition, inContext, oneOf, oneOfWithFallback, specialize, word1, word2)
-import qualified Parse.Space as Space
-import qualified Parse.Variable as Var
-import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Syntax as E
+import Parse.Space qualified as Space
+import Parse.Variable qualified as Var
+import Reporting.Annotation qualified as A
+import Reporting.Error.Syntax qualified as E
 
 -- TYPE TERMS
 

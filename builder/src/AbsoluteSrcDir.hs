@@ -6,7 +6,7 @@ module AbsoluteSrcDir
   )
 where
 
-import qualified System.Directory as Dir
+import System.Directory qualified as Dir
 import System.FilePath ((</>))
 
 newtype AbsoluteSrcDir

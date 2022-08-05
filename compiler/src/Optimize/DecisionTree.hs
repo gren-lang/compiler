@@ -20,18 +20,18 @@ explains this extraordinarily well! We are currently using the same heuristics
 as SML/NJ to get nice trees.
 -}
 
-import qualified AST.Canonical as Can
+import AST.Canonical qualified as Can
 import Control.Arrow (second)
 import Control.Monad (liftM, liftM2, liftM5)
 import Data.Binary
-import qualified Data.Index as Index
-import qualified Data.List as List
-import qualified Data.Maybe as Maybe
-import qualified Data.Name as Name
-import qualified Data.Set as Set
-import qualified Gren.ModuleName as ModuleName
-import qualified Gren.String as ES
-import qualified Reporting.Annotation as A
+import Data.Index qualified as Index
+import Data.List qualified as List
+import Data.Maybe qualified as Maybe
+import Data.Name qualified as Name
+import Data.Set qualified as Set
+import Gren.ModuleName qualified as ModuleName
+import Gren.String qualified as ES
+import Reporting.Annotation qualified as A
 
 -- COMPILE CASES
 

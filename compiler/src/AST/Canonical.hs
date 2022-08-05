@@ -55,18 +55,18 @@ cached data with comments like:
 So it is clear why the data is kept around.
 -}
 
-import qualified AST.Source as Src
-import qualified AST.Utils.Binop as Binop
+import AST.Source qualified as Src
+import AST.Utils.Binop qualified as Binop
 import Control.Monad (liftM, liftM2, liftM3, liftM4, replicateM)
 import Data.Binary
-import qualified Data.Index as Index
-import qualified Data.List as List
-import qualified Data.Map as Map
+import Data.Index qualified as Index
+import Data.List qualified as List
+import Data.Map qualified as Map
 import Data.Name (Name)
-import qualified Gren.Float as EF
-import qualified Gren.ModuleName as ModuleName
-import qualified Gren.String as ES
-import qualified Reporting.Annotation as A
+import Gren.Float qualified as EF
+import Gren.ModuleName qualified as ModuleName
+import Gren.String qualified as ES
+import Reporting.Annotation qualified as A
 
 -- EXPRESSIONS
 

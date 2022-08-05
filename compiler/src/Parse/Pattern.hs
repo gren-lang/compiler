@@ -10,19 +10,19 @@ module Parse.Pattern
   )
 where
 
-import qualified AST.Source as Src
-import qualified Data.Name as Name
-import qualified Data.Utf8 as Utf8
+import AST.Source qualified as Src
+import Data.Name qualified as Name
+import Data.Utf8 qualified as Utf8
 import Foreign.Ptr (plusPtr)
-import qualified Parse.Keyword as Keyword
-import qualified Parse.Number as Number
+import Parse.Keyword qualified as Keyword
+import Parse.Number qualified as Number
 import Parse.Primitives (Parser, addEnd, getPosition, inContext, oneOf, oneOfWithFallback, word1)
-import qualified Parse.Primitives as P
-import qualified Parse.Space as Space
-import qualified Parse.String as String
-import qualified Parse.Variable as Var
-import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Syntax as E
+import Parse.Primitives qualified as P
+import Parse.Space qualified as Space
+import Parse.String qualified as String
+import Parse.Variable qualified as Var
+import Reporting.Annotation qualified as A
+import Reporting.Error.Syntax qualified as E
 
 -- TERM
 

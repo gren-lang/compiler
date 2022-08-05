@@ -6,7 +6,7 @@ module Generate.JavaScript.Functions
   )
 where
 
-import qualified Data.ByteString.Builder as B
+import Data.ByteString.Builder qualified as B
 import Text.RawString.QQ (r)
 
 -- FUNCTIONS

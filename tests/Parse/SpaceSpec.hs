@@ -3,10 +3,10 @@
 module Parse.SpaceSpec where
 
 import AST.Source (Comment (..))
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Helpers.Instances ()
-import qualified Parse.Primitives as P
-import qualified Parse.Space as Space
+import Parse.Primitives qualified as P
+import Parse.Space qualified as Space
 import Test.Hspec
 
 data ParseError x

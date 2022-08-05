@@ -17,7 +17,7 @@ jobs:
         - ubuntu-latest
         - macOS-latest
         - windows-latest
-    
+
     name: release-${{ matrix.os }}
     runs-on: ${{ matrix.os }}
 
@@ -25,13 +25,13 @@ jobs:
       - name: Configure environment
         run: |
           git config --global core.autocrlf false
-      
+
       - uses: actions/checkout@v2
 
       - uses: haskell/actions/setup@v1
         id: setup-haskell
         with:
-          ghc-version: '9.2.3'
+          ghc-version: '9.2.4'
           cabal-version: '3.6'
 
       - name: Cache
@@ -42,7 +42,7 @@ jobs:
 
       - name: Build
         run: cabal install --install-method=copy --installdir=dist/
-      
+
       - uses: actions/upload-artifact@v3
         with:
           name: gren-${{ runner.os }}

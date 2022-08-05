@@ -9,14 +9,14 @@ module Reporting.Error.Json
   )
 where
 
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.UTF8 as BS_UTF8
-import qualified Data.NonEmptyList as NE
+import Data.ByteString qualified as BS
+import Data.ByteString.UTF8 qualified as BS_UTF8
+import Data.NonEmptyList qualified as NE
 import Json.Decode (DecodeExpectation (..), Error (..), ParseError (..), Problem (..), StringProblem (..))
-import qualified Reporting.Annotation as A
-import qualified Reporting.Doc as D
-import qualified Reporting.Exit.Help as Help
-import qualified Reporting.Render.Code as Code
+import Reporting.Annotation qualified as A
+import Reporting.Doc qualified as D
+import Reporting.Exit.Help qualified as Help
+import Reporting.Render.Code qualified as Code
 
 -- TO REPORT
 
@@ -335,7 +335,9 @@ expectationToReport path source context (A.Region start end) expectation reason 
           CField field _ ->
             "I ran into trouble with the value of the \"" ++ BS_UTF8.toString field ++ "\" field:"
           CIndex index (CField field _) ->
-            "When looking at the \"" ++ BS_UTF8.toString field ++ "\" field, I ran into trouble with the "
+            "When looking at the \""
+              ++ BS_UTF8.toString field
+              ++ "\" field, I ran into trouble with the "
               ++ D.intToOrdinal index
               ++ " entry:"
           CIndex index _ ->

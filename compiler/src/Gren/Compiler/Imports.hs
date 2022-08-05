@@ -6,10 +6,10 @@ module Gren.Compiler.Imports
   )
 where
 
-import qualified AST.Source as Src
-import qualified Data.Name as Name
-import qualified Gren.ModuleName as ModuleName
-import qualified Reporting.Annotation as A
+import AST.Source qualified as Src
+import Data.Name qualified as Name
+import Gren.ModuleName qualified as ModuleName
+import Reporting.Annotation qualified as A
 
 -- DEFAULTS
 

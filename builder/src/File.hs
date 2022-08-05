@@ -14,19 +14,19 @@ module File
 where
 
 import Control.Exception (catch)
-import qualified Data.Binary as Binary
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Builder as B
-import qualified Data.ByteString.Internal as BS
-import qualified Data.Fixed as Fixed
-import qualified Data.Time.Clock as Time
-import qualified Data.Time.Clock.POSIX as Time
-import qualified Foreign.ForeignPtr as FPtr
+import Data.Binary qualified as Binary
+import Data.ByteString qualified as BS
+import Data.ByteString.Builder qualified as B
+import Data.ByteString.Internal qualified as BS
+import Data.Fixed qualified as Fixed
+import Data.Time.Clock qualified as Time
+import Data.Time.Clock.POSIX qualified as Time
+import Foreign.ForeignPtr qualified as FPtr
 import GHC.IO.Exception (IOErrorType (InvalidArgument), IOException)
-import qualified System.Directory as Dir
+import System.Directory qualified as Dir
 import System.FilePath ()
-import qualified System.FilePath as FP
-import qualified System.IO as IO
+import System.FilePath qualified as FP
+import System.IO qualified as IO
 import System.IO.Error (annotateIOError, ioeGetErrorType, modifyIOError)
 
 -- TIME

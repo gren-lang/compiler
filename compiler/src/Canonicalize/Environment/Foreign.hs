@@ -7,20 +7,20 @@ module Canonicalize.Environment.Foreign
   )
 where
 
-import qualified AST.Canonical as Can
-import qualified AST.Source as Src
-import qualified Canonicalize.Environment as Env
+import AST.Canonical qualified as Can
+import AST.Source qualified as Src
+import Canonicalize.Environment qualified as Env
 import Control.Monad (foldM)
-import qualified Data.List as List
+import Data.List qualified as List
 import Data.Map.Strict ((!))
-import qualified Data.Map.Strict as Map
-import qualified Data.Name as Name
-import qualified Gren.Interface as I
-import qualified Gren.ModuleName as ModuleName
-import qualified Gren.Package as Pkg
-import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Canonicalize as Error
-import qualified Reporting.Result as Result
+import Data.Map.Strict qualified as Map
+import Data.Name qualified as Name
+import Gren.Interface qualified as I
+import Gren.ModuleName qualified as ModuleName
+import Gren.Package qualified as Pkg
+import Reporting.Annotation qualified as A
+import Reporting.Error.Canonicalize qualified as Error
+import Reporting.Result qualified as Result
 
 -- RESULT
 
