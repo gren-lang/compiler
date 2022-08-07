@@ -225,7 +225,7 @@ chompHeader =
           Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem
           Keyword.exposing_ E.ModuleProblem
           Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem
-          exports <- addLocation (specialize E.ModuleExposing exposing)
+          exports <- addLocation (specialize E.ModuleExposing exportExposing)
           comment <- chompModuleDocCommentSpace
           return $
             Just $
@@ -241,7 +241,7 @@ chompHeader =
           Space.chompAndCheckIndent E.ModuleSpace E.PortModuleProblem
           Keyword.exposing_ E.PortModuleProblem
           Space.chompAndCheckIndent E.ModuleSpace E.PortModuleProblem
-          exports <- addLocation (specialize E.PortModuleExposing exposing)
+          exports <- addLocation (specialize E.PortModuleExposing exportExposing)
           comment <- chompModuleDocCommentSpace
           return $
             Just $
@@ -261,7 +261,7 @@ chompHeader =
           Space.chompAndCheckIndent E.ModuleSpace E.Effect
           Keyword.exposing_ E.Effect
           Space.chompAndCheckIndent E.ModuleSpace E.Effect
-          exports <- addLocation (specialize (const E.Effect) exposing)
+          exports <- addLocation (specialize (const E.Effect) exportExposing)
           comment <- chompModuleDocCommentSpace
           return $
             Just $
@@ -364,13 +364,13 @@ chompImport =
           Space.checkIndent end E.ImportEnd
           oneOf
             E.ImportAs
-            [ chompAs name,
-              chompExposing name Nothing
+            [ chompImportAs name,
+              chompImportExposing name Nothing
             ]
       ]
 
-chompAs :: A.Located Name.Name -> Parser E.Module Src.Import
-chompAs name =
+chompImportAs :: A.Located Name.Name -> Parser E.Module Src.Import
+chompImportAs name =
   do
     Keyword.as_ E.ImportAs
     Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentAlias
@@ -384,22 +384,22 @@ chompAs name =
           return $ Src.Import name (Just alias) (Src.Explicit []),
         do
           Space.checkIndent end E.ImportEnd
-          chompExposing name (Just alias)
+          chompImportExposing name (Just alias)
       ]
 
-chompExposing :: A.Located Name.Name -> Maybe Name.Name -> Parser E.Module Src.Import
-chompExposing name maybeAlias =
+chompImportExposing :: A.Located Name.Name -> Maybe Name.Name -> Parser E.Module Src.Import
+chompImportExposing name maybeAlias =
   do
     Keyword.exposing_ E.ImportExposing
     Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentExposingArray
-    exposed <- specialize E.ImportExposingArray exposing
+    exposed <- specialize E.ImportExposingArray importExposing
     freshLine E.ImportEnd
     return $ Src.Import name maybeAlias exposed
 
 -- LISTING
 
-exposing :: Parser E.Exposing Src.Exposing
-exposing =
+exportExposing :: Parser E.Exposing Src.Exposing
+exportExposing =
   do
     word1 0x28 {-(-} E.ExposingStart
     Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentValue
@@ -415,6 +415,15 @@ exposing =
           Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentEnd
           exposingHelp [exposed]
       ]
+
+importExposing :: Parser E.Exposing Src.Exposing
+importExposing =
+  do
+    word1 0x28 {-(-} E.ExposingStart
+    Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentValue
+    exposed <- chompExposed
+    Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentEnd
+    exposingHelp [exposed]
 
 exposingHelp :: [Src.Exposed] -> Parser E.Exposing Src.Exposing
 exposingHelp revExposed =
