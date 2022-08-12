@@ -168,7 +168,7 @@ record start =
       oneOf
         E.RecordOpen
         [ do
-            word1 0x7D {-}-} E.RecordOpen
+            word1 0x7D {-}-} E.RecordEnd
             addEnd start (Src.Record []),
           do
             expr <- specialize E.RecordUpdateExpr term
@@ -176,7 +176,7 @@ record start =
             oneOf
               E.RecordEquals
               [ do
-                  word1 0x7C {- vertical bar -} E.RecordEquals
+                  word1 0x7C {- vertical bar -} E.RecordPipe
                   Space.chompAndCheckIndent E.RecordSpace E.RecordIndentField
                   firstField <- chompField
                   fields <- chompFields [firstField]
@@ -192,7 +192,7 @@ record start =
                       addEnd start (Src.Record fields)
                     A.At (A.Region (A.Position row col) _) _ ->
                       P.Parser $ \_ _ _ _ eerr ->
-                        eerr row col E.RecordEquals
+                        eerr row col E.RecordField
               ]
         ]
 
