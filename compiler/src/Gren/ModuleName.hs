@@ -170,12 +170,12 @@ debug = Canonical Pkg.core Name.debug
 -- HTML
 
 virtualDom :: Canonical
-virtualDom = Canonical Pkg.virtualDom Name.virtualDom
+virtualDom = Canonical Pkg.browser Name.virtualDom
 
 -- JSON
 
 jsonDecode :: Canonical
-jsonDecode = Canonical Pkg.json "Json.Decode"
+jsonDecode = Canonical Pkg.core "Json.Decode"
 
 jsonEncode :: Canonical
-jsonEncode = Canonical Pkg.json "Json.Encode"
+jsonEncode = Canonical Pkg.core "Json.Encode"

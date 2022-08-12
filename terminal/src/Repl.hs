@@ -522,8 +522,7 @@ defaultDeps :: Map.Map Pkg.Name C.Constraint
 defaultDeps =
   Map.fromList
     [ (Pkg.core, C.anything),
-      (Pkg.json, C.anything),
-      (Pkg.html, C.anything)
+      (Pkg.browser, C.anything)
     ]
 
 -- GET INTERPRETER
