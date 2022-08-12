@@ -8,6 +8,7 @@ where
 
 import Data.Map qualified as Map
 import Data.NonEmptyList qualified as NE
+import Deps.Package qualified as DPkg
 import Deps.Solver qualified as Solver
 import Gren.Constraint qualified as Con
 import Gren.Licenses qualified as Licenses
@@ -68,10 +69,11 @@ question =
 init :: Flags -> IO (Either Exit.Init ())
 init flags =
   do
-    let deps =
+    let initialDeps =
           if _isPackage flags
             then pkgDefaultDeps
             else appDefaultDeps
+    deps <- mapM (DPkg.getLatestCompatibleVersion cache) initialDeps
     (Solver.Env cache) <- Solver.initEnv
     result <- Solver.verify cache deps
     case result of
@@ -84,7 +86,7 @@ init flags =
       Solver.Ok details ->
         let outline =
               if _isPackage flags
-                then pkgOutline
+                then pkgOutline deps
                 else appOutlineFromSolverDetails details
          in do
               Dir.createDirectoryIfMissing True "src"
@@ -92,8 +94,8 @@ init flags =
               putStrLn "Okay, I created it."
               return (Right ())
 
-pkgOutline :: Outline.Outline
-pkgOutline =
+pkgOutline :: Map.Map Pkg.Name Con.Constraint -> Outline.Outline
+pkgOutline deps =
   Outline.Pkg $
     Outline.PkgOutline
       Pkg.dummyName
@@ -101,7 +103,7 @@ pkgOutline =
       Licenses.bsd3
       V.one
       (Outline.ExposedList [])
-      pkgDefaultDeps
+      deps
       Map.empty
       Con.defaultGren
 
@@ -119,15 +121,13 @@ appOutlineFromSolverDetails details =
           Map.empty
           Map.empty
 
-appDefaultDeps :: Map.Map Pkg.Name Con.Constraint
+appDefaultDeps :: [Pkg.Name]
 appDefaultDeps =
-  Map.fromList
-    [ (Pkg.core, Con.anything),
-      (Pkg.browser, Con.anything)
-    ]
+  [ Pkg.core,
+    Pkg.browser
+  ]
 
-pkgDefaultDeps :: Map.Map Pkg.Name Con.Constraint
+pkgDefaultDeps :: [Pkg.Name]
 pkgDefaultDeps =
-  Map.fromList
-    [ (Pkg.core, Con.untilNextMajor V.one)
-    ]
+  [ Pkg.core
+  ]
