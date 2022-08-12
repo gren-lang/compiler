@@ -191,22 +191,6 @@ addConstraint solved unsolved (name, newConstraint) =
                 then return unsolved
                 else return (Map.insert name mergedConstraint unsolved)
 
--- GET RELEVANT VERSIONS
-
-{- TODO: do we still need this?
-getRelevantVersions :: Pkg.Name -> C.Constraint -> Solver (V.Version, [V.Version])
-getRelevantVersions name constraint =
-  Solver $ \state@(State _ _) ok back err -> do
-    versionsResult <- Package.getVersions name
-    case versionsResult of
-      Right (newest, previous) ->
-        case filter (C.satisfies constraint) (newest : previous) of
-          [] -> back state
-          v : vs -> ok state (v, vs) back
-      Left gitErr ->
-        err $ Exit.SolverBadGitOperationUnversionedPkg name gitErr
-        -}
-
 -- GET CONSTRAINTS
 
 getConstraints :: Pkg.Name -> V.Version -> Solver Constraints

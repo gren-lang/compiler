@@ -1,5 +1,6 @@
 module Deps.Package
   ( getVersions,
+    getLatestCompatibleVersion,
     bumpPossibilities,
     installPackageVersion,
   )
@@ -8,7 +9,9 @@ where
 import Data.List qualified as List
 import Directories qualified as Dirs
 import Git qualified
+import Gren.Constraint qualified as C
 import Gren.Magnitude qualified as M
+import Gren.Outline qualified as Outline
 import Gren.Package qualified as Pkg
 import Gren.Version qualified as V
 import System.Directory qualified as Dir
@@ -19,6 +22,45 @@ getVersions :: Pkg.Name -> IO (Either Git.Error (V.Version, [V.Version]))
 getVersions name =
   Git.tags (Git.githubUrl name)
 
+-- GET LATEST COMPATIBLE VERSION
+
+getLatestCompatibleVersion :: Dirs.PackageCache -> Pkg.Name -> IO (Either () V.Version)
+getLatestCompatibleVersion cache name = do
+  versionsResult <- getVersions name
+  case versionsResult of
+    Right (first, rest) ->
+      let versionsHighToLow = List.reverse $ List.sort (first : rest)
+       in do
+            potentiallyCompatibleVersion <- getCompatibleVersion cache name versionsHighToLow
+            case potentiallyCompatibleVersion of
+              Nothing ->
+                return $ Left ()
+              Just v ->
+                return $ Right v
+    Left _ ->
+      return $ Left ()
+
+getCompatibleVersion :: Dirs.PackageCache -> Pkg.Name -> [V.Version] -> IO (Maybe V.Version)
+getCompatibleVersion cache name versions =
+  case versions of
+    [] ->
+      return Nothing
+    vsn : rest -> do
+      potentialInstallationError <- installPackageVersion cache name vsn
+      case potentialInstallationError of
+        Left _ ->
+          getCompatibleVersion cache name rest
+        Right () -> do
+          let pkgPath = Dirs.package cache name vsn
+          potentialOutline <- Outline.read pkgPath
+          case potentialOutline of
+            Right (Outline.Pkg outline) ->
+              if C.goodGren (Outline._pkg_gren_version outline)
+                then return $ Just vsn
+                else getCompatibleVersion cache name rest
+            _ ->
+              getCompatibleVersion cache name rest
+
 -- GET POSSIBILITIES
 
 bumpPossibilities :: (V.Version, [V.Version]) -> [(V.Version, V.Version, M.Magnitude)]
@@ -26,8 +68,8 @@ bumpPossibilities (latest, previous) =
   let allVersions = reverse (latest : previous)
       minorPoints = map last (List.groupBy sameMajor allVersions)
       patchPoints = map last (List.groupBy sameMinor allVersions)
-   in (latest, V.bumpMajor latest, M.MAJOR)
-        : map (\v -> (v, V.bumpMinor v, M.MINOR)) minorPoints
+   in (latest, V.bumpMajor latest, M.MAJOR) :
+      map (\v -> (v, V.bumpMinor v, M.MINOR)) minorPoints
         ++ map (\v -> (v, V.bumpPatch v, M.PATCH)) patchPoints
 
 sameMajor :: V.Version -> V.Version -> Bool
