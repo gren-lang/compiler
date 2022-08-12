@@ -19,10 +19,6 @@ module Gren.Package
     kernel,
     core,
     browser,
-    virtualDom,
-    html,
-    json,
-    http,
     url,
     --
     suggestions,
@@ -120,22 +116,6 @@ browser :: Name
 browser =
   toName gren "browser"
 
-virtualDom :: Name
-virtualDom =
-  toName gren "virtual-dom"
-
-html :: Name
-html =
-  toName gren "html"
-
-json :: Name
-json =
-  toName gren "json"
-
-http :: Name
-http =
-  toName gren "http"
-
 url :: Name
 url =
   toName gren "url"
@@ -148,25 +128,22 @@ gren =
 
 suggestions :: Map.Map Name.Name Name
 suggestions =
-  let random = toName gren "random"
-      time = toName gren "time"
-      file = toName gren "file"
-   in Map.fromList
-        [ "Browser" ==> browser,
-          "File" ==> file,
-          "File.Download" ==> file,
-          "File.Select" ==> file,
-          "Html" ==> html,
-          "Html.Attributes" ==> html,
-          "Html.Events" ==> html,
-          "Http" ==> http,
-          "Json.Decode" ==> json,
-          "Json.Encode" ==> json,
-          "Random" ==> random,
-          "Time" ==> time,
-          "Url.Parser" ==> url,
-          "Url" ==> url
-        ]
+  Map.fromList
+    [ "Browser" ==> browser,
+      "File" ==> browser,
+      "File.Download" ==> browser,
+      "File.Select" ==> browser,
+      "Html" ==> browser,
+      "Html.Attributes" ==> browser,
+      "Html.Events" ==> browser,
+      "Http" ==> browser,
+      "Json.Decode" ==> core,
+      "Json.Encode" ==> core,
+      "Random" ==> core,
+      "Time" ==> core,
+      "Url.Parser" ==> url,
+      "Url" ==> url
+    ]
 
 (==>) :: [Char] -> Name -> (Name.Name, Name)
 (==>) moduleName package =
