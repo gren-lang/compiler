@@ -68,7 +68,7 @@ spec = do
 
 parse :: P.Parser (ParseError x) a -> BS.ByteString -> Either (ParseError x) a
 parse parser =
-  P.fromByteString parser (OtherError "fromBytString failed")
+  P.fromByteString parser (OtherError "fromByteString failed")
 
 a :: P.Parser (ParseError x) ()
 a = P.word1 0x61 {- a -} (OtherError "Expected 'a'")
