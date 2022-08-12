@@ -10,7 +10,6 @@ module Parse.Primitives
     Row,
     Col,
     oneOf,
-    backtrackable,
     oneOfWithFallback,
     inContext,
     specialize,
@@ -54,11 +53,6 @@ newtype Parser x a
         (Row -> Col -> (Row -> Col -> x) -> b) -> -- empty err
         b
       )
-
-backtrackable :: Parser x a -> Parser x a
-backtrackable (Parser parser) =
-  Parser $ \state cok eok _ eerr ->
-    parser state cok eok eerr eerr
 
 data State -- PERF try taking some out to avoid allocation
   = State

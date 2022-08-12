@@ -21,6 +21,9 @@ spec = do
     it "regression test" $
       parseRecordLiteral "{ field = 2 }"
 
+    it "regression test with multiple fields" $
+      parseRecordLiteral "{ f1 = 1, f2 = 2, f3 = 3 }"
+
     it "basic case" $
       parse "{ record | prop = 1 }"
 
@@ -32,12 +35,6 @@ spec = do
 
     it "update literal record" $
       parse "{ { prop = 2 } | prop = 1 }"
-
-    it "if statement" $
-      parse "{ if 1 == 2 then { prop = 2 } else { prop = 3 } | prop = 1 }"
-
-    it "if statement with || operator" $
-      parse "{ if left || right then { prop = 2 } else { prop = 3 } | prop = 1 }"
 
     it "parenthesized if statement" $
       parse "{ (if 1 == 2 then { prop = 2 } else { prop = 3 }) | prop = 1 }"
