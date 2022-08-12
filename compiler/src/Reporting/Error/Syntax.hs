@@ -4459,7 +4459,7 @@ toRecordReport source context record startRow startCol =
     RecordExpr expr row col ->
       toExprReport source (InNode NRecord startRow startCol context) expr row col
     RecordUpdateExpr expr row col ->
-      toExprReport source (InNode NRecord startRow startCol context) expr row col
+      toExprReport source context expr row col
     RecordSpace space row col ->
       toSpaceReport source space row col
     RecordIndentOpen row col ->
