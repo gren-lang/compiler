@@ -4356,7 +4356,7 @@ toRecordReport source context record startRow startCol =
                             "expecting",
                             "to",
                             "see",
-                            "another",
+                            "a",
                             "record",
                             "field",
                             "defined",
