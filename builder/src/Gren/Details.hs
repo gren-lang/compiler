@@ -187,7 +187,8 @@ verifyPkg :: Env -> File.Time -> Outline.PkgOutline -> Task Details
 verifyPkg env time (Outline.PkgOutline pkg _ _ _ exposed direct testDirect gren) =
   if Con.goodGren gren
     then do
-      solution <- verifyConstraints env =<< union noDups direct testDirect
+      stated <- union noDups direct testDirect
+      solution <- verifyConstraints env (Map.map (Con.exactly . Con.lowerBound) stated)
       let exposedList = Outline.flattenExposed exposed
       let exactDeps = Map.map (\(Solver.Details v _) -> v) solution -- for pkg docs in reactor
       verifyDependencies env time (ValidPkg pkg exposedList exactDeps) solution direct
