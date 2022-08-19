@@ -32,10 +32,6 @@ import Reporting.Exit qualified as Exit
 import Reporting.Task qualified as Task
 import Prelude hiding (cycle, print)
 
--- NOTE: This is used by Make, Repl, and Reactor right now. But it may be
--- desireable to have Repl and Reactor to keep foreign objects in memory
--- to make things a bit faster?
-
 -- GENERATORS
 
 type Task a =

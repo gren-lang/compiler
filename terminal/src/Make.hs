@@ -138,7 +138,7 @@ getExposed (Details.Details _ validOutline _ _ _ _) =
   case validOutline of
     Details.ValidApp _ ->
       Task.throw Exit.MakeAppNeedsFileNames
-    Details.ValidPkg _ exposed _ ->
+    Details.ValidPkg _ exposed ->
       case exposed of
         [] -> Task.throw Exit.MakePkgNeedsExposing
         m : ms -> return (NE.List m ms)
