@@ -213,7 +213,7 @@ makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ _ direct indire
                 compatibleVersionResult <-
                   Task.io $
                     Dirs.withRegistryLock cache $
-                      DPkg.getLatestCompatibleVersion cache pkg
+                      DPkg.latestCompatibleVersion cache pkg
                 case compatibleVersionResult of
                   Left () ->
                     Task.throw $ Exit.InstallNoCompatiblePkg pkg
@@ -250,7 +250,7 @@ makePkgPlan (Solver.Env cache) pkg outline@(Outline.PkgOutline _ _ _ _ _ deps te
           compatibleVersionResult <-
             Task.io $
               Dirs.withRegistryLock cache $
-                DPkg.getLatestCompatibleVersion cache pkg
+                DPkg.latestCompatibleVersion cache pkg
           case compatibleVersionResult of
             Left () ->
               Task.throw $ Exit.InstallNoCompatiblePkg pkg

@@ -1,6 +1,6 @@
 module Deps.Package
   ( getVersions,
-    getLatestCompatibleVersion,
+    latestCompatibleVersion,
     latestCompatibleVersionForPackages,
     bumpPossibilities,
     installPackageVersion,
@@ -26,8 +26,8 @@ getVersions name =
 
 -- GET LATEST COMPATIBLE VERSION
 
-getLatestCompatibleVersion :: Dirs.PackageCache -> Pkg.Name -> IO (Either () V.Version)
-getLatestCompatibleVersion cache name = do
+latestCompatibleVersion :: Dirs.PackageCache -> Pkg.Name -> IO (Either () V.Version)
+latestCompatibleVersion cache name = do
   versionsResult <- getVersions name
   case versionsResult of
     Right (first, rest) ->
@@ -81,7 +81,7 @@ latestCompatibleVersionForPackagesHelp cache pkgs result =
   case pkgs of
     [] -> return $ Right result
     pkg : rest -> do
-      possibleVersion <- getLatestCompatibleVersion cache pkg
+      possibleVersion <- latestCompatibleVersion cache pkg
       case possibleVersion of
         Left _ ->
           return $ Left ()
