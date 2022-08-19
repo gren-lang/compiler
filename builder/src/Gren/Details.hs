@@ -184,7 +184,7 @@ initEnv key scope root =
 type Task a = Task.Task Exit.Details a
 
 verifyPkg :: Env -> File.Time -> Outline.PkgOutline -> Task Details
-verifyPkg env time (Outline.PkgOutline pkg _ _ _ exposed direct gren) =
+verifyPkg env time (Outline.PkgOutline pkg _ _ _ exposed direct gren _) =
   if Con.goodGren gren
     then do
       solution <- verifyConstraints env (Map.map (Con.exactly . Con.lowerBound) direct)
@@ -194,7 +194,7 @@ verifyPkg env time (Outline.PkgOutline pkg _ _ _ exposed direct gren) =
     else Task.throw $ Exit.DetailsBadGrenInPkg gren
 
 verifyApp :: Env -> File.Time -> Outline.AppOutline -> Task Details
-verifyApp env time outline@(Outline.AppOutline grenVersion srcDirs direct _) =
+verifyApp env time outline@(Outline.AppOutline grenVersion _ srcDirs direct _) =
   if grenVersion == V.compiler
     then do
       stated <- checkAppDeps outline
@@ -205,7 +205,7 @@ verifyApp env time outline@(Outline.AppOutline grenVersion srcDirs direct _) =
     else Task.throw $ Exit.DetailsBadGrenInAppOutline grenVersion
 
 checkAppDeps :: Outline.AppOutline -> Task (Map.Map Pkg.Name V.Version)
-checkAppDeps (Outline.AppOutline _ _ direct indirect) =
+checkAppDeps (Outline.AppOutline _ _ _ direct indirect) =
   union noDups direct indirect
 
 -- VERIFY CONSTRAINTS
@@ -342,7 +342,7 @@ build key cache depsMVar pkg (Solver.Details vsn _) f fs =
         do
           Reporting.report key Reporting.DBroken
           return $ Left $ Just $ Exit.BD_BadBuild pkg vsn f
-      Right (Outline.Pkg (Outline.PkgOutline _ _ _ _ exposed deps _)) ->
+      Right (Outline.Pkg (Outline.PkgOutline _ _ _ _ exposed deps _ _)) ->
         do
           allDeps <- readMVar depsMVar
           directDeps <- traverse readMVar (Map.intersection allDeps deps)

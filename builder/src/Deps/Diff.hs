@@ -297,7 +297,7 @@ getDocs cache pkg vsn =
 
         outline <- Task.eio (const Exit.DP_Cache) $ Outline.read home
         case outline of
-          (Outline.Pkg (Outline.PkgOutline _ _ _ _ exposed _ _)) ->
+          (Outline.Pkg (Outline.PkgOutline _ _ _ _ exposed _ _ _)) ->
             case Outline.flattenExposed exposed of
               [] ->
                 Task.throw Exit.DP_Cache

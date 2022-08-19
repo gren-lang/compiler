@@ -8,6 +8,7 @@ module Gren.Outline
     PkgOutline (..),
     Exposed (..),
     SrcDir (..),
+    Platform (..),
     read,
     write,
     encode,
@@ -53,6 +54,7 @@ data Outline
 
 data AppOutline = AppOutline
   { _app_gren_version :: V.Version,
+    _app_platform :: Platform,
     _app_source_dirs :: NE.List SrcDir,
     _app_deps_direct :: Map.Map Pkg.Name V.Version,
     _app_deps_indirect :: Map.Map Pkg.Name V.Version
@@ -65,7 +67,8 @@ data PkgOutline = PkgOutline
     _pkg_version :: V.Version,
     _pkg_exposed :: Exposed,
     _pkg_deps :: Map.Map Pkg.Name Con.Constraint,
-    _pkg_gren_version :: Con.Constraint
+    _pkg_gren_version :: Con.Constraint,
+    _pkg_platform :: Platform
   }
 
 data Exposed
@@ -75,6 +78,11 @@ data Exposed
 data SrcDir
   = AbsoluteSrcDir FilePath
   | RelativeSrcDir FilePath
+
+data Platform
+  = Common
+  | Browser
+  | Node
 
 -- DEFAULTS
 
@@ -103,9 +111,10 @@ write root outline =
 encode :: Outline -> E.Value
 encode outline =
   case outline of
-    App (AppOutline gren srcDirs depsDirect depsTrans) ->
+    App (AppOutline gren platform srcDirs depsDirect depsTrans) ->
       E.object
         [ "type" ==> E.chars "application",
+          "platform" ==> encodePlatform platform,
           "source-directories" ==> E.list encodeSrcDir (NE.toList srcDirs),
           "gren-version" ==> V.encode gren,
           "dependencies"
@@ -114,9 +123,10 @@ encode outline =
                 "indirect" ==> encodeDeps V.encode depsTrans
               ]
         ]
-    Pkg (PkgOutline name summary license version exposed deps gren) ->
+    Pkg (PkgOutline name summary license version exposed deps gren platform) ->
       E.object
         [ "type" ==> E.string (Json.fromChars "package"),
+          "platform" ==> encodePlatform platform,
           "name" ==> Pkg.encode name,
           "summary" ==> E.string summary,
           "license" ==> Licenses.encode license,
@@ -148,6 +158,13 @@ encodeSrcDir srcDir =
     AbsoluteSrcDir dir -> E.chars dir
     RelativeSrcDir dir -> E.chars dir
 
+encodePlatform :: Platform -> E.Value
+encodePlatform platform =
+  case platform of
+    Common -> E.chars "common"
+    Browser -> E.chars "browser"
+    Node -> E.chars "node"
+
 -- PARSE AND VERIFY
 
 read :: FilePath -> IO (Either Exit.Outline Outline)
@@ -159,12 +176,12 @@ read root =
         return $ Left (Exit.OutlineHasBadStructure err)
       Right outline ->
         case outline of
-          Pkg (PkgOutline pkg _ _ _ _ deps _) ->
+          Pkg (PkgOutline pkg _ _ _ _ deps _ _) ->
             return $
               if Map.notMember Pkg.core deps && pkg /= Pkg.core
                 then Left Exit.OutlineNoPkgCore
                 else Right outline
-          App (AppOutline _ srcDirs direct _)
+          App (AppOutline _ _ srcDirs direct _)
             | Map.notMember Pkg.core direct ->
                 return $ Left Exit.OutlineNoAppCore
             | otherwise ->
@@ -226,7 +243,7 @@ isDup paths =
 sourceDirs :: Outline -> NE.List SrcDir
 sourceDirs outline =
   case outline of
-    App (AppOutline _ srcDirs _ _) ->
+    App (AppOutline _ _ srcDirs _ _) ->
       srcDirs
     Pkg _ ->
       NE.singleton (RelativeSrcDir "src")
@@ -255,6 +272,7 @@ appDecoder :: Decoder AppOutline
 appDecoder =
   AppOutline
     <$> D.field "gren-version" versionDecoder
+    <*> D.field "platform" platformDecoder
     <*> D.field "source-directories" dirsDecoder
     <*> D.field "dependencies" (D.field "direct" (depsDecoder versionDecoder))
     <*> D.field "dependencies" (D.field "indirect" (depsDecoder versionDecoder))
@@ -269,6 +287,7 @@ pkgDecoder =
     <*> D.field "exposed-modules" exposedDecoder
     <*> D.field "dependencies" (depsDecoder constraintDecoder)
     <*> D.field "gren-version" constraintDecoder
+    <*> D.field "platform" platformDecoder
 
 -- JSON DECODE HELPERS
 
@@ -289,6 +308,19 @@ versionDecoder =
 constraintDecoder :: Decoder Con.Constraint
 constraintDecoder =
   D.mapError Exit.OP_BadConstraint Con.decoder
+
+platformDecoder :: Decoder Platform
+platformDecoder =
+  let common = Json.fromChars "common"
+      browser = Json.fromChars "browser"
+      node = Json.fromChars "node"
+   in do
+        platform <- D.string
+        if
+            | platform == common -> D.succeed Common
+            | platform == browser -> D.succeed Browser
+            | platform == node -> D.succeed Node
+            | otherwise -> D.failure Exit.OP_BadPlatform
 
 depsDecoder :: Decoder a -> Decoder (Map.Map Pkg.Name a)
 depsDecoder valueDecoder =

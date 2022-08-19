@@ -114,6 +114,7 @@ pkgOutline deps =
       (Outline.ExposedList [])
       deps
       Con.defaultGren
+      Outline.Browser
 
 appOutlineFromSolverDetails :: (Map.Map Pkg.Name Solver.Details) -> Outline.Outline
 appOutlineFromSolverDetails details =
@@ -124,6 +125,7 @@ appOutlineFromSolverDetails details =
    in Outline.App $
         Outline.AppOutline
           V.compiler
+          Outline.Browser
           (NE.List (Outline.RelativeSrcDir "src") [])
           directs
           indirects

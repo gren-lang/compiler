@@ -523,6 +523,7 @@ getRoot =
                     (Outline.ExposedList [])
                     compatibleDeps
                     C.defaultGren
+                    Outline.Browser
 
               return root
 
