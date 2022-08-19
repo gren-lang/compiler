@@ -25,7 +25,8 @@ import System.Directory qualified as Dir
 import Prelude hiding (init)
 
 data Flags = Flags
-  { _isPackage :: Bool
+  { _isPackage :: Bool,
+    _platform :: Maybe Platform.Platform
   }
 
 -- RUN
