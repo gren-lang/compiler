@@ -8,7 +8,6 @@ module Gren.Outline
     PkgOutline (..),
     Exposed (..),
     SrcDir (..),
-    Platform (..),
     read,
     write,
     encode,
@@ -34,6 +33,7 @@ import Gren.Constraint qualified as Con
 import Gren.Licenses qualified as Licenses
 import Gren.ModuleName qualified as ModuleName
 import Gren.Package qualified as Pkg
+import Gren.Platform qualified as Platform
 import Gren.Version qualified as V
 import Json.Decode qualified as D
 import Json.Encode ((==>))
@@ -54,7 +54,7 @@ data Outline
 
 data AppOutline = AppOutline
   { _app_gren_version :: V.Version,
-    _app_platform :: Platform,
+    _app_platform :: Platform.Platform,
     _app_source_dirs :: NE.List SrcDir,
     _app_deps_direct :: Map.Map Pkg.Name V.Version,
     _app_deps_indirect :: Map.Map Pkg.Name V.Version
@@ -68,7 +68,7 @@ data PkgOutline = PkgOutline
     _pkg_exposed :: Exposed,
     _pkg_deps :: Map.Map Pkg.Name Con.Constraint,
     _pkg_gren_version :: Con.Constraint,
-    _pkg_platform :: Platform
+    _pkg_platform :: Platform.Platform
   }
 
 data Exposed
@@ -78,11 +78,6 @@ data Exposed
 data SrcDir
   = AbsoluteSrcDir FilePath
   | RelativeSrcDir FilePath
-
-data Platform
-  = Common
-  | Browser
-  | Node
 
 -- DEFAULTS
 
@@ -114,7 +109,7 @@ encode outline =
     App (AppOutline gren platform srcDirs depsDirect depsTrans) ->
       E.object
         [ "type" ==> E.chars "application",
-          "platform" ==> encodePlatform platform,
+          "platform" ==> Platform.encode platform,
           "source-directories" ==> E.list encodeSrcDir (NE.toList srcDirs),
           "gren-version" ==> V.encode gren,
           "dependencies"
@@ -126,7 +121,7 @@ encode outline =
     Pkg (PkgOutline name summary license version exposed deps gren platform) ->
       E.object
         [ "type" ==> E.string (Json.fromChars "package"),
-          "platform" ==> encodePlatform platform,
+          "platform" ==> Platform.encode platform,
           "name" ==> Pkg.encode name,
           "summary" ==> E.string summary,
           "license" ==> Licenses.encode license,
@@ -157,13 +152,6 @@ encodeSrcDir srcDir =
   case srcDir of
     AbsoluteSrcDir dir -> E.chars dir
     RelativeSrcDir dir -> E.chars dir
-
-encodePlatform :: Platform -> E.Value
-encodePlatform platform =
-  case platform of
-    Common -> E.chars "common"
-    Browser -> E.chars "browser"
-    Node -> E.chars "node"
 
 -- PARSE AND VERIFY
 
@@ -272,7 +260,7 @@ appDecoder :: Decoder AppOutline
 appDecoder =
   AppOutline
     <$> D.field "gren-version" versionDecoder
-    <*> D.field "platform" platformDecoder
+    <*> D.field "platform" Platform.decoder
     <*> D.field "source-directories" dirsDecoder
     <*> D.field "dependencies" (D.field "direct" (depsDecoder versionDecoder))
     <*> D.field "dependencies" (D.field "indirect" (depsDecoder versionDecoder))
@@ -287,7 +275,7 @@ pkgDecoder =
     <*> D.field "exposed-modules" exposedDecoder
     <*> D.field "dependencies" (depsDecoder constraintDecoder)
     <*> D.field "gren-version" constraintDecoder
-    <*> D.field "platform" platformDecoder
+    <*> D.field "platform" Platform.decoder
 
 -- JSON DECODE HELPERS
 
@@ -308,19 +296,6 @@ versionDecoder =
 constraintDecoder :: Decoder Con.Constraint
 constraintDecoder =
   D.mapError Exit.OP_BadConstraint Con.decoder
-
-platformDecoder :: Decoder Platform
-platformDecoder =
-  let common = Json.fromChars "common"
-      browser = Json.fromChars "browser"
-      node = Json.fromChars "node"
-   in do
-        platform <- D.string
-        if
-            | platform == common -> D.succeed Common
-            | platform == browser -> D.succeed Browser
-            | platform == node -> D.succeed Node
-            | otherwise -> D.failure Exit.OP_BadPlatform
 
 depsDecoder :: Decoder a -> Decoder (Map.Map Pkg.Name a)
 depsDecoder valueDecoder =

@@ -26,6 +26,7 @@ import File qualified
 import Gren.Constraint qualified as C
 import Gren.Outline qualified as Outline
 import Gren.Package qualified as Pkg
+import Gren.Platform qualified as Platform
 import Gren.Version qualified as V
 import Json.Decode qualified as D
 import Reporting.Exit qualified as Exit
@@ -68,7 +69,7 @@ data Details
 
 verify ::
   Dirs.PackageCache ->
-  Outline.Platform ->
+  Platform.Platform ->
   Map.Map Pkg.Name C.Constraint ->
   IO (Result (Map.Map Pkg.Name Details))
 verify cache rootPlatform constraints =
@@ -145,14 +146,14 @@ getTransitive constraints solution unvisited visited =
 
 -- TRY
 
-try :: Outline.Platform -> Map.Map Pkg.Name C.Constraint -> Solver (Map.Map Pkg.Name V.Version)
+try :: Platform.Platform -> Map.Map Pkg.Name C.Constraint -> Solver (Map.Map Pkg.Name V.Version)
 try rootPlatform constraints =
   exploreGoals (Goals (NE.List rootPlatform []) constraints Map.empty)
 
 -- EXPLORE GOALS
 
 data Goals = Goals
-  { _compatible_platforms :: NE.List Outline.Platform,
+  { _compatible_platforms :: NE.List Platform.Platform,
     _pending :: Map.Map Pkg.Name C.Constraint,
     _solved :: Map.Map Pkg.Name V.Version
   }

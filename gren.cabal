@@ -85,6 +85,7 @@ Common gren-common
 
         -- Gren things
         Gren.Outline
+        Gren.Platform
         Gren.Details
         --
         Gren.Compiler.Imports

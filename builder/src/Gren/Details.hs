@@ -43,6 +43,7 @@ import Gren.Kernel qualified as Kernel
 import Gren.ModuleName qualified as ModuleName
 import Gren.Outline qualified as Outline
 import Gren.Package qualified as Pkg
+import Gren.Platform qualified as Platform
 import Gren.Version qualified as V
 import Json.Encode qualified as E
 import Parse.Module qualified as Parse
@@ -212,7 +213,7 @@ checkAppDeps (Outline.AppOutline _ _ _ direct indirect) =
 
 verifyConstraints ::
   Env ->
-  Outline.Platform ->
+  Platform.Platform ->
   Map.Map Pkg.Name Con.Constraint ->
   Task (Map.Map Pkg.Name Solver.Details)
 verifyConstraints (Env _ _ _ cache) rootPlatform constraints =

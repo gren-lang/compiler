@@ -15,6 +15,7 @@ import Gren.Constraint qualified as Con
 import Gren.Licenses qualified as Licenses
 import Gren.Outline qualified as Outline
 import Gren.Package qualified as Pkg
+import Gren.Platform qualified as Platform
 import Gren.Version qualified as V
 import Json.String qualified as Json
 import Reporting qualified
@@ -85,7 +86,7 @@ init flags =
         return $ Left $ Exit.InitNoCompatibleDependencies $ Just gitError
       Right deps -> do
         -- TODO: Make root platform customizable
-        result <- Solver.verify cache Outline.Browser deps
+        result <- Solver.verify cache Platform.Browser deps
         case result of
           Solver.Err exit ->
             return (Left (Exit.InitSolverProblem exit))
@@ -115,7 +116,7 @@ pkgOutline deps =
       (Outline.ExposedList [])
       deps
       Con.defaultGren
-      Outline.Browser
+      Platform.Browser
 
 appOutlineFromSolverDetails :: (Map.Map Pkg.Name Solver.Details) -> Outline.Outline
 appOutlineFromSolverDetails details =
@@ -126,7 +127,7 @@ appOutlineFromSolverDetails details =
    in Outline.App $
         Outline.AppOutline
           V.compiler
-          Outline.Browser
+          Platform.Browser
           (NE.List (Outline.RelativeSrcDir "src") [])
           directs
           indirects
