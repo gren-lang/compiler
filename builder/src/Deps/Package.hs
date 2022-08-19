@@ -1,7 +1,10 @@
 module Deps.Package
   ( getVersions,
+    --
+    LatestCompatibleVersionError (..),
     latestCompatibleVersion,
     latestCompatibleVersionForPackages,
+    --
     bumpPossibilities,
     installPackageVersion,
   )
@@ -26,7 +29,14 @@ getVersions name =
 
 -- GET LATEST COMPATIBLE VERSION
 
-latestCompatibleVersion :: Dirs.PackageCache -> Pkg.Name -> IO (Either () V.Version)
+data LatestCompatibleVersionError
+  = NoCompatiblePackage
+  | GitError Git.Error
+
+latestCompatibleVersion ::
+  Dirs.PackageCache ->
+  Pkg.Name ->
+  IO (Either LatestCompatibleVersionError V.Version)
 latestCompatibleVersion cache name = do
   versionsResult <- getVersions name
   case versionsResult of
@@ -36,11 +46,11 @@ latestCompatibleVersion cache name = do
             potentiallyCompatibleVersion <- getCompatibleVersion cache name versionsHighToLow
             case potentiallyCompatibleVersion of
               Nothing ->
-                return $ Left ()
+                return $ Left NoCompatiblePackage
               Just v ->
                 return $ Right v
-    Left _ ->
-      return $ Left ()
+    Left gitError ->
+      return $ Left $ GitError gitError
 
 getCompatibleVersion :: Dirs.PackageCache -> Pkg.Name -> [V.Version] -> IO (Maybe V.Version)
 getCompatibleVersion cache name versions =
@@ -68,7 +78,7 @@ getCompatibleVersion cache name versions =
 latestCompatibleVersionForPackages ::
   Dirs.PackageCache ->
   [Pkg.Name] ->
-  IO (Either () (Map.Map Pkg.Name C.Constraint))
+  IO (Either LatestCompatibleVersionError (Map.Map Pkg.Name C.Constraint))
 latestCompatibleVersionForPackages cache pkgs =
   latestCompatibleVersionForPackagesHelp cache pkgs Map.empty
 
@@ -76,15 +86,15 @@ latestCompatibleVersionForPackagesHelp ::
   Dirs.PackageCache ->
   [Pkg.Name] ->
   Map.Map Pkg.Name C.Constraint ->
-  IO (Either () (Map.Map Pkg.Name C.Constraint))
+  IO (Either LatestCompatibleVersionError (Map.Map Pkg.Name C.Constraint))
 latestCompatibleVersionForPackagesHelp cache pkgs result =
   case pkgs of
     [] -> return $ Right result
     pkg : rest -> do
       possibleVersion <- latestCompatibleVersion cache pkg
       case possibleVersion of
-        Left _ ->
-          return $ Left ()
+        Left err ->
+          return $ Left err
         Right vsn ->
           let newResult = Map.insert pkg (C.untilNextMajor vsn) result
            in latestCompatibleVersionForPackagesHelp cache rest newResult

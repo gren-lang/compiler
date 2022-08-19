@@ -215,8 +215,12 @@ makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ _ direct indire
                     Dirs.withRegistryLock cache $
                       DPkg.latestCompatibleVersion cache pkg
                 case compatibleVersionResult of
-                  Left () ->
+                  Left DPkg.NoCompatiblePackage ->
                     Task.throw $ Exit.InstallNoCompatiblePkg pkg
+                  Left (DPkg.GitError gitError) ->
+                    Task.throw $
+                      Exit.InstallHadSolverTrouble $
+                        Exit.SolverBadGitOperationUnversionedPkg pkg gitError
                   Right compatibleVersion -> do
                     result <- Task.io $ Solver.addToApp cache pkg compatibleVersion outline
                     case result of
@@ -252,8 +256,12 @@ makePkgPlan (Solver.Env cache) pkg outline@(Outline.PkgOutline _ _ _ _ _ deps te
               Dirs.withRegistryLock cache $
                 DPkg.latestCompatibleVersion cache pkg
           case compatibleVersionResult of
-            Left () ->
+            Left DPkg.NoCompatiblePackage ->
               Task.throw $ Exit.InstallNoCompatiblePkg pkg
+            Left (DPkg.GitError gitError) ->
+              Task.throw $
+                Exit.InstallHadSolverTrouble $
+                  Exit.SolverBadGitOperationUnversionedPkg pkg gitError
             Right compatibleVersion -> do
               let old = Map.union deps test
               let cons = Map.insert pkg (C.untilNextMajor compatibleVersion) old

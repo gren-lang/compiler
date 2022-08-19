@@ -85,6 +85,7 @@ data Init
   | InitNoOfflineSolution [Pkg.Name]
   | InitSolverProblem Solver
   | InitAlreadyExists
+  | InitNoCompatibleDependencies (Maybe Git.Error)
 
 initToReport :: Init -> Help.Report
 initToReport exit =
@@ -137,6 +138,20 @@ initToReport exit =
               "next?"
             ]
         ]
+    InitNoCompatibleDependencies Nothing ->
+      Help.report
+        "NO COMPATIBLE DEPENDENCIES"
+        Nothing
+        "I failed to find versions of the core packages which are compatible with your current\
+        \ Gren compiler. "
+        [ D.reflow "Maybe you need to update the compiler?"
+        ]
+    InitNoCompatibleDependencies (Just gitError) ->
+      toGitErrorReport
+        "FAILED TO LOAD DEPENDENCIES"
+        gitError
+        "I tried to find the latest compatible versions of some core packages, but failed\
+        \ due to a problem with Git. I use Git to download external dependencies from Github."
 
 -- DIFF
 

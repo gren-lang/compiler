@@ -79,8 +79,10 @@ init flags =
       Dirs.withRegistryLock cache $
         DPkg.latestCompatibleVersionForPackages cache initialDeps
     case potentialDeps of
-      Left () ->
-        return $ Left $ Exit.InitNoSolution initialDeps
+      Left DPkg.NoCompatiblePackage ->
+        return $ Left $ Exit.InitNoCompatibleDependencies Nothing
+      Left (DPkg.GitError gitError) ->
+        return $ Left $ Exit.InitNoCompatibleDependencies $ Just gitError
       Right deps -> do
         result <- Solver.verify cache deps
         case result of

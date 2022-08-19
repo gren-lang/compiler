@@ -510,7 +510,7 @@ getRoot =
             Dirs.withRegistryLock packageCache $
               DPkg.latestCompatibleVersionForPackages packageCache defaultDeps
           case potentialDeps of
-            Left () ->
+            Left _ ->
               error "Failed to find compatible dependencies for this Gren version."
             Right compatibleDeps -> do
               Outline.write root $
