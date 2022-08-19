@@ -6,7 +6,6 @@ module Init
   )
 where
 
-import Data.Either qualified as Either
 import Data.Map qualified as Map
 import Data.NonEmptyList qualified as NE
 import Deps.Package qualified as DPkg
@@ -76,35 +75,31 @@ init flags =
             then pkgDefaultDeps
             else appDefaultDeps
     (Solver.Env cache) <- Solver.initEnv
-    depsM <- mapM (compatibleDependencies cache) initialDeps
-    let deps = Map.fromList $ Either.rights depsM
-    result <- Solver.verify cache deps
-    case result of
-      Solver.Err exit ->
-        return (Left (Exit.InitSolverProblem exit))
-      Solver.NoSolution ->
-        return (Left (Exit.InitNoSolution initialDeps))
-      Solver.NoOfflineSolution ->
-        return (Left (Exit.InitNoOfflineSolution initialDeps))
-      Solver.Ok details ->
-        let outline =
-              if _isPackage flags
-                then pkgOutline deps
-                else appOutlineFromSolverDetails details
-         in do
-              Dir.createDirectoryIfMissing True "src"
-              Outline.write "." outline
-              putStrLn "Okay, I created it."
-              return (Right ())
-
-compatibleDependencies :: Dirs.PackageCache -> Pkg.Name -> IO (Either () (Pkg.Name, Con.Constraint))
-compatibleDependencies cache pkgName = do
-  possibleVersion <- DPkg.getLatestCompatibleVersion cache pkgName
-  case possibleVersion of
-    Left _ ->
-      return $ Left ()
-    Right vsn ->
-      return $ Right (pkgName, Con.untilNextMajor vsn)
+    potentialDeps <-
+      Dirs.withRegistryLock cache $
+        DPkg.latestCompatibleVersionForPackages cache initialDeps
+    case potentialDeps of
+      Left () ->
+        return $ Left $ Exit.InitNoSolution initialDeps
+      Right deps -> do
+        result <- Solver.verify cache deps
+        case result of
+          Solver.Err exit ->
+            return (Left (Exit.InitSolverProblem exit))
+          Solver.NoSolution ->
+            return (Left (Exit.InitNoSolution initialDeps))
+          Solver.NoOfflineSolution ->
+            return (Left (Exit.InitNoOfflineSolution initialDeps))
+          Solver.Ok details ->
+            let outline =
+                  if _isPackage flags
+                    then pkgOutline deps
+                    else appOutlineFromSolverDetails details
+             in do
+                  Dir.createDirectoryIfMissing True "src"
+                  Outline.write "." outline
+                  putStrLn "Okay, I created it."
+                  return (Right ())
 
 pkgOutline :: Map.Map Pkg.Name Con.Constraint -> Outline.Outline
 pkgOutline deps =

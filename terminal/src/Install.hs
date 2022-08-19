@@ -210,7 +210,10 @@ makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ _ direct indire
                           Outline._app_test_indirect = Map.delete pkg testIndirect
                         }
               Nothing -> do
-                compatibleVersionResult <- Task.io $ DPkg.getLatestCompatibleVersion cache pkg
+                compatibleVersionResult <-
+                  Task.io $
+                    Dirs.withRegistryLock cache $
+                      DPkg.getLatestCompatibleVersion cache pkg
                 case compatibleVersionResult of
                   Left () ->
                     Task.throw $ Exit.InstallNoCompatiblePkg pkg
@@ -244,7 +247,10 @@ makePkgPlan (Solver.Env cache) pkg outline@(Outline.PkgOutline _ _ _ _ _ deps te
                 }
       Nothing ->
         do
-          compatibleVersionResult <- Task.io $ DPkg.getLatestCompatibleVersion cache pkg
+          compatibleVersionResult <-
+            Task.io $
+              Dirs.withRegistryLock cache $
+                DPkg.getLatestCompatibleVersion cache pkg
           case compatibleVersionResult of
             Left () ->
               Task.throw $ Exit.InstallNoCompatiblePkg pkg

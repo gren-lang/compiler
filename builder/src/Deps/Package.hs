@@ -1,12 +1,14 @@
 module Deps.Package
   ( getVersions,
     getLatestCompatibleVersion,
+    latestCompatibleVersionForPackages,
     bumpPossibilities,
     installPackageVersion,
   )
 where
 
 import Data.List qualified as List
+import Data.Map qualified as Map
 import Directories qualified as Dirs
 import Git qualified
 import Gren.Constraint qualified as C
@@ -60,6 +62,32 @@ getCompatibleVersion cache name versions =
                 else getCompatibleVersion cache name rest
             _ ->
               getCompatibleVersion cache name rest
+
+-- LATEST COMPATIBLE VERSION FOR PACKAGES
+
+latestCompatibleVersionForPackages ::
+  Dirs.PackageCache ->
+  [Pkg.Name] ->
+  IO (Either () (Map.Map Pkg.Name C.Constraint))
+latestCompatibleVersionForPackages cache pkgs =
+  latestCompatibleVersionForPackagesHelp cache pkgs Map.empty
+
+latestCompatibleVersionForPackagesHelp ::
+  Dirs.PackageCache ->
+  [Pkg.Name] ->
+  Map.Map Pkg.Name C.Constraint ->
+  IO (Either () (Map.Map Pkg.Name C.Constraint))
+latestCompatibleVersionForPackagesHelp cache pkgs result =
+  case pkgs of
+    [] -> return $ Right result
+    pkg : rest -> do
+      possibleVersion <- getLatestCompatibleVersion cache pkg
+      case possibleVersion of
+        Left _ ->
+          return $ Left ()
+        Right vsn ->
+          let newResult = Map.insert pkg (C.untilNextMajor vsn) result
+           in latestCompatibleVersionForPackagesHelp cache rest newResult
 
 -- GET POSSIBILITIES
 
