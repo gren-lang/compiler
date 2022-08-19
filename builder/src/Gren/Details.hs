@@ -184,21 +184,21 @@ initEnv key scope root =
 type Task a = Task.Task Exit.Details a
 
 verifyPkg :: Env -> File.Time -> Outline.PkgOutline -> Task Details
-verifyPkg env time (Outline.PkgOutline pkg _ _ _ exposed direct gren _) =
+verifyPkg env time (Outline.PkgOutline pkg _ _ _ exposed direct gren rootPlatform) =
   if Con.goodGren gren
     then do
-      solution <- verifyConstraints env (Map.map (Con.exactly . Con.lowerBound) direct)
+      solution <- verifyConstraints env rootPlatform (Map.map (Con.exactly . Con.lowerBound) direct)
       let exposedList = Outline.flattenExposed exposed
       let exactDeps = Map.map (\(Solver.Details v _) -> v) solution -- for pkg docs in reactor
       verifyDependencies env time (ValidPkg pkg exposedList exactDeps) solution direct
     else Task.throw $ Exit.DetailsBadGrenInPkg gren
 
 verifyApp :: Env -> File.Time -> Outline.AppOutline -> Task Details
-verifyApp env time outline@(Outline.AppOutline grenVersion _ srcDirs direct _) =
+verifyApp env time outline@(Outline.AppOutline grenVersion rootPlatform srcDirs direct _) =
   if grenVersion == V.compiler
     then do
       stated <- checkAppDeps outline
-      actual <- verifyConstraints env (Map.map Con.exactly stated)
+      actual <- verifyConstraints env rootPlatform (Map.map Con.exactly stated)
       if Map.size stated == Map.size actual
         then verifyDependencies env time (ValidApp srcDirs) actual direct
         else Task.throw Exit.DetailsHandEditedDependencies
@@ -210,10 +210,14 @@ checkAppDeps (Outline.AppOutline _ _ _ direct indirect) =
 
 -- VERIFY CONSTRAINTS
 
-verifyConstraints :: Env -> Map.Map Pkg.Name Con.Constraint -> Task (Map.Map Pkg.Name Solver.Details)
-verifyConstraints (Env _ _ _ cache) constraints =
+verifyConstraints ::
+  Env ->
+  Outline.Platform ->
+  Map.Map Pkg.Name Con.Constraint ->
+  Task (Map.Map Pkg.Name Solver.Details)
+verifyConstraints (Env _ _ _ cache) rootPlatform constraints =
   do
-    result <- Task.io $ Solver.verify cache constraints
+    result <- Task.io $ Solver.verify cache rootPlatform constraints
     case result of
       Solver.Ok details -> return details
       Solver.NoSolution -> Task.throw $ Exit.DetailsNoSolution

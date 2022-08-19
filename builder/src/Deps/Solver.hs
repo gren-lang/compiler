@@ -19,6 +19,7 @@ where
 import Control.Monad (foldM)
 import Data.Map ((!))
 import Data.Map qualified as Map
+import Data.NonEmptyList qualified as NE
 import Deps.Package qualified as Package
 import Directories qualified as Dirs
 import File qualified
@@ -65,10 +66,14 @@ data Result a
 data Details
   = Details V.Version (Map.Map Pkg.Name C.Constraint)
 
-verify :: Dirs.PackageCache -> Map.Map Pkg.Name C.Constraint -> IO (Result (Map.Map Pkg.Name Details))
-verify cache constraints =
+verify ::
+  Dirs.PackageCache ->
+  Outline.Platform ->
+  Map.Map Pkg.Name C.Constraint ->
+  IO (Result (Map.Map Pkg.Name Details))
+verify cache rootPlatform constraints =
   Dirs.withRegistryLock cache $
-    case try constraints of
+    case try rootPlatform constraints of
       Solver solver ->
         solver
           (State cache Map.empty)
@@ -90,13 +95,20 @@ data AppSolution = AppSolution
     _app :: Outline.AppOutline
   }
 
-addToApp :: Dirs.PackageCache -> Pkg.Name -> V.Version -> Outline.AppOutline -> IO (Result AppSolution)
-addToApp cache pkg compatibleVsn outline@(Outline.AppOutline _ _ _ direct indirect) =
+addToApp ::
+  Dirs.PackageCache ->
+  Pkg.Name ->
+  V.Version ->
+  Outline.AppOutline ->
+  IO (Result AppSolution)
+addToApp cache pkg compatibleVsn outline@(Outline.AppOutline _ rootPlatform _ direct indirect) =
   Dirs.withRegistryLock cache $
     let allDeps = Map.union direct indirect
 
         attempt toConstraint deps =
-          try (Map.insert pkg (C.untilNextMajor compatibleVsn) (Map.map toConstraint deps))
+          try
+            rootPlatform
+            (Map.insert pkg (C.untilNextMajor compatibleVsn) (Map.map toConstraint deps))
      in case oneOf
           (attempt C.exactly allDeps)
           [ attempt C.exactly direct,
@@ -133,37 +145,38 @@ getTransitive constraints solution unvisited visited =
 
 -- TRY
 
-try :: Map.Map Pkg.Name C.Constraint -> Solver (Map.Map Pkg.Name V.Version)
-try constraints =
-  exploreGoals (Goals constraints Map.empty)
+try :: Outline.Platform -> Map.Map Pkg.Name C.Constraint -> Solver (Map.Map Pkg.Name V.Version)
+try rootPlatform constraints =
+  exploreGoals (Goals (NE.List rootPlatform []) constraints Map.empty)
 
 -- EXPLORE GOALS
 
 data Goals = Goals
-  { _pending :: Map.Map Pkg.Name C.Constraint,
+  { _compatible_platforms :: NE.List Outline.Platform,
+    _pending :: Map.Map Pkg.Name C.Constraint,
     _solved :: Map.Map Pkg.Name V.Version
   }
 
 exploreGoals :: Goals -> Solver (Map.Map Pkg.Name V.Version)
-exploreGoals (Goals pending solved) =
+exploreGoals (Goals compatiblePlatforms pending solved) =
   case Map.minViewWithKey pending of
     Nothing ->
       return solved
     Just ((name, constraint), otherPending) ->
       do
-        let goals1 = Goals otherPending solved
+        let goals1 = Goals compatiblePlatforms otherPending solved
         let lowestVersion = C.lowerBound constraint
         goals2 <- addVersion goals1 name lowestVersion
         exploreGoals goals2
 
 addVersion :: Goals -> Pkg.Name -> V.Version -> Solver Goals
-addVersion (Goals pending solved) name version =
+addVersion (Goals compatiblePlatforms pending solved) name version =
   do
     (Constraints gren deps) <- getConstraints name version
     if C.goodGren gren
       then do
         newPending <- foldM (addConstraint solved) pending (Map.toList deps)
-        return (Goals newPending (Map.insert name version solved))
+        return (Goals compatiblePlatforms newPending (Map.insert name version solved))
       else backtrack
 
 addConstraint :: Map.Map Pkg.Name V.Version -> Map.Map Pkg.Name C.Constraint -> (Pkg.Name, C.Constraint) -> Solver (Map.Map Pkg.Name C.Constraint)

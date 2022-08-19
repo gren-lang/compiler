@@ -84,7 +84,8 @@ init flags =
       Left (DPkg.GitError gitError) ->
         return $ Left $ Exit.InitNoCompatibleDependencies $ Just gitError
       Right deps -> do
-        result <- Solver.verify cache deps
+        -- TODO: Make root platform customizable
+        result <- Solver.verify cache Outline.Browser deps
         case result of
           Solver.Err exit ->
             return (Left (Exit.InitSolverProblem exit))
