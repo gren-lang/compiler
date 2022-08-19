@@ -130,7 +130,7 @@ readOutline (Env maybeRoot _) =
             case outline of
               Outline.App _ ->
                 Task.throw Exit.DiffApplication
-              Outline.Pkg (Outline.PkgOutline pkg _ _ _ _ _ _) ->
+              Outline.Pkg (Outline.PkgOutline pkg _ _ _ _ _ _ _) ->
                 do
                   versionResult <- Task.io $ Package.getVersions pkg
                   case versionResult of

@@ -174,7 +174,7 @@ attemptChangesHelp root env oldOutline newOutline question =
 -- MAKE APP PLAN
 
 makeAppPlan :: Solver.Env -> Pkg.Name -> Outline.AppOutline -> Task (Changes V.Version)
-makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ _ direct indirect) =
+makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ _ _ direct indirect) =
   if Map.member pkg direct
     then return AlreadyInstalled
     else case Map.lookup pkg indirect of
@@ -213,7 +213,7 @@ makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ _ direct indire
 -- MAKE PACKAGE PLAN
 
 makePkgPlan :: Solver.Env -> Pkg.Name -> Outline.PkgOutline -> Task (Changes C.Constraint)
-makePkgPlan (Solver.Env cache) pkg outline@(Outline.PkgOutline _ _ _ _ _ deps _) =
+makePkgPlan (Solver.Env cache) pkg outline@(Outline.PkgOutline _ _ _ _ _ deps _ rootPlatform) =
   if Map.member pkg deps
     then return AlreadyInstalled
     else do
@@ -231,7 +231,7 @@ makePkgPlan (Solver.Env cache) pkg outline@(Outline.PkgOutline _ _ _ _ _ deps _)
         Right compatibleVersion -> do
           let old = deps
           let cons = Map.insert pkg (C.untilNextMajor compatibleVersion) old
-          result <- Task.io $ Solver.verify cache cons
+          result <- Task.io $ Solver.verify cache rootPlatform cons
           case result of
             Solver.Ok solution ->
               let (Solver.Details vsn _) = solution ! pkg

@@ -9,6 +9,7 @@ import Bump qualified
 import Data.List qualified as List
 import Diff qualified
 -- import qualified Format
+import Gren.Platform qualified as Platform
 import Gren.Version qualified as V
 import Init qualified
 import Install qualified
@@ -84,8 +85,19 @@ init =
 
       initFlags =
         flags Init.Flags
-          |-- onOff "package" "Create a package specific gren.json file."
+          |-- onOff "package" "Create a package (as opposed to an application)."
+          |-- flag "platform" initPlatformParser "Which platform to target"
    in Terminal.Command "init" (Common summary) details example noArgs initFlags Init.run
+
+initPlatformParser :: Parser Platform.Platform
+initPlatformParser =
+  Parser
+    { _singular = "platform",
+      _plural = "platforms",
+      _parser = Platform.fromString,
+      _suggest = \_ -> return ["common", "browser", "node"],
+      _examples = \_ -> return ["common", "browser", "node"]
+    }
 
 -- REPL
 

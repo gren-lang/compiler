@@ -64,7 +64,7 @@ publish env@(Env root _ outline) =
   case outline of
     Outline.App _ ->
       Task.throw Exit.PublishApplication
-    Outline.Pkg (Outline.PkgOutline pkg summary _ vsn exposed _ _) ->
+    Outline.Pkg (Outline.PkgOutline pkg summary _ vsn exposed _ _ _) ->
       do
         knownVersionsResult <- Task.io $ Package.getVersions pkg
         let knownVersionsMaybe = Either.either (const Nothing) Just knownVersionsResult

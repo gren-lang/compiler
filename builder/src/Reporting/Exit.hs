@@ -1177,6 +1177,7 @@ data OutlineProblem
   | OP_BadLicense Json.String [Json.String]
   | OP_BadSummaryTooLong
   | OP_NoSrcDirs
+  | OP_BadPlatform
 
 toOutlineReport :: Outline -> Help.Report
 toOutlineReport problem =
@@ -1685,6 +1686,26 @@ toOutlineProblemReport path source _ region problem =
                   "for",
                   "your",
                   "modules!"
+                ]
+            )
+        OP_BadPlatform ->
+          toSnippet
+            "UNKNOWN PLATFORM"
+            Nothing
+            ( D.reflow $
+                "I got stuck while reading your gren.json file. I don't recognize the \"platform\" value.",
+              D.fillSep
+                [ "It",
+                  "must",
+                  "be",
+                  "one",
+                  "of",
+                  D.green "\"common\"",
+                  ",",
+                  D.green "\"browser\"",
+                  "or",
+                  D.green "\"node\"",
+                  "."
                 ]
             )
 

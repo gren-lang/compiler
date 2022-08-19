@@ -43,6 +43,7 @@ import Gren.Kernel qualified as Kernel
 import Gren.ModuleName qualified as ModuleName
 import Gren.Outline qualified as Outline
 import Gren.Package qualified as Pkg
+import Gren.Platform qualified as Platform
 import Gren.Version qualified as V
 import Json.Encode qualified as E
 import Parse.Module qualified as Parse
@@ -184,35 +185,39 @@ initEnv key scope root =
 type Task a = Task.Task Exit.Details a
 
 verifyPkg :: Env -> File.Time -> Outline.PkgOutline -> Task Details
-verifyPkg env time (Outline.PkgOutline pkg _ _ _ exposed direct gren) =
+verifyPkg env time (Outline.PkgOutline pkg _ _ _ exposed direct gren rootPlatform) =
   if Con.goodGren gren
     then do
-      solution <- verifyConstraints env (Map.map (Con.exactly . Con.lowerBound) direct)
+      solution <- verifyConstraints env rootPlatform (Map.map (Con.exactly . Con.lowerBound) direct)
       let exposedList = Outline.flattenExposed exposed
       verifyDependencies env time (ValidPkg pkg exposedList) solution direct
     else Task.throw $ Exit.DetailsBadGrenInPkg gren
 
 verifyApp :: Env -> File.Time -> Outline.AppOutline -> Task Details
-verifyApp env time outline@(Outline.AppOutline grenVersion srcDirs direct _) =
+verifyApp env time outline@(Outline.AppOutline grenVersion rootPlatform srcDirs direct _) =
   if grenVersion == V.compiler
     then do
       stated <- checkAppDeps outline
-      actual <- verifyConstraints env (Map.map Con.exactly stated)
+      actual <- verifyConstraints env rootPlatform (Map.map Con.exactly stated)
       if Map.size stated == Map.size actual
         then verifyDependencies env time (ValidApp srcDirs) actual direct
         else Task.throw Exit.DetailsHandEditedDependencies
     else Task.throw $ Exit.DetailsBadGrenInAppOutline grenVersion
 
 checkAppDeps :: Outline.AppOutline -> Task (Map.Map Pkg.Name V.Version)
-checkAppDeps (Outline.AppOutline _ _ direct indirect) =
+checkAppDeps (Outline.AppOutline _ _ _ direct indirect) =
   union noDups direct indirect
 
 -- VERIFY CONSTRAINTS
 
-verifyConstraints :: Env -> Map.Map Pkg.Name Con.Constraint -> Task (Map.Map Pkg.Name Solver.Details)
-verifyConstraints (Env _ _ _ cache) constraints =
+verifyConstraints ::
+  Env ->
+  Platform.Platform ->
+  Map.Map Pkg.Name Con.Constraint ->
+  Task (Map.Map Pkg.Name Solver.Details)
+verifyConstraints (Env _ _ _ cache) rootPlatform constraints =
   do
-    result <- Task.io $ Solver.verify cache constraints
+    result <- Task.io $ Solver.verify cache rootPlatform constraints
     case result of
       Solver.Ok details -> return details
       Solver.NoSolution -> Task.throw $ Exit.DetailsNoSolution
@@ -341,7 +346,7 @@ build key cache depsMVar pkg (Solver.Details vsn _) f fs =
         do
           Reporting.report key Reporting.DBroken
           return $ Left $ Just $ Exit.BD_BadBuild pkg vsn f
-      Right (Outline.Pkg (Outline.PkgOutline _ _ _ _ exposed deps _)) ->
+      Right (Outline.Pkg (Outline.PkgOutline _ _ _ _ exposed deps _ _)) ->
         do
           allDeps <- readMVar depsMVar
           directDeps <- traverse readMVar (Map.intersection allDeps deps)

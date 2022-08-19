@@ -42,6 +42,7 @@ import Gren.Licenses qualified as Licenses
 import Gren.ModuleName qualified as ModuleName
 import Gren.Outline qualified as Outline
 import Gren.Package qualified as Pkg
+import Gren.Platform qualified as Platform
 import Gren.Version qualified as V
 import Parse.Declaration qualified as PD
 import Parse.Expression qualified as PE
@@ -523,6 +524,7 @@ getRoot =
                     (Outline.ExposedList [])
                     compatibleDeps
                     C.defaultGren
+                    Platform.Browser
 
               return root
 

@@ -20,6 +20,7 @@ module Json.Decode
     pairs,
     field,
     --
+    succeed,
     oneOf,
     failure,
     mapError,
@@ -278,6 +279,13 @@ findField key pairs =
       if key == B.PS fptr off len
         then Just value
         else findField key remainingPairs
+
+-- SUCCEED
+
+succeed :: a -> Decoder x a
+succeed value =
+  Decoder $ \_ ok _ ->
+    ok value
 
 -- ONE OF
 

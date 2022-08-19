@@ -59,7 +59,7 @@ getEnv =
 -- BUMP
 
 bump :: Env -> Task.Task Exit.Bump ()
-bump env@(Env root _ outline@(Outline.PkgOutline pkg _ _ vsn _ _ _)) =
+bump env@(Env root _ outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _)) =
   Task.eio id $
     do
       versionResult <- Package.getVersions pkg
@@ -82,7 +82,7 @@ bump env@(Env root _ outline@(Outline.PkgOutline pkg _ _ vsn _ _ _)) =
 -- CHECK NEW PACKAGE
 
 checkNewPackage :: FilePath -> Outline.PkgOutline -> IO ()
-checkNewPackage root outline@(Outline.PkgOutline _ _ _ version _ _ _) =
+checkNewPackage root outline@(Outline.PkgOutline _ _ _ version _ _ _ _) =
   do
     putStrLn Exit.newPackageOverview
     if version == V.one
@@ -97,7 +97,7 @@ checkNewPackage root outline@(Outline.PkgOutline _ _ _ version _ _ _) =
 -- SUGGEST VERSION
 
 suggestVersion :: Env -> Task.Task Exit.Bump ()
-suggestVersion (Env root cache outline@(Outline.PkgOutline pkg _ _ vsn _ _ _)) =
+suggestVersion (Env root cache outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _)) =
   do
     oldDocs <-
       Task.mapError
@@ -128,7 +128,7 @@ suggestVersion (Env root cache outline@(Outline.PkgOutline pkg _ _ vsn _ _ _)) =
                 <> ") in gren.json? [Y/n] "
 
 generateDocs :: FilePath -> Outline.PkgOutline -> Task.Task Exit.Bump Docs.Documentation
-generateDocs root (Outline.PkgOutline _ _ _ _ exposed _ _) =
+generateDocs root (Outline.PkgOutline _ _ _ _ exposed _ _ _) =
   do
     details <-
       Task.eio Exit.BumpBadDetails $
