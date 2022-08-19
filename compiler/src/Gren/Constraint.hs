@@ -4,7 +4,6 @@
 module Gren.Constraint
   ( Constraint,
     exactly,
-    anything,
     lowerBound,
     upperBound,
     toChars,
@@ -47,10 +46,6 @@ data Op
 exactly :: V.Version -> Constraint
 exactly version =
   Range version LessOrEqual LessOrEqual version
-
-anything :: Constraint
-anything =
-  Range V.one LessOrEqual LessOrEqual V.max
 
 -- EXTRACT VERSION
 

@@ -117,7 +117,7 @@ pkgOutline deps =
 appOutlineFromSolverDetails :: (Map.Map Pkg.Name Solver.Details) -> Outline.Outline
 appOutlineFromSolverDetails details =
   let solution = Map.map (\(Solver.Details vsn _) -> vsn) details
-      defaultDeps = Map.fromList $ map (\dep -> (dep, Con.anything)) appDefaultDeps
+      defaultDeps = Map.fromList $ map (\dep -> (dep, Con.exactly V.one)) appDefaultDeps
       directs = Map.intersection solution defaultDeps
       indirects = Map.difference solution defaultDeps
    in Outline.App $
