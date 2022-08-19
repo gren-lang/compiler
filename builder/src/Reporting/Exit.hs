@@ -863,6 +863,7 @@ data Install
   | InstallNoOnlinePkgSolution Pkg.Name
   | InstallNoOfflinePkgSolution Pkg.Name
   | InstallHadSolverTrouble Solver
+  | InstallNoCompatiblePkg Pkg.Name
   | InstallUnknownPackageOnline Pkg.Name [Pkg.Name]
   | InstallUnknownPackageOffline Pkg.Name [Pkg.Name]
   | InstallBadDetails Details
@@ -1060,6 +1061,18 @@ installToReport exit =
         ]
     InstallHadSolverTrouble solver ->
       toSolverReport solver
+    InstallNoCompatiblePkg pkg ->
+      Help.report
+        "CANNOT FIND COMPATIBLE VERSION"
+        (Just "gren.json")
+        ( "I cannot find a version of "
+            ++ Pkg.toChars pkg
+            ++ " that is compatible with your current Gren compiler."
+        )
+        [ D.reflow $
+            "You'll have to wait for the package to release a version with support for your\
+            \ current Gren compiler, or upgrade."
+        ]
     InstallUnknownPackageOnline pkg suggestions ->
       Help.docReport
         "UNKNOWN PACKAGE"

@@ -90,21 +90,20 @@ data AppSolution = AppSolution
     _app :: Outline.AppOutline
   }
 
-addToApp :: Dirs.PackageCache -> Pkg.Name -> Outline.AppOutline -> IO (Result AppSolution)
-addToApp cache pkg outline@(Outline.AppOutline _ _ direct indirect testDirect testIndirect) =
+addToApp :: Dirs.PackageCache -> Pkg.Name -> V.Version -> Outline.AppOutline -> IO (Result AppSolution)
+addToApp cache pkg compatibleVsn outline@(Outline.AppOutline _ _ direct indirect testDirect testIndirect) =
   Dirs.withRegistryLock cache $
     let allIndirects = Map.union indirect testIndirect
         allDirects = Map.union direct testDirect
         allDeps = Map.union allDirects allIndirects
 
         attempt toConstraint deps =
-          try (Map.insert pkg C.anything (Map.map toConstraint deps))
+          try (Map.insert pkg (C.untilNextMajor compatibleVsn) (Map.map toConstraint deps))
      in case oneOf
           (attempt C.exactly allDeps)
           [ attempt C.exactly allDirects,
             attempt C.untilNextMinor allDirects,
-            attempt C.untilNextMajor allDirects,
-            attempt (\_ -> C.anything) allDirects
+            attempt C.untilNextMajor allDirects
           ] of
           Solver solver ->
             solver
