@@ -91,19 +91,17 @@ data AppSolution = AppSolution
   }
 
 addToApp :: Dirs.PackageCache -> Pkg.Name -> V.Version -> Outline.AppOutline -> IO (Result AppSolution)
-addToApp cache pkg compatibleVsn outline@(Outline.AppOutline _ _ direct indirect testDirect testIndirect) =
+addToApp cache pkg compatibleVsn outline@(Outline.AppOutline _ _ direct indirect) =
   Dirs.withRegistryLock cache $
-    let allIndirects = Map.union indirect testIndirect
-        allDirects = Map.union direct testDirect
-        allDeps = Map.union allDirects allIndirects
+    let allDeps = Map.union direct indirect
 
         attempt toConstraint deps =
           try (Map.insert pkg (C.untilNextMajor compatibleVsn) (Map.map toConstraint deps))
      in case oneOf
           (attempt C.exactly allDeps)
-          [ attempt C.exactly allDirects,
-            attempt C.untilNextMinor allDirects,
-            attempt C.untilNextMajor allDirects
+          [ attempt C.exactly direct,
+            attempt C.untilNextMinor direct,
+            attempt C.untilNextMajor direct
           ] of
           Solver solver ->
             solver
@@ -113,12 +111,10 @@ addToApp cache pkg compatibleVsn outline@(Outline.AppOutline _ _ direct indirect
               (\e -> return $ Err e)
 
 toApp :: State -> Pkg.Name -> Outline.AppOutline -> Map.Map Pkg.Name V.Version -> Map.Map Pkg.Name V.Version -> AppSolution
-toApp (State _ constraints) pkg (Outline.AppOutline gren srcDirs direct _ testDirect _) old new =
+toApp (State _ constraints) pkg (Outline.AppOutline gren srcDirs direct _) old new =
   let d = Map.intersection new (Map.insert pkg V.one direct)
       i = Map.difference (getTransitive constraints new (Map.toList d) Map.empty) d
-      td = Map.intersection new (Map.delete pkg testDirect)
-      ti = Map.difference new (Map.unions [d, i, td])
-   in AppSolution old new (Outline.AppOutline gren srcDirs d i td ti)
+   in AppSolution old new (Outline.AppOutline gren srcDirs d i)
 
 getTransitive :: Map.Map (Pkg.Name, V.Version) Constraints -> Map.Map Pkg.Name V.Version -> [(Pkg.Name, V.Version)] -> Map.Map Pkg.Name V.Version -> Map.Map Pkg.Name V.Version
 getTransitive constraints solution unvisited visited =
@@ -226,7 +222,7 @@ constraintsDecoder =
   do
     outline <- D.mapError (const ()) Outline.decoder
     case outline of
-      Outline.Pkg (Outline.PkgOutline _ _ _ _ _ deps _ grenConstraint) ->
+      Outline.Pkg (Outline.PkgOutline _ _ _ _ _ deps grenConstraint) ->
         return (Constraints grenConstraint deps)
       Outline.App _ ->
         D.failure ()

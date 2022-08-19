@@ -522,7 +522,6 @@ getRoot =
                     V.one
                     (Outline.ExposedList [])
                     compatibleDeps
-                    Map.empty
                     C.defaultGren
 
               return root
