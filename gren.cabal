@@ -38,9 +38,9 @@ Flag dev {
 
 Common gren-common
     if flag(dev)
-        ghc-options: -O0 -Wall -Werror
+        ghc-options: -O0 -Wall
     else
-        ghc-options: -O2 -Wall -threaded "-with-rtsopts=-N"
+        ghc-options: -O2 -Wall -Werror -threaded "-with-rtsopts=-N"
 
     default-language: GHC2021
 
@@ -49,9 +49,6 @@ Common gren-common
         builder/src
         terminal/impl
         terminal/src
-
-    other-extensions:
-        TemplateHaskell
 
     other-modules:
         Bump
@@ -211,7 +208,8 @@ Common gren-common
         scientific,
         time >= 1.9.1,
         utf8-string,
-        vector
+        vector,
+        text >= 2 && < 3
 
 Executable gren
     Import:

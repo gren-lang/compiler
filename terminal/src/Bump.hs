@@ -59,10 +59,10 @@ getEnv =
 -- BUMP
 
 bump :: Env -> Task.Task Exit.Bump ()
-bump env@(Env root cache outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _)) =
+bump env@(Env root _ outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _)) =
   Task.eio id $
     do
-      versionResult <- Dirs.withRegistryLock cache $ Package.getVersions cache pkg
+      versionResult <- Package.getVersions pkg
       case versionResult of
         Right knownVersions ->
           let bumpableVersions =

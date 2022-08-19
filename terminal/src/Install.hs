@@ -10,6 +10,7 @@ import BackgroundWriter qualified as BW
 import Data.Map ((!))
 import Data.Map qualified as Map
 import Data.Map.Merge.Strict qualified as Map
+import Deps.Package qualified as DPkg
 import Deps.Solver qualified as Solver
 import Directories qualified as Dirs
 import Gren.Constraint qualified as C
@@ -208,18 +209,29 @@ makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ _ direct indire
                         { Outline._app_deps_direct = Map.insert pkg vsn direct,
                           Outline._app_test_indirect = Map.delete pkg testIndirect
                         }
-              Nothing ->
-                do
-                  result <- Task.io $ Solver.addToApp cache pkg outline
-                  case result of
-                    Solver.Ok (Solver.AppSolution old new app) ->
-                      return (Changes (detectChanges old new) (Outline.App app))
-                    Solver.NoSolution ->
-                      Task.throw (Exit.InstallNoOnlineAppSolution pkg)
-                    Solver.NoOfflineSolution ->
-                      Task.throw (Exit.InstallNoOfflineAppSolution pkg)
-                    Solver.Err exit ->
-                      Task.throw (Exit.InstallHadSolverTrouble exit)
+              Nothing -> do
+                compatibleVersionResult <-
+                  Task.io $
+                    Dirs.withRegistryLock cache $
+                      DPkg.latestCompatibleVersion cache pkg
+                case compatibleVersionResult of
+                  Left DPkg.NoCompatiblePackage ->
+                    Task.throw $ Exit.InstallNoCompatiblePkg pkg
+                  Left (DPkg.GitError gitError) ->
+                    Task.throw $
+                      Exit.InstallHadSolverTrouble $
+                        Exit.SolverBadGitOperationUnversionedPkg pkg gitError
+                  Right compatibleVersion -> do
+                    result <- Task.io $ Solver.addToApp cache pkg compatibleVersion outline
+                    case result of
+                      Solver.Ok (Solver.AppSolution old new app) ->
+                        return (Changes (detectChanges old new) (Outline.App app))
+                      Solver.NoSolution ->
+                        Task.throw (Exit.InstallNoOnlineAppSolution pkg)
+                      Solver.NoOfflineSolution ->
+                        Task.throw (Exit.InstallNoOfflineAppSolution pkg)
+                      Solver.Err exit ->
+                        Task.throw (Exit.InstallHadSolverTrouble exit)
 
 -- MAKE PACKAGE PLAN
 
@@ -239,30 +251,42 @@ makePkgPlan (Solver.Env cache) pkg outline@(Outline.PkgOutline _ _ _ _ _ deps te
                 }
       Nothing ->
         do
-          let old = Map.union deps test
-          let cons = Map.insert pkg C.anything old
-          result <- Task.io $ Solver.verify cache cons
-          case result of
-            Solver.Ok solution ->
-              let (Solver.Details vsn _) = solution ! pkg
+          compatibleVersionResult <-
+            Task.io $
+              Dirs.withRegistryLock cache $
+                DPkg.latestCompatibleVersion cache pkg
+          case compatibleVersionResult of
+            Left DPkg.NoCompatiblePackage ->
+              Task.throw $ Exit.InstallNoCompatiblePkg pkg
+            Left (DPkg.GitError gitError) ->
+              Task.throw $
+                Exit.InstallHadSolverTrouble $
+                  Exit.SolverBadGitOperationUnversionedPkg pkg gitError
+            Right compatibleVersion -> do
+              let old = Map.union deps test
+              let cons = Map.insert pkg (C.untilNextMajor compatibleVersion) old
+              result <- Task.io $ Solver.verify cache cons
+              case result of
+                Solver.Ok solution ->
+                  let (Solver.Details vsn _) = solution ! pkg
 
-                  con = C.untilNextMajor vsn
-                  new = Map.insert pkg con old
-                  changes = detectChanges old new
-                  news = Map.mapMaybe keepNew changes
-               in return $
-                    Changes changes $
-                      Outline.Pkg $
-                        outline
-                          { Outline._pkg_deps = addNews (Just pkg) news deps,
-                            Outline._pkg_test_deps = addNews Nothing news test
-                          }
-            Solver.NoSolution ->
-              Task.throw $ Exit.InstallNoOnlinePkgSolution pkg
-            Solver.NoOfflineSolution ->
-              Task.throw $ Exit.InstallNoOfflinePkgSolution pkg
-            Solver.Err exit ->
-              Task.throw $ Exit.InstallHadSolverTrouble exit
+                      con = C.untilNextMajor vsn
+                      new = Map.insert pkg con old
+                      changes = detectChanges old new
+                      news = Map.mapMaybe keepNew changes
+                   in return $
+                        Changes changes $
+                          Outline.Pkg $
+                            outline
+                              { Outline._pkg_deps = addNews (Just pkg) news deps,
+                                Outline._pkg_test_deps = addNews Nothing news test
+                              }
+                Solver.NoSolution ->
+                  Task.throw $ Exit.InstallNoOnlinePkgSolution pkg
+                Solver.NoOfflineSolution ->
+                  Task.throw $ Exit.InstallNoOfflinePkgSolution pkg
+                Solver.Err exit ->
+                  Task.throw $ Exit.InstallHadSolverTrouble exit
 
 addNews :: Maybe Pkg.Name -> Map.Map Pkg.Name C.Constraint -> Map.Map Pkg.Name C.Constraint -> Map.Map Pkg.Name C.Constraint
 addNews pkg new old =

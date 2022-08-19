@@ -85,6 +85,7 @@ data Init
   | InitNoOfflineSolution [Pkg.Name]
   | InitSolverProblem Solver
   | InitAlreadyExists
+  | InitNoCompatibleDependencies (Maybe Git.Error)
 
 initToReport :: Init -> Help.Report
 initToReport exit =
@@ -137,6 +138,20 @@ initToReport exit =
               "next?"
             ]
         ]
+    InitNoCompatibleDependencies Nothing ->
+      Help.report
+        "NO COMPATIBLE DEPENDENCIES"
+        Nothing
+        "I failed to find versions of the core packages which are compatible with your current\
+        \ Gren compiler. "
+        [ D.reflow "Maybe you need to update the compiler?"
+        ]
+    InitNoCompatibleDependencies (Just gitError) ->
+      toGitErrorReport
+        "FAILED TO LOAD DEPENDENCIES"
+        gitError
+        "I tried to find the latest compatible versions of some core packages, but failed\
+        \ due to a problem with Git. I use Git to download external dependencies from Github."
 
 -- DIFF
 
@@ -863,6 +878,7 @@ data Install
   | InstallNoOnlinePkgSolution Pkg.Name
   | InstallNoOfflinePkgSolution Pkg.Name
   | InstallHadSolverTrouble Solver
+  | InstallNoCompatiblePkg Pkg.Name
   | InstallUnknownPackageOnline Pkg.Name [Pkg.Name]
   | InstallUnknownPackageOffline Pkg.Name [Pkg.Name]
   | InstallBadDetails Details
@@ -1060,6 +1076,18 @@ installToReport exit =
         ]
     InstallHadSolverTrouble solver ->
       toSolverReport solver
+    InstallNoCompatiblePkg pkg ->
+      Help.report
+        "CANNOT FIND COMPATIBLE VERSION"
+        (Just "gren.json")
+        ( "I cannot find a version of "
+            ++ Pkg.toChars pkg
+            ++ " that is compatible with your current Gren compiler."
+        )
+        [ D.reflow $
+            "You'll have to wait for the package to release a version with support for your\
+            \ current Gren compiler, or upgrade."
+        ]
     InstallUnknownPackageOnline pkg suggestions ->
       Help.docReport
         "UNKNOWN PACKAGE"
@@ -1867,34 +1895,44 @@ toGitErrorReport :: String -> Git.Error -> String -> Help.Report
 toGitErrorReport title err context =
   let toGitReport intro details =
         Help.report title Nothing intro details
-
-      prettyPrintGitCommand maybePath args =
-        let suffix =
-              case maybePath of
-                Just path -> " in " ++ path
-                Nothing -> ""
-         in unwords args ++ suffix
    in case err of
         Git.MissingGit ->
           toGitReport
-            (context ++ ", I couldn't find a git binary.")
+            (context ++ ", but I couldn't find a git binary.")
             [ D.reflow
                 "I use git to clone dependencies from github.\
                 \ Make sure that git is installed and present in your PATH."
             ]
-        Git.FailedCommand maybePath args errorMsg ->
+        Git.NoVersions ->
           toGitReport
-            (context ++ ", so I tried to execute: " ++ prettyPrintGitCommand maybePath args)
-            [ D.reflow "But it returned the following error message:",
-              D.indent 4 $ D.reflow errorMsg
-            ]
-        Git.NoVersions _ ->
-          toGitReport
-            (context ++ ", no valid semantic version tags in this repo.")
+            (context ++ ", but I couldn't find any semver compatible tags in this repo.")
             [ D.reflow
                 "Gren packages are just git repositories with tags following the \
                 \ semantic versioning scheme. However, it seems that this particular repo \
                 \ doesn't have _any_ semantic version tags!"
+            ]
+        Git.NoSuchRepo ->
+          toGitReport
+            (context ++ ", but I couldn't find the repo on github.")
+            [ D.reflow
+                "Gren packages are just git repositories hosted on github, however \
+                \ it seems like this repo doesn't exist."
+            ]
+        Git.NoSuchRepoOrVersion vsn ->
+          toGitReport
+            (context ++ ", but I couldn't find the correct version of this package on github.")
+            [ D.reflow $
+                "Gren packages are just git repositories hosted on github with semver \
+                \ formatted tags. However, it seems like this package, or version "
+                  ++ V.toChars vsn
+                  ++ ", doesn't exist."
+            ]
+        Git.FailedCommand args errorMsg ->
+          toGitReport
+            (context ++ ", so I tried to execute:")
+            [ D.indent 4 $ D.reflow $ unwords args,
+              D.reflow "But it returned the following error message:",
+              D.indent 4 $ D.reflow errorMsg
             ]
 
 -- MAKE

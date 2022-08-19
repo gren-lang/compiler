@@ -33,6 +33,7 @@ import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Maybe qualified as Maybe
 import Data.Name qualified as N
+import Deps.Package qualified as DPkg
 import Directories qualified as Dirs
 import Generate qualified
 import Gren.Constraint qualified as C
@@ -504,26 +505,33 @@ getRoot =
           cache <- Dirs.getReplCache
           let root = cache </> "tmp"
           Dir.createDirectoryIfMissing True (root </> "src")
-          Outline.write root $
-            Outline.Pkg $
-              Outline.PkgOutline
-                Pkg.dummyName
-                Outline.defaultSummary
-                Licenses.bsd3
-                V.one
-                (Outline.ExposedList [])
-                defaultDeps
-                Map.empty
-                C.defaultGren
+          packageCache <- Dirs.getPackageCache
+          potentialDeps <-
+            Dirs.withRegistryLock packageCache $
+              DPkg.latestCompatibleVersionForPackages packageCache defaultDeps
+          case potentialDeps of
+            Left _ ->
+              error "Failed to find compatible dependencies for this Gren version."
+            Right compatibleDeps -> do
+              Outline.write root $
+                Outline.Pkg $
+                  Outline.PkgOutline
+                    Pkg.dummyName
+                    Outline.defaultSummary
+                    Licenses.bsd3
+                    V.one
+                    (Outline.ExposedList [])
+                    compatibleDeps
+                    Map.empty
+                    C.defaultGren
 
-          return root
+              return root
 
-defaultDeps :: Map.Map Pkg.Name C.Constraint
+defaultDeps :: [Pkg.Name]
 defaultDeps =
-  Map.fromList
-    [ (Pkg.core, C.anything),
-      (Pkg.browser, C.anything)
-    ]
+  [ Pkg.core,
+    Pkg.browser
+  ]
 
 -- GET INTERPRETER
 
