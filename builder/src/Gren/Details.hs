@@ -21,7 +21,7 @@ import BackgroundWriter qualified as BW
 import Compile qualified
 import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar (MVar, newEmptyMVar, newMVar, putMVar, readMVar, takeMVar)
-import Control.Monad (liftM, liftM2, liftM3)
+import Control.Monad (liftM, liftM2)
 import Data.Binary (Binary, get, getWord8, put, putWord8)
 import Data.Either qualified as Either
 import Data.Map qualified as Map
@@ -67,7 +67,7 @@ type BuildID = Word64
 
 data ValidOutline
   = ValidApp (NE.List Outline.SrcDir)
-  | ValidPkg Pkg.Name [ModuleName.Raw] (Map.Map Pkg.Name V.Version {- for docs in reactor -})
+  | ValidPkg Pkg.Name [ModuleName.Raw]
 
 -- NOTE: we need two ways to detect if a file must be recompiled:
 --
@@ -127,7 +127,7 @@ verifyInstall scope root (Solver.Env cache) outline =
       Outline.Pkg pkg -> Task.run (verifyPkg env time pkg >> return ())
       Outline.App app -> Task.run (verifyApp env time app >> return ())
 
--- LOAD -- used by Make, Repl, Reactor
+-- LOAD -- used by Make, Repl
 
 load :: Reporting.Style -> BW.Scope -> FilePath -> IO (Either Exit.Details Details)
 load style scope root =
@@ -189,8 +189,7 @@ verifyPkg env time (Outline.PkgOutline pkg _ _ _ exposed direct gren) =
     then do
       solution <- verifyConstraints env (Map.map (Con.exactly . Con.lowerBound) direct)
       let exposedList = Outline.flattenExposed exposed
-      let exactDeps = Map.map (\(Solver.Details v _) -> v) solution -- for pkg docs in reactor
-      verifyDependencies env time (ValidPkg pkg exposedList exactDeps) solution direct
+      verifyDependencies env time (ValidPkg pkg exposedList) solution direct
     else Task.throw $ Exit.DetailsBadGrenInPkg gren
 
 verifyApp :: Env -> File.Time -> Outline.AppOutline -> Task Details
@@ -623,14 +622,14 @@ instance Binary ValidOutline where
   put outline =
     case outline of
       ValidApp a -> putWord8 0 >> put a
-      ValidPkg a b c -> putWord8 1 >> put a >> put b >> put c
+      ValidPkg a b -> putWord8 1 >> put a >> put b
 
   get =
     do
       n <- getWord8
       case n of
         0 -> liftM ValidApp get
-        1 -> liftM3 ValidPkg get get get
+        1 -> liftM2 ValidPkg get get
         _ -> fail "binary encoding of ValidOutline was corrupted"
 
 instance Binary Local where

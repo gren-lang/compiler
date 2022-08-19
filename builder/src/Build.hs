@@ -79,7 +79,7 @@ makeEnv key root (Details.Details _ validOutline buildID locals foreigns _) =
       do
         srcDirs <- traverse (Outline.toAbsoluteSrcDir root) (NE.toList givenSrcDirs)
         return $ Env key root Parse.Application srcDirs buildID locals foreigns
-    Details.ValidPkg pkg _ _ ->
+    Details.ValidPkg pkg _ ->
       do
         srcDir <- Outline.toAbsoluteSrcDir root (Outline.RelativeSrcDir "src")
         return $ Env key root (Parse.Package pkg) [srcDir] buildID locals foreigns
