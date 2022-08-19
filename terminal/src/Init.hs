@@ -72,10 +72,8 @@ question =
 init :: Flags -> IO (Either Exit.Init ())
 init flags =
   do
-    let initialDeps =
-          if _isPackage flags
-            then pkgDefaultDeps
-            else appDefaultDeps
+    let platform = selectPlatform flags
+    let initialDeps = suggestDependencies platform
     (Solver.Env cache) <- Solver.initEnv
     potentialDeps <-
       Dirs.withRegistryLock cache $
@@ -86,8 +84,7 @@ init flags =
       Left (DPkg.GitError gitError) ->
         return $ Left $ Exit.InitNoCompatibleDependencies $ Just gitError
       Right deps -> do
-        -- TODO: Make root platform customizable
-        result <- Solver.verify cache Platform.Browser deps
+        result <- Solver.verify cache platform deps
         case result of
           Solver.Err exit ->
             return (Left (Exit.InitSolverProblem exit))
@@ -98,16 +95,16 @@ init flags =
           Solver.Ok details ->
             let outline =
                   if _isPackage flags
-                    then pkgOutline deps
-                    else appOutlineFromSolverDetails details
+                    then pkgOutline platform deps
+                    else appOutlineFromSolverDetails platform initialDeps details
              in do
                   Dir.createDirectoryIfMissing True "src"
                   Outline.write "." outline
                   putStrLn "Okay, I created it."
                   return (Right ())
 
-pkgOutline :: Map.Map Pkg.Name Con.Constraint -> Outline.Outline
-pkgOutline deps =
+pkgOutline :: Platform.Platform -> Map.Map Pkg.Name Con.Constraint -> Outline.Outline
+pkgOutline platform deps =
   Outline.Pkg $
     Outline.PkgOutline
       Pkg.dummyName
@@ -117,29 +114,36 @@ pkgOutline deps =
       (Outline.ExposedList [])
       deps
       Con.defaultGren
-      Platform.Browser
+      platform
 
-appOutlineFromSolverDetails :: (Map.Map Pkg.Name Solver.Details) -> Outline.Outline
-appOutlineFromSolverDetails details =
+appOutlineFromSolverDetails ::
+  Platform.Platform ->
+  [Pkg.Name] ->
+  (Map.Map Pkg.Name Solver.Details) ->
+  Outline.Outline
+appOutlineFromSolverDetails platform initialDeps details =
   let solution = Map.map (\(Solver.Details vsn _) -> vsn) details
-      defaultDeps = Map.fromList $ map (\dep -> (dep, Con.exactly V.one)) appDefaultDeps
+      defaultDeps = Map.fromList $ map (\dep -> (dep, Con.exactly V.one)) initialDeps
       directs = Map.intersection solution defaultDeps
       indirects = Map.difference solution defaultDeps
    in Outline.App $
         Outline.AppOutline
           V.compiler
-          Platform.Browser
+          platform
           (NE.List (Outline.RelativeSrcDir "src") [])
           directs
           indirects
 
-appDefaultDeps :: [Pkg.Name]
-appDefaultDeps =
-  [ Pkg.core,
-    Pkg.browser
-  ]
+selectPlatform :: Flags -> Platform.Platform
+selectPlatform flags =
+  case (_isPackage flags, _platform flags) of
+    (True, Nothing) -> Platform.Common
+    (False, Nothing) -> Platform.Browser
+    (_, Just platform) -> platform
 
-pkgDefaultDeps :: [Pkg.Name]
-pkgDefaultDeps =
-  [ Pkg.core
-  ]
+suggestDependencies :: Platform.Platform -> [Pkg.Name]
+suggestDependencies platform =
+  case platform of
+    Platform.Common -> [Pkg.core]
+    Platform.Browser -> [Pkg.core, Pkg.browser]
+    Platform.Node -> [Pkg.core, Pkg.node]

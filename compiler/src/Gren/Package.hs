@@ -19,6 +19,7 @@ module Gren.Package
     kernel,
     core,
     browser,
+    node,
     url,
     --
     suggestions,
@@ -115,6 +116,10 @@ core =
 browser :: Name
 browser =
   toName gren "browser"
+
+node :: Name
+node =
+  toName gren "node"
 
 url :: Name
 url =
