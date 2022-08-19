@@ -184,18 +184,17 @@ initEnv key scope root =
 type Task a = Task.Task Exit.Details a
 
 verifyPkg :: Env -> File.Time -> Outline.PkgOutline -> Task Details
-verifyPkg env time (Outline.PkgOutline pkg _ _ _ exposed direct testDirect gren) =
+verifyPkg env time (Outline.PkgOutline pkg _ _ _ exposed direct gren) =
   if Con.goodGren gren
     then do
-      stated <- union noDups direct testDirect
-      solution <- verifyConstraints env (Map.map (Con.exactly . Con.lowerBound) stated)
+      solution <- verifyConstraints env (Map.map (Con.exactly . Con.lowerBound) direct)
       let exposedList = Outline.flattenExposed exposed
       let exactDeps = Map.map (\(Solver.Details v _) -> v) solution -- for pkg docs in reactor
       verifyDependencies env time (ValidPkg pkg exposedList exactDeps) solution direct
     else Task.throw $ Exit.DetailsBadGrenInPkg gren
 
 verifyApp :: Env -> File.Time -> Outline.AppOutline -> Task Details
-verifyApp env time outline@(Outline.AppOutline grenVersion srcDirs direct _ _ _) =
+verifyApp env time outline@(Outline.AppOutline grenVersion srcDirs direct _) =
   if grenVersion == V.compiler
     then do
       stated <- checkAppDeps outline
@@ -206,11 +205,8 @@ verifyApp env time outline@(Outline.AppOutline grenVersion srcDirs direct _ _ _)
     else Task.throw $ Exit.DetailsBadGrenInAppOutline grenVersion
 
 checkAppDeps :: Outline.AppOutline -> Task (Map.Map Pkg.Name V.Version)
-checkAppDeps (Outline.AppOutline _ _ direct indirect testDirect testIndirect) =
-  do
-    x <- union allowEqualDups indirect testDirect
-    y <- union noDups direct testIndirect
-    union noDups x y
+checkAppDeps (Outline.AppOutline _ _ direct indirect) =
+  union noDups direct indirect
 
 -- VERIFY CONSTRAINTS
 
@@ -233,12 +229,6 @@ union tieBreaker deps1 deps2 =
 noDups :: k -> v -> v -> Task v
 noDups _ _ _ =
   Task.throw Exit.DetailsHandEditedDependencies
-
-allowEqualDups :: (Eq v) => k -> v -> v -> Task v
-allowEqualDups _ v1 v2 =
-  if v1 == v2
-    then return v1
-    else Task.throw Exit.DetailsHandEditedDependencies
 
 -- FORK
 
@@ -352,7 +342,7 @@ build key cache depsMVar pkg (Solver.Details vsn _) f fs =
         do
           Reporting.report key Reporting.DBroken
           return $ Left $ Just $ Exit.BD_BadBuild pkg vsn f
-      Right (Outline.Pkg (Outline.PkgOutline _ _ _ _ exposed deps _ _)) ->
+      Right (Outline.Pkg (Outline.PkgOutline _ _ _ _ exposed deps _)) ->
         do
           allDeps <- readMVar depsMVar
           directDeps <- traverse readMVar (Map.intersection allDeps deps)

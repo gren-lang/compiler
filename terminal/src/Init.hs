@@ -113,7 +113,6 @@ pkgOutline deps =
       V.one
       (Outline.ExposedList [])
       deps
-      Map.empty
       Con.defaultGren
 
 appOutlineFromSolverDetails :: (Map.Map Pkg.Name Solver.Details) -> Outline.Outline
@@ -128,8 +127,6 @@ appOutlineFromSolverDetails details =
           (NE.List (Outline.RelativeSrcDir "src") [])
           directs
           indirects
-          Map.empty
-          Map.empty
 
 appDefaultDeps :: [Pkg.Name]
 appDefaultDeps =

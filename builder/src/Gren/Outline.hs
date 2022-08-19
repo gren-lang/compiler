@@ -55,9 +55,7 @@ data AppOutline = AppOutline
   { _app_gren_version :: V.Version,
     _app_source_dirs :: NE.List SrcDir,
     _app_deps_direct :: Map.Map Pkg.Name V.Version,
-    _app_deps_indirect :: Map.Map Pkg.Name V.Version,
-    _app_test_direct :: Map.Map Pkg.Name V.Version,
-    _app_test_indirect :: Map.Map Pkg.Name V.Version
+    _app_deps_indirect :: Map.Map Pkg.Name V.Version
   }
 
 data PkgOutline = PkgOutline
@@ -67,7 +65,6 @@ data PkgOutline = PkgOutline
     _pkg_version :: V.Version,
     _pkg_exposed :: Exposed,
     _pkg_deps :: Map.Map Pkg.Name Con.Constraint,
-    _pkg_test_deps :: Map.Map Pkg.Name Con.Constraint,
     _pkg_gren_version :: Con.Constraint
   }
 
@@ -106,7 +103,7 @@ write root outline =
 encode :: Outline -> E.Value
 encode outline =
   case outline of
-    App (AppOutline gren srcDirs depsDirect depsTrans testDirect testTrans) ->
+    App (AppOutline gren srcDirs depsDirect depsTrans) ->
       E.object
         [ "type" ==> E.chars "application",
           "source-directories" ==> E.list encodeSrcDir (NE.toList srcDirs),
@@ -115,14 +112,9 @@ encode outline =
             ==> E.object
               [ "direct" ==> encodeDeps V.encode depsDirect,
                 "indirect" ==> encodeDeps V.encode depsTrans
-              ],
-          "test-dependencies"
-            ==> E.object
-              [ "direct" ==> encodeDeps V.encode testDirect,
-                "indirect" ==> encodeDeps V.encode testTrans
               ]
         ]
-    Pkg (PkgOutline name summary license version exposed deps tests gren) ->
+    Pkg (PkgOutline name summary license version exposed deps gren) ->
       E.object
         [ "type" ==> E.string (Json.fromChars "package"),
           "name" ==> Pkg.encode name,
@@ -131,8 +123,7 @@ encode outline =
           "version" ==> V.encode version,
           "exposed-modules" ==> encodeExposed exposed,
           "gren-version" ==> Con.encode gren,
-          "dependencies" ==> encodeDeps Con.encode deps,
-          "test-dependencies" ==> encodeDeps Con.encode tests
+          "dependencies" ==> encodeDeps Con.encode deps
         ]
 
 encodeExposed :: Exposed -> E.Value
@@ -168,12 +159,12 @@ read root =
         return $ Left (Exit.OutlineHasBadStructure err)
       Right outline ->
         case outline of
-          Pkg (PkgOutline pkg _ _ _ _ deps _ _) ->
+          Pkg (PkgOutline pkg _ _ _ _ deps _) ->
             return $
               if Map.notMember Pkg.core deps && pkg /= Pkg.core
                 then Left Exit.OutlineNoPkgCore
                 else Right outline
-          App (AppOutline _ srcDirs direct _ _ _)
+          App (AppOutline _ srcDirs direct _)
             | Map.notMember Pkg.core direct ->
                 return $ Left Exit.OutlineNoAppCore
             | otherwise ->
@@ -235,7 +226,7 @@ isDup paths =
 sourceDirs :: Outline -> NE.List SrcDir
 sourceDirs outline =
   case outline of
-    App (AppOutline _ srcDirs _ _ _ _) ->
+    App (AppOutline _ srcDirs _ _) ->
       srcDirs
     Pkg _ ->
       NE.singleton (RelativeSrcDir "src")
@@ -267,8 +258,6 @@ appDecoder =
     <*> D.field "source-directories" dirsDecoder
     <*> D.field "dependencies" (D.field "direct" (depsDecoder versionDecoder))
     <*> D.field "dependencies" (D.field "indirect" (depsDecoder versionDecoder))
-    <*> D.field "test-dependencies" (D.field "direct" (depsDecoder versionDecoder))
-    <*> D.field "test-dependencies" (D.field "indirect" (depsDecoder versionDecoder))
 
 pkgDecoder :: Decoder PkgOutline
 pkgDecoder =
@@ -279,7 +268,6 @@ pkgDecoder =
     <*> D.field "version" versionDecoder
     <*> D.field "exposed-modules" exposedDecoder
     <*> D.field "dependencies" (depsDecoder constraintDecoder)
-    <*> D.field "test-dependencies" (depsDecoder constraintDecoder)
     <*> D.field "gren-version" constraintDecoder
 
 -- JSON DECODE HELPERS

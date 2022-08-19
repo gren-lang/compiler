@@ -174,11 +174,10 @@ attemptChangesHelp root env oldOutline newOutline question =
 -- MAKE APP PLAN
 
 makeAppPlan :: Solver.Env -> Pkg.Name -> Outline.AppOutline -> Task (Changes V.Version)
-makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ _ direct indirect testDirect testIndirect) =
+makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ _ direct indirect) =
   if Map.member pkg direct
     then return AlreadyInstalled
-    else -- is it already indirect?
-    case Map.lookup pkg indirect of
+    else case Map.lookup pkg indirect of
       Just vsn ->
         return $
           PromoteIndirect $
@@ -187,106 +186,72 @@ makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ _ direct indire
                 { Outline._app_deps_direct = Map.insert pkg vsn direct,
                   Outline._app_deps_indirect = Map.delete pkg indirect
                 }
-      Nothing ->
-        -- is it already a test dependency?
-        case Map.lookup pkg testDirect of
-          Just vsn ->
-            return $
-              PromoteTest $
-                Outline.App $
-                  outline
-                    { Outline._app_deps_direct = Map.insert pkg vsn direct,
-                      Outline._app_test_direct = Map.delete pkg testDirect
-                    }
-          Nothing ->
-            -- is it already an indirect test dependency?
-            case Map.lookup pkg testIndirect of
-              Just vsn ->
-                return $
-                  PromoteTest $
-                    Outline.App $
-                      outline
-                        { Outline._app_deps_direct = Map.insert pkg vsn direct,
-                          Outline._app_test_indirect = Map.delete pkg testIndirect
-                        }
-              Nothing -> do
-                compatibleVersionResult <-
-                  Task.io $
-                    Dirs.withRegistryLock cache $
-                      DPkg.latestCompatibleVersion cache pkg
-                case compatibleVersionResult of
-                  Left DPkg.NoCompatiblePackage ->
-                    Task.throw $ Exit.InstallNoCompatiblePkg pkg
-                  Left (DPkg.GitError gitError) ->
-                    Task.throw $
-                      Exit.InstallHadSolverTrouble $
-                        Exit.SolverBadGitOperationUnversionedPkg pkg gitError
-                  Right compatibleVersion -> do
-                    result <- Task.io $ Solver.addToApp cache pkg compatibleVersion outline
-                    case result of
-                      Solver.Ok (Solver.AppSolution old new app) ->
-                        return (Changes (detectChanges old new) (Outline.App app))
-                      Solver.NoSolution ->
-                        Task.throw (Exit.InstallNoOnlineAppSolution pkg)
-                      Solver.NoOfflineSolution ->
-                        Task.throw (Exit.InstallNoOfflineAppSolution pkg)
-                      Solver.Err exit ->
-                        Task.throw (Exit.InstallHadSolverTrouble exit)
+      Nothing -> do
+        compatibleVersionResult <-
+          Task.io $
+            Dirs.withRegistryLock cache $
+              DPkg.latestCompatibleVersion cache pkg
+        case compatibleVersionResult of
+          Left DPkg.NoCompatiblePackage ->
+            Task.throw $ Exit.InstallNoCompatiblePkg pkg
+          Left (DPkg.GitError gitError) ->
+            Task.throw $
+              Exit.InstallHadSolverTrouble $
+                Exit.SolverBadGitOperationUnversionedPkg pkg gitError
+          Right compatibleVersion -> do
+            result <- Task.io $ Solver.addToApp cache pkg compatibleVersion outline
+            case result of
+              Solver.Ok (Solver.AppSolution old new app) ->
+                return (Changes (detectChanges old new) (Outline.App app))
+              Solver.NoSolution ->
+                Task.throw (Exit.InstallNoOnlineAppSolution pkg)
+              Solver.NoOfflineSolution ->
+                Task.throw (Exit.InstallNoOfflineAppSolution pkg)
+              Solver.Err exit ->
+                Task.throw (Exit.InstallHadSolverTrouble exit)
 
 -- MAKE PACKAGE PLAN
 
 makePkgPlan :: Solver.Env -> Pkg.Name -> Outline.PkgOutline -> Task (Changes C.Constraint)
-makePkgPlan (Solver.Env cache) pkg outline@(Outline.PkgOutline _ _ _ _ _ deps test _) =
+makePkgPlan (Solver.Env cache) pkg outline@(Outline.PkgOutline _ _ _ _ _ deps _) =
   if Map.member pkg deps
     then return AlreadyInstalled
-    else -- is already in test dependencies?
-    case Map.lookup pkg test of
-      Just con ->
-        return $
-          PromoteTest $
-            Outline.Pkg $
-              outline
-                { Outline._pkg_deps = Map.insert pkg con deps,
-                  Outline._pkg_test_deps = Map.delete pkg test
-                }
-      Nothing ->
-        do
-          compatibleVersionResult <-
-            Task.io $
-              Dirs.withRegistryLock cache $
-                DPkg.latestCompatibleVersion cache pkg
-          case compatibleVersionResult of
-            Left DPkg.NoCompatiblePackage ->
-              Task.throw $ Exit.InstallNoCompatiblePkg pkg
-            Left (DPkg.GitError gitError) ->
-              Task.throw $
-                Exit.InstallHadSolverTrouble $
-                  Exit.SolverBadGitOperationUnversionedPkg pkg gitError
-            Right compatibleVersion -> do
-              let old = Map.union deps test
-              let cons = Map.insert pkg (C.untilNextMajor compatibleVersion) old
-              result <- Task.io $ Solver.verify cache cons
-              case result of
-                Solver.Ok solution ->
-                  let (Solver.Details vsn _) = solution ! pkg
+    else do
+      compatibleVersionResult <-
+        Task.io $
+          Dirs.withRegistryLock cache $
+            DPkg.latestCompatibleVersion cache pkg
+      case compatibleVersionResult of
+        Left DPkg.NoCompatiblePackage ->
+          Task.throw $ Exit.InstallNoCompatiblePkg pkg
+        Left (DPkg.GitError gitError) ->
+          Task.throw $
+            Exit.InstallHadSolverTrouble $
+              Exit.SolverBadGitOperationUnversionedPkg pkg gitError
+        Right compatibleVersion -> do
+          let old = deps
+          let cons = Map.insert pkg (C.untilNextMajor compatibleVersion) old
+          result <- Task.io $ Solver.verify cache cons
+          case result of
+            Solver.Ok solution ->
+              let (Solver.Details vsn _) = solution ! pkg
 
-                      con = C.untilNextMajor vsn
-                      new = Map.insert pkg con old
-                      changes = detectChanges old new
-                      news = Map.mapMaybe keepNew changes
-                   in return $
-                        Changes changes $
-                          Outline.Pkg $
-                            outline
-                              { Outline._pkg_deps = addNews (Just pkg) news deps,
-                                Outline._pkg_test_deps = addNews Nothing news test
-                              }
-                Solver.NoSolution ->
-                  Task.throw $ Exit.InstallNoOnlinePkgSolution pkg
-                Solver.NoOfflineSolution ->
-                  Task.throw $ Exit.InstallNoOfflinePkgSolution pkg
-                Solver.Err exit ->
-                  Task.throw $ Exit.InstallHadSolverTrouble exit
+                  con = C.untilNextMajor vsn
+                  new = Map.insert pkg con old
+                  changes = detectChanges old new
+                  news = Map.mapMaybe keepNew changes
+               in return $
+                    Changes changes $
+                      Outline.Pkg $
+                        outline
+                          { Outline._pkg_deps = addNews (Just pkg) news deps
+                          }
+            Solver.NoSolution ->
+              Task.throw $ Exit.InstallNoOnlinePkgSolution pkg
+            Solver.NoOfflineSolution ->
+              Task.throw $ Exit.InstallNoOfflinePkgSolution pkg
+            Solver.Err exit ->
+              Task.throw $ Exit.InstallHadSolverTrouble exit
 
 addNews :: Maybe Pkg.Name -> Map.Map Pkg.Name C.Constraint -> Map.Map Pkg.Name C.Constraint -> Map.Map Pkg.Name C.Constraint
 addNews pkg new old =
