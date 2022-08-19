@@ -236,6 +236,7 @@ Test-Suite gren-tests
 
         -- tests
         Parse.SpaceSpec
+        Parse.RecordUpdateSpec
 
     Build-Depends:
         hspec >= 2.7.10 && < 3

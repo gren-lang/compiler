@@ -211,7 +211,9 @@ data Record
   | RecordEnd Row Col
   | RecordField Row Col
   | RecordEquals Row Col
+  | RecordPipe Row Col
   | RecordExpr Expr Row Col
+  | RecordUpdateExpr Expr Row Col
   | RecordSpace Space Row Col
   | --
     RecordIndentOpen Row Col
@@ -4354,7 +4356,7 @@ toRecordReport source context record startRow startCol =
                             "expecting",
                             "to",
                             "see",
-                            "another",
+                            "a",
                             "record",
                             "field",
                             "defined",
@@ -4416,8 +4418,48 @@ toRecordReport source context record startRow startCol =
                     noteForRecordError
                   ]
               )
+    RecordPipe row col ->
+      let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+          region = toRegion row col
+       in Report.Report "PROBLEM IN RECORD" region [] $
+            Code.toSnippet
+              source
+              surroundings
+              (Just region)
+              ( D.reflow $
+                  "I am partway through parsing a record, but I got stuck here:",
+                D.stack
+                  [ D.fillSep $
+                      [ "I",
+                        "just",
+                        "saw",
+                        "an",
+                        "expression",
+                        "so",
+                        "I",
+                        "was",
+                        "expecting",
+                        "to",
+                        "see",
+                        "a",
+                        "|",
+                        "symbol",
+                        "next.",
+                        "So",
+                        "try",
+                        "putting",
+                        "a",
+                        D.green "|",
+                        "sign",
+                        "here?"
+                      ],
+                    noteForRecordError
+                  ]
+              )
     RecordExpr expr row col ->
       toExprReport source (InNode NRecord startRow startCol context) expr row col
+    RecordUpdateExpr expr row col ->
+      toExprReport source context expr row col
     RecordSpace space row col ->
       toSpaceReport source space row col
     RecordIndentOpen row col ->
