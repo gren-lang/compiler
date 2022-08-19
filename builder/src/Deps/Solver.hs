@@ -19,7 +19,6 @@ where
 import Control.Monad (foldM)
 import Data.Map ((!))
 import Data.Map qualified as Map
-import Data.NonEmptyList qualified as NE
 import Deps.Package qualified as Package
 import Directories qualified as Dirs
 import File qualified
@@ -51,6 +50,7 @@ data State = State
 
 data Constraints = Constraints
   { _gren :: C.Constraint,
+    _platform :: Platform.Platform,
     _deps :: Map.Map Pkg.Name C.Constraint
   }
 
@@ -85,7 +85,7 @@ verify cache rootPlatform constraints =
 addDeps :: State -> Pkg.Name -> V.Version -> Details
 addDeps (State _ constraints) name vsn =
   case Map.lookup (name, vsn) constraints of
-    Just (Constraints _ deps) -> Details vsn deps
+    Just (Constraints _ _ deps) -> Details vsn deps
     Nothing -> error "compiler bug manifesting in Deps.Solver.addDeps"
 
 -- ADD TO APP - used in Install
@@ -148,36 +148,36 @@ getTransitive constraints solution unvisited visited =
 
 try :: Platform.Platform -> Map.Map Pkg.Name C.Constraint -> Solver (Map.Map Pkg.Name V.Version)
 try rootPlatform constraints =
-  exploreGoals (Goals (NE.List rootPlatform []) constraints Map.empty)
+  exploreGoals (Goals rootPlatform constraints Map.empty)
 
 -- EXPLORE GOALS
 
 data Goals = Goals
-  { _compatible_platforms :: NE.List Platform.Platform,
+  { _root_platform :: Platform.Platform,
     _pending :: Map.Map Pkg.Name C.Constraint,
     _solved :: Map.Map Pkg.Name V.Version
   }
 
 exploreGoals :: Goals -> Solver (Map.Map Pkg.Name V.Version)
-exploreGoals (Goals compatiblePlatforms pending solved) =
+exploreGoals (Goals rootPlatform pending solved) =
   case Map.minViewWithKey pending of
     Nothing ->
       return solved
     Just ((name, constraint), otherPending) ->
       do
-        let goals1 = Goals compatiblePlatforms otherPending solved
+        let goals1 = Goals rootPlatform otherPending solved
         let lowestVersion = C.lowerBound constraint
         goals2 <- addVersion goals1 name lowestVersion
         exploreGoals goals2
 
 addVersion :: Goals -> Pkg.Name -> V.Version -> Solver Goals
-addVersion (Goals compatiblePlatforms pending solved) name version =
+addVersion (Goals rootPlatform pending solved) name version =
   do
-    (Constraints gren deps) <- getConstraints name version
-    if C.goodGren gren
+    (Constraints gren platform deps) <- getConstraints name version
+    if C.goodGren gren && Platform.compatible rootPlatform platform
       then do
         newPending <- foldM (addConstraint solved) pending (Map.toList deps)
-        return (Goals compatiblePlatforms newPending (Map.insert name version solved))
+        return (Goals rootPlatform newPending (Map.insert name version solved))
       else backtrack
 
 addConstraint :: Map.Map Pkg.Name V.Version -> Map.Map Pkg.Name C.Constraint -> (Pkg.Name, C.Constraint) -> Solver (Map.Map Pkg.Name C.Constraint)
@@ -236,8 +236,8 @@ constraintsDecoder =
   do
     outline <- D.mapError (const ()) Outline.decoder
     case outline of
-      Outline.Pkg (Outline.PkgOutline _ _ _ _ _ deps grenConstraint _) ->
-        return (Constraints grenConstraint deps)
+      Outline.Pkg (Outline.PkgOutline _ _ _ _ _ deps grenConstraint platform) ->
+        return (Constraints grenConstraint platform deps)
       Outline.App _ ->
         D.failure ()
 
