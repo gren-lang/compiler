@@ -63,18 +63,18 @@ module Reporting.Doc
   )
 where
 
-import qualified Data.Index as Index
-import qualified Data.List as List
-import qualified Data.Name as Name
-import qualified Gren.Package as Pkg
-import qualified Gren.Version as V
+import Data.Index qualified as Index
+import Data.List qualified as List
+import Data.Name qualified as Name
+import Gren.Package qualified as Pkg
+import Gren.Version qualified as V
 import Json.Encode ((==>))
-import qualified Json.Encode as E
-import qualified Json.String as Json
-import qualified System.Console.ANSI.Types as Ansi
+import Json.Encode qualified as E
+import Json.String qualified as Json
+import System.Console.ANSI.Types qualified as Ansi
 import System.IO (Handle)
-import qualified System.Info as Info
-import qualified Text.PrettyPrint.ANSI.Leijen as P
+import System.Info qualified as Info
+import Text.PrettyPrint.ANSI.Leijen qualified as P
 import Prelude hiding (cycle)
 
 -- FROM
@@ -161,10 +161,10 @@ toFancyHint chunks =
 link :: String -> String -> String -> String -> P.Doc
 link word before fileName after =
   P.fillSep $
-    (P.underline (P.text word) <> ":") :
-    map P.text (words before)
-      ++ P.text (makeLink fileName) :
-    map P.text (words after)
+    (P.underline (P.text word) <> ":")
+      : map P.text (words before)
+      ++ P.text (makeLink fileName)
+      : map P.text (words after)
 
 fancyLink :: String -> [P.Doc] -> String -> [P.Doc] -> P.Doc
 fancyLink word before fileName after =
@@ -183,8 +183,8 @@ reflowLink :: [Char] -> [Char] -> [Char] -> P.Doc
 reflowLink before fileName after =
   P.fillSep $
     map P.text (words before)
-      ++ P.text (makeLink fileName) :
-    map P.text (words after)
+      ++ P.text (makeLink fileName)
+      : map P.text (words after)
 
 -- HELPERS
 

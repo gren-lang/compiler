@@ -14,18 +14,18 @@ module Gren.Compiler.Type
   )
 where
 
-import qualified AST.Source as Src
-import qualified Data.Name as Name
-import qualified Json.Decode as D
+import AST.Source qualified as Src
+import Data.Name qualified as Name
+import Json.Decode qualified as D
 import Json.Encode ((==>))
-import qualified Json.Encode as E
-import qualified Json.String as Json
-import qualified Parse.Primitives as P
-import qualified Parse.Type as Type
-import qualified Reporting.Annotation as A
-import qualified Reporting.Doc as D
-import qualified Reporting.Render.Type as RT
-import qualified Reporting.Render.Type.Localizer as L
+import Json.Encode qualified as E
+import Json.String qualified as Json
+import Parse.Primitives qualified as P
+import Parse.Type qualified as Type
+import Reporting.Annotation qualified as A
+import Reporting.Doc qualified as D
+import Reporting.Render.Type qualified as RT
+import Reporting.Render.Type.Localizer qualified as L
 
 -- TYPES
 

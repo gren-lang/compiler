@@ -13,20 +13,20 @@ module Parse.Module
   )
 where
 
-import qualified AST.Source as Src
-import qualified Data.ByteString as BS
-import qualified Data.Name as Name
-import qualified Gren.Compiler.Imports as Imports
-import qualified Gren.Package as Pkg
-import qualified Parse.Declaration as Decl
-import qualified Parse.Keyword as Keyword
+import AST.Source qualified as Src
+import Data.ByteString qualified as BS
+import Data.Name qualified as Name
+import Gren.Compiler.Imports qualified as Imports
+import Gren.Package qualified as Pkg
+import Parse.Declaration qualified as Decl
+import Parse.Keyword qualified as Keyword
 import Parse.Primitives hiding (State, fromByteString)
-import qualified Parse.Primitives as P
-import qualified Parse.Space as Space
-import qualified Parse.Symbol as Symbol
-import qualified Parse.Variable as Var
-import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Syntax as E
+import Parse.Primitives qualified as P
+import Parse.Space qualified as Space
+import Parse.Symbol qualified as Symbol
+import Parse.Variable qualified as Var
+import Reporting.Annotation qualified as A
+import Reporting.Error.Syntax qualified as E
 
 -- FROM BYTE STRING
 

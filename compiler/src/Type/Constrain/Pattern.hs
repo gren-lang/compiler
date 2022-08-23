@@ -7,16 +7,16 @@ module Type.Constrain.Pattern
   )
 where
 
-import qualified AST.Canonical as Can
+import AST.Canonical qualified as Can
 import Control.Arrow (second)
 import Control.Monad (foldM)
-import qualified Data.Index as Index
-import qualified Data.Map.Strict as Map
-import qualified Data.Name as Name
-import qualified Gren.ModuleName as ModuleName
-import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Type as E
-import qualified Type.Instantiate as Instantiate
+import Data.Index qualified as Index
+import Data.Map.Strict qualified as Map
+import Data.Name qualified as Name
+import Gren.ModuleName qualified as ModuleName
+import Reporting.Annotation qualified as A
+import Reporting.Error.Type qualified as E
+import Type.Instantiate qualified as Instantiate
 import Type.Type as T
 
 -- ACTUALLY ADD CONSTRAINTS

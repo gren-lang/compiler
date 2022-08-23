@@ -6,23 +6,23 @@ module Type.Solve
   )
 where
 
-import qualified AST.Canonical as Can
+import AST.Canonical qualified as Can
 import Control.Monad
 import Data.Map.Strict ((!))
-import qualified Data.Map.Strict as Map
-import qualified Data.Name as Name
-import qualified Data.NonEmptyList as NE
-import qualified Data.Vector as Vector
-import qualified Data.Vector.Mutable as MVector
-import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Type as Error
-import qualified Reporting.Render.Type as RT
-import qualified Reporting.Render.Type.Localizer as L
-import qualified Type.Error as ET
-import qualified Type.Occurs as Occurs
+import Data.Map.Strict qualified as Map
+import Data.Name qualified as Name
+import Data.NonEmptyList qualified as NE
+import Data.Vector qualified as Vector
+import Data.Vector.Mutable qualified as MVector
+import Reporting.Annotation qualified as A
+import Reporting.Error.Type qualified as Error
+import Reporting.Render.Type qualified as RT
+import Reporting.Render.Type.Localizer qualified as L
+import Type.Error qualified as ET
+import Type.Occurs qualified as Occurs
 import Type.Type as Type
-import qualified Type.Unify as Unify
-import qualified Type.UnionFind as UF
+import Type.Unify qualified as Unify
+import Type.UnionFind qualified as UF
 
 -- RUN SOLVER
 

@@ -22,34 +22,34 @@ module Gren.Docs
   )
 where
 
-import qualified AST.Canonical as Can
-import qualified AST.Source as Src
-import qualified AST.Utils.Binop as Binop
-import qualified Data.Coerce as Coerce
-import qualified Data.List as List
+import AST.Canonical qualified as Can
+import AST.Source qualified as Src
+import AST.Utils.Binop qualified as Binop
+import Data.Coerce qualified as Coerce
+import Data.List qualified as List
 import Data.Map ((!))
-import qualified Data.Map as Map
-import qualified Data.Map.Merge.Strict as Map
-import qualified Data.Name as Name
-import qualified Data.NonEmptyList as NE
-import qualified Data.OneOrMore as OneOrMore
+import Data.Map qualified as Map
+import Data.Map.Merge.Strict qualified as Map
+import Data.Name qualified as Name
+import Data.NonEmptyList qualified as NE
+import Data.OneOrMore qualified as OneOrMore
 import Data.Word (Word8)
 import Foreign.Ptr (Ptr, plusPtr)
-import qualified Gren.Compiler.Type as Type
-import qualified Gren.Compiler.Type.Extract as Extract
-import qualified Gren.ModuleName as ModuleName
-import qualified Json.Decode as D
+import Gren.Compiler.Type qualified as Type
+import Gren.Compiler.Type.Extract qualified as Extract
+import Gren.ModuleName qualified as ModuleName
+import Json.Decode qualified as D
 import Json.Encode ((==>))
-import qualified Json.Encode as E
-import qualified Json.String as Json
+import Json.Encode qualified as E
+import Json.String qualified as Json
 import Parse.Primitives (Col, Row, word1)
-import qualified Parse.Primitives as P
-import qualified Parse.Space as Space
-import qualified Parse.Symbol as Symbol
-import qualified Parse.Variable as Var
-import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Docs as E
-import qualified Reporting.Result as Result
+import Parse.Primitives qualified as P
+import Parse.Space qualified as Space
+import Parse.Symbol qualified as Symbol
+import Parse.Variable qualified as Var
+import Reporting.Annotation qualified as A
+import Reporting.Error.Docs qualified as E
+import Reporting.Result qualified as Result
 
 -- DOCUMENTATION
 

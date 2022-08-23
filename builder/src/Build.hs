@@ -17,48 +17,48 @@ module Build
   )
 where
 
-import qualified AST.Canonical as Can
-import qualified AST.Optimized as Opt
-import qualified AST.Source as Src
+import AST.Canonical qualified as Can
+import AST.Optimized qualified as Opt
+import AST.Source qualified as Src
 import AbsoluteSrcDir (AbsoluteSrcDir (..))
-import qualified AbsoluteSrcDir
-import qualified Compile
+import AbsoluteSrcDir qualified
+import Compile qualified
 import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar
 import Control.Monad (filterM)
-import qualified Data.ByteString as B
-import qualified Data.Char as Char
-import qualified Data.Graph as Graph
-import qualified Data.List as List
+import Data.ByteString qualified as B
+import Data.Char qualified as Char
+import Data.Graph qualified as Graph
+import Data.List qualified as List
 import Data.Map.Strict ((!))
-import qualified Data.Map.Strict as Map
-import qualified Data.Map.Utils as Map
-import qualified Data.Maybe as Maybe
-import qualified Data.Name as Name
-import qualified Data.NonEmptyList as NE
-import qualified Data.OneOrMore as OneOrMore
-import qualified Data.Set as Set
-import qualified Directories as Dirs
-import qualified File
-import qualified Gren.Details as Details
-import qualified Gren.Docs as Docs
-import qualified Gren.Interface as I
-import qualified Gren.ModuleName as ModuleName
-import qualified Gren.Outline as Outline
-import qualified Gren.Package as Pkg
-import qualified Json.Encode as E
-import qualified Parse.Module as Parse
-import qualified Reporting
-import qualified Reporting.Annotation as A
-import qualified Reporting.Error as Error
-import qualified Reporting.Error.Docs as EDocs
-import qualified Reporting.Error.Import as Import
-import qualified Reporting.Error.Syntax as Syntax
-import qualified Reporting.Exit as Exit
-import qualified Reporting.Render.Type.Localizer as L
-import qualified System.Directory as Dir
+import Data.Map.Strict qualified as Map
+import Data.Map.Utils qualified as Map
+import Data.Maybe qualified as Maybe
+import Data.Name qualified as Name
+import Data.NonEmptyList qualified as NE
+import Data.OneOrMore qualified as OneOrMore
+import Data.Set qualified as Set
+import Directories qualified as Dirs
+import File qualified
+import Gren.Details qualified as Details
+import Gren.Docs qualified as Docs
+import Gren.Interface qualified as I
+import Gren.ModuleName qualified as ModuleName
+import Gren.Outline qualified as Outline
+import Gren.Package qualified as Pkg
+import Json.Encode qualified as E
+import Parse.Module qualified as Parse
+import Reporting qualified
+import Reporting.Annotation qualified as A
+import Reporting.Error qualified as Error
+import Reporting.Error.Docs qualified as EDocs
+import Reporting.Error.Import qualified as Import
+import Reporting.Error.Syntax qualified as Syntax
+import Reporting.Exit qualified as Exit
+import Reporting.Render.Type.Localizer qualified as L
+import System.Directory qualified as Dir
 import System.FilePath ((<.>), (</>))
-import qualified System.FilePath as FP
+import System.FilePath qualified as FP
 
 -- ENVIRONMENT
 
@@ -79,7 +79,7 @@ makeEnv key root (Details.Details _ validOutline buildID locals foreigns _) =
       do
         srcDirs <- traverse (Outline.toAbsoluteSrcDir root) (NE.toList givenSrcDirs)
         return $ Env key root Parse.Application srcDirs buildID locals foreigns
-    Details.ValidPkg pkg _ _ ->
+    Details.ValidPkg pkg _ ->
       do
         srcDir <- Outline.toAbsoluteSrcDir root (Outline.RelativeSrcDir "src")
         return $ Env key root (Parse.Package pkg) [srcDir] buildID locals foreigns
@@ -846,7 +846,8 @@ checkRoots infos =
           loc2 : _ -> Left (Exit.BP_MainPathDuplicate (_relative loc) (_relative loc2))
    in fmap (\_ -> fmap _location infos) $
         traverse (OneOrMore.destruct fromOneOrMore) $
-          Map.fromListWith OneOrMore.more $ map toOneOrMore (NE.toList infos)
+          Map.fromListWith OneOrMore.more $
+            map toOneOrMore (NE.toList infos)
 
 -- ROOT INFO
 

@@ -18,16 +18,17 @@ where
 
 import Control.Monad (foldM)
 import Data.Map ((!))
-import qualified Data.Map as Map
-import qualified Deps.Package as Package
-import qualified Directories as Dirs
-import qualified File
-import qualified Gren.Constraint as C
-import qualified Gren.Outline as Outline
-import qualified Gren.Package as Pkg
-import qualified Gren.Version as V
-import qualified Json.Decode as D
-import qualified Reporting.Exit as Exit
+import Data.Map qualified as Map
+import Deps.Package qualified as Package
+import Directories qualified as Dirs
+import File qualified
+import Gren.Constraint qualified as C
+import Gren.Outline qualified as Outline
+import Gren.Package qualified as Pkg
+import Gren.Platform qualified as Platform
+import Gren.Version qualified as V
+import Json.Decode qualified as D
+import Reporting.Exit qualified as Exit
 import System.FilePath ((</>))
 
 -- SOLVER
@@ -49,6 +50,7 @@ data State = State
 
 data Constraints = Constraints
   { _gren :: C.Constraint,
+    _platform :: Platform.Platform,
     _deps :: Map.Map Pkg.Name C.Constraint
   }
 
@@ -65,10 +67,14 @@ data Result a
 data Details
   = Details V.Version (Map.Map Pkg.Name C.Constraint)
 
-verify :: Dirs.PackageCache -> Map.Map Pkg.Name C.Constraint -> IO (Result (Map.Map Pkg.Name Details))
-verify cache constraints =
+verify ::
+  Dirs.PackageCache ->
+  Platform.Platform ->
+  Map.Map Pkg.Name C.Constraint ->
+  IO (Result (Map.Map Pkg.Name Details))
+verify cache rootPlatform constraints =
   Dirs.withRegistryLock cache $
-    case try constraints of
+    case try rootPlatform constraints of
       Solver solver ->
         solver
           (State cache Map.empty)
@@ -79,7 +85,7 @@ verify cache constraints =
 addDeps :: State -> Pkg.Name -> V.Version -> Details
 addDeps (State _ constraints) name vsn =
   case Map.lookup (name, vsn) constraints of
-    Just (Constraints _ deps) -> Details vsn deps
+    Just (Constraints _ _ deps) -> Details vsn deps
     Nothing -> error "compiler bug manifesting in Deps.Solver.addDeps"
 
 -- ADD TO APP - used in Install
@@ -90,21 +96,25 @@ data AppSolution = AppSolution
     _app :: Outline.AppOutline
   }
 
-addToApp :: Dirs.PackageCache -> Pkg.Name -> Outline.AppOutline -> IO (Result AppSolution)
-addToApp cache pkg outline@(Outline.AppOutline _ _ direct indirect testDirect testIndirect) =
+addToApp ::
+  Dirs.PackageCache ->
+  Pkg.Name ->
+  V.Version ->
+  Outline.AppOutline ->
+  IO (Result AppSolution)
+addToApp cache pkg compatibleVsn outline@(Outline.AppOutline _ rootPlatform _ direct indirect) =
   Dirs.withRegistryLock cache $
-    let allIndirects = Map.union indirect testIndirect
-        allDirects = Map.union direct testDirect
-        allDeps = Map.union allDirects allIndirects
+    let allDeps = Map.union direct indirect
 
         attempt toConstraint deps =
-          try (Map.insert pkg C.anything (Map.map toConstraint deps))
+          try
+            rootPlatform
+            (Map.insert pkg (C.untilNextMajor compatibleVsn) (Map.map toConstraint deps))
      in case oneOf
           (attempt C.exactly allDeps)
-          [ attempt C.exactly allDirects,
-            attempt C.untilNextMinor allDirects,
-            attempt C.untilNextMajor allDirects,
-            attempt (\_ -> C.anything) allDirects
+          [ attempt C.exactly direct,
+            attempt C.untilNextMinor direct,
+            attempt C.untilNextMajor direct
           ] of
           Solver solver ->
             solver
@@ -114,12 +124,10 @@ addToApp cache pkg outline@(Outline.AppOutline _ _ direct indirect testDirect te
               (\e -> return $ Err e)
 
 toApp :: State -> Pkg.Name -> Outline.AppOutline -> Map.Map Pkg.Name V.Version -> Map.Map Pkg.Name V.Version -> AppSolution
-toApp (State _ constraints) pkg (Outline.AppOutline gren srcDirs direct _ testDirect _) old new =
+toApp (State _ constraints) pkg (Outline.AppOutline gren platform srcDirs direct _) old new =
   let d = Map.intersection new (Map.insert pkg V.one direct)
       i = Map.difference (getTransitive constraints new (Map.toList d) Map.empty) d
-      td = Map.intersection new (Map.delete pkg testDirect)
-      ti = Map.difference new (Map.unions [d, i, td])
-   in AppSolution old new (Outline.AppOutline gren srcDirs d i td ti)
+   in AppSolution old new (Outline.AppOutline gren platform srcDirs d i)
 
 getTransitive :: Map.Map (Pkg.Name, V.Version) Constraints -> Map.Map Pkg.Name V.Version -> [(Pkg.Name, V.Version)] -> Map.Map Pkg.Name V.Version -> Map.Map Pkg.Name V.Version
 getTransitive constraints solution unvisited visited =
@@ -138,38 +146,38 @@ getTransitive constraints solution unvisited visited =
 
 -- TRY
 
-try :: Map.Map Pkg.Name C.Constraint -> Solver (Map.Map Pkg.Name V.Version)
-try constraints =
-  exploreGoals (Goals constraints Map.empty)
+try :: Platform.Platform -> Map.Map Pkg.Name C.Constraint -> Solver (Map.Map Pkg.Name V.Version)
+try rootPlatform constraints =
+  exploreGoals (Goals rootPlatform constraints Map.empty)
 
 -- EXPLORE GOALS
 
 data Goals = Goals
-  { _pending :: Map.Map Pkg.Name C.Constraint,
+  { _root_platform :: Platform.Platform,
+    _pending :: Map.Map Pkg.Name C.Constraint,
     _solved :: Map.Map Pkg.Name V.Version
   }
 
 exploreGoals :: Goals -> Solver (Map.Map Pkg.Name V.Version)
-exploreGoals (Goals pending solved) =
+exploreGoals (Goals rootPlatform pending solved) =
   case Map.minViewWithKey pending of
     Nothing ->
       return solved
     Just ((name, constraint), otherPending) ->
       do
-        let goals1 = Goals otherPending solved
-        let addVsn = addVersion goals1 name
-        (v, vs) <- getRelevantVersions name constraint
-        goals2 <- oneOf (addVsn v) (map addVsn vs)
+        let goals1 = Goals rootPlatform otherPending solved
+        let lowestVersion = C.lowerBound constraint
+        goals2 <- addVersion goals1 name lowestVersion
         exploreGoals goals2
 
 addVersion :: Goals -> Pkg.Name -> V.Version -> Solver Goals
-addVersion (Goals pending solved) name version =
+addVersion (Goals rootPlatform pending solved) name version =
   do
-    (Constraints gren deps) <- getConstraints name version
-    if C.goodGren gren
+    (Constraints gren platform deps) <- getConstraints name version
+    if C.goodGren gren && Platform.compatible rootPlatform platform
       then do
         newPending <- foldM (addConstraint solved) pending (Map.toList deps)
-        return (Goals newPending (Map.insert name version solved))
+        return (Goals rootPlatform newPending (Map.insert name version solved))
       else backtrack
 
 addConstraint :: Map.Map Pkg.Name V.Version -> Map.Map Pkg.Name C.Constraint -> (Pkg.Name, C.Constraint) -> Solver (Map.Map Pkg.Name C.Constraint)
@@ -191,20 +199,6 @@ addConstraint solved unsolved (name, newConstraint) =
               if oldConstraint == mergedConstraint
                 then return unsolved
                 else return (Map.insert name mergedConstraint unsolved)
-
--- GET RELEVANT VERSIONS
-
-getRelevantVersions :: Pkg.Name -> C.Constraint -> Solver (V.Version, [V.Version])
-getRelevantVersions name constraint =
-  Solver $ \state@(State cache _) ok back err -> do
-    versionsResult <- Package.getVersions cache name
-    case versionsResult of
-      Right (newest, previous) ->
-        case filter (C.satisfies constraint) (newest : previous) of
-          [] -> back state
-          v : vs -> ok state (v, vs) back
-      Left gitErr ->
-        err $ Exit.SolverBadGitOperationUnversionedPkg name gitErr
 
 -- GET CONSTRAINTS
 
@@ -242,8 +236,8 @@ constraintsDecoder =
   do
     outline <- D.mapError (const ()) Outline.decoder
     case outline of
-      Outline.Pkg (Outline.PkgOutline _ _ _ _ _ deps _ grenConstraint) ->
-        return (Constraints grenConstraint deps)
+      Outline.Pkg (Outline.PkgOutline _ _ _ _ _ deps grenConstraint platform) ->
+        return (Constraints grenConstraint platform deps)
       Outline.App _ ->
         D.failure ()
 

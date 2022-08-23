@@ -2,19 +2,12 @@
 
 Compiler for the Gren programming language.
 
-## Installing
+If you wish to install the compiler, you might want to read the [setup instructions](https://gren-lang.org/install).
 
-Binaries are available for every commit to master [here](https://github.com/gren-lang/compiler/actions/workflows/releases.yml).
-Once downloaded, you'll need to unzip the binary and place it somewhere in your `PATH`, and give it execute permissions.
+## Build from source
 
-Example (OS X):
+Then Gren compiler is written in Haskell, so to build from source you need to have GHC 9.2.2 (haskell compiler) and cabal 3.6 (haskell build tool) installed on your system.
 
-```bash
-# Download to ~/Downloads/gren-macOS.zip
-cd ~/Downloads
-unzip gren-macOS.zip
-chmod +x gren
-mv gren /usr/local/bin/
+Compiling the project should just be a matter of running `cabal build`, or `cabal install` if you wish to install the compiler on your machine.
 
-gren # Success
-```
+Read the [CONTRIBUTING.md]() file for some helpful commands for working on the compiler itself.

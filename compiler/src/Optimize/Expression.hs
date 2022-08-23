@@ -8,16 +8,16 @@ module Optimize.Expression
   )
 where
 
-import qualified AST.Canonical as Can
-import qualified AST.Optimized as Opt
+import AST.Canonical qualified as Can
+import AST.Optimized qualified as Opt
 import Control.Monad (foldM)
-import qualified Data.Index as Index
-import qualified Data.Name as Name
-import qualified Data.Set as Set
-import qualified Gren.ModuleName as ModuleName
-import qualified Optimize.Case as Case
-import qualified Optimize.Names as Names
-import qualified Reporting.Annotation as A
+import Data.Index qualified as Index
+import Data.Name qualified as Name
+import Data.Set qualified as Set
+import Gren.ModuleName qualified as ModuleName
+import Optimize.Case qualified as Case
+import Optimize.Names qualified as Names
+import Reporting.Annotation qualified as A
 import Prelude hiding (cycle)
 
 -- OPTIMIZE
@@ -124,7 +124,7 @@ optimize cycle (A.At region expression) =
       do
         optRecord <- optimize cycle record
         Names.registerField field (Opt.Access optRecord field)
-    Can.Update _ record updates ->
+    Can.Update record updates ->
       Names.registerFieldDict updates Opt.Update
         <*> optimize cycle record
         <*> traverse (optimizeUpdate cycle) updates

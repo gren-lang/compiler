@@ -13,16 +13,16 @@ module Terminal.Error
   )
 where
 
-import qualified Data.List as List
-import qualified Data.Maybe as Maybe
+import Data.List qualified as List
+import Data.Maybe qualified as Maybe
 import GHC.IO.Handle (hIsTerminalDevice)
 import Reporting.Suggest as Suggest
-import qualified System.Environment as Env
-import qualified System.Exit as Exit
-import qualified System.FilePath as FP
+import System.Environment qualified as Env
+import System.Exit qualified as Exit
+import System.FilePath qualified as FP
 import System.IO (hPutStrLn, stderr)
 import Terminal.Internal
-import qualified Text.PrettyPrint.ANSI.Leijen as P
+import Text.PrettyPrint.ANSI.Leijen qualified as P
 
 -- ERROR
 
@@ -63,7 +63,9 @@ exitWith code docs =
     let adjust = if isTerminal then id else P.plain
     P.displayIO stderr $
       P.renderPretty 1 80 $
-        adjust $ P.vcat $ concatMap (\d -> [d, ""]) docs
+        adjust $
+          P.vcat $
+            concatMap (\d -> [d, ""]) docs
     hPutStrLn stderr ""
     Exit.exitWith code
 

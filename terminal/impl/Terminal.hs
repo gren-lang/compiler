@@ -32,21 +32,21 @@ module Terminal
   )
 where
 
-import qualified Data.List as List
-import qualified Data.Maybe as Maybe
+import Data.List qualified as List
+import Data.Maybe qualified as Maybe
 import GHC.IO.Encoding (setLocaleEncoding, utf8)
-import qualified Gren.Version as V
-import qualified System.Directory as Dir
-import qualified System.Environment as Env
-import qualified System.Exit as Exit
+import Gren.Version qualified as V
+import System.Directory qualified as Dir
+import System.Environment qualified as Env
+import System.Exit qualified as Exit
 import System.FilePath ((</>))
-import qualified System.FilePath as FP
+import System.FilePath qualified as FP
 import System.IO (hPutStr, hPutStrLn, stdout)
-import qualified Terminal.Chomp as Chomp
-import qualified Terminal.Error as Error
+import Terminal.Chomp qualified as Chomp
+import Terminal.Error qualified as Error
 import Terminal.Internal
-import qualified Text.PrettyPrint.ANSI.Leijen as P
-import qualified Text.Read as Read
+import Text.PrettyPrint.ANSI.Leijen qualified as P
+import Text.Read qualified as Read
 
 -- COMMAND
 

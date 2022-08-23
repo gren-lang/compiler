@@ -8,15 +8,15 @@ module Reporting.Warning
   )
 where
 
-import qualified AST.Canonical as Can
-import qualified AST.Utils.Type as Type
-import qualified Data.Name as Name
-import qualified Reporting.Annotation as A
-import qualified Reporting.Doc as D
-import qualified Reporting.Render.Code as Code
-import qualified Reporting.Render.Type as RT
-import qualified Reporting.Render.Type.Localizer as L
-import qualified Reporting.Report as Report
+import AST.Canonical qualified as Can
+import AST.Utils.Type qualified as Type
+import Data.Name qualified as Name
+import Reporting.Annotation qualified as A
+import Reporting.Doc qualified as D
+import Reporting.Render.Code qualified as Code
+import Reporting.Render.Type qualified as RT
+import Reporting.Render.Type.Localizer qualified as L
+import Reporting.Report qualified as Report
 
 -- ALL POSSIBLE WARNINGS
 
@@ -53,7 +53,8 @@ toReport localizer source warning =
                   "You are not using `" <> Name.toChars name <> "` anywhere.",
                 D.stack
                   [ D.reflow $
-                      "Is there a typo? Maybe you intended to use `" <> Name.toChars name
+                      "Is there a typo? Maybe you intended to use `"
+                        <> Name.toChars name
                         <> "` somewhere but typed another name instead?",
                     D.reflow $
                       defOrPat
@@ -61,7 +62,8 @@ toReport localizer source warning =
                         ( "If you are sure there is no typo, remove the definition.\
                           \ This way future readers will not have to wonder why it is there!"
                         )
-                        ( "If you are sure there is no typo, replace `" <> Name.toChars name
+                        ( "If you are sure there is no typo, replace `"
+                            <> Name.toChars name
                             <> "` with _ so future readers will not have to wonder why it is there!"
                         )
                   ]

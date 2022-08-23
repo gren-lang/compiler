@@ -55,18 +55,18 @@ cached data with comments like:
 So it is clear why the data is kept around.
 -}
 
-import qualified AST.Source as Src
-import qualified AST.Utils.Binop as Binop
+import AST.Source qualified as Src
+import AST.Utils.Binop qualified as Binop
 import Control.Monad (liftM, liftM2, liftM3, liftM4, replicateM)
 import Data.Binary
-import qualified Data.Index as Index
-import qualified Data.List as List
-import qualified Data.Map as Map
+import Data.Index qualified as Index
+import Data.List qualified as List
+import Data.Map qualified as Map
 import Data.Name (Name)
-import qualified Gren.Float as EF
-import qualified Gren.ModuleName as ModuleName
-import qualified Gren.String as ES
-import qualified Reporting.Annotation as A
+import Gren.Float qualified as EF
+import Gren.ModuleName qualified as ModuleName
+import Gren.String qualified as ES
+import Reporting.Annotation qualified as A
 
 -- EXPRESSIONS
 
@@ -98,20 +98,24 @@ data Expr_
   | Case Expr [CaseBranch]
   | Accessor Name
   | Access Expr (A.Located Name)
-  | Update Name Expr (Map.Map Name FieldUpdate)
+  | Update Expr (Map.Map Name FieldUpdate)
   | Record (Map.Map Name Expr)
+  deriving (Show)
 
 data CaseBranch
   = CaseBranch Pattern Expr
+  deriving (Show)
 
 data FieldUpdate
   = FieldUpdate A.Region Expr
+  deriving (Show)
 
 -- DEFS
 
 data Def
   = Def (A.Located Name) [Pattern] Expr
   | TypedDef (A.Located Name) FreeVars [(Pattern, Type)] Expr Type
+  deriving (Show)
 
 -- DECLARATIONS
 
@@ -119,6 +123,7 @@ data Decls
   = Declare Def Decls
   | DeclareRec Def [Def] Decls
   | SaveTheEnvironment
+  deriving (Show)
 
 -- PATTERNS
 
@@ -143,10 +148,12 @@ data Pattern_
         _p_index :: Index.ZeroBased,
         _p_args :: [PatternCtorArg]
       }
+  deriving (Show)
 
 type PatternRecordField = A.Located PatternRecordField_
 
 data PatternRecordField_ = PRFieldPattern Name Pattern
+  deriving (Show)
 
 -- CACHE _p_home, _p_type, and _p_vars for type inference
 -- CACHE _p_index to replace _p_name in PROD code gen
@@ -158,11 +165,12 @@ data PatternCtorArg = PatternCtorArg
     _type :: Type, -- CACHE for type inference
     _arg :: Pattern
   }
+  deriving (Show)
 
 -- TYPES
 
 data Annotation = Forall FreeVars Type
-  deriving (Eq)
+  deriving (Eq, Show)
 
 type FreeVars = Map.Map Name ()
 
@@ -172,15 +180,15 @@ data Type
   | TType ModuleName.Canonical Name [Type]
   | TRecord (Map.Map Name FieldType) (Maybe Name)
   | TAlias ModuleName.Canonical Name [(Name, Type)] AliasType
-  deriving (Eq)
+  deriving (Eq, Show)
 
 data AliasType
   = Holey Type
   | Filled Type
-  deriving (Eq)
+  deriving (Eq, Show)
 
 data FieldType = FieldType {-# UNPACK #-} !Word16 Type
-  deriving (Eq)
+  deriving (Eq, Show)
 
 -- NOTE: The Word16 marks the source order, but it may not be available
 -- for every canonical type. For example, if the canonical type is inferred
@@ -190,7 +198,6 @@ fieldsToList :: Map.Map Name FieldType -> [(Name, Type)]
 fieldsToList fields =
   let getIndex (_, FieldType index _) =
         index
-
       dropIndex (name, FieldType _ tipe) =
         (name, tipe)
    in map dropIndex (List.sortOn getIndex (Map.toList fields))
@@ -207,12 +214,13 @@ data Module = Module
     _binops :: Map.Map Name Binop,
     _effects :: Effects
   }
+  deriving (Show)
 
 data Alias = Alias [Name] Type
-  deriving (Eq)
+  deriving (Eq, Show)
 
 data Binop = Binop_ Binop.Associativity Binop.Precedence Name
-  deriving (Eq)
+  deriving (Eq, Show)
 
 data Union = Union
   { _u_vars :: [Name],
@@ -220,22 +228,23 @@ data Union = Union
     _u_numAlts :: Int, -- CACHE numAlts for exhaustiveness checking
     _u_opts :: CtorOpts -- CACHE which optimizations are available
   }
-  deriving (Eq)
+  deriving (Eq, Show)
 
 data CtorOpts
   = Normal
   | Enum
   | Unbox
-  deriving (Eq, Ord)
+  deriving (Eq, Ord, Show)
 
 data Ctor = Ctor Name Index.ZeroBased Int [Type] -- CACHE length args
-  deriving (Eq)
+  deriving (Eq, Show)
 
 -- EXPORTS
 
 data Exports
   = ExportEverything A.Region
   | Export (Map.Map Name (A.Located Export))
+  deriving (Show)
 
 data Export
   = ExportValue
@@ -244,6 +253,7 @@ data Export
   | ExportUnionOpen
   | ExportUnionClosed
   | ExportPort
+  deriving (Show)
 
 -- EFFECTS
 
@@ -251,15 +261,18 @@ data Effects
   = NoEffects
   | Ports (Map.Map Name Port)
   | Manager A.Region A.Region A.Region Manager
+  deriving (Show)
 
 data Port
   = Incoming {_freeVars :: FreeVars, _payload :: Type, _func :: Type}
   | Outgoing {_freeVars :: FreeVars, _payload :: Type, _func :: Type}
+  deriving (Show)
 
 data Manager
   = Cmd Name
   | Sub Name
   | Fx Name Name
+  deriving (Show)
 
 -- BINARY
 

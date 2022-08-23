@@ -9,8 +9,8 @@ module AST.Utils.Type
 where
 
 import AST.Canonical (AliasType (..), FieldType (..), Type (..))
-import qualified Data.Map as Map
-import qualified Data.Name as Name
+import Data.Map qualified as Map
+import Data.Name qualified as Name
 
 -- DELAMBDA
 

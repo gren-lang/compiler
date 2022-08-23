@@ -18,13 +18,13 @@ module Type.Error
   )
 where
 
-import qualified Data.Bag as Bag
-import qualified Data.Map as Map
-import qualified Data.Name as Name
-import qualified Gren.ModuleName as ModuleName
-import qualified Reporting.Doc as D
-import qualified Reporting.Render.Type as RT
-import qualified Reporting.Render.Type.Localizer as L
+import Data.Bag qualified as Bag
+import Data.Map qualified as Map
+import Data.Name qualified as Name
+import Gren.ModuleName qualified as ModuleName
+import Reporting.Doc qualified as D
+import Reporting.Render.Type qualified as RT
+import Reporting.Render.Type.Localizer qualified as L
 
 -- ERROR TYPES
 

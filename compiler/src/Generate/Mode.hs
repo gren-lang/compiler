@@ -6,13 +6,13 @@ module Generate.Mode
   )
 where
 
-import qualified AST.Optimized as Opt
-import qualified Data.List as List
-import qualified Data.Map as Map
-import qualified Data.Maybe as Maybe
-import qualified Data.Name as Name
-import qualified Generate.JavaScript.Name as JsName
-import qualified Gren.Compiler.Type.Extract as Extract
+import AST.Optimized qualified as Opt
+import Data.List qualified as List
+import Data.Map qualified as Map
+import Data.Maybe qualified as Maybe
+import Data.Name qualified as Name
+import Generate.JavaScript.Name qualified as JsName
+import Gren.Compiler.Type.Extract qualified as Extract
 
 -- MODE
 

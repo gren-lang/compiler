@@ -5,27 +5,27 @@ module Canonicalize.Module
   )
 where
 
-import qualified AST.Canonical as Can
-import qualified AST.Source as Src
-import qualified Canonicalize.Effects as Effects
-import qualified Canonicalize.Environment as Env
-import qualified Canonicalize.Environment.Dups as Dups
-import qualified Canonicalize.Environment.Foreign as Foreign
-import qualified Canonicalize.Environment.Local as Local
-import qualified Canonicalize.Expression as Expr
-import qualified Canonicalize.Pattern as Pattern
-import qualified Canonicalize.Type as Type
-import qualified Data.Graph as Graph
-import qualified Data.Index as Index
-import qualified Data.Map as Map
-import qualified Data.Name as Name
-import qualified Gren.Interface as I
-import qualified Gren.ModuleName as ModuleName
-import qualified Gren.Package as Pkg
-import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Canonicalize as Error
-import qualified Reporting.Result as Result
-import qualified Reporting.Warning as W
+import AST.Canonical qualified as Can
+import AST.Source qualified as Src
+import Canonicalize.Effects qualified as Effects
+import Canonicalize.Environment qualified as Env
+import Canonicalize.Environment.Dups qualified as Dups
+import Canonicalize.Environment.Foreign qualified as Foreign
+import Canonicalize.Environment.Local qualified as Local
+import Canonicalize.Expression qualified as Expr
+import Canonicalize.Pattern qualified as Pattern
+import Canonicalize.Type qualified as Type
+import Data.Graph qualified as Graph
+import Data.Index qualified as Index
+import Data.Map qualified as Map
+import Data.Name qualified as Name
+import Gren.Interface qualified as I
+import Gren.ModuleName qualified as ModuleName
+import Gren.Package qualified as Pkg
+import Reporting.Annotation qualified as A
+import Reporting.Error.Canonicalize qualified as Error
+import Reporting.Result qualified as Result
+import Reporting.Warning qualified as W
 
 -- RESULT
 

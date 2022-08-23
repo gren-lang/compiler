@@ -3,10 +3,10 @@
 module Parse.SpaceSpec where
 
 import AST.Source (Comment (..))
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Helpers.Instances ()
-import qualified Parse.Primitives as P
-import qualified Parse.Space as Space
+import Parse.Primitives qualified as P
+import Parse.Space qualified as Space
 import Test.Hspec
 
 data ParseError x
@@ -68,7 +68,7 @@ spec = do
 
 parse :: P.Parser (ParseError x) a -> BS.ByteString -> Either (ParseError x) a
 parse parser =
-  P.fromByteString parser (OtherError "fromBytString failed")
+  P.fromByteString parser (OtherError "fromByteString failed")
 
 a :: P.Parser (ParseError x) ()
 a = P.word1 0x61 {- a -} (OtherError "Expected 'a'")

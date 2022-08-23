@@ -6,23 +6,27 @@ module Init
   )
 where
 
-import qualified Data.Map as Map
-import qualified Data.NonEmptyList as NE
-import qualified Deps.Solver as Solver
-import qualified Gren.Constraint as Con
-import qualified Gren.Licenses as Licenses
-import qualified Gren.Outline as Outline
-import qualified Gren.Package as Pkg
-import qualified Gren.Version as V
-import qualified Json.String as Json
-import qualified Reporting
-import qualified Reporting.Doc as D
-import qualified Reporting.Exit as Exit
-import qualified System.Directory as Dir
+import Data.Map qualified as Map
+import Data.NonEmptyList qualified as NE
+import Deps.Package qualified as DPkg
+import Deps.Solver qualified as Solver
+import Directories qualified as Dirs
+import Gren.Constraint qualified as Con
+import Gren.Licenses qualified as Licenses
+import Gren.Outline qualified as Outline
+import Gren.Package qualified as Pkg
+import Gren.Platform qualified as Platform
+import Gren.Version qualified as V
+import Json.String qualified as Json
+import Reporting qualified
+import Reporting.Doc qualified as D
+import Reporting.Exit qualified as Exit
+import System.Directory qualified as Dir
 import Prelude hiding (init)
 
 data Flags = Flags
-  { _isPackage :: Bool
+  { _isPackage :: Bool,
+    _platform :: Maybe Platform.Platform
   }
 
 -- RUN
@@ -68,32 +72,39 @@ question =
 init :: Flags -> IO (Either Exit.Init ())
 init flags =
   do
-    let deps =
-          if _isPackage flags
-            then pkgDefaultDeps
-            else appDefaultDeps
+    let platform = selectPlatform flags
+    let initialDeps = suggestDependencies platform
     (Solver.Env cache) <- Solver.initEnv
-    result <- Solver.verify cache deps
-    case result of
-      Solver.Err exit ->
-        return (Left (Exit.InitSolverProblem exit))
-      Solver.NoSolution ->
-        return (Left (Exit.InitNoSolution (Map.keys deps)))
-      Solver.NoOfflineSolution ->
-        return (Left (Exit.InitNoOfflineSolution (Map.keys deps)))
-      Solver.Ok details ->
-        let outline =
-              if _isPackage flags
-                then pkgOutline
-                else appOutlineFromSolverDetails details
-         in do
-              Dir.createDirectoryIfMissing True "src"
-              Outline.write "." outline
-              putStrLn "Okay, I created it."
-              return (Right ())
+    potentialDeps <-
+      Dirs.withRegistryLock cache $
+        DPkg.latestCompatibleVersionForPackages cache initialDeps
+    case potentialDeps of
+      Left DPkg.NoCompatiblePackage ->
+        return $ Left $ Exit.InitNoCompatibleDependencies Nothing
+      Left (DPkg.GitError gitError) ->
+        return $ Left $ Exit.InitNoCompatibleDependencies $ Just gitError
+      Right deps -> do
+        result <- Solver.verify cache platform deps
+        case result of
+          Solver.Err exit ->
+            return (Left (Exit.InitSolverProblem exit))
+          Solver.NoSolution ->
+            return (Left (Exit.InitNoSolution initialDeps))
+          Solver.NoOfflineSolution ->
+            return (Left (Exit.InitNoOfflineSolution initialDeps))
+          Solver.Ok details ->
+            let outline =
+                  if _isPackage flags
+                    then pkgOutline platform deps
+                    else appOutlineFromSolverDetails platform initialDeps details
+             in do
+                  Dir.createDirectoryIfMissing True "src"
+                  Outline.write "." outline
+                  putStrLn "Okay, I created it."
+                  return (Right ())
 
-pkgOutline :: Outline.Outline
-pkgOutline =
+pkgOutline :: Platform.Platform -> Map.Map Pkg.Name Con.Constraint -> Outline.Outline
+pkgOutline platform deps =
   Outline.Pkg $
     Outline.PkgOutline
       Pkg.dummyName
@@ -101,34 +112,38 @@ pkgOutline =
       Licenses.bsd3
       V.one
       (Outline.ExposedList [])
-      pkgDefaultDeps
-      Map.empty
+      deps
       Con.defaultGren
+      platform
 
-appOutlineFromSolverDetails :: (Map.Map Pkg.Name Solver.Details) -> Outline.Outline
-appOutlineFromSolverDetails details =
+appOutlineFromSolverDetails ::
+  Platform.Platform ->
+  [Pkg.Name] ->
+  (Map.Map Pkg.Name Solver.Details) ->
+  Outline.Outline
+appOutlineFromSolverDetails platform initialDeps details =
   let solution = Map.map (\(Solver.Details vsn _) -> vsn) details
-      directs = Map.intersection solution appDefaultDeps
-      indirects = Map.difference solution appDefaultDeps
+      defaultDeps = Map.fromList $ map (\dep -> (dep, Con.exactly V.one)) initialDeps
+      directs = Map.intersection solution defaultDeps
+      indirects = Map.difference solution defaultDeps
    in Outline.App $
         Outline.AppOutline
           V.compiler
+          platform
           (NE.List (Outline.RelativeSrcDir "src") [])
           directs
           indirects
-          Map.empty
-          Map.empty
 
-appDefaultDeps :: Map.Map Pkg.Name Con.Constraint
-appDefaultDeps =
-  Map.fromList
-    [ (Pkg.core, Con.anything),
-      (Pkg.browser, Con.anything),
-      (Pkg.html, Con.anything)
-    ]
+selectPlatform :: Flags -> Platform.Platform
+selectPlatform flags =
+  case (_isPackage flags, _platform flags) of
+    (True, Nothing) -> Platform.Common
+    (False, Nothing) -> Platform.Browser
+    (_, Just platform) -> platform
 
-pkgDefaultDeps :: Map.Map Pkg.Name Con.Constraint
-pkgDefaultDeps =
-  Map.fromList
-    [ (Pkg.core, Con.untilNextMajor V.one)
-    ]
+suggestDependencies :: Platform.Platform -> [Pkg.Name]
+suggestDependencies platform =
+  case platform of
+    Platform.Common -> [Pkg.core]
+    Platform.Browser -> [Pkg.core, Pkg.browser]
+    Platform.Node -> [Pkg.core, Pkg.node]

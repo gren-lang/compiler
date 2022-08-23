@@ -17,54 +17,56 @@ module Repl
   )
 where
 
-import qualified AST.Source as Src
-import qualified BackgroundWriter as BW
-import qualified Build
+import AST.Source qualified as Src
+import BackgroundWriter qualified as BW
+import Build qualified
 import Control.Applicative ((<|>))
-import qualified Control.Monad.State.Strict as State
+import Control.Monad.State.Strict qualified as State
 import Control.Monad.Trans (lift, liftIO)
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Builder as B
-import qualified Data.ByteString.Char8 as BSC
-import qualified Data.ByteString.Lazy as LBS
-import qualified Data.ByteString.UTF8 as BS_UTF8
-import qualified Data.Char as Char
-import qualified Data.List as List
-import qualified Data.Map as Map
-import qualified Data.Maybe as Maybe
-import qualified Data.Name as N
-import qualified Directories as Dirs
-import qualified Generate
-import qualified Gren.Constraint as C
-import qualified Gren.Details as Details
-import qualified Gren.Licenses as Licenses
-import qualified Gren.ModuleName as ModuleName
-import qualified Gren.Outline as Outline
-import qualified Gren.Package as Pkg
-import qualified Gren.Version as V
-import qualified Parse.Declaration as PD
-import qualified Parse.Expression as PE
-import qualified Parse.Module as PM
+import Data.ByteString qualified as BS
+import Data.ByteString.Builder qualified as B
+import Data.ByteString.Char8 qualified as BSC
+import Data.ByteString.Lazy qualified as LBS
+import Data.ByteString.UTF8 qualified as BS_UTF8
+import Data.Char qualified as Char
+import Data.List qualified as List
+import Data.Map qualified as Map
+import Data.Maybe qualified as Maybe
+import Data.Name qualified as N
+import Deps.Package qualified as DPkg
+import Directories qualified as Dirs
+import Generate qualified
+import Gren.Constraint qualified as C
+import Gren.Details qualified as Details
+import Gren.Licenses qualified as Licenses
+import Gren.ModuleName qualified as ModuleName
+import Gren.Outline qualified as Outline
+import Gren.Package qualified as Pkg
+import Gren.Platform qualified as Platform
+import Gren.Version qualified as V
+import Parse.Declaration qualified as PD
+import Parse.Expression qualified as PE
+import Parse.Module qualified as PM
 import Parse.Primitives (Col, Row)
-import qualified Parse.Primitives as P
-import qualified Parse.Space as PS
-import qualified Parse.Type as PT
-import qualified Parse.Variable as PV
-import qualified Reporting
-import qualified Reporting.Annotation as A
+import Parse.Primitives qualified as P
+import Parse.Space qualified as PS
+import Parse.Type qualified as PT
+import Parse.Variable qualified as PV
+import Reporting qualified
+import Reporting.Annotation qualified as A
 import Reporting.Doc ((<+>))
-import qualified Reporting.Doc as D
-import qualified Reporting.Error.Syntax as ES
-import qualified Reporting.Exit as Exit
-import qualified Reporting.Render.Code as Code
-import qualified Reporting.Report as Report
-import qualified Reporting.Task as Task
-import qualified System.Console.Haskeline as Repl
-import qualified System.Directory as Dir
-import qualified System.Exit as Exit
+import Reporting.Doc qualified as D
+import Reporting.Error.Syntax qualified as ES
+import Reporting.Exit qualified as Exit
+import Reporting.Render.Code qualified as Code
+import Reporting.Report qualified as Report
+import Reporting.Task qualified as Task
+import System.Console.Haskeline qualified as Repl
+import System.Directory qualified as Dir
+import System.Exit qualified as Exit
 import System.FilePath ((</>))
-import qualified System.IO as IO
-import qualified System.Process as Proc
+import System.IO qualified as IO
+import System.Process qualified as Proc
 import Prelude hiding (lines, read)
 
 -- RUN
@@ -449,7 +451,8 @@ toByteString (State imports types decls) output =
 
 outputToBuilder :: Output -> B.Builder
 outputToBuilder output =
-  N.toBuilder N.replValueToPrint <> " ="
+  N.toBuilder N.replValueToPrint
+    <> " ="
     <> case output of
       OutputNothing ->
         " ()\n"
@@ -503,27 +506,33 @@ getRoot =
           cache <- Dirs.getReplCache
           let root = cache </> "tmp"
           Dir.createDirectoryIfMissing True (root </> "src")
-          Outline.write root $
-            Outline.Pkg $
-              Outline.PkgOutline
-                Pkg.dummyName
-                Outline.defaultSummary
-                Licenses.bsd3
-                V.one
-                (Outline.ExposedList [])
-                defaultDeps
-                Map.empty
-                C.defaultGren
+          packageCache <- Dirs.getPackageCache
+          potentialDeps <-
+            Dirs.withRegistryLock packageCache $
+              DPkg.latestCompatibleVersionForPackages packageCache defaultDeps
+          case potentialDeps of
+            Left _ ->
+              error "Failed to find compatible dependencies for this Gren version."
+            Right compatibleDeps -> do
+              Outline.write root $
+                Outline.Pkg $
+                  Outline.PkgOutline
+                    Pkg.dummyName
+                    Outline.defaultSummary
+                    Licenses.bsd3
+                    V.one
+                    (Outline.ExposedList [])
+                    compatibleDeps
+                    C.defaultGren
+                    Platform.Browser
 
-          return root
+              return root
 
-defaultDeps :: Map.Map Pkg.Name C.Constraint
+defaultDeps :: [Pkg.Name]
 defaultDeps =
-  Map.fromList
-    [ (Pkg.core, C.anything),
-      (Pkg.json, C.anything),
-      (Pkg.html, C.anything)
-    ]
+  [ Pkg.core,
+    Pkg.browser
+  ]
 
 -- GET INTERPRETER
 

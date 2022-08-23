@@ -12,30 +12,30 @@ module Deps.Diff
   )
 where
 
-import qualified BackgroundWriter as BW
-import qualified Build
+import BackgroundWriter qualified as BW
+import Build qualified
 import Control.Monad (zipWithM)
 import Data.Function (on)
-import qualified Data.List as List
-import qualified Data.Map as Map
-import qualified Data.Name as Name
-import qualified Data.NonEmptyList as NE
-import qualified Data.Set as Set
-import qualified Deps.Package as Package
-import qualified Directories as Dirs
-import qualified File
-import qualified Gren.Compiler.Type as Type
-import qualified Gren.Details as Details
-import qualified Gren.Docs as Docs
-import qualified Gren.Magnitude as M
-import qualified Gren.ModuleName as ModuleName
-import qualified Gren.Outline as Outline
-import qualified Gren.Package as Pkg
-import qualified Gren.Version as V
-import qualified Json.Decode as D
-import qualified Reporting
-import qualified Reporting.Exit as Exit
-import qualified Reporting.Task as Task
+import Data.List qualified as List
+import Data.Map qualified as Map
+import Data.Name qualified as Name
+import Data.NonEmptyList qualified as NE
+import Data.Set qualified as Set
+import Deps.Package qualified as Package
+import Directories qualified as Dirs
+import File qualified
+import Gren.Compiler.Type qualified as Type
+import Gren.Details qualified as Details
+import Gren.Docs qualified as Docs
+import Gren.Magnitude qualified as M
+import Gren.ModuleName qualified as ModuleName
+import Gren.Outline qualified as Outline
+import Gren.Package qualified as Pkg
+import Gren.Version qualified as V
+import Json.Decode qualified as D
+import Reporting qualified
+import Reporting.Exit qualified as Exit
+import Reporting.Task qualified as Task
 import System.FilePath ((</>))
 
 -- CHANGES

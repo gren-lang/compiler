@@ -5,8 +5,8 @@ module Reporting.Report
   )
 where
 
-import qualified Reporting.Annotation as A
-import qualified Reporting.Doc as D
+import Reporting.Annotation qualified as A
+import Reporting.Doc qualified as D
 
 -- BUILD REPORTS
 

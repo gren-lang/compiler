@@ -32,17 +32,17 @@ where
 
 import Control.Monad (liftM2)
 import Data.Binary (Binary (..))
-import qualified Data.Name as Name
-import qualified Data.Utf8 as Utf8
+import Data.Name qualified as Name
+import Data.Utf8 qualified as Utf8
 import Data.Word (Word8)
 import Foreign.Ptr (Ptr, minusPtr, plusPtr)
-import qualified Gren.Package as Pkg
-import qualified Json.Decode as D
-import qualified Json.Encode as E
+import Gren.Package qualified as Pkg
+import Json.Decode qualified as D
+import Json.Encode qualified as E
 import Parse.Primitives (Col, Row)
-import qualified Parse.Primitives as P
-import qualified Parse.Variable as Var
-import qualified System.FilePath as FP
+import Parse.Primitives qualified as P
+import Parse.Variable qualified as Var
+import System.FilePath qualified as FP
 import Prelude hiding (maybe)
 
 -- RAW
@@ -113,6 +113,7 @@ data Canonical = Canonical
   { _package :: !Pkg.Name,
     _module :: !Name.Name
   }
+  deriving (Show)
 
 -- INSTANCES
 
@@ -169,12 +170,12 @@ debug = Canonical Pkg.core Name.debug
 -- HTML
 
 virtualDom :: Canonical
-virtualDom = Canonical Pkg.virtualDom Name.virtualDom
+virtualDom = Canonical Pkg.browser Name.virtualDom
 
 -- JSON
 
 jsonDecode :: Canonical
-jsonDecode = Canonical Pkg.json "Json.Decode"
+jsonDecode = Canonical Pkg.core "Json.Decode"
 
 jsonEncode :: Canonical
-jsonEncode = Canonical Pkg.json "Json.Encode"
+jsonEncode = Canonical Pkg.core "Json.Encode"

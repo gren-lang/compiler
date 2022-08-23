@@ -18,15 +18,15 @@ module Generate.JavaScript.Name
   )
 where
 
-import qualified Data.ByteString.Builder as B
-import qualified Data.Index as Index
-import qualified Data.Map as Map
-import qualified Data.Name as Name
-import qualified Data.Set as Set
-import qualified Data.Utf8 as Utf8
+import Data.ByteString.Builder qualified as B
+import Data.Index qualified as Index
+import Data.Map qualified as Map
+import Data.Name qualified as Name
+import Data.Set qualified as Set
+import Data.Utf8 qualified as Utf8
 import Data.Word (Word8)
-import qualified Gren.ModuleName as ModuleName
-import qualified Gren.Package as Pkg
+import Gren.ModuleName qualified as ModuleName
+import Gren.Package qualified as Pkg
 
 -- NAME
 

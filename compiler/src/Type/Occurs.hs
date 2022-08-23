@@ -7,9 +7,9 @@ module Type.Occurs
 where
 
 import Data.Foldable (foldrM)
-import qualified Data.Map.Strict as Map
+import Data.Map.Strict qualified as Map
 import Type.Type as Type
-import qualified Type.UnionFind as UF
+import Type.UnionFind qualified as UF
 
 -- OCCURS
 

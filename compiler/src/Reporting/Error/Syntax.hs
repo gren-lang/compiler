@@ -45,17 +45,17 @@ module Reporting.Error.Syntax
   )
 where
 
-import qualified Data.Char as Char
-import qualified Data.Name as Name
+import Data.Char qualified as Char
+import Data.Name qualified as Name
 import Data.Word (Word16)
-import qualified Gren.ModuleName as ModuleName
+import Gren.ModuleName qualified as ModuleName
 import Numeric (showHex)
 import Parse.Primitives (Col, Row)
 import Parse.Symbol (BadOperator (..))
-import qualified Reporting.Annotation as A
-import qualified Reporting.Doc as D
-import qualified Reporting.Render.Code as Code
-import qualified Reporting.Report as Report
+import Reporting.Annotation qualified as A
+import Reporting.Doc qualified as D
+import Reporting.Render.Code qualified as Code
+import Reporting.Report qualified as Report
 import Prelude hiding (Char, String)
 
 -- ALL SYNTAX ERRORS
@@ -211,7 +211,9 @@ data Record
   | RecordEnd Row Col
   | RecordField Row Col
   | RecordEquals Row Col
+  | RecordPipe Row Col
   | RecordExpr Expr Row Col
+  | RecordUpdateExpr Expr Row Col
   | RecordSpace Space Row Col
   | --
     RecordIndentOpen Row Col
@@ -428,6 +430,7 @@ data Number
 data Space
   = HasTab
   | EndlessMultiComment
+  deriving (Show)
 
 -- TO REPORT
 
@@ -895,7 +898,8 @@ toWeirdEndReport source row col =
               ( D.reflow $
                   "I ran into an unexpected symbol:",
                 D.reflow $
-                  "I was not expecting to see a " ++ op
+                  "I was not expecting to see a "
+                    ++ op
                     ++ " here. Try deleting it? Maybe\
                        \ I can give a better hint from there?"
               )
@@ -1621,7 +1625,8 @@ toPortReport source port_ startRow startCol =
                   ( D.reflow $
                       "I cannot handle ports with names like this:",
                     D.reflow $
-                      "You are trying to make a port named `" ++ keyword
+                      "You are trying to make a port named `"
+                        ++ keyword
                         ++ "` but that is a reserved word. Try using some other name?"
                   )
         _ ->
@@ -1924,7 +1929,8 @@ toTypeAliasReport source typeAlias startRow startCol =
                       "I ran into a reserved word unexpectedly while parsing this type alias:",
                     D.stack
                       [ D.reflow $
-                          "It looks like you are trying use `" ++ keyword
+                          "It looks like you are trying use `"
+                            ++ keyword
                             ++ "` as a type variable, but it is a reserved word. Try using a different name?",
                         typeAliasNote
                       ]
@@ -2076,7 +2082,8 @@ toCustomTypeReport source customType startRow startCol =
                       "I ran into a reserved word unexpectedly while parsing this custom type:",
                     D.stack
                       [ D.reflow $
-                          "It looks like you are trying use `" ++ keyword
+                          "It looks like you are trying use `"
+                            ++ keyword
                             ++ "` as a type variable, but it is a reserved word. Try using a different name?",
                         customTypeNote
                       ]
@@ -2422,7 +2429,8 @@ toDeclDefReport source name declDef startRow startCol =
               surroundings
               (Just region)
               ( D.reflow $
-                  "I just saw the type annotation for `" ++ Name.toChars name
+                  "I just saw the type annotation for `"
+                    ++ Name.toChars name
                     ++ "` so I was expecting to see its definition here:",
                 D.stack
                   [ D.reflow $
@@ -2630,7 +2638,9 @@ toExprReport source context expr startRow startCol =
               surroundings
               (Just region)
               ( D.reflow $
-                  "I just saw a " ++ Name.toChars op ++ " "
+                  "I just saw a "
+                    ++ Name.toChars op
+                    ++ " "
                     ++ (if isMath then "sign" else "operator")
                     ++ ", so I am getting stuck here:",
                 if isMath
@@ -3336,7 +3346,8 @@ toLetReport source context let_ startRow startCol =
                   ( D.reflow $
                       "I was partway through parsing a `let` expression, but I got stuck here:",
                     D.reflow $
-                      "It looks like you are trying to use `" ++ keyword
+                      "It looks like you are trying to use `"
+                        ++ keyword
                         ++ "` as a variable name, but\
                            \ it is a reserved word! Try using a different name instead."
                   )
@@ -3426,7 +3437,8 @@ toLetDefReport source name def startRow startCol =
               surroundings
               (Just region)
               ( D.reflow $
-                  "I just saw the type annotation for `" ++ Name.toChars name
+                  "I just saw the type annotation for `"
+                    ++ Name.toChars name
                     ++ "` so I was expecting to see its definition here:",
                 D.stack
                   [ D.reflow $
@@ -3679,7 +3691,8 @@ toLetDefReport source name def startRow startCol =
               ( D.reflow $
                   "I got stuck while parsing the `" ++ Name.toChars name ++ "` definition:",
                 D.reflow $
-                  "I just saw a type annotation indented " ++ show indent
+                  "I just saw a type annotation indented "
+                    ++ show indent
                     ++ " spaces, so I was\
                        \ expecting to see the corresponding definition next with the exact same amount\
                        \ of indentation. It looks like this line needs "
@@ -3796,7 +3809,8 @@ toCaseReport source context case_ startRow startCol =
                   ( D.reflow $
                       "I am partway through parsing a `case` expression, but I got stuck here:",
                     D.reflow $
-                      "It looks like you are trying to use `" ++ keyword
+                      "It looks like you are trying to use `"
+                        ++ keyword
                         ++ "` in one of your\
                            \ patterns, but it is a reserved word. Try using a different name?"
                   )
@@ -4188,7 +4202,8 @@ toRecordReport source context record startRow startCol =
                   ( D.reflow $
                       "I just started parsing a record, but I got stuck on this field name:",
                     D.reflow $
-                      "It looks like you are trying to use `" ++ keyword
+                      "It looks like you are trying to use `"
+                        ++ keyword
                         ++ "` as a field name, but \
                            \ that is a reserved word. Try using a different name!"
                   )
@@ -4284,7 +4299,8 @@ toRecordReport source context record startRow startCol =
                   ( D.reflow $
                       "I am partway through parsing a record, but I got stuck on this field name:",
                     D.reflow $
-                      "It looks like you are trying to use `" ++ keyword
+                      "It looks like you are trying to use `"
+                        ++ keyword
                         ++ "` as a field name, but \
                            \ that is a reserved word. Try using a different name!"
                   )
@@ -4340,7 +4356,7 @@ toRecordReport source context record startRow startCol =
                             "expecting",
                             "to",
                             "see",
-                            "another",
+                            "a",
                             "record",
                             "field",
                             "defined",
@@ -4402,8 +4418,48 @@ toRecordReport source context record startRow startCol =
                     noteForRecordError
                   ]
               )
+    RecordPipe row col ->
+      let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+          region = toRegion row col
+       in Report.Report "PROBLEM IN RECORD" region [] $
+            Code.toSnippet
+              source
+              surroundings
+              (Just region)
+              ( D.reflow $
+                  "I am partway through parsing a record, but I got stuck here:",
+                D.stack
+                  [ D.fillSep $
+                      [ "I",
+                        "just",
+                        "saw",
+                        "an",
+                        "expression",
+                        "so",
+                        "I",
+                        "was",
+                        "expecting",
+                        "to",
+                        "see",
+                        "a",
+                        "|",
+                        "symbol",
+                        "next.",
+                        "So",
+                        "try",
+                        "putting",
+                        "a",
+                        D.green "|",
+                        "sign",
+                        "here?"
+                      ],
+                    noteForRecordError
+                  ]
+              )
     RecordExpr expr row col ->
       toExprReport source (InNode NRecord startRow startCol context) expr row col
+    RecordUpdateExpr expr row col ->
+      toExprReport source context expr row col
     RecordSpace space row col ->
       toSpaceReport source space row col
     RecordIndentOpen row col ->
@@ -5030,7 +5086,8 @@ toFuncReport source context func startRow startCol =
                   ( D.reflow $
                       "I was parsing an anonymous function, but I got stuck here:",
                     D.reflow $
-                      "It looks like you are trying to use `" ++ keyword
+                      "It looks like you are trying to use `"
+                        ++ keyword
                         ++ "` as an argument, but\
                            \ it is a reserved word in this language. Try using a different argument name!"
                   )
@@ -5806,7 +5863,8 @@ toTypeReport source context tipe startRow startCol =
                   ( D.reflow $
                       "I was expecting to see a type next, but I got stuck on this reserved word:",
                     D.reflow $
-                      "It looks like you are trying to use `" ++ keyword
+                      "It looks like you are trying to use `"
+                        ++ keyword
                         ++ "` as a type variable, but \
                            \ it is a reserved word. Try using a different name!"
                   )
@@ -5911,7 +5969,8 @@ toTRecordReport source context record startRow startCol =
                   ( D.reflow $
                       "I just started parsing a record type, but I got stuck on this field name:",
                     D.reflow $
-                      "It looks like you are trying to use `" ++ keyword
+                      "It looks like you are trying to use `"
+                        ++ keyword
                         ++ "` as a field name, but \
                            \ that is a reserved word. Try using a different name!"
                   )
@@ -5995,7 +6054,8 @@ toTRecordReport source context record startRow startCol =
                   ( D.reflow $
                       "I am partway through parsing a record type, but I got stuck on this field name:",
                     D.reflow $
-                      "It looks like you are trying to use `" ++ keyword
+                      "It looks like you are trying to use `"
+                        ++ keyword
                         ++ "` as a field name, but \
                            \ that is a reserved word. Try using a different name!"
                   )

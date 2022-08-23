@@ -11,7 +11,7 @@ module Data.Bag
   )
 where
 
-import qualified Data.List as List
+import Data.List qualified as List
 import Prelude hiding (map)
 
 -- BAGS

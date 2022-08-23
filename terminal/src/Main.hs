@@ -5,19 +5,20 @@ module Main
   )
 where
 
-import qualified Bump
-import qualified Data.List as List
-import qualified Diff
-import qualified Format
-import qualified Gren.Version as V
-import qualified Init
-import qualified Install
-import qualified Make
-import qualified Publish
-import qualified Repl
+import Bump qualified
+import Data.List qualified as List
+import Diff qualified
+-- import qualified Format
+import Gren.Platform qualified as Platform
+import Gren.Version qualified as V
+import Init qualified
+import Install qualified
+import Make qualified
+import Publish qualified
+import Repl qualified
 import Terminal
 import Terminal.Helpers
-import qualified Text.PrettyPrint.ANSI.Leijen as P
+import Text.PrettyPrint.ANSI.Leijen qualified as P
 import Prelude hiding (init)
 
 -- MAIN
@@ -31,7 +32,7 @@ main =
       init,
       make,
       install,
-      format,
+      -- format,
       bump,
       diff,
       publish
@@ -63,7 +64,7 @@ outro =
   P.fillSep $
     map P.text $
       words
-        "Be sure to ask on the Gren slack if you run into trouble! Folks are friendly and\
+        "Be sure to ask on the Gren zulip if you run into trouble! Folks are friendly and\
         \ happy to help out. They hang out there because it is fun, so be kind to get the\
         \ best results!"
 
@@ -84,8 +85,19 @@ init =
 
       initFlags =
         flags Init.Flags
-          |-- onOff "package" "Create a package specific gren.json file."
+          |-- onOff "package" "Create a package (as opposed to an application)."
+          |-- flag "platform" initPlatformParser "Which platform to target"
    in Terminal.Command "init" (Common summary) details example noArgs initFlags Init.run
+
+initPlatformParser :: Parser Platform.Platform
+initPlatformParser =
+  Parser
+    { _singular = "platform",
+      _plural = "platforms",
+      _parser = Platform.fromString,
+      _suggest = \_ -> return ["common", "browser", "node"],
+      _examples = \_ -> return ["common", "browser", "node"]
+    }
 
 -- REPL
 
@@ -143,7 +155,7 @@ make =
           |-- onOff "optimize" "Turn on optimizations to make code smaller and faster. For example, the compiler renames record fields to be as short as possible and unboxes values to reduce allocation."
           |-- flag "output" Make.output "Specify the name of the resulting JS file. For example --output=assets/gren.js to generate the JS at assets/gren.js. You can also use --output=/dev/stdout to output the JS to the terminal, or --output=/dev/null to generate no output at all!"
           |-- flag "report" Make.reportType "You can say --report=json to get error messages as JSON. This is only really useful if you are an editor plugin. Humans should avoid it!"
-          |-- flag "docs" Make.docsFile "Generate a JSON file of documentation for a package. Eventually it will be possible to preview docs with `reactor` because it is quite hard to deal with these JSON files directly."
+          |-- flag "docs" Make.docsFile "Generate a JSON file of documentation for a package."
    in Terminal.Command "make" Uncommon details example (zeroOrMore grenFile) makeFlags Make.run
 
 -- INSTALL
@@ -254,7 +266,7 @@ diff =
    in Terminal.Command "diff" Uncommon details example diffArgs noFlags Diff.run
 
 -- FORMAT
-
+{-
 format :: Terminal.Command
 format =
   let details =
@@ -268,6 +280,7 @@ format =
           |-- onOff "yes" "Assume yes for all interactive prompts."
           |-- onOff "stdin" "Format stdin and write it to stdout."
    in Terminal.Command "format" Uncommon details example (zeroOrMore grenFileOrDirectory) formatFlags Format.run
+   -}
 
 -- HELPERS
 

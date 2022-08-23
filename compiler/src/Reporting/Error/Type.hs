@@ -19,18 +19,18 @@ module Reporting.Error.Type
   )
 where
 
-import qualified AST.Canonical as Can
-import qualified Data.Index as Index
-import qualified Data.Map as Map
-import qualified Data.Name as Name
-import qualified Reporting.Annotation as A
-import qualified Reporting.Doc as D
-import qualified Reporting.Render.Code as Code
-import qualified Reporting.Render.Type as RT
-import qualified Reporting.Render.Type.Localizer as L
-import qualified Reporting.Report as Report
-import qualified Reporting.Suggest as Suggest
-import qualified Type.Error as T
+import AST.Canonical qualified as Can
+import Data.Index qualified as Index
+import Data.Map qualified as Map
+import Data.Name qualified as Name
+import Reporting.Annotation qualified as A
+import Reporting.Doc qualified as D
+import Reporting.Render.Code qualified as Code
+import Reporting.Render.Type qualified as RT
+import Reporting.Render.Type.Localizer qualified as L
+import Reporting.Report qualified as Report
+import Reporting.Suggest qualified as Suggest
+import Type.Error qualified as T
 import Prelude hiding (round)
 
 -- ERRORS
@@ -58,7 +58,7 @@ data Context
   | CallArity MaybeName Int
   | CallArg MaybeName Index.ZeroBased
   | RecordAccess A.Region (Maybe Name.Name) A.Region Name.Name
-  | RecordUpdateKeys Name.Name (Map.Map Name.Name Can.FieldUpdate)
+  | RecordUpdateKeys (Map.Map Name.Name Can.FieldUpdate)
   | RecordUpdateValue Name.Name
   | Destructure
 
@@ -171,7 +171,8 @@ toPatternReport source localizer patternRegion category tipe expected =
                   tipe
                   expectedType
                   (addPatternCategory "The argument is a pattern that matches" category)
-                  ( "But the type annotation on `" <> Name.toChars name
+                  ( "But the type annotation on `"
+                      <> Name.toChars name
                       <> "` says the "
                       <> D.ordinal index
                       <> " argument should be:"
@@ -217,7 +218,9 @@ toPatternReport source localizer patternRegion category tipe expected =
                   tipe
                   expectedType
                   (addPatternCategory "It is trying to match" category)
-                  ( "But `" <> Name.toChars name <> "` needs its "
+                  ( "But `"
+                      <> Name.toChars name
+                      <> "` needs its "
                       <> D.ordinal index
                       <> " argument to be:"
                   )
@@ -528,7 +531,8 @@ problemToHint problem =
 badRigidVar :: Name.Name -> String -> [D.Doc]
 badRigidVar name aThing =
   [ D.toSimpleHint $
-      "Your type annotation uses type variable `" ++ Name.toChars name
+      "Your type annotation uses type variable `"
+        ++ Name.toChars name
         ++ "` which means ANY type of value can flow through, but your code is saying it specifically wants "
         ++ aThing
         ++ ". Maybe change your type annotation to\
@@ -539,7 +543,10 @@ badRigidVar name aThing =
 badDoubleRigid :: Name.Name -> Name.Name -> [D.Doc]
 badDoubleRigid x y =
   [ D.toSimpleHint $
-      "Your type annotation uses `" ++ Name.toChars x ++ "` and `" ++ Name.toChars y
+      "Your type annotation uses `"
+        ++ Name.toChars x
+        ++ "` and `"
+        ++ Name.toChars y
         ++ "` as separate type variables. Your code seems to be saying they are the\
            \ same though. Maybe they should be the same in your type annotation?\
            \ Maybe your code uses them in a weird way?",
@@ -572,7 +579,8 @@ badFlexSuper direction super tipe =
           ]
         T.Type _ name _ ->
           [ D.toSimpleHint $
-              "I do not know how to compare `" ++ Name.toChars name
+              "I do not know how to compare `"
+                ++ Name.toChars name
                 ++ "` values. I can only\
                    \ compare ints, floats, chars, strings and arrays of comparable values.",
             D.reflowLink
@@ -613,7 +621,9 @@ badRigidSuper super aThing =
           T.Appendable -> ("appendable", "strings AND arrays")
           T.CompAppend -> ("compappend", "strings AND arrays")
    in [ D.toSimpleHint $
-          "The `" ++ superType ++ "` in your type annotation is saying that "
+          "The `"
+            ++ superType
+            ++ "` in your type annotation is saying that "
             ++ manyThings
             ++ " can flow through, but your code is saying it specifically wants "
             ++ aThing
@@ -884,7 +894,7 @@ toExprReport source localizer exprRegion category tipe expected =
                           ]
                       ]
                     )
-            RecordUpdateKeys record expectedFields ->
+            RecordUpdateKeys expectedFields ->
               case T.iteratedDealias tipe of
                 T.Record actualFields ext ->
                   case Map.lookupMin (Map.difference expectedFields actualFields) of
@@ -892,7 +902,7 @@ toExprReport source localizer exprRegion category tipe expected =
                       mismatch
                         ( Nothing,
                           "Something is off with this record update:",
-                          "The `" <> Name.toChars record <> "` record is",
+                          "The record is",
                           "But this update needs it to be compatable with:",
                           [ D.reflow
                               "Do you mind creating an <http://sscce.org/> that produces this error message and\
@@ -901,19 +911,18 @@ toExprReport source localizer exprRegion category tipe expected =
                           ]
                         )
                     Just (field, Can.FieldUpdate fieldRegion _) ->
-                      let rStr = "`" <> Name.toChars record <> "`"
-                          fStr = "`" <> Name.toChars field <> "`"
+                      let fStr = "`" <> Name.toChars field <> "`"
                        in custom
                             (Just fieldRegion)
                             ( D.reflow $
-                                "The " <> rStr <> " record does not have a " <> fStr <> " field:",
+                                "The record does not have a " <> fStr <> " field:",
                               case Suggest.sort (Name.toChars field) (Name.toChars . fst) (Map.toList actualFields) of
                                 [] ->
-                                  D.reflow $ "In fact, " <> rStr <> " is a record with NO fields!"
+                                  D.reflow $ "In fact, this is a record with NO fields!"
                                 f : fs ->
                                   D.stack
                                     [ D.reflow $
-                                        "This is usually a typo. Here are the " <> rStr <> " fields that are most similar:",
+                                        "This is usually a typo. Here are the fields that are most similar:",
                                       toNearbyRecord localizer f fs ext,
                                       D.fillSep
                                         [ "So",
@@ -1120,7 +1129,8 @@ badOpRightFallback localizer category op tipe expected =
         (addCategory "The right argument is" category)
         ("But (" <> Name.toChars op <> ") needs the right argument to be:")
         [ D.toSimpleHint $
-            "With operators like (" ++ Name.toChars op
+            "With operators like ("
+              ++ Name.toChars op
               ++ ") I always check the left\
                  \ side first. If it seems fine, I assume it is correct and check the right\
                  \ side. So the problem may be in how the left and right arguments interact!"

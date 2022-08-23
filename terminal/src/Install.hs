@@ -6,22 +6,23 @@ module Install
   )
 where
 
-import qualified BackgroundWriter as BW
+import BackgroundWriter qualified as BW
 import Data.Map ((!))
-import qualified Data.Map as Map
-import qualified Data.Map.Merge.Strict as Map
-import qualified Deps.Solver as Solver
-import qualified Directories as Dirs
-import qualified Gren.Constraint as C
-import qualified Gren.Details as Details
-import qualified Gren.Outline as Outline
-import qualified Gren.Package as Pkg
-import qualified Gren.Version as V
-import qualified Reporting
+import Data.Map qualified as Map
+import Data.Map.Merge.Strict qualified as Map
+import Deps.Package qualified as DPkg
+import Deps.Solver qualified as Solver
+import Directories qualified as Dirs
+import Gren.Constraint qualified as C
+import Gren.Details qualified as Details
+import Gren.Outline qualified as Outline
+import Gren.Package qualified as Pkg
+import Gren.Version qualified as V
+import Reporting qualified
 import Reporting.Doc ((<+>))
-import qualified Reporting.Doc as D
-import qualified Reporting.Exit as Exit
-import qualified Reporting.Task as Task
+import Reporting.Doc qualified as D
+import Reporting.Exit qualified as Exit
+import Reporting.Task qualified as Task
 
 -- RUN
 
@@ -173,11 +174,10 @@ attemptChangesHelp root env oldOutline newOutline question =
 -- MAKE APP PLAN
 
 makeAppPlan :: Solver.Env -> Pkg.Name -> Outline.AppOutline -> Task (Changes V.Version)
-makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ _ direct indirect testDirect testIndirect) =
+makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ _ _ direct indirect) =
   if Map.member pkg direct
     then return AlreadyInstalled
-    else -- is it already indirect?
-    case Map.lookup pkg indirect of
+    else case Map.lookup pkg indirect of
       Just vsn ->
         return $
           PromoteIndirect $
@@ -186,62 +186,52 @@ makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ _ direct indire
                 { Outline._app_deps_direct = Map.insert pkg vsn direct,
                   Outline._app_deps_indirect = Map.delete pkg indirect
                 }
-      Nothing ->
-        -- is it already a test dependency?
-        case Map.lookup pkg testDirect of
-          Just vsn ->
-            return $
-              PromoteTest $
-                Outline.App $
-                  outline
-                    { Outline._app_deps_direct = Map.insert pkg vsn direct,
-                      Outline._app_test_direct = Map.delete pkg testDirect
-                    }
-          Nothing ->
-            -- is it already an indirect test dependency?
-            case Map.lookup pkg testIndirect of
-              Just vsn ->
-                return $
-                  PromoteTest $
-                    Outline.App $
-                      outline
-                        { Outline._app_deps_direct = Map.insert pkg vsn direct,
-                          Outline._app_test_indirect = Map.delete pkg testIndirect
-                        }
-              Nothing ->
-                do
-                  result <- Task.io $ Solver.addToApp cache pkg outline
-                  case result of
-                    Solver.Ok (Solver.AppSolution old new app) ->
-                      return (Changes (detectChanges old new) (Outline.App app))
-                    Solver.NoSolution ->
-                      Task.throw (Exit.InstallNoOnlineAppSolution pkg)
-                    Solver.NoOfflineSolution ->
-                      Task.throw (Exit.InstallNoOfflineAppSolution pkg)
-                    Solver.Err exit ->
-                      Task.throw (Exit.InstallHadSolverTrouble exit)
+      Nothing -> do
+        compatibleVersionResult <-
+          Task.io $
+            Dirs.withRegistryLock cache $
+              DPkg.latestCompatibleVersion cache pkg
+        case compatibleVersionResult of
+          Left DPkg.NoCompatiblePackage ->
+            Task.throw $ Exit.InstallNoCompatiblePkg pkg
+          Left (DPkg.GitError gitError) ->
+            Task.throw $
+              Exit.InstallHadSolverTrouble $
+                Exit.SolverBadGitOperationUnversionedPkg pkg gitError
+          Right compatibleVersion -> do
+            result <- Task.io $ Solver.addToApp cache pkg compatibleVersion outline
+            case result of
+              Solver.Ok (Solver.AppSolution old new app) ->
+                return (Changes (detectChanges old new) (Outline.App app))
+              Solver.NoSolution ->
+                Task.throw (Exit.InstallNoOnlineAppSolution pkg)
+              Solver.NoOfflineSolution ->
+                Task.throw (Exit.InstallNoOfflineAppSolution pkg)
+              Solver.Err exit ->
+                Task.throw (Exit.InstallHadSolverTrouble exit)
 
 -- MAKE PACKAGE PLAN
 
 makePkgPlan :: Solver.Env -> Pkg.Name -> Outline.PkgOutline -> Task (Changes C.Constraint)
-makePkgPlan (Solver.Env cache) pkg outline@(Outline.PkgOutline _ _ _ _ _ deps test _) =
+makePkgPlan (Solver.Env cache) pkg outline@(Outline.PkgOutline _ _ _ _ _ deps _ rootPlatform) =
   if Map.member pkg deps
     then return AlreadyInstalled
-    else -- is already in test dependencies?
-    case Map.lookup pkg test of
-      Just con ->
-        return $
-          PromoteTest $
-            Outline.Pkg $
-              outline
-                { Outline._pkg_deps = Map.insert pkg con deps,
-                  Outline._pkg_test_deps = Map.delete pkg test
-                }
-      Nothing ->
-        do
-          let old = Map.union deps test
-          let cons = Map.insert pkg C.anything old
-          result <- Task.io $ Solver.verify cache cons
+    else do
+      compatibleVersionResult <-
+        Task.io $
+          Dirs.withRegistryLock cache $
+            DPkg.latestCompatibleVersion cache pkg
+      case compatibleVersionResult of
+        Left DPkg.NoCompatiblePackage ->
+          Task.throw $ Exit.InstallNoCompatiblePkg pkg
+        Left (DPkg.GitError gitError) ->
+          Task.throw $
+            Exit.InstallHadSolverTrouble $
+              Exit.SolverBadGitOperationUnversionedPkg pkg gitError
+        Right compatibleVersion -> do
+          let old = deps
+          let cons = Map.insert pkg (C.untilNextMajor compatibleVersion) old
+          result <- Task.io $ Solver.verify cache rootPlatform cons
           case result of
             Solver.Ok solution ->
               let (Solver.Details vsn _) = solution ! pkg
@@ -254,8 +244,7 @@ makePkgPlan (Solver.Env cache) pkg outline@(Outline.PkgOutline _ _ _ _ _ deps te
                     Changes changes $
                       Outline.Pkg $
                         outline
-                          { Outline._pkg_deps = addNews (Just pkg) news deps,
-                            Outline._pkg_test_deps = addNews Nothing news test
+                          { Outline._pkg_deps = addNews (Just pkg) news deps
                           }
             Solver.NoSolution ->
               Task.throw $ Exit.InstallNoOnlinePkgSolution pkg
