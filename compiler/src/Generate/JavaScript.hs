@@ -42,7 +42,7 @@ generate mode (Opt.GlobalGraph graph _) mains =
         <> perfNote mode
         <> stateToBuilder state
         <> toMainExports mode mains
-        <> "}(this));"
+        <> "}(this.module ? this.module.exports : this));"
 
 addMain :: Mode.Mode -> Graph -> ModuleName.Canonical -> Opt.Main -> State -> State
 addMain mode graph home _ state =
