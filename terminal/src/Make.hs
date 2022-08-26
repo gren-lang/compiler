@@ -21,6 +21,7 @@ import Directories qualified as Dirs
 import File qualified
 import Generate qualified
 import Generate.Html qualified as Html
+import Generate.Node qualified as Node
 import Gren.Details qualified as Details
 import Gren.ModuleName qualified as ModuleName
 import Gren.Outline qualified as Outline
@@ -92,6 +93,10 @@ runHelp root paths style (Flags debug optimize maybeOutput _ maybeDocs) =
                         do
                           builder <- toBuilder root details desiredMode artifacts
                           generate style "index.html" (Html.sandwich name builder) (NE.List name [])
+                      (Platform.Node, [name]) ->
+                        do
+                          builder <- toBuilder root details desiredMode artifacts
+                          generate style "gren.js" (Node.sandwich name builder) (NE.List name [])
                       (_, name : names) ->
                         do
                           builder <- toBuilder root details desiredMode artifacts

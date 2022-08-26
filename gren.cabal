@@ -134,6 +134,7 @@ Common gren-common
         Canonicalize.Type
         Compile
         Generate.Html
+        Generate.Node
         Generate.JavaScript
         Generate.JavaScript.Builder
         Generate.JavaScript.Expression
