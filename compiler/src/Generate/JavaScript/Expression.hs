@@ -492,8 +492,8 @@ generateTailCall mode name args =
       toRealVars (argName, _) =
         JS.ExprStmt $
           JS.Assign (JS.LRef (JsName.fromLocal argName)) (JS.Ref (JsName.makeTemp argName))
-   in JS.Vars (map toTempVars args)
-        : map toRealVars args
+   in JS.Vars (map toTempVars args) :
+      map toRealVars args
         ++ [JS.Continue (Just (JsName.fromLocal name))]
 
 -- DEFINITIONS
@@ -749,7 +749,10 @@ pathToJsExpr mode root path =
 generateMain :: Mode.Mode -> ModuleName.Canonical -> Opt.Main -> JS.Expr
 generateMain mode home main =
   case main of
-    Opt.Static ->
+    Opt.StaticString ->
+      JS.Ref (JsName.fromKernel Name.node "log")
+        # JS.Ref (JsName.fromGlobal home "main")
+    Opt.StaticVDom ->
       JS.Ref (JsName.fromKernel Name.virtualDom "init")
         # JS.Ref (JsName.fromGlobal home "main")
         # JS.Int 0

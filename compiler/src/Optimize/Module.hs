@@ -177,13 +177,13 @@ addDefHelp platform region annotations home name args body graph@(Opt.LocalGraph
                   Result.ok $
                     addMain $
                       Names.run $
-                        Names.registerKernel Name.virtualDom Opt.Static
+                        Names.registerKernel Name.node Opt.StaticString
             Can.TType hm nm [_]
               | platform == P.Browser && hm == ModuleName.virtualDom && nm == Name.node ->
                   Result.ok $
                     addMain $
                       Names.run $
-                        Names.registerKernel Name.virtualDom Opt.Static
+                        Names.registerKernel Name.virtualDom Opt.StaticVDom
             Can.TType hm nm [flags, _, message] | hm == ModuleName.platform && nm == Name.program ->
               case Effects.checkPayload flags of
                 Right () ->
