@@ -1962,12 +1962,13 @@ data Make
   | MakeBadDetails Details
   | MakeAppNeedsFileNames
   | MakePkgNeedsExposing
-  | MakeMultipleFilesIntoHtml
+  | MakeMultipleFiles
   | MakeNoMain
   | MakeNonMainFilesIntoJavaScript ModuleName.Raw [ModuleName.Raw]
   | MakeCannotBuild BuildProblem
   | MakeBadGenerate Generate
   | MakeHtmlOnlyForBrowserPlatform
+  | MakeExeOnlyForNodePlatform
 
 makeToReport :: Make -> Help.Report
 makeToReport make =
@@ -2032,11 +2033,11 @@ makeToReport make =
             "You can also entries to the \"exposed-modules\" list in your gren.json file, and\
             \ I will try to compile the relevant files."
         ]
-    MakeMultipleFilesIntoHtml ->
+    MakeMultipleFiles ->
       Help.report
         "TOO MANY FILES"
         Nothing
-        ( "When producing an HTML file, I can only handle one file."
+        ( "When producing an HTML file or executable, I can only handle one file."
         )
         [ D.fillSep
             [ "Switch",
@@ -2209,6 +2210,16 @@ makeToReport make =
         )
         [ D.reflow $
             "Try changing the `target` value in `gren.json` to `browser`.\
+            \ alternatively, pass a filename ending with `.js` to the compiler."
+        ]
+    MakeExeOnlyForNodePlatform ->
+      Help.report
+        "EXECUTABLES CAN ONLY BE CREATED FOR NODE PLATFORM"
+        Nothing
+        ( "When producing an executable, I require that the project platform is `node`."
+        )
+        [ D.reflow $
+            "Try changing the `target` value in `gren.json` to `node`.\
             \ alternatively, pass a filename ending with `.js` to the compiler."
         ]
 

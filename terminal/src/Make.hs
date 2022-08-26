@@ -44,7 +44,8 @@ data Flags = Flags
   }
 
 data Output
-  = JS FilePath
+  = Exe FilePath
+  | JS FilePath
   | Html FilePath
   | DevNull
   | DevStdOut
@@ -95,11 +96,11 @@ runHelp root paths style (Flags debug optimize maybeOutput _ maybeDocs) =
                       (Platform.Node, [name]) ->
                         do
                           builder <- toBuilder root details desiredMode artifacts
-                          generate style "gren.js" (Node.sandwich name builder) (NE.List name [])
+                          generate style "app" (Node.sandwich name builder) (NE.List name [])
                       (_, name : names) ->
                         do
                           builder <- toBuilder root details desiredMode artifacts
-                          generate style "gren.js" builder (NE.List name names)
+                          generate style "index.js" builder (NE.List name names)
                   Just DevStdOut ->
                     case getMains artifacts of
                       [] ->
@@ -110,16 +111,19 @@ runHelp root paths style (Flags debug optimize maybeOutput _ maybeDocs) =
                           Task.io $ B.hPutBuilder IO.stdout builder
                   Just DevNull ->
                     return ()
+                  Just (Exe target) ->
+                    case platform of
+                      Platform.Node -> do
+                        name <- hasOneMain artifacts
+                        builder <- toBuilder root details desiredMode artifacts
+                        generate style target (Node.sandwich name builder) (NE.List name [])
+                      _ -> do
+                        Task.throw Exit.MakeExeOnlyForNodePlatform
                   Just (JS target) ->
                     case getNoMains artifacts of
-                      [] ->
-                        case (platform, getMains artifacts) of
-                          (Platform.Node, [name]) -> do
-                            builder <- toBuilder root details desiredMode artifacts
-                            generate style target (Node.sandwich name builder) (Build.getRootNames artifacts)
-                          _ -> do
-                            builder <- toBuilder root details desiredMode artifacts
-                            generate style target builder (Build.getRootNames artifacts)
+                      [] -> do
+                        builder <- toBuilder root details desiredMode artifacts
+                        generate style target builder (Build.getRootNames artifacts)
                       name : names ->
                         Task.throw (Exit.MakeNonMainFilesIntoJavaScript name names)
                   Just (Html target) ->
@@ -210,7 +214,7 @@ hasOneMain :: Build.Artifacts -> Task ModuleName.Raw
 hasOneMain (Build.Artifacts _ _ roots modules) =
   case roots of
     NE.List root [] -> Task.mio Exit.MakeNoMain (return $ getMain modules root)
-    NE.List _ (_ : _) -> Task.throw Exit.MakeMultipleFilesIntoHtml
+    NE.List _ (_ : _) -> Task.throw Exit.MakeMultipleFiles
 
 -- GET MAINLESS
 
@@ -280,6 +284,7 @@ parseOutput name
   | isDevNull name = Just DevNull
   | hasExt ".html" name = Just (Html name)
   | hasExt ".js" name = Just (JS name)
+  | noExt name = Just (Exe name)
   | otherwise = Nothing
 
 docsFile :: Parser FilePath
@@ -295,6 +300,10 @@ docsFile =
 hasExt :: String -> String -> Bool
 hasExt ext path =
   FP.takeExtension path == ext && length path > length ext
+
+noExt :: String -> Bool
+noExt path =
+  FP.takeExtension path == ""
 
 isDevNull :: String -> Bool
 isDevNull name =
