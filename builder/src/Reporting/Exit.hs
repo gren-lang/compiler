@@ -1967,6 +1967,7 @@ data Make
   | MakeNonMainFilesIntoJavaScript ModuleName.Raw [ModuleName.Raw]
   | MakeCannotBuild BuildProblem
   | MakeBadGenerate Generate
+  | MakeHtmlOnlyForBrowserPlatform
 
 makeToReport :: Make -> Help.Report
 makeToReport make =
@@ -2200,6 +2201,16 @@ makeToReport make =
       toBuildProblemReport buildProblem
     MakeBadGenerate generateProblem ->
       toGenerateReport generateProblem
+    MakeHtmlOnlyForBrowserPlatform ->
+      Help.report
+        "HTML FILES CAN ONLY BE CREATED FOR BROWSER PLATFORM"
+        Nothing
+        ( "When producing a HTML file, I require that the project platform is `browser`."
+        )
+        [ D.reflow $
+            "Try changing the `target` value in `gren.json` to `browser`.\
+            \ alternatively, pass a filename ending with `.js` to the compiler."
+        ]
 
 -- BUILD PROBLEM
 

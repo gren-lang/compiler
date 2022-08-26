@@ -23,6 +23,8 @@ import Generate qualified
 import Generate.Html qualified as Html
 import Gren.Details qualified as Details
 import Gren.ModuleName qualified as ModuleName
+import Gren.Outline qualified as Outline
+import Gren.Platform qualified as Platform
 import Reporting qualified
 import Reporting.Exit qualified as Exit
 import Reporting.Task qualified as Task
@@ -72,6 +74,7 @@ runHelp root paths style (Flags debug optimize maybeOutput _ maybeDocs) =
         do
           desiredMode <- getMode debug optimize
           details <- Task.eio Exit.MakeBadDetails (Details.load style scope root)
+          platform <- getPlatform root
           case paths of
             [] ->
               do
@@ -82,14 +85,14 @@ runHelp root paths style (Flags debug optimize maybeOutput _ maybeDocs) =
                 artifacts <- buildPaths style root details (NE.List p ps)
                 case maybeOutput of
                   Nothing ->
-                    case getMains artifacts of
-                      [] ->
+                    case (platform, getMains artifacts) of
+                      (_, []) ->
                         return ()
-                      [name] ->
+                      (Platform.Browser, [name]) ->
                         do
                           builder <- toBuilder root details desiredMode artifacts
                           generate style "index.html" (Html.sandwich name builder) (NE.List name [])
-                      name : names ->
+                      (_, name : names) ->
                         do
                           builder <- toBuilder root details desiredMode artifacts
                           generate style "gren.js" builder (NE.List name names)
@@ -112,10 +115,13 @@ runHelp root paths style (Flags debug optimize maybeOutput _ maybeDocs) =
                       name : names ->
                         Task.throw (Exit.MakeNonMainFilesIntoJavaScript name names)
                   Just (Html target) ->
-                    do
-                      name <- hasOneMain artifacts
-                      builder <- toBuilder root details desiredMode artifacts
-                      generate style target (Html.sandwich name builder) (NE.List name [])
+                    case platform of
+                      Platform.Browser -> do
+                        name <- hasOneMain artifacts
+                        builder <- toBuilder root details desiredMode artifacts
+                        generate style target (Html.sandwich name builder) (NE.List name [])
+                      _ -> do
+                        Task.throw Exit.MakeHtmlOnlyForBrowserPlatform
 
 -- GET INFORMATION
 
@@ -142,6 +148,15 @@ getExposed (Details.Details _ validOutline _ _ _ _) =
       case exposed of
         [] -> Task.throw Exit.MakePkgNeedsExposing
         m : ms -> return (NE.List m ms)
+
+getPlatform :: FilePath -> Task Platform.Platform
+getPlatform root = do
+  outline <- Task.eio (const Exit.MakeNoOutline) $ Outline.read root
+  case outline of
+    Outline.App app ->
+      return $ Outline._app_platform app
+    Outline.Pkg pkg ->
+      return $ Outline._pkg_platform pkg
 
 -- BUILD PROJECTS
 
