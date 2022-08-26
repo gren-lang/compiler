@@ -492,8 +492,8 @@ generateTailCall mode name args =
       toRealVars (argName, _) =
         JS.ExprStmt $
           JS.Assign (JS.LRef (JsName.fromLocal argName)) (JS.Ref (JsName.makeTemp argName))
-   in JS.Vars (map toTempVars args) :
-      map toRealVars args
+   in JS.Vars (map toTempVars args)
+        : map toRealVars args
         ++ [JS.Continue (Just (JsName.fromLocal name))]
 
 -- DEFINITIONS
