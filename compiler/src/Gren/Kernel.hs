@@ -84,7 +84,7 @@ parser :: Pkg.Name -> Foreigns -> Parser () Content
 parser pkg foreigns =
   do
     word2 0x2F 0x2A {-/*-} toError
-    Space.chomp ignoreError
+    _ <- Space.chomp ignoreError
     Space.checkFreshLine toError
     imports <- specialize ignoreError (Module.chompImports [])
     word2 0x2A 0x2F toError -- /

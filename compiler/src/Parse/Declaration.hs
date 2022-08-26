@@ -52,7 +52,7 @@ chompDocComment =
   oneOfWithFallback
     [ do
         docComment <- Space.docComment E.DeclStart E.DeclSpace
-        Space.chomp E.DeclSpace
+        _ <- Space.chomp E.DeclSpace
         Space.checkFreshLine E.DeclFreshLineAfterDocComment
         return (Just docComment)
     ]
@@ -67,16 +67,16 @@ valueDecl maybeDocs start =
     end <- getPosition
     specialize (E.DeclDef name) $
       do
-        Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentEquals
+        _ <- Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentEquals
         oneOf
           E.DeclDefEquals
           [ do
               word1 0x3A {-:-} E.DeclDefEquals
-              Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentType
+              _ <- Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentType
               (tipe, _) <- specialize E.DeclDefType Type.expression
               Space.checkFreshLine E.DeclDefNameRepeat
               defName <- chompMatchingName name
-              Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentEquals
+              _ <- Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentEquals
               chompDefArgsAndBody maybeDocs start defName (Just tipe) [],
             chompDefArgsAndBody maybeDocs start (A.at start end name) Nothing []
           ]
@@ -87,11 +87,11 @@ chompDefArgsAndBody maybeDocs start name tipe revArgs =
     E.DeclDefEquals
     [ do
         arg <- specialize E.DeclDefArg Pattern.term
-        Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentEquals
+        _ <- Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentEquals
         chompDefArgsAndBody maybeDocs start name tipe (arg : revArgs),
       do
         word1 0x3D {-=-} E.DeclDefEquals
-        Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentBody
+        _ <- Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentBody
         (body, end) <- specialize E.DeclDefBody Expr.expression
         let value = Src.Value name (reverse revArgs) body tipe
         let avalue = A.at start end value
@@ -119,12 +119,12 @@ typeDecl :: Maybe Src.DocComment -> A.Position -> Space.Parser E.Decl Decl
 typeDecl maybeDocs start =
   inContext E.DeclType (Keyword.type_ E.DeclStart) $
     do
-      Space.chompAndCheckIndent E.DT_Space E.DT_IndentName
+      _ <- Space.chompAndCheckIndent E.DT_Space E.DT_IndentName
       oneOf
         E.DT_Name
         [ inContext E.DT_Alias (Keyword.alias_ E.DT_Name) $
             do
-              Space.chompAndCheckIndent E.AliasSpace E.AliasIndentEquals
+              _ <- Space.chompAndCheckIndent E.AliasSpace E.AliasIndentEquals
               (name, args) <- chompAliasNameToEquals
               (tipe, end) <- specialize E.AliasBody Type.expression
               let alias = A.at start end (Src.Alias name args tipe)
@@ -144,7 +144,7 @@ chompAliasNameToEquals :: Parser E.TypeAlias (A.Located Name.Name, [A.Located Na
 chompAliasNameToEquals =
   do
     name <- addLocation (Var.upper E.AliasName)
-    Space.chompAndCheckIndent E.AliasSpace E.AliasIndentEquals
+    _ <- Space.chompAndCheckIndent E.AliasSpace E.AliasIndentEquals
     chompAliasNameToEqualsHelp name []
 
 chompAliasNameToEqualsHelp :: A.Located Name.Name -> [A.Located Name.Name] -> Parser E.TypeAlias (A.Located Name.Name, [A.Located Name.Name])
@@ -153,11 +153,11 @@ chompAliasNameToEqualsHelp name args =
     E.AliasEquals
     [ do
         arg <- addLocation (Var.lower E.AliasEquals)
-        Space.chompAndCheckIndent E.AliasSpace E.AliasIndentEquals
+        _ <- Space.chompAndCheckIndent E.AliasSpace E.AliasIndentEquals
         chompAliasNameToEqualsHelp name (arg : args),
       do
         word1 0x3D {-=-} E.AliasEquals
-        Space.chompAndCheckIndent E.AliasSpace E.AliasIndentBody
+        _ <- Space.chompAndCheckIndent E.AliasSpace E.AliasIndentBody
         return (name, reverse args)
     ]
 
@@ -167,7 +167,7 @@ chompCustomNameToEquals :: Parser E.CustomType (A.Located Name.Name, [A.Located 
 chompCustomNameToEquals =
   do
     name <- addLocation (Var.upper E.CT_Name)
-    Space.chompAndCheckIndent E.CT_Space E.CT_IndentEquals
+    _ <- Space.chompAndCheckIndent E.CT_Space E.CT_IndentEquals
     chompCustomNameToEqualsHelp name []
 
 chompCustomNameToEqualsHelp :: A.Located Name.Name -> [A.Located Name.Name] -> Parser E.CustomType (A.Located Name.Name, [A.Located Name.Name])
@@ -176,11 +176,11 @@ chompCustomNameToEqualsHelp name args =
     E.CT_Equals
     [ do
         arg <- addLocation (Var.lower E.CT_Equals)
-        Space.chompAndCheckIndent E.CT_Space E.CT_IndentEquals
+        _ <- Space.chompAndCheckIndent E.CT_Space E.CT_IndentEquals
         chompCustomNameToEqualsHelp name (arg : args),
       do
         word1 0x3D {-=-} E.CT_Equals
-        Space.chompAndCheckIndent E.CT_Space E.CT_IndentAfterEquals
+        _ <- Space.chompAndCheckIndent E.CT_Space E.CT_IndentAfterEquals
         return (name, reverse args)
     ]
 
@@ -190,7 +190,7 @@ chompVariants variants end =
     [ do
         Space.checkIndent end E.CT_IndentBar
         word1 0x7C E.CT_Bar
-        Space.chompAndCheckIndent E.CT_Space E.CT_IndentAfterBar
+        _ <- Space.chompAndCheckIndent E.CT_Space E.CT_IndentAfterBar
         (variant, newEnd) <- Type.variant
         chompVariants (variant : variants) newEnd
     ]
@@ -202,11 +202,11 @@ portDecl :: Maybe Src.DocComment -> Space.Parser E.Decl Decl
 portDecl maybeDocs =
   inContext E.Port (Keyword.port_ E.DeclStart) $
     do
-      Space.chompAndCheckIndent E.PortSpace E.PortIndentName
+      _ <- Space.chompAndCheckIndent E.PortSpace E.PortIndentName
       name <- addLocation (Var.lower E.PortName)
-      Space.chompAndCheckIndent E.PortSpace E.PortIndentColon
+      _ <- Space.chompAndCheckIndent E.PortSpace E.PortIndentColon
       word1 0x3A {-:-} E.PortColon
-      Space.chompAndCheckIndent E.PortSpace E.PortIndentType
+      _ <- Space.chompAndCheckIndent E.PortSpace E.PortIndentType
       (tipe, end) <- specialize E.PortType Type.expression
       return
         ( Port maybeDocs (Src.Port name tipe),
@@ -224,7 +224,7 @@ infix_ =
    in do
         start <- getPosition
         Keyword.infix_ err
-        Space.chompAndCheckIndent _err err
+        _ <- Space.chompAndCheckIndent _err err
         associativity <-
           oneOf
             err
@@ -232,17 +232,17 @@ infix_ =
               Keyword.right_ err >> return Binop.Right,
               Keyword.non_ err >> return Binop.Non
             ]
-        Space.chompAndCheckIndent _err err
+        _ <- Space.chompAndCheckIndent _err err
         precedence <- Number.precedence err
-        Space.chompAndCheckIndent _err err
+        _ <- Space.chompAndCheckIndent _err err
         word1 0x28 {-(-} err
         op <- Symbol.operator err _err
         word1 0x29 {-)-} err
-        Space.chompAndCheckIndent _err err
+        _ <- Space.chompAndCheckIndent _err err
         word1 0x3D {-=-} err
-        Space.chompAndCheckIndent _err err
+        _ <- Space.chompAndCheckIndent _err err
         name <- Var.lower err
         end <- getPosition
-        Space.chomp _err
+        _ <- Space.chomp _err
         Space.checkFreshLine err
         return (A.at start end (Src.Infix op associativity precedence name))
