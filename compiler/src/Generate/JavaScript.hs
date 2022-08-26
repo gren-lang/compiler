@@ -54,12 +54,10 @@ perfNote mode =
     Mode.Prod _ ->
       ""
     Mode.Dev Nothing ->
-      "console.warn('Compiled in DEV mode. Follow the advice at "
-        <> B.stringUtf8 (D.makeNakedLink "optimize")
+      "console.warn('Compiled in DEV mode. Compile with --optimize "
         <> " for better performance and smaller assets.');"
     Mode.Dev (Just _) ->
-      "console.warn('Compiled in DEBUG mode. Follow the advice at "
-        <> B.stringUtf8 (D.makeNakedLink "optimize")
+      "console.warn('Compiled in DEV mode. Compile with --optimize "
         <> " for better performance and smaller assets.');"
 
 -- GENERATE FOR REPL
