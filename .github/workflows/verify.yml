@@ -30,7 +30,7 @@ jobs:
         key: cabal-${{ runner.os }}-${{ hashFiles('*.cabal') }}
 
     - name: Build
-      run: cabal build -f dev
+      run: cabal build -f dev --enable-tests
 
     - name: Tests
       run: cabal test -f dev
