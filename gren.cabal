@@ -1,4 +1,4 @@
-Cabal-version: 3.6
+Cabal-version: 3.8
 
 Name: gren
 Version: 0.2.0
@@ -216,12 +216,16 @@ Executable gren
     Import:
         gren-common
 
+    default-language: GHC2021
+
     Main-Is:
         Main.hs
 
 Test-Suite gren-tests
     Import:
         gren-common
+
+    default-language: GHC2021
 
     Type:
         exitcode-stdio-1.0
