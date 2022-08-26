@@ -24,7 +24,6 @@ import Generate.Html qualified as Html
 import Generate.Node qualified as Node
 import Gren.Details qualified as Details
 import Gren.ModuleName qualified as ModuleName
-import Gren.Outline qualified as Outline
 import Gren.Platform qualified as Platform
 import Reporting qualified
 import Reporting.Exit qualified as Exit
@@ -75,7 +74,7 @@ runHelp root paths style (Flags debug optimize maybeOutput _ maybeDocs) =
         do
           desiredMode <- getMode debug optimize
           details <- Task.eio Exit.MakeBadDetails (Details.load style scope root)
-          platform <- getPlatform root
+          let platform = getPlatform details
           case paths of
             [] ->
               do
@@ -158,14 +157,13 @@ getExposed (Details.Details _ validOutline _ _ _ _) =
         [] -> Task.throw Exit.MakePkgNeedsExposing
         m : ms -> return (NE.List m ms)
 
-getPlatform :: FilePath -> Task Platform.Platform
-getPlatform root = do
-  outline <- Task.eio (const Exit.MakeNoOutline) $ Outline.read root
-  case outline of
-    Outline.App app ->
-      return $ Outline._app_platform app
-    Outline.Pkg pkg ->
-      return $ Outline._pkg_platform pkg
+getPlatform :: Details.Details -> Platform.Platform
+getPlatform (Details.Details _ validOutline _ _ _ _) = do
+  case validOutline of
+    Details.ValidApp platform _ ->
+      platform
+    Details.ValidPkg platform _ _ ->
+      platform
 
 -- BUILD PROJECTS
 
