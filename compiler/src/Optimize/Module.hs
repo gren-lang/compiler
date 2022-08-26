@@ -17,6 +17,7 @@ import Data.Map qualified as Map
 import Data.Name qualified as Name
 import Data.Set qualified as Set
 import Gren.ModuleName qualified as ModuleName
+import Gren.Platform qualified as P
 import Optimize.Expression qualified as Expr
 import Optimize.Names qualified as Names
 import Optimize.Port qualified as Port
@@ -34,9 +35,9 @@ type Result i w a =
 type Annotations =
   Map.Map Name.Name Can.Annotation
 
-optimize :: Annotations -> Can.Module -> Result i [W.Warning] Opt.LocalGraph
-optimize annotations (Can.Module home _ _ decls unions _ _ effects) =
-  addDecls home annotations decls $
+optimize :: P.Platform -> Annotations -> Can.Module -> Result i [W.Warning] Opt.LocalGraph
+optimize platform annotations (Can.Module home _ _ decls unions _ _ effects) =
+  addDecls platform home annotations decls $
     addEffects home effects $
       addUnions home unions $
         Opt.LocalGraph Nothing Map.empty Map.empty
@@ -114,16 +115,16 @@ addToGraph name node fields (Opt.LocalGraph main nodes fieldCounts) =
 
 -- ADD DECLS
 
-addDecls :: ModuleName.Canonical -> Annotations -> Can.Decls -> Opt.LocalGraph -> Result i [W.Warning] Opt.LocalGraph
-addDecls home annotations decls graph =
+addDecls :: P.Platform -> ModuleName.Canonical -> Annotations -> Can.Decls -> Opt.LocalGraph -> Result i [W.Warning] Opt.LocalGraph
+addDecls platform home annotations decls graph =
   case decls of
     Can.Declare def subDecls ->
-      addDecls home annotations subDecls =<< addDef home annotations def graph
+      addDecls platform home annotations subDecls =<< addDef platform home annotations def graph
     Can.DeclareRec d ds subDecls ->
       let defs = d : ds
        in case findMain defs of
             Nothing ->
-              addDecls home annotations subDecls (addRecDefs home defs graph)
+              addDecls platform home annotations subDecls (addRecDefs home defs graph)
             Just region ->
               Result.throw $ E.BadCycle region (defToName d) (map defToName ds)
     Can.SaveTheEnvironment ->
@@ -149,19 +150,19 @@ defToName def =
 
 -- ADD DEFS
 
-addDef :: ModuleName.Canonical -> Annotations -> Can.Def -> Opt.LocalGraph -> Result i [W.Warning] Opt.LocalGraph
-addDef home annotations def graph =
+addDef :: P.Platform -> ModuleName.Canonical -> Annotations -> Can.Def -> Opt.LocalGraph -> Result i [W.Warning] Opt.LocalGraph
+addDef platform home annotations def graph =
   case def of
     Can.Def (A.At region name) args body ->
       do
         let (Can.Forall _ tipe) = annotations ! name
         Result.warn $ W.MissingTypeAnnotation region name tipe
-        addDefHelp region annotations home name args body graph
+        addDefHelp platform region annotations home name args body graph
     Can.TypedDef (A.At region name) _ typedArgs body _ ->
-      addDefHelp region annotations home name (map fst typedArgs) body graph
+      addDefHelp platform region annotations home name (map fst typedArgs) body graph
 
-addDefHelp :: A.Region -> Annotations -> ModuleName.Canonical -> Name.Name -> [Can.Pattern] -> Can.Expr -> Opt.LocalGraph -> Result i w Opt.LocalGraph
-addDefHelp region annotations home name args body graph@(Opt.LocalGraph _ nodes fieldCounts) =
+addDefHelp :: P.Platform -> A.Region -> Annotations -> ModuleName.Canonical -> Name.Name -> [Can.Pattern] -> Can.Expr -> Opt.LocalGraph -> Result i w Opt.LocalGraph
+addDefHelp platform region annotations home name args body graph@(Opt.LocalGraph _ nodes fieldCounts) =
   if name /= Name._main
     then Result.ok (addDefNode home name args body Set.empty graph)
     else
@@ -172,7 +173,13 @@ addDefHelp region annotations home name args body graph@(Opt.LocalGraph _ nodes 
               Opt.LocalGraph (Just main) nodes (Map.unionWith (+) fields fieldCounts)
        in case Type.deepDealias tipe of
             Can.TType hm nm [_]
-              | hm == ModuleName.virtualDom && nm == Name.node ->
+              | platform == P.Browser && hm == ModuleName.virtualDom && nm == Name.node ->
+                  Result.ok $
+                    addMain $
+                      Names.run $
+                        Names.registerKernel Name.virtualDom Opt.Static
+            Can.TType hm nm [_]
+              | platform == P.Node && hm == ModuleName.string && nm == Name.string ->
                   Result.ok $
                     addMain $
                       Names.run $

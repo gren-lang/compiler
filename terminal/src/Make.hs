@@ -142,9 +142,9 @@ getMode debug optimize =
 getExposed :: Details.Details -> Task (NE.List ModuleName.Raw)
 getExposed (Details.Details _ validOutline _ _ _ _) =
   case validOutline of
-    Details.ValidApp _ ->
+    Details.ValidApp _ _ ->
       Task.throw Exit.MakeAppNeedsFileNames
-    Details.ValidPkg _ exposed ->
+    Details.ValidPkg _ _ exposed ->
       case exposed of
         [] -> Task.throw Exit.MakePkgNeedsExposing
         m : ms -> return (NE.List m ms)

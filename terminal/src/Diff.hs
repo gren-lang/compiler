@@ -154,9 +154,9 @@ generateDocs (Env maybeRoot _) =
               Details.load Reporting.silent scope root
 
         case Details._outline details of
-          Details.ValidApp _ ->
+          Details.ValidApp _ _ ->
             Task.throw Exit.DiffApplication
-          Details.ValidPkg _ exposed ->
+          Details.ValidPkg _ _ exposed ->
             case exposed of
               [] ->
                 Task.throw Exit.DiffNoExposed
