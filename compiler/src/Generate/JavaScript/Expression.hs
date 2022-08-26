@@ -749,7 +749,10 @@ pathToJsExpr mode root path =
 generateMain :: Mode.Mode -> ModuleName.Canonical -> Opt.Main -> JS.Expr
 generateMain mode home main =
   case main of
-    Opt.Static ->
+    Opt.StaticString ->
+      JS.Ref (JsName.fromKernel Name.node "log")
+        # JS.Ref (JsName.fromGlobal home "main")
+    Opt.StaticVDom ->
       JS.Ref (JsName.fromKernel Name.virtualDom "init")
         # JS.Ref (JsName.fromGlobal home "main")
         # JS.Int 0

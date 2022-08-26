@@ -13,6 +13,7 @@ import Data.Name qualified as Name
 import Gren.Interface qualified as I
 import Gren.ModuleName qualified as ModuleName
 import Gren.Package qualified as Pkg
+import Gren.Platform qualified as P
 import Nitpick.PatternMatches qualified as PatternMatches
 import Optimize.Module qualified as Optimize
 import Reporting.Error qualified as E
@@ -30,13 +31,13 @@ data Artifacts = Artifacts
     _graph :: Opt.LocalGraph
   }
 
-compile :: Pkg.Name -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> Either E.Error Artifacts
-compile pkg ifaces modul =
+compile :: P.Platform -> Pkg.Name -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> Either E.Error Artifacts
+compile platform pkg ifaces modul =
   do
     canonical <- canonicalize pkg ifaces modul
     annotations <- typeCheck modul canonical
     () <- nitpick canonical
-    objects <- optimize modul annotations canonical
+    objects <- optimize platform modul annotations canonical
     return (Artifacts canonical annotations objects)
 
 -- PHASES
@@ -65,9 +66,9 @@ nitpick canonical =
     Left errors ->
       Left (E.BadPatterns errors)
 
-optimize :: Src.Module -> Map.Map Name.Name Can.Annotation -> Can.Module -> Either E.Error Opt.LocalGraph
-optimize modul annotations canonical =
-  case snd $ R.run $ Optimize.optimize annotations canonical of
+optimize :: P.Platform -> Src.Module -> Map.Map Name.Name Can.Annotation -> Can.Module -> Either E.Error Opt.LocalGraph
+optimize platform modul annotations canonical =
+  case snd $ R.run $ Optimize.optimize platform annotations canonical of
     Right localGraph ->
       Right localGraph
     Left errors ->

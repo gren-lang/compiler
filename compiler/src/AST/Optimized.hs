@@ -117,7 +117,8 @@ data LocalGraph = LocalGraph
   }
 
 data Main
-  = Static
+  = StaticString
+  | StaticVDom
   | Dynamic
       { _message :: Can.Type,
         _decoder :: Expr
@@ -339,15 +340,17 @@ instance Binary LocalGraph where
 instance Binary Main where
   put main =
     case main of
-      Static -> putWord8 0
-      Dynamic a b -> putWord8 1 >> put a >> put b
+      StaticString -> putWord8 0
+      StaticVDom -> putWord8 1
+      Dynamic a b -> putWord8 2 >> put a >> put b
 
   get =
     do
       word <- getWord8
       case word of
-        0 -> return Static
-        1 -> liftM2 Dynamic get get
+        0 -> return StaticString
+        1 -> return StaticVDom
+        2 -> liftM2 Dynamic get get
         _ -> fail "problem getting Opt.Main binary"
 
 instance Binary Node where
