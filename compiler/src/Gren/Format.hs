@@ -195,7 +195,7 @@ formatExpr = \case
   Src.Int int ->
     Block.line $ Block.string7 (show int)
   Src.Float float ->
-    Block.line $ Block.string7 "TODO: formatExpr: Float"
+    Block.line $ utf8 float
   Src.Var _ name ->
     Block.line $ utf8 name
   Src.VarQual _ ns name ->
