@@ -3,3 +3,4 @@ dist-newstyle
 cabal-dev
 .DS_Store
 *~
+/result
