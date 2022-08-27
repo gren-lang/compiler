@@ -96,7 +96,8 @@ resolveFile path =
     isDir <- Task.io (Dir.doesDirectoryExist path)
     if isDir
       then resolveFiles =<< Task.io (fmap (path </>) . filter (not . ignore) <$> Dir.listDirectory path)
-      else return [path]
+      else -- XXX: only include file if it matches '*.gren'
+        return [path]
   where
     ignore dir =
       dir == ".gren"

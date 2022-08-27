@@ -112,6 +112,8 @@ Common gren-common
         Data.NonEmptyList
         Data.OneOrMore
         Data.Utf8
+        Text.PrettyPrint.Avh4.Block
+        Text.PrettyPrint.Avh4.Indent
 
         -- json
         Json.Decode
