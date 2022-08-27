@@ -95,6 +95,7 @@ Common gren-common
         Gren.Docs
         Gren.Float
         Gren.Format
+        Gren.Format.Normalize
         Gren.Interface
         Gren.Kernel
         Gren.Licenses

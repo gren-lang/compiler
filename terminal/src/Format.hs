@@ -15,6 +15,7 @@ import Data.NonEmptyList qualified as NE
 import Directories qualified as Dirs
 import File qualified
 import Gren.Format qualified as Format
+import Gren.Format.Normalize qualified as Normalize
 import Gren.Outline qualified as Outline
 import Parse.Module qualified as Parse
 import Reporting qualified
@@ -173,4 +174,4 @@ formatByteString original =
       -- TODO: report error
       Nothing
     Right ast ->
-      Just (Format.toByteStringBuilder ast)
+      Just (Format.toByteStringBuilder $ Normalize.normalize ast)
