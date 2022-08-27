@@ -204,7 +204,7 @@ formatExpr = \case
     group '[' ',' ']' True $
       fmap (formatExpr . A.toValue) exprs
   Src.Op name ->
-    Block.line $ Block.string7 "TODO: formatExpr: Op"
+    Block.line $ Block.char7 '(' <> utf8 name <> Block.char7 ')'
   Src.Negate expr ->
     Block.prefix 1 (Block.char7 '-') $ formatExpr $ A.toValue expr
   Src.Binops rest' last_ ->
