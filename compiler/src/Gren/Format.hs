@@ -206,7 +206,7 @@ formatExpr = \case
   Src.Op name ->
     Block.line $ Block.string7 "TODO: formatExpr: Op"
   Src.Negate expr ->
-    Block.line $ Block.string7 "TODO: formatExpr: Negate"
+    Block.prefix 1 (Block.char7 '-') $ formatExpr $ A.toValue expr
   Src.Binops rest' last_ ->
     let (first, rest) = repair rest' last_
      in spaceOrIndent $
