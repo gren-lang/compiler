@@ -1,7 +1,7 @@
 module Gren.Format (toByteStringBuilder) where
 
-import qualified AST.Source as Src
-import qualified Data.ByteString.Builder as B
+import AST.Source qualified as Src
+import Data.ByteString.Builder qualified as B
 
 toByteStringBuilder :: Src.Module -> B.Builder
 toByteStringBuilder =
