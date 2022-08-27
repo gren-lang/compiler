@@ -224,8 +224,30 @@ formatExpr = \case
     spaceOrIndent $
       formatExpr (A.toValue fn)
         :| fmap (formatExpr . A.toValue) args
-  Src.If ifs else_ ->
-    Block.line $ Block.string7 "TODO: formatExpr: If"
+  Src.If [] else_ ->
+    formatExpr $ A.toValue else_
+  Src.If (if_:elseifs) else_ ->
+    Block.stack $ NonEmpty.fromList $ mconcat
+      [ List.singleton $ formatIfClause "if" if_
+      , fmap (formatIfClause "else if") elseifs
+      , List.singleton $ Block.stack
+          [ Block.line $ Block.string7 "else"
+          , Block.indent $ formatExpr $ A.toValue else_
+          ]
+      ]
+    where
+      formatIfClause :: String -> (Src.Expr, Src.Expr) -> Block
+      formatIfClause keyword_ (predicate, body) =
+          Block.stack
+            [ spaceOrStack
+                [ spaceOrIndent
+                    [ Block.line $ Block.string7 keyword_
+                    , formatExpr $ A.toValue predicate
+                    ]
+                , Block.line $ Block.string7 "then"
+                ]
+            , Block.indent $ formatExpr $ A.toValue body
+            ]
   Src.Let [] body ->
     formatExpr $ A.toValue body
   Src.Let (def1 : defs) body ->
