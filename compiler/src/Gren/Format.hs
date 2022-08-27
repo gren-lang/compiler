@@ -6,6 +6,7 @@
 module Gren.Format (toByteStringBuilder) where
 
 import AST.Source qualified as Src
+import Control.Monad (join)
 import Data.ByteString.Builder qualified as B
 import Data.Char qualified as Char
 import Data.List qualified as List
@@ -218,8 +219,18 @@ formatExpr = \case
           4
           (utf8 (A.toValue op) <> Block.space)
           (formatExpr $ A.toValue expr)
-  Src.Lambda args body ->
-    Block.line $ Block.string7 "TODO: formatExpr: Lambda"
+  Src.Lambda [] body ->
+    formatExpr $ A.toValue body
+  Src.Lambda (arg1 : args) body ->
+    spaceOrIndent
+      [ Block.prefix 1 (Block.char7 '\\') $
+          spaceOrStack $
+            join
+              [ fmap (formatPattern . A.toValue) (arg1 :| args),
+                pure $ Block.line $ Block.string7 "->"
+              ],
+        formatExpr $ A.toValue body
+      ]
   Src.Call fn args ->
     spaceOrIndent $
       formatExpr (A.toValue fn)
