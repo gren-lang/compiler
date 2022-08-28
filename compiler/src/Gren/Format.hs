@@ -513,8 +513,15 @@ formatPattern = \case
         utf8 name
   Src.PRecord fields ->
     NoPatternParens $
-      Block.line $
-        Block.string7 "TODO: formatPattern: PRecord"
+      group '{' ',' '}' False $
+        fmap (formatField . A.toValue) fields
+    where
+      formatField = \case
+        Src.RFPattern name pat ->
+          spaceOrIndent
+            [ Block.line $ utf8 (A.toValue name) <> Block.space <> Block.char7 '=',
+              patternParensNone $ formatPattern (A.toValue pat)
+            ]
   Src.PAlias pat name ->
     PatternContainsSpaces $
       spaceOrIndent
