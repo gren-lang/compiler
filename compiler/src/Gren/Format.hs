@@ -163,7 +163,7 @@ formatBasicDef name args body type_ =
     formatTypeAnnotation t =
       spaceOrIndent
         [ Block.line $ utf8 name <> Block.space <> Block.char7 ':',
-          formatType t
+          typeParensNone $ formatType t
         ]
 
 formatUnion :: Src.Union -> Block
@@ -185,7 +185,7 @@ formatUnion (Src.Union name args ctors) =
     formatCtor open (name', args') =
       spaceOrIndent $
         Block.line (Block.char7 open <> Block.space <> utf8 (A.toValue name'))
-          :| fmap (formatType . A.toValue) args'
+          :| fmap (typeParensProtectSpaces . formatType . A.toValue) args'
 
 formatAlias :: Src.Alias -> Block
 formatAlias (Src.Alias name args type_) =
@@ -197,7 +197,7 @@ formatAlias (Src.Alias name args type_) =
               :| fmap (Block.line . utf8 . A.toValue) args,
           Block.line (Block.char7 '=')
         ],
-      Block.indent $ formatType (A.toValue type_)
+      Block.indent $ typeParensNone $ formatType (A.toValue type_)
     ]
 
 data ExpressionBlock
@@ -422,35 +422,69 @@ formatDef = \case
         Block.indent $ exprParensNone $ formatExpr $ A.toValue body
       ]
 
-formatType :: Src.Type_ -> Block
+data TypeBlock
+  = NoTypeParens Block
+  | TypeContainsArrow Block
+  | TypeContainsSpaces Block
+
+typeParensNone :: TypeBlock -> Block
+typeParensNone = \case
+  NoTypeParens block -> block
+  TypeContainsArrow block -> block
+  TypeContainsSpaces block -> block
+
+typeParensProtectArrows :: TypeBlock -> Block
+typeParensProtectArrows = \case
+  NoTypeParens block -> block
+  TypeContainsArrow block -> parens block
+  TypeContainsSpaces block -> block
+
+typeParensProtectSpaces :: TypeBlock -> Block
+typeParensProtectSpaces = \case
+  NoTypeParens block -> block
+  TypeContainsArrow block -> parens block
+  TypeContainsSpaces block -> parens block
+
+formatType :: Src.Type_ -> TypeBlock
 formatType = \case
   Src.TLambda left right ->
-    spaceOrStack
-      -- TODO: XXX: left might need parens for nested TLambdas
-      -- TODO: don't indent nested multiline lambdas
-      [ formatType (A.toValue left),
-        Block.prefix
-          3
-          (Block.string7 "-> ")
-          (formatType $ A.toValue right)
-      ]
+    TypeContainsArrow $
+      spaceOrStack
+        -- TODO: don't indent nested multiline lambdas
+        [ typeParensProtectArrows $ formatType (A.toValue left),
+          Block.prefix
+            3
+            (Block.string7 "-> ")
+            (typeParensNone $ formatType $ A.toValue right)
+        ]
   Src.TVar name ->
-    Block.line (utf8 name)
-  Src.TType _ name args ->
-    spaceOrIndent $
+    NoTypeParens $
       Block.line (utf8 name)
-        :| fmap (formatType . A.toValue) args
-  Src.TTypeQual _ ns name args ->
-    spaceOrIndent $
+  Src.TType _ name [] ->
+    NoTypeParens $
+      Block.line (utf8 name)
+  Src.TType _ name args ->
+    TypeContainsSpaces $
+      spaceOrIndent $
+        Block.line (utf8 name)
+          :| fmap (typeParensProtectSpaces . formatType . A.toValue) args
+  Src.TTypeQual _ ns name [] ->
+    NoTypeParens $
       Block.line (utf8 ns <> Block.char7 '.' <> utf8 name)
-        :| fmap (formatType . A.toValue) args
+  Src.TTypeQual _ ns name args ->
+    TypeContainsSpaces $
+      spaceOrIndent $
+        Block.line (utf8 ns <> Block.char7 '.' <> utf8 name)
+          :| fmap (typeParensProtectSpaces . formatType . A.toValue) args
   Src.TRecord fields base ->
-    group '{' ',' '}' True $ fmap formatField fields
+    NoTypeParens $
+      group '{' ',' '}' True $
+        fmap formatField fields
     where
       formatField (name, type_) =
         spaceOrIndent
           [ Block.line $ utf8 (A.toValue name) <> Block.space <> Block.char7 ':',
-            formatType (A.toValue type_)
+            typeParensNone $ formatType (A.toValue type_)
           ]
 
 formatPattern :: Src.Pattern_ -> Block
