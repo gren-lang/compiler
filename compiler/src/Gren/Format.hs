@@ -66,6 +66,19 @@ group open sep close forceMultiline (first : rest) =
       :| fmap (Block.prefix 2 (Block.char7 sep <> Block.space)) (rest)
       ++ [Block.line (Block.char7 close)]
 
+{-# INLINE surround #-}
+surround :: Char -> Char -> Block -> Block
+surround open close block =
+  Block.rowOrStack
+    Nothing
+    [ Block.prefix 1 (Block.char7 open) block,
+      Block.line $ Block.char7 close
+    ]
+
+{-# INLINE parens #-}
+parens :: Block -> Block
+parens = surround '(' ')'
+
 --
 -- AST -> Block
 --
@@ -144,7 +157,7 @@ formatBasicDef name args body type_ =
                 :| fmap formatPattern args
                 ++ [ Block.line $ Block.char7 '='
                    ],
-          Just $ Block.indent $ formatExpr body
+          Just $ Block.indent $ exprParensNone $ formatExpr body
         ]
   where
     formatTypeAnnotation t =
@@ -187,68 +200,119 @@ formatAlias (Src.Alias name args type_) =
       Block.indent $ formatType (A.toValue type_)
     ]
 
-formatExpr :: Src.Expr_ -> Block
+data ExpressionBlock
+  = NoExpressionParens Block
+  | ExpressionContainsInfixOps Block
+  | ExpressionContainsSpaces Block
+  | ExpressionHasAmbiguousEnd Block
+
+-- "no parens"
+exprParensNone :: ExpressionBlock -> Block
+exprParensNone = \case
+  NoExpressionParens block -> block
+  ExpressionContainsInfixOps block -> block
+  ExpressionContainsSpaces block -> block
+  ExpressionHasAmbiguousEnd block -> block
+
+exprParensProtectInfixOps :: ExpressionBlock -> Block
+exprParensProtectInfixOps = \case
+  NoExpressionParens block -> block
+  ExpressionContainsInfixOps block -> parens block
+  ExpressionContainsSpaces block -> block
+  ExpressionHasAmbiguousEnd block -> parens block
+
+exprParensProtectSpaces :: ExpressionBlock -> Block
+exprParensProtectSpaces = \case
+  NoExpressionParens block -> block
+  ExpressionContainsInfixOps block -> parens block
+  ExpressionContainsSpaces block -> parens block
+  ExpressionHasAmbiguousEnd block -> parens block
+
+formatExpr :: Src.Expr_ -> ExpressionBlock
 formatExpr = \case
   Src.Chr char ->
-    formatString StringStyleChar char
+    NoExpressionParens $
+      formatString StringStyleChar char
   Src.Str string ->
-    formatString StringStyleSingleQuoted string
+    NoExpressionParens $
+      formatString StringStyleSingleQuoted string
   Src.Int int ->
-    Block.line $ Block.string7 (show int)
+    NoExpressionParens $
+      Block.line $
+        Block.string7 (show int)
   Src.Float float ->
-    Block.line $ utf8 float
+    NoExpressionParens $
+      Block.line $
+        utf8 float
   Src.Var _ name ->
-    Block.line $ utf8 name
+    NoExpressionParens $
+      Block.line $
+        utf8 name
   Src.VarQual _ ns name ->
-    Block.line $ utf8 ns <> Block.char7 '.' <> utf8 name
+    NoExpressionParens $
+      Block.line $
+        utf8 ns <> Block.char7 '.' <> utf8 name
   Src.Array exprs ->
-    group '[' ',' ']' True $
-      fmap (formatExpr . A.toValue) exprs
+    NoExpressionParens $
+      group '[' ',' ']' True $
+        fmap (exprParensNone . formatExpr . A.toValue) exprs
   Src.Op name ->
-    Block.line $ Block.char7 '(' <> utf8 name <> Block.char7 ')'
+    NoExpressionParens $
+      Block.line $
+        Block.char7 '(' <> utf8 name <> Block.char7 ')'
   Src.Negate expr ->
-    Block.prefix 1 (Block.char7 '-') $ formatExpr $ A.toValue expr
+    NoExpressionParens $
+      Block.prefix 1 (Block.char7 '-') $
+        exprParensProtectSpaces $
+          formatExpr $
+            A.toValue expr
   Src.Binops rest' last_ ->
     let (first, rest) = repair rest' last_
-     in spaceOrIndent $
-          formatExpr (A.toValue first)
-            :| fmap formatPair rest
+     in ExpressionContainsInfixOps $
+          spaceOrIndent $
+            exprParensProtectInfixOps (formatExpr $ A.toValue first)
+              :| fmap formatPair rest
     where
       formatPair (op, expr) =
         Block.prefix
           4
           (utf8 (A.toValue op) <> Block.space)
-          (formatExpr $ A.toValue expr)
+          (exprParensProtectInfixOps $ formatExpr $ A.toValue expr)
   Src.Lambda [] body ->
     formatExpr $ A.toValue body
   Src.Lambda (arg1 : args) body ->
-    spaceOrIndent
-      [ Block.prefix 1 (Block.char7 '\\') $
-          spaceOrStack $
-            join
-              [ fmap (formatPattern . A.toValue) (arg1 :| args),
-                pure $ Block.line $ Block.string7 "->"
-              ],
-        formatExpr $ A.toValue body
-      ]
+    ExpressionHasAmbiguousEnd $
+      spaceOrIndent
+        [ Block.prefix 1 (Block.char7 '\\') $
+            spaceOrStack $
+              join
+                [ fmap (formatPattern . A.toValue) (arg1 :| args),
+                  pure $ Block.line $ Block.string7 "->"
+                ],
+          exprParensNone $ formatExpr $ A.toValue body
+        ]
+  Src.Call fn [] ->
+    formatExpr $ A.toValue fn
   Src.Call fn args ->
-    spaceOrIndent $
-      formatExpr (A.toValue fn)
-        :| fmap (formatExpr . A.toValue) args
+    ExpressionContainsSpaces $
+      spaceOrIndent $
+        exprParensProtectInfixOps (formatExpr $ A.toValue fn)
+          :| fmap (exprParensProtectSpaces . formatExpr . A.toValue) args
   Src.If [] else_ ->
     formatExpr $ A.toValue else_
   Src.If (if_ : elseifs) else_ ->
-    Block.stack $
-      NonEmpty.fromList $
-        mconcat
-          [ List.singleton $ formatIfClause "if" if_,
-            fmap (formatIfClause "else if") elseifs,
-            List.singleton $
-              Block.stack
-                [ Block.line $ Block.string7 "else",
-                  Block.indent $ formatExpr $ A.toValue else_
-                ]
-          ]
+    ExpressionHasAmbiguousEnd $
+      Block.stack $
+        NonEmpty.fromList $
+          mconcat
+            [ List.singleton $ formatIfClause "if" if_,
+              fmap (formatIfClause "else if") elseifs,
+              List.singleton $
+                Block.stack
+                  [ Block.line $ Block.string7 "else",
+                    Block.indent $ exprParensNone $ formatExpr $ A.toValue else_
+                  ]
+            ]
     where
       formatIfClause :: String -> (Src.Expr, Src.Expr) -> Block
       formatIfClause keyword_ (predicate, body) =
@@ -256,31 +320,33 @@ formatExpr = \case
           [ spaceOrStack
               [ spaceOrIndent
                   [ Block.line $ Block.string7 keyword_,
-                    formatExpr $ A.toValue predicate
+                    exprParensNone $ formatExpr $ A.toValue predicate
                   ],
                 Block.line $ Block.string7 "then"
               ],
-            Block.indent $ formatExpr $ A.toValue body
+            Block.indent $ exprParensNone $ formatExpr $ A.toValue body
           ]
   Src.Let [] body ->
     formatExpr $ A.toValue body
   Src.Let (def1 : defs) body ->
-    Block.stack
-      [ Block.line (Block.string7 "let"),
-        Block.indent $ Block.stack $ fmap (formatDef . A.toValue) (def1 :| defs),
-        Block.line (Block.string7 "in"),
-        formatExpr (A.toValue body)
-      ]
-  Src.Case subject branches ->
-    Block.stack $
-      spaceOrStack
-        [ spaceOrIndent
-            [ Block.line (Block.string7 "case"),
-              formatExpr (A.toValue subject)
-            ],
-          Block.line (Block.string7 "of")
+    ExpressionHasAmbiguousEnd $
+      Block.stack
+        [ Block.line (Block.string7 "let"),
+          Block.indent $ Block.stack $ fmap (formatDef . A.toValue) (def1 :| defs),
+          Block.line (Block.string7 "in"),
+          exprParensNone $ formatExpr (A.toValue body)
         ]
-        :| List.intersperse Block.blankLine (fmap (Block.indent . formatCaseBranch) branches)
+  Src.Case subject branches ->
+    ExpressionHasAmbiguousEnd $
+      Block.stack $
+        spaceOrStack
+          [ spaceOrIndent
+              [ Block.line (Block.string7 "case"),
+                exprParensNone $ formatExpr (A.toValue subject)
+              ],
+            Block.line (Block.string7 "of")
+          ]
+          :| List.intersperse Block.blankLine (fmap (Block.indent . formatCaseBranch) branches)
     where
       formatCaseBranch (pat, expr) =
         Block.stack
@@ -288,54 +354,59 @@ formatExpr = \case
               [ formatPattern (A.toValue pat),
                 Block.line $ Block.string7 "->"
               ],
-            Block.indent $ formatExpr (A.toValue expr)
+            Block.indent $ exprParensNone $ formatExpr $ A.toValue expr
           ]
   Src.Accessor field ->
-    Block.line $ Block.char7 '.' <> utf8 field
+    NoExpressionParens $
+      Block.line $
+        Block.char7 '.' <> utf8 field
   Src.Access expr field ->
-    Block.addSuffix (Block.char7 '.' <> utf8 (A.toValue field)) (formatExpr $ A.toValue expr)
+    NoExpressionParens $
+      Block.addSuffix (Block.char7 '.' <> utf8 (A.toValue field)) (exprParensProtectSpaces $ formatExpr $ A.toValue expr)
   Src.Update (A.At _ base) fields ->
     case fields of
       [] ->
         formatExpr base
       [single] ->
-        spaceOrStack
-          [ spaceOrIndent
-              [ spaceOrIndent
-                  [ Block.line $ Block.char7 '{',
-                    formatExpr base
-                  ],
-                formatField '|' single
-              ],
-            Block.line (Block.char7 '}')
-          ]
+        NoExpressionParens $
+          spaceOrStack
+            [ spaceOrIndent
+                [ spaceOrIndent
+                    [ Block.line $ Block.char7 '{',
+                      exprParensNone $ formatExpr base
+                    ],
+                  formatField '|' single
+                ],
+              Block.line (Block.char7 '}')
+            ]
       (first : rest) ->
-        Block.stack
-          [ spaceOrIndent
-              [ Block.line $ Block.char7 '{',
-                formatExpr base
-              ],
-            Block.indent $
-              Block.stack $
-                formatField '|' first
-                  :| fmap (formatField ',') rest,
-            Block.line (Block.char7 '}')
-          ]
+        NoExpressionParens $
+          Block.stack
+            [ spaceOrIndent
+                [ Block.line $ Block.char7 '{',
+                  exprParensNone $ formatExpr base
+                ],
+              Block.indent $
+                Block.stack $
+                  formatField '|' first
+                    :| fmap (formatField ',') rest,
+              Block.line (Block.char7 '}')
+            ]
     where
       formatField sep (field, expr) =
         spaceOrIndent
           [ Block.line $ Block.char7 sep <> Block.space <> utf8 (A.toValue field) <> Block.string7 " =",
-            formatExpr (A.toValue expr)
+            exprParensNone $ formatExpr (A.toValue expr)
           ]
-
-  -- Block.line $ Block.string7 "TODO: formatExpr: Update"
   Src.Record fields ->
-    group '{' ',' '}' True $ fmap formatField fields
+    NoExpressionParens $
+      group '{' ',' '}' True $
+        fmap formatField fields
     where
       formatField (name, expr) =
         spaceOrIndent
           [ Block.line $ utf8 (A.toValue name) <> Block.space <> Block.char7 '=',
-            formatExpr (A.toValue expr)
+            exprParensNone $ formatExpr (A.toValue expr)
           ]
 
 formatDef :: Src.Def -> Block
@@ -348,7 +419,7 @@ formatDef = \case
           [ formatPattern $ A.toValue pat,
             Block.line $ Block.char7 '='
           ],
-        Block.indent $ formatExpr $ A.toValue body
+        Block.indent $ exprParensNone $ formatExpr $ A.toValue body
       ]
 
 formatType :: Src.Type_ -> Block
