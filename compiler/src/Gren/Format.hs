@@ -154,7 +154,7 @@ formatBasicDef name args body type_ =
           Just $
             spaceOrIndent $
               Block.line (utf8 name)
-                :| fmap formatPattern args
+                :| fmap (patternParensProtectSpaces . formatPattern) args
                 ++ [ Block.line $ Block.char7 '='
                    ],
           Just $ Block.indent $ exprParensNone $ formatExpr body
@@ -286,7 +286,7 @@ formatExpr = \case
         [ Block.prefix 1 (Block.char7 '\\') $
             spaceOrStack $
               join
-                [ fmap (formatPattern . A.toValue) (arg1 :| args),
+                [ fmap (patternParensProtectSpaces . formatPattern . A.toValue) (arg1 :| args),
                   pure $ Block.line $ Block.string7 "->"
                 ],
           exprParensNone $ formatExpr $ A.toValue body
@@ -351,7 +351,7 @@ formatExpr = \case
       formatCaseBranch (pat, expr) =
         Block.stack
           [ spaceOrStack
-              [ formatPattern (A.toValue pat),
+              [ patternParensNone $ formatPattern (A.toValue pat),
                 Block.line $ Block.string7 "->"
               ],
             Block.indent $ exprParensNone $ formatExpr $ A.toValue expr
@@ -416,7 +416,7 @@ formatDef = \case
   Src.Destruct pat body ->
     Block.stack
       [ spaceOrIndent
-          [ formatPattern $ A.toValue pat,
+          [ patternParensProtectSpaces $ formatPattern $ A.toValue pat,
             Block.line $ Block.char7 '='
           ],
         Block.indent $ exprParensNone $ formatExpr $ A.toValue body
@@ -487,36 +487,70 @@ formatType = \case
             typeParensNone $ formatType (A.toValue type_)
           ]
 
-formatPattern :: Src.Pattern_ -> Block
+data PatternBlock
+  = NoPatternParens Block
+  | PatternContainsSpaces Block
+
+patternParensNone :: PatternBlock -> Block
+patternParensNone = \case
+  NoPatternParens block -> block
+  PatternContainsSpaces block -> block
+
+patternParensProtectSpaces :: PatternBlock -> Block
+patternParensProtectSpaces = \case
+  NoPatternParens block -> block
+  PatternContainsSpaces block -> parens block
+
+formatPattern :: Src.Pattern_ -> PatternBlock
 formatPattern = \case
   Src.PAnything ->
-    Block.line $ Block.char7 '_'
+    NoPatternParens $
+      Block.line $
+        Block.char7 '_'
   Src.PVar name ->
-    Block.line $ utf8 name
+    NoPatternParens $
+      Block.line $
+        utf8 name
   Src.PRecord fields ->
-    Block.line $ Block.string7 "TODO: formatPattern: PRecord"
+    NoPatternParens $
+      Block.line $
+        Block.string7 "TODO: formatPattern: PRecord"
   Src.PAlias pat name ->
-    spaceOrIndent
-      [ formatPattern (A.toValue pat),
-        Block.line $ Block.string7 "as " <> utf8 (A.toValue name)
-      ]
-  Src.PCtor _ name args ->
-    spaceOrIndent $
+    PatternContainsSpaces $
+      spaceOrIndent
+        [ patternParensProtectSpaces $ formatPattern (A.toValue pat),
+          Block.line $ Block.string7 "as " <> utf8 (A.toValue name)
+        ]
+  Src.PCtor _ name [] ->
+    NoPatternParens $
       Block.line (utf8 name)
-        :| fmap (formatPattern . A.toValue) args
-  Src.PCtorQual _ ns name args ->
-    spaceOrIndent $
+  Src.PCtor _ name args ->
+    PatternContainsSpaces $
+      spaceOrIndent $
+        Block.line (utf8 name)
+          :| fmap (patternParensProtectSpaces . formatPattern . A.toValue) args
+  Src.PCtorQual _ ns name [] ->
+    NoPatternParens $
       Block.line (utf8 ns <> Block.char7 '.' <> utf8 name)
-        :| fmap (formatPattern . A.toValue) args
+  Src.PCtorQual _ ns name args ->
+    PatternContainsSpaces $
+      spaceOrIndent $
+        Block.line (utf8 ns <> Block.char7 '.' <> utf8 name)
+          :| fmap (patternParensProtectSpaces . formatPattern . A.toValue) args
   Src.PArray items ->
-    group '[' ',' ']' False $
-      fmap (formatPattern . A.toValue) items
+    NoPatternParens $
+      group '[' ',' ']' False $
+        fmap (patternParensNone . formatPattern . A.toValue) items
   Src.PChr char ->
-    formatString StringStyleChar char
+    NoPatternParens $
+      formatString StringStyleChar char
   Src.PStr string ->
-    formatString StringStyleSingleQuoted string
+    NoPatternParens $
+      formatString StringStyleSingleQuoted string
   Src.PInt int ->
-    Block.line $ Block.string7 (show int)
+    NoPatternParens $
+      Block.line $
+        Block.string7 (show int)
 
 data StringStyle
   = StringStyleChar
