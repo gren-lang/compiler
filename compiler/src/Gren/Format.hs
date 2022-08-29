@@ -7,6 +7,7 @@ module Gren.Format (toByteStringBuilder) where
 
 import AST.Source qualified as Src
 import Control.Monad (join)
+import Data.Bifunctor (second)
 import Data.ByteString.Builder qualified as B
 import Data.Char qualified as Char
 import Data.List qualified as List
@@ -14,6 +15,7 @@ import Data.List.NonEmpty (NonEmpty ((:|)), nonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Maybe (catMaybes)
 import Data.Name (Name)
+import Data.Semigroup (sconcat)
 import Data.Utf8 qualified as Utf8
 import Reporting.Annotation qualified as A
 import Text.PrettyPrint.Avh4.Block (Block)
@@ -96,8 +98,9 @@ formatModule (Src.Module name exports docs imports values unions aliases binops 
             spaceOrIndent $
               NonEmpty.fromList $
                 catMaybes
-                  [ Just $ Block.line $ Block.string7 "module",
+                  [ Just $ Block.line $ Block.string7 moduleKeyword,
                     Just $ Block.line $ maybe (Block.string7 "Main") (utf8 . A.toValue) name,
+                    formatEffectsModuleWhereClause effects,
                     formatExposing $ A.toValue exports
                   ],
           Just $ Block.stack $ Block.blankLine :| fmap formatImport imports,
@@ -111,6 +114,43 @@ formatModule (Src.Module name exports docs imports values unions aliases binops 
                       ]
            in fmap Block.stack $ nonEmpty $ fmap (addBlankLines 2) defs
         ]
+  where
+    moduleKeyword =
+      case effects of
+        Src.NoEffects -> "module"
+        Src.Ports _ -> "port module"
+        Src.Manager _ _ -> "effect module"
+
+formatEffectsModuleWhereClause :: Src.Effects -> Maybe Block
+formatEffectsModuleWhereClause = \case
+  Src.NoEffects -> Nothing
+  Src.Ports _ -> Nothing
+  Src.Manager _ manager -> Just $ formatManager manager
+
+formatManager :: Src.Manager -> Block
+formatManager manager =
+  spaceOrIndent
+    [ Block.line $ Block.string7 "where",
+      group '{' ',' '}' False $
+        fmap (formatPair . second A.toValue) $
+          case manager of
+            Src.Cmd cmd ->
+              [("command", cmd)]
+            Src.Sub sub ->
+              [("subscription", sub)]
+            Src.Fx cmd sub ->
+              [ ("command", cmd),
+                ("subscription", sub)
+              ]
+    ]
+  where
+    formatPair (key, name) =
+      Block.line $
+        sconcat
+          [ Block.string7 key,
+            Block.string7 " = ",
+            utf8 name
+          ]
 
 formatExposing :: Src.Exposing -> Maybe Block
 formatExposing = \case
