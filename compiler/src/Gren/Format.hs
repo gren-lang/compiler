@@ -97,7 +97,6 @@ formatModule (Src.Module name exports docs imports values unions aliases binops 
                     Just $ Block.line $ maybe (Block.string7 "Main") (utf8 . A.toValue) name,
                     formatExposing $ A.toValue exports
                   ],
-          -- TODO: filter out default imports
           Just $ Block.stack $ Block.blankLine :| fmap formatImport imports,
           let defs =
                 fmap snd $
