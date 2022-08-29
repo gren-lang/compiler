@@ -57,6 +57,9 @@ spaceOrStack = Block.rowOrStack (Just Block.space)
 spaceOrIndent :: NonEmpty Block -> Block
 spaceOrIndent = Block.rowOrIndent (Just Block.space)
 
+spaceOrIndent' :: Bool -> NonEmpty Block -> Block
+spaceOrIndent' forceMultiline = Block.rowOrIndent' forceMultiline (Just Block.space)
+
 {-# INLINE group #-}
 group :: Char -> Char -> Char -> Bool -> [Block] -> Block
 group open _ close _ [] = Block.line $ Block.char7 open <> Block.char7 close
@@ -268,10 +271,13 @@ formatExpr = \case
   Src.Binops rest' last_ ->
     let (first, rest) = repair rest' last_
      in ExpressionContainsInfixOps $
-          spaceOrIndent $
+          spaceOrIndent' forceMultiline $
             exprParensProtectInfixOps (formatExpr $ A.toValue first)
               :| fmap formatPair rest
     where
+      -- for now we just use multiline formatting for specific operators,
+      -- since we don't yet track where the linebreaks are in the source
+      forceMultiline = any (opForcesMultiline . A.toValue . snd) rest'
       formatPair (op, expr) =
         Block.prefix
           4
@@ -407,6 +413,11 @@ formatExpr = \case
           [ Block.line $ utf8 (A.toValue name) <> Block.space <> Block.char7 '=',
             exprParensNone $ formatExpr (A.toValue expr)
           ]
+
+opForcesMultiline :: Name -> Bool
+opForcesMultiline op =
+  op == Utf8.fromChars "|>"
+    || op == Utf8.fromChars "<|"
 
 formatDef :: Src.Def -> Block
 formatDef = \case
