@@ -337,7 +337,7 @@ formatExpr = \case
     ExpressionHasAmbiguousEnd $
       Block.stack
         [ Block.line (Block.string7 "let"),
-          Block.indent $ Block.stack $ fmap (formatDef . A.toValue) (def1 :| defs),
+          Block.indent $ Block.stack $ NonEmpty.intersperse Block.blankLine $ fmap (formatDef . A.toValue) (def1 :| defs),
           Block.line (Block.string7 "in"),
           exprParensNone $ formatExpr (A.toValue body)
         ]
