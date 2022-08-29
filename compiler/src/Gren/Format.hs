@@ -110,7 +110,11 @@ formatModule (Src.Module name exports docs imports values unions aliases binops 
                     concat @[]
                       [ fmap (formatValue . A.toValue) <$> values,
                         fmap (formatUnion . A.toValue) <$> unions,
-                        fmap (formatAlias . A.toValue) <$> aliases
+                        fmap (formatAlias . A.toValue) <$> aliases,
+                        case effects of
+                          Src.NoEffects -> []
+                          Src.Ports ports -> fmap formatPort <$> ports
+                          Src.Manager _ _ -> []
                       ]
            in fmap Block.stack $ nonEmpty $ fmap (addBlankLines 2) defs
         ]
@@ -192,7 +196,7 @@ formatBasicDef name args body type_ =
   Block.stack $
     NonEmpty.fromList $
       catMaybes
-        [ fmap formatTypeAnnotation type_,
+        [ fmap (formatTypeAnnotation Nothing name) type_,
           Just $
             spaceOrIndent $
               Block.line (utf8 name)
@@ -201,12 +205,19 @@ formatBasicDef name args body type_ =
                    ],
           Just $ Block.indent $ exprParensNone $ formatExpr body
         ]
+
+formatTypeAnnotation :: Maybe String -> Name -> Src.Type_ -> Block
+formatTypeAnnotation prefix name t =
+  spaceOrIndent
+    [ Block.line $ withPrefix $ utf8 name <> Block.space <> Block.char7 ':',
+      typeParensNone $ formatType t
+    ]
   where
-    formatTypeAnnotation t =
-      spaceOrIndent
-        [ Block.line $ utf8 name <> Block.space <> Block.char7 ':',
-          typeParensNone $ formatType t
-        ]
+    withPrefix a =
+      case prefix of
+        Nothing -> a
+        Just prefixString ->
+          Block.string7 prefixString <> Block.char7 ' ' <> a
 
 formatUnion :: Src.Union -> Block
 formatUnion (Src.Union name args ctors) =
@@ -241,6 +252,11 @@ formatAlias (Src.Alias name args type_) =
         ],
       Block.indent $ typeParensNone $ formatType (A.toValue type_)
     ]
+
+formatPort :: Src.Port -> Block
+formatPort = \case
+  Src.Port name type_ ->
+    formatTypeAnnotation (Just "port") (A.toValue name) (A.toValue type_)
 
 data ExpressionBlock
   = NoExpressionParens Block
