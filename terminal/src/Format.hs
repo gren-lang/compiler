@@ -25,6 +25,7 @@ import Reporting.Exit.Help qualified as Help
 import Reporting.Task qualified as Task
 import System.Directory qualified as Dir
 import System.FilePath ((</>))
+import System.FilePath qualified as FilePath
 import System.IO qualified
 
 -- FLAGS
@@ -97,8 +98,10 @@ resolveFile path =
     isDir <- Task.io (Dir.doesDirectoryExist path)
     if isDir
       then resolveFiles =<< Task.io (fmap (path </>) . filter (not . ignore) <$> Dir.listDirectory path)
-      else -- XXX: only include file if it matches '*.gren'
-        return [path]
+      else
+        if FilePath.takeExtension path == ".gren"
+          then return [path]
+          else return []
   where
     ignore dir =
       dir == ".gren"
