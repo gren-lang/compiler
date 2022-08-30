@@ -13,6 +13,8 @@ import Data.Char qualified as Char
 import Data.List qualified as List
 import Data.List.NonEmpty (NonEmpty ((:|)), nonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
+import Data.Map.Strict (Map)
+import Data.Map.Strict qualified as Map
 import Data.Maybe (catMaybes)
 import Data.Name (Name)
 import Data.Semigroup (sconcat)
@@ -106,23 +108,23 @@ formatModule (Src.Module name exports docs imports values unions aliases binops 
                   ],
           case docs of
             Src.NoDocs _ -> Nothing
-            Src.YesDocs (Src.DocComment moduleDocs) defDocs ->
+            Src.YesDocs moduleDocs _ ->
               Just $
                 Block.stack
                   [ Block.blankLine,
-                    Block.line $ Block.string7 "{-|" <> Block.lineFromBuilder (P.snippetToBuilder moduleDocs) <> Block.string7 "-}"
+                    formatDocComment moduleDocs
                   ],
           Just $ Block.stack $ Block.blankLine :| fmap formatImport imports,
           let defs =
                 fmap snd $
                   List.sortOn fst $
                     concat @[]
-                      [ fmap (formatValue . A.toValue) <$> values,
-                        fmap (formatUnion . A.toValue) <$> unions,
-                        fmap (formatAlias . A.toValue) <$> aliases,
+                      [ fmap (formatWithDocComment valueName formatValue . A.toValue) <$> values,
+                        fmap (formatWithDocComment unionName formatUnion . A.toValue) <$> unions,
+                        fmap (formatWithDocComment aliasName formatAlias . A.toValue) <$> aliases,
                         case effects of
                           Src.NoEffects -> []
-                          Src.Ports ports -> fmap formatPort <$> ports
+                          Src.Ports ports -> fmap (formatWithDocComment portName formatPort) <$> ports
                           Src.Manager _ _ -> []
                       ]
            in fmap Block.stack $ nonEmpty $ fmap (addBlankLines 2) defs
@@ -133,6 +135,27 @@ formatModule (Src.Module name exports docs imports values unions aliases binops 
         Src.NoEffects -> "module"
         Src.Ports _ -> "port module"
         Src.Manager _ _ -> "effect module"
+
+    defDocs :: Map Name Src.DocComment
+    defDocs =
+      case docs of
+        Src.NoDocs _ -> Map.empty
+        Src.YesDocs _ defs -> Map.fromList defs
+
+    valueName (Src.Value name_ _ _ _) = A.toValue name_
+    unionName (Src.Union name_ _ _) = A.toValue name_
+    aliasName (Src.Alias name_ _ _) = A.toValue name_
+    portName (Src.Port name_ _) = A.toValue name_
+
+    formatWithDocComment :: (a -> Name) -> (a -> Block) -> a -> Block
+    formatWithDocComment getName render a =
+      case Map.lookup (getName a) defDocs of
+        Nothing -> render a
+        Just docs_ ->
+          Block.stack
+            [ formatDocComment docs_,
+              render a
+            ]
 
 formatEffectsModuleWhereClause :: Src.Effects -> Maybe Block
 formatEffectsModuleWhereClause = \case
@@ -195,6 +218,13 @@ formatImport (Src.Import name alias exposing) =
   where
     formatImportAlias :: Name -> Block
     formatImportAlias name' = Block.line $ Block.string7 "as" <> Block.space <> utf8 name'
+
+formatDocComment :: Src.DocComment -> Block
+formatDocComment (Src.DocComment doc) =
+  Block.line $
+    Block.string7 "{-|"
+      <> Block.lineFromBuilder (P.snippetToBuilder doc)
+      <> Block.string7 "-}"
 
 formatValue :: Src.Value -> Block
 formatValue (Src.Value name args body type_) =
