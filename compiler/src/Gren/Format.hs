@@ -87,10 +87,47 @@ surround open close block =
 parens :: Block -> Block
 parens = surround '(' ')'
 
+extendedGroup :: Char -> Char -> Char -> Char -> Char -> Block -> NonEmpty (Block.Line, Block) -> Block
+extendedGroup open baseSep sep fieldSep close base fields =
+  case fields of
+    (single :| []) ->
+      spaceOrStack
+        [ spaceOrIndent
+            [ spaceOrIndent
+                [ Block.line $ Block.char7 open,
+                  base
+                ],
+              formatField baseSep single
+            ],
+          Block.line $ Block.char7 close
+        ]
+    (first :| rest) ->
+      Block.stack
+        [ spaceOrIndent
+            [ Block.line $ Block.char7 open,
+              base
+            ],
+          Block.indent $
+            Block.stack $
+              formatField baseSep first
+                :| fmap (formatField sep) rest,
+          Block.line $ Block.char7 close
+        ]
+  where
+    formatField sep' (key, value) =
+      spaceOrIndent
+        [ Block.line $
+            Block.char7 sep'
+              <> Block.space
+              <> key
+              <> Block.space
+              <> Block.char7 fieldSep,
+          value
+        ]
+
 --
 -- AST -> Block
 --
-
 formatModule :: Src.Module -> Block
 formatModule (Src.Module name exports docs imports values unions aliases binops effects) =
   -- TODO: implement actual formating
@@ -463,41 +500,23 @@ formatExpr = \case
   Src.Access expr field ->
     NoExpressionParens $
       Block.addSuffix (Block.char7 '.' <> utf8 (A.toValue field)) (exprParensProtectSpaces $ formatExpr $ A.toValue expr)
-  Src.Update (A.At _ base) fields ->
-    case fields of
-      [] ->
-        formatExpr base
-      [single] ->
-        NoExpressionParens $
-          spaceOrStack
-            [ spaceOrIndent
-                [ spaceOrIndent
-                    [ Block.line $ Block.char7 '{',
-                      exprParensNone $ formatExpr base
-                    ],
-                  formatField '|' single
-                ],
-              Block.line (Block.char7 '}')
-            ]
-      (first : rest) ->
-        NoExpressionParens $
-          Block.stack
-            [ spaceOrIndent
-                [ Block.line $ Block.char7 '{',
-                  exprParensNone $ formatExpr base
-                ],
-              Block.indent $
-                Block.stack $
-                  formatField '|' first
-                    :| fmap (formatField ',') rest,
-              Block.line (Block.char7 '}')
-            ]
+  Src.Update base [] ->
+    formatExpr $ A.toValue base
+  Src.Update base (first : rest) ->
+    NoExpressionParens $
+      extendedGroup
+        '{'
+        '|'
+        ','
+        '='
+        '}'
+        (exprParensNone $ formatExpr $ A.toValue base)
+        (fmap formatField $ first :| rest)
     where
-      formatField sep (field, expr) =
-        spaceOrIndent
-          [ Block.line $ Block.char7 sep <> Block.space <> utf8 (A.toValue field) <> Block.string7 " =",
-            exprParensNone $ formatExpr (A.toValue expr)
-          ]
+      formatField (field, expr) =
+        ( utf8 $ A.toValue field,
+          exprParensNone $ formatExpr (A.toValue expr)
+        )
   Src.Record fields ->
     NoExpressionParens $
       group '{' ',' '}' True $
@@ -581,7 +600,7 @@ formatType = \case
       spaceOrIndent $
         Block.line (utf8 ns <> Block.char7 '.' <> utf8 name)
           :| fmap (typeParensProtectSpaces . formatType . A.toValue) args
-  Src.TRecord fields base ->
+  Src.TRecord fields Nothing ->
     NoTypeParens $
       group '{' ',' '}' True $
         fmap formatField fields
@@ -591,6 +610,26 @@ formatType = \case
           [ Block.line $ utf8 (A.toValue name) <> Block.space <> Block.char7 ':',
             typeParensNone $ formatType (A.toValue type_)
           ]
+  Src.TRecord [] (Just base) ->
+    NoTypeParens $
+      Block.line $
+        utf8 $
+          A.toValue base
+  Src.TRecord (first : rest) (Just base) ->
+    NoTypeParens $
+      extendedGroup
+        '{'
+        '|'
+        ','
+        ':'
+        '}'
+        (Block.line $ utf8 $ A.toValue base)
+        (fmap formatField $ first :| rest)
+    where
+      formatField (field, type_) =
+        ( utf8 $ A.toValue field,
+          typeParensNone $ formatType $ A.toValue type_
+        )
 
 data PatternBlock
   = NoPatternParens Block
