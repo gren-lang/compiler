@@ -567,18 +567,22 @@ typeParensProtectSpaces = \case
   TypeContainsArrow block -> parens block
   TypeContainsSpaces block -> parens block
 
+collectLambdaTypes :: Src.Type -> Src.Type -> NonEmpty (Src.Type)
+collectLambdaTypes left = \case
+  (A.At _ (Src.TLambda next rest)) ->
+    NonEmpty.cons left (collectLambdaTypes next rest)
+  other ->
+    left :| [other]
+
 formatType :: Src.Type_ -> TypeBlock
 formatType = \case
   Src.TLambda left right ->
     TypeContainsArrow $
-      spaceOrStack
-        -- TODO: don't indent nested multiline lambdas
-        [ typeParensProtectArrows $ formatType (A.toValue left),
-          Block.prefix
-            3
-            (Block.string7 "-> ")
-            (typeParensNone $ formatType $ A.toValue right)
-        ]
+      case collectLambdaTypes left right of
+        (first :| rest) ->
+          spaceOrStack $
+            (typeParensProtectArrows $ formatType (A.toValue first))
+              :| fmap (Block.prefix 3 (Block.string7 "-> ") . typeParensProtectArrows . formatType . A.toValue) rest
   Src.TVar name ->
     NoTypeParens $
       Block.line (utf8 name)
