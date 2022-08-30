@@ -9,7 +9,6 @@ import AST.Source qualified as Src
 import Control.Monad (join)
 import Data.Bifunctor (second)
 import Data.ByteString.Builder qualified as B
-import Data.Char qualified as Char
 import Data.List qualified as List
 import Data.List.NonEmpty (NonEmpty ((:|)), nonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
@@ -23,7 +22,6 @@ import Parse.Primitives qualified as P
 import Reporting.Annotation qualified as A
 import Text.PrettyPrint.Avh4.Block (Block)
 import Text.PrettyPrint.Avh4.Block qualified as Block
-import Text.Printf (printf)
 
 toByteStringBuilder :: Src.Module -> B.Builder
 toByteStringBuilder module_ =
@@ -713,46 +711,12 @@ formatString :: StringStyle -> Utf8.Utf8 any -> Block
 formatString style s' =
   case style of
     StringStyleChar ->
-      stringBox (Block.char7 '\'') id
+      stringBox (Block.char7 '\'')
     StringStyleSingleQuoted ->
-      stringBox (Block.char7 '"') id
+      stringBox (Block.char7 '"')
     StringStyleTripleQuoted ->
-      stringBox (Block.string7 "\"\"\"") escapeMultiQuote
+      stringBox (Block.string7 "\"\"\"")
   where
-    s = Utf8.toChars s'
-
-    stringBox :: Block.Line -> (String -> String) -> Block
-    stringBox quotes escaper =
-      Block.line $ quotes <> Block.stringUtf8 (escaper $ concatMap fix s) <> quotes
-
-    fix = \case
-      '\n' | style == StringStyleTripleQuoted -> ['\n']
-      '\n' -> "\\n"
-      '\t' -> "\\t"
-      '\\' -> "\\\\"
-      '\"' | style == StringStyleSingleQuoted -> "\\\""
-      '\'' | style == StringStyleChar -> "\\\'"
-      c | not $ Char.isPrint c -> hex c
-      ' ' -> [' ']
-      c | Char.isSpace c -> hex c
-      c -> [c]
-
-    hex char =
-      "\\u{" ++ printf "%04X" (Char.ord char) ++ "}"
-
-    escapeMultiQuote =
-      let step okay quotes remaining =
-            case remaining of
-              [] ->
-                reverse $ concat (replicate quotes "\"\\") ++ okay
-              next : rest ->
-                if next == '"'
-                  then step okay (quotes + 1) rest
-                  else
-                    if quotes >= 3
-                      then step (next : (concat $ replicate quotes "\"\\") ++ okay) 0 rest
-                      else
-                        if quotes > 0
-                          then step (next : (replicate quotes '"') ++ okay) 0 rest
-                          else step (next : okay) 0 rest
-       in step "" 0
+    stringBox :: Block.Line -> Block
+    stringBox quotes =
+      Block.line $ quotes <> utf8 s' <> quotes
