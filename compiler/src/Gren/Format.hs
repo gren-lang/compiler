@@ -6,6 +6,7 @@
 module Gren.Format (toByteStringBuilder) where
 
 import AST.Source qualified as Src
+import AST.Utils.Binop qualified as Binop
 import Control.Monad (join)
 import Data.Bifunctor (second)
 import Data.ByteString.Builder qualified as B
@@ -154,6 +155,7 @@ formatModule (Src.Module name exports docs imports values unions aliases binops 
                     formatDocComment moduleDocs
                   ],
           Just $ Block.stack $ Block.blankLine :| fmap formatImport imports,
+          infixDefs,
           let defs =
                 fmap snd $
                   List.sortOn fst $
@@ -195,6 +197,16 @@ formatModule (Src.Module name exports docs imports values unions aliases binops 
             [ formatDocComment docs_,
               render a
             ]
+
+    infixDefs =
+      case NonEmpty.nonEmpty binops of
+        Nothing -> Nothing
+        Just some ->
+          Just $
+            Block.stack
+              [ Block.blankLine,
+                Block.stack $ fmap (formatInfix . A.toValue) some
+              ]
 
 formatEffectsModuleWhereClause :: Src.Effects -> Maybe Block
 formatEffectsModuleWhereClause = \case
@@ -264,6 +276,24 @@ formatDocComment (Src.DocComment doc) =
     Block.string7 "{-|"
       <> Block.lineFromBuilder (P.snippetToBuilder doc)
       <> Block.string7 "-}"
+
+formatInfix :: Src.Infix -> Block
+formatInfix (Src.Infix name assoc (Binop.Precedence prec) fn) =
+  Block.line $
+    Block.string7 "infix "
+      <> formatAssociativity assoc
+      <> Block.space
+      <> Block.string7 (show prec)
+      <> Block.string7 " ("
+      <> utf8 name
+      <> Block.string7 ") = "
+      <> utf8 fn
+
+formatAssociativity :: Binop.Associativity -> Block.Line
+formatAssociativity = \case
+  Binop.Left -> Block.string7 "left "
+  Binop.Non -> Block.string7 "non  "
+  Binop.Right -> Block.string7 "right"
 
 formatValue :: Src.Value -> Block
 formatValue (Src.Value name args body type_) =
