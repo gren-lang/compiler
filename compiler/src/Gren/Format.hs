@@ -67,10 +67,14 @@ spaceOrIndent' forceMultiline = Block.rowOrIndent' forceMultiline (Just Block.sp
 group :: Char -> Char -> Char -> Bool -> [Block] -> Block
 group open _ close _ [] = Block.line $ Block.char7 open <> Block.char7 close
 group open sep close forceMultiline (first : rest) =
-  Block.rowOrStack' forceMultiline (Just Block.space) $
-    Block.prefix 2 (Block.char7 open <> Block.space) first
-      :| fmap (Block.prefix 2 (Block.char7 sep <> Block.space)) (rest)
-      ++ [Block.line (Block.char7 close)]
+  Block.rowOrStack'
+    forceMultiline
+    (Just Block.space)
+    [ Block.rowOrStack' forceMultiline Nothing $
+        Block.prefix 2 (Block.char7 open <> Block.space) first
+          :| fmap (Block.prefix 2 (Block.char7 sep <> Block.space)) (rest),
+      Block.line (Block.char7 close)
+    ]
 
 {-# INLINE surround #-}
 surround :: Char -> Char -> Block -> Block
