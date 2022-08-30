@@ -17,6 +17,7 @@ import Data.Maybe (catMaybes)
 import Data.Name (Name)
 import Data.Semigroup (sconcat)
 import Data.Utf8 qualified as Utf8
+import Parse.Primitives qualified as P
 import Reporting.Annotation qualified as A
 import Text.PrettyPrint.Avh4.Block (Block)
 import Text.PrettyPrint.Avh4.Block qualified as Block
@@ -102,6 +103,14 @@ formatModule (Src.Module name exports docs imports values unions aliases binops 
                     Just $ Block.line $ maybe (Block.string7 "Main") (utf8 . A.toValue) name,
                     formatEffectsModuleWhereClause effects,
                     formatExposing $ A.toValue exports
+                  ],
+          case docs of
+            Src.NoDocs _ -> Nothing
+            Src.YesDocs (Src.DocComment moduleDocs) defDocs ->
+              Just $
+                Block.stack
+                  [ Block.blankLine,
+                    Block.line $ Block.string7 "{-|" <> Block.lineFromBuilder (P.snippetToBuilder moduleDocs) <> Block.string7 "-}"
                   ],
           Just $ Block.stack $ Block.blankLine :| fmap formatImport imports,
           let defs =
