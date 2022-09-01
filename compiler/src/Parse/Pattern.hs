@@ -85,15 +85,20 @@ wildcard =
     if pos == end || P.unsafeIndex pos /= 0x5F {- _ -}
       then eerr row col E.PStart
       else
-        let !newPos = plusPtr pos 1
-            !newCol = col + 1
-         in if Var.getInnerWidth newPos end > 0
-              then
-                let (# badPos, badCol #) = Var.chompInnerChars newPos end newCol
-                 in cerr row col (E.PWildcardNotVar (Name.fromPtr pos badPos) (fromIntegral (badCol - col)))
-              else
-                let !newState = P.State src newPos end indent row newCol
-                 in cok () newState
+        let lowerVarPosition = plusPtr pos 1
+            (# newPos, newCol #) = Var.chompLower lowerVarPosition end (col + 1)
+            -- Note although we are getting the name, to check that it is not a reserved keyword, we are not storing it.
+            -- We ultimately wish to throw it away, but in theory we could make the AST of wildcard take the name
+            -- as a parameter, and then we could use that, to, for example, check that we are not shadowing/duplicating any
+            -- such wildcard names, eg. check against something like:
+            -- getZ _x _x z = z
+            -- when you probably meant
+            -- getZ _x _y z = z
+            !name = Name.fromPtr lowerVarPosition newPos
+            !newState = P.State src newPos end indent row newCol
+        in if Var.isReservedWord name 
+           then eerr row col E.PStart
+           else cok () newState
 
 -- PARENTHESIZED PATTERNS
 

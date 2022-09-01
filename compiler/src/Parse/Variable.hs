@@ -11,7 +11,9 @@ module Parse.Variable
     Upper (..),
     foreignUpper,
     foreignAlpha,
+    chompLower,
     chompInnerChars,
+    isReservedWord,
     getUpperWidth,
     getInnerWidth,
     getInnerWidthHelp,
@@ -52,12 +54,16 @@ lower toError =
           then eerr row col toError
           else
             let !name = Name.fromPtr pos newPos
-             in if Set.member name reservedWords
+             in if isReservedWord name 
                   then eerr row col toError
                   else
                     let !newState =
                           P.State src newPos end indent row newCol
                      in cok name newState
+
+isReservedWord :: Name.Name -> Bool
+isReservedWord name =
+    Set.member name reservedWords
 
 reservedWords :: Set.Set Name.Name
 reservedWords =

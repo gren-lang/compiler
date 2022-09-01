@@ -331,7 +331,6 @@ data Pattern
   | PNumber Number Row Col
   | PFloat Word16 Row Col
   | PAlias Row Col
-  | PWildcardNotVar Name.Name Int Row Col
   | PSpace Space Row Col
   | --
     PIndentStart Row Col
@@ -5409,40 +5408,6 @@ toPatternReport source context pattern startRow startCol =
                       \ people just want to use `as` as a variable name though. Try using a different name\
                       \ in that case!"
                   ]
-              )
-    PWildcardNotVar name width row col ->
-      let region = toWiderRegion row col (fromIntegral width)
-          examples =
-            case dropWhile (== '_') (Name.toChars name) of
-              [] -> [D.dullyellow "x", "or", D.dullyellow "age"]
-              c : cs -> [D.dullyellow (D.fromChars (Char.toLower c : cs))]
-       in Report.Report "UNEXPECTED NAME" region [] $
-            Code.toSnippet source region Nothing $
-              ( D.reflow $
-                  "Variable names cannot start with underscores like this:",
-                D.fillSep $
-                  [ "You",
-                    "can",
-                    "either",
-                    "have",
-                    "an",
-                    "underscore",
-                    "like",
-                    D.dullyellow "_",
-                    "to",
-                    "ignore",
-                    "the",
-                    "value,",
-                    "or",
-                    "you",
-                    "can",
-                    "have",
-                    "a",
-                    "name",
-                    "like"
-                  ]
-                    ++ examples
-                    ++ ["to", "use", "the", "matched", "value."]
               )
     PSpace space row col ->
       toSpaceReport source space row col
