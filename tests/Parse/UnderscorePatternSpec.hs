@@ -8,7 +8,7 @@ import Helpers.Instances ()
 import Parse.Pattern qualified as Pattern
 import Parse.Primitives qualified as P
 import Reporting.Annotation qualified as A
-import Test.Hspec ( Spec ) 
+import Test.Hspec ( Spec, describe, it) 
 import Test.Hspec qualified as Hspec 
 
 data ParseError
@@ -18,20 +18,20 @@ data ParseError
 
 spec :: Spec
 spec = do
-  Hspec.describe "Wildcard patterns" $ do
-    Hspec.it "regression test" $
+  describe "Wildcard patterns" $ do
+    it "regression test" $
       parse "_"
-    Hspec.it "Newly allowed named wildcard pattern" $ do
+    it "Newly allowed named wildcard pattern" $ do
       parse "_argument"
-    Hspec.it "You can have underscores as part of the lower variable which follows the underscore" $ do
+    it "You can have underscores as part of the lower variable which follows the underscore" $ do
       parse "_hello_world"
-    Hspec.it "Keywords are not allowed as the whole variable part of an underscore pattern" $ do
+    it "Keywords are not allowed as the whole variable part of an underscore pattern" $ do
       failToParse "_let"
-    Hspec.it "But you can have a keyword as **part** of a variable name just as for normal variable names." $ do
+    it "But you can have a keyword as **part** of a variable name just as for normal variable names." $ do
       parse "_let_down"
-    Hspec.it "But you cannot start with multiple underscores" $ do
+    it "But you cannot start with multiple underscores" $ do
       failToParse "__hello"
-    Hspec.it "But it must be an lower name, for an underscore pattern" $ do
+    it "But it must be an lower name, for an underscore pattern" $ do
       failToParse "_Hello"
 
 attemptParse :: (Either ParseError (Src.Pattern, A.Position) -> Bool) -> BS.ByteString -> IO ()
