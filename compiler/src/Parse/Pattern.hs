@@ -43,8 +43,8 @@ termHelp start =
   oneOf
     E.PStart
     [ do
-        wildcard
-        addEnd start Src.PAnything,
+        name <- wildcard
+        addEnd start (Src.PAnything name),
       do
         name <- Var.lower E.PStart
         addEnd start (Src.PVar name),
@@ -79,7 +79,7 @@ termHelp start =
 
 -- WILDCARD
 
-wildcard :: Parser E.Pattern ()
+wildcard :: Parser E.Pattern Name.Name
 wildcard =
   P.Parser $ \(P.State src pos end indent row col) cok _ cerr eerr ->
     if pos == end || P.unsafeIndex pos /= 0x5F {- _ -}
@@ -98,7 +98,7 @@ wildcard =
             !newState = P.State src newPos end indent row newCol
          in if Var.isReservedWord name
               then eerr row col E.PStart
-              else cok () newState
+              else cok name newState
 
 -- PARENTHESIZED PATTERNS
 

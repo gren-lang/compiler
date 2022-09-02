@@ -49,7 +49,7 @@ parse =
   let isWildCardPattern :: Either x (Src.Pattern, A.Position) -> Bool
       isWildCardPattern result =
         case result of
-          Right (A.At _ Src.PAnything, _) -> True
+          Right (A.At _ (Src.PAnything _), _) -> True
           _ -> False
    in attemptParse isWildCardPattern
 

@@ -92,7 +92,7 @@ data Def
 type Pattern = A.Located Pattern_
 
 data Pattern_
-  = PAnything
+  = PAnything Name
   | PVar Name
   | PRecord [RecordFieldPattern]
   | PAlias Pattern (A.Located Name)

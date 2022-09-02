@@ -58,7 +58,7 @@ canonicalize :: Env.Env -> Src.Pattern -> Result DupsDict w Can.Pattern
 canonicalize env (A.At region pattern) =
   A.At region
     <$> case pattern of
-      Src.PAnything ->
+      Src.PAnything _ ->
         Result.ok Can.PAnything
       Src.PVar name ->
         logVar name region (Can.PVar name)

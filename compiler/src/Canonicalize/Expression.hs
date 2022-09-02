@@ -237,7 +237,7 @@ addBindings bindings (A.At _ def) =
 addBindingsHelp :: Dups.Dict A.Region -> Src.Pattern -> Dups.Dict A.Region
 addBindingsHelp bindings (A.At region pattern) =
   case pattern of
-    Src.PAnything ->
+    Src.PAnything _ ->
       bindings
     Src.PVar name ->
       Dups.insert name region region bindings
@@ -349,7 +349,7 @@ addEdge edges nodes aname@(A.At _ name) =
 getPatternNames :: [A.Located Name.Name] -> Src.Pattern -> [A.Located Name.Name]
 getPatternNames names (A.At region pattern) =
   case pattern of
-    Src.PAnything -> names
+    Src.PAnything _ -> names
     Src.PVar name -> A.At region name : names
     Src.PRecord fields ->
       List.foldl' (\n f -> getPatternNames n (extractRecordFieldPattern f)) names fields
