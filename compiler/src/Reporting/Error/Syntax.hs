@@ -2776,16 +2776,16 @@ toExprReport source context expr startRow startCol =
       toNumberReport source number row col
     WildCard (WildCardAttempt name) row col ->
       let region = toRegion row col
-      in Report.Report "ATTEMPT TO USE WILDCARD VARIABLE" region [] $
+       in Report.Report "ATTEMPT TO USE WILDCARD VARIABLE" region [] $
             Code.toSnippet
               source
               region
               Nothing
               ( D.reflow $
-                  "It appears you are try to use a variable name that starts with an underscore (_" 
-                  ++ Name.toChars name
-                  ++ "). Such variable names can appear in patterns but not expressions. Such a pattern is equivalent to using\
-                  \ a single '_' pattern with some documentation.",
+                  "It appears you are try to use a variable name that starts with an underscore (_"
+                    ++ Name.toChars name
+                    ++ "). Such variable names can appear in patterns but not expressions. Such a pattern is equivalent to using\
+                       \ a single '_' pattern with some documentation.",
                 D.reflow $
                   "Perhaps rename the variable without the underscore prefix."
               )

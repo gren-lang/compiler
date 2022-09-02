@@ -62,7 +62,6 @@ number start =
         Number.Int int -> Src.Int int
         Number.Float float -> Src.Float float
 
-
 parenthesizedExpr :: A.Position -> Parser E.Expr Src.Expr
 parenthesizedExpr start@(A.Position row col) =
   inContext E.Parenthesized (word1 0x28 {-(-} E.Start) $
