@@ -8,8 +8,8 @@ import Helpers.Instances ()
 import Parse.Pattern qualified as Pattern
 import Parse.Primitives qualified as P
 import Reporting.Annotation qualified as A
-import Test.Hspec ( Spec, describe, it) 
-import Test.Hspec qualified as Hspec 
+import Test.Hspec (Spec, describe, it)
+import Test.Hspec qualified as Hspec
 
 data ParseError
   = ExprError P.Row P.Col
@@ -37,34 +37,29 @@ spec = do
 attemptParse :: (Either ParseError (Src.Pattern, A.Position) -> Bool) -> BS.ByteString -> IO ()
 attemptParse checkResult str =
   Hspec.shouldSatisfy
-      ( P.fromByteString
-          (P.specialize (\_ row col -> ExprError row col) Pattern.expression)
-          (OtherError "fromByteString failed")
-          str
-      )
-      checkResult
+    ( P.fromByteString
+        (P.specialize (\_ row col -> ExprError row col) Pattern.expression)
+        (OtherError "fromByteString failed")
+        str
+    )
+    checkResult
 
 parse :: BS.ByteString -> IO ()
 parse =
-  let
-    isWildCardPattern :: Either x (Src.Pattern, A.Position) -> Bool
-    isWildCardPattern result =
-      case result of
-        Right (A.At _ Src.PAnything, _) -> True
-        _ -> False
-  in
-  attemptParse isWildCardPattern
-
+  let isWildCardPattern :: Either x (Src.Pattern, A.Position) -> Bool
+      isWildCardPattern result =
+        case result of
+          Right (A.At _ Src.PAnything, _) -> True
+          _ -> False
+   in attemptParse isWildCardPattern
 
 failToParse :: BS.ByteString -> IO ()
 failToParse =
-  let
-     isError :: Either x (Src.Pattern, A.Position) -> Bool
-     isError result =
-       case result of
+  let isError :: Either x (Src.Pattern, A.Position) -> Bool
+      isError result =
+        case result of
           Left _ ->
             True
           _ ->
             False
-  in
-  attemptParse isError
+   in attemptParse isError

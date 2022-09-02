@@ -54,7 +54,7 @@ lower toError =
           then eerr row col toError
           else
             let !name = Name.fromPtr pos newPos
-             in if isReservedWord name 
+             in if isReservedWord name
                   then eerr row col toError
                   else
                     let !newState =
@@ -63,7 +63,7 @@ lower toError =
 
 isReservedWord :: Name.Name -> Bool
 isReservedWord name =
-    Set.member name reservedWords
+  Set.member name reservedWords
 
 reservedWords :: Set.Set Name.Name
 reservedWords =

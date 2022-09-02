@@ -96,9 +96,9 @@ wildcard =
             -- getZ _x _y z = z
             !name = Name.fromPtr lowerVarPosition newPos
             !newState = P.State src newPos end indent row newCol
-        in if Var.isReservedWord name 
-           then eerr row col E.PStart
-           else cok () newState
+         in if Var.isReservedWord name
+              then eerr row col E.PStart
+              else cok () newState
 
 -- PARENTHESIZED PATTERNS
 
