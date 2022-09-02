@@ -39,6 +39,7 @@ module Reporting.Error.Syntax
     String (..),
     Escape (..),
     Number (..),
+    WildCard (..),
     --
     Space (..),
     toSpaceReport,
@@ -205,6 +206,7 @@ data Expr
   | Number Number Row Col
   | Space Space Row Col
   | IndentOperatorRight Name.Name Row Col
+  | WildCard WildCard Row Col
 
 data Record
   = RecordOpen Row Col
@@ -423,6 +425,9 @@ data Number
   | NumberDot Int
   | NumberHexDigit
   | NumberNoLeadingZero
+
+data WildCard
+  = WildCardAttempt Name.Name
 
 -- MISC
 
@@ -2769,6 +2774,21 @@ toExprReport source context expr startRow startCol =
       toStringReport source string row col
     Number number row col ->
       toNumberReport source number row col
+    WildCard (WildCardAttempt name) row col ->
+      let region = toRegion row col
+      in Report.Report "ATTEMPT TO USE WILDCARD VARIABLE" region [] $
+            Code.toSnippet
+              source
+              region
+              Nothing
+              ( D.reflow $
+                  "It appears you are try to use a variable name that starts with an underscore (_" 
+                  ++ Name.toChars name
+                  ++ "). Such variable names can appear in patterns but not expressions. Such a pattern is equivalent to using\
+                  \ a single '_' pattern with some documentation.",
+                D.reflow $
+                  "Perhaps rename the variable without the underscore prefix."
+              )
     Space space row col ->
       toSpaceReport source space row col
     IndentOperatorRight op row col ->
