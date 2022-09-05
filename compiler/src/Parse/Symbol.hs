@@ -26,6 +26,7 @@ data BadOperator
   | BadArrow
   | BadEquals
   | BadHasType
+  deriving (Show)
 
 operator :: (Row -> Col -> x) -> (BadOperator -> Row -> Col -> x) -> Parser x Name.Name
 operator toExpectation toError =

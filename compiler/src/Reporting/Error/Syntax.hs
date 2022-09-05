@@ -207,6 +207,7 @@ data Expr
   | Space Space Row Col
   | IndentOperatorRight Name.Name Row Col
   | WildCard WildCard Row Col
+  deriving (Show)
 
 data Record
   = RecordOpen Row Col
@@ -223,6 +224,7 @@ data Record
   | RecordIndentField Row Col
   | RecordIndentEquals Row Col
   | RecordIndentExpr Row Col
+  deriving (Show)
 
 data Array
   = ArraySpace Space Row Col
@@ -233,6 +235,7 @@ data Array
     ArrayIndentOpen Row Col
   | ArrayIndentEnd Row Col
   | ArrayIndentExpr Row Col
+  deriving (Show)
 
 data Func
   = FuncSpace Space Row Col
@@ -243,6 +246,7 @@ data Func
     FuncIndentArg Row Col
   | FuncIndentArrow Row Col
   | FuncIndentBody Row Col
+  deriving (Show)
 
 data Case
   = CaseSpace Space Row Col
@@ -258,6 +262,7 @@ data Case
   | CaseIndentArrow Row Col
   | CaseIndentBranch Row Col
   | CasePatternAlignment Word16 Row Col
+  deriving (Show)
 
 data If
   = IfSpace Space Row Col
@@ -274,6 +279,7 @@ data If
   | IfIndentThenBranch Row Col
   | IfIndentElseBranch Row Col
   | IfIndentElse Row Col
+  deriving (Show)
 
 data Let
   = LetSpace Space Row Col
@@ -286,6 +292,7 @@ data Let
   | LetIndentDef Row Col
   | LetIndentIn Row Col
   | LetIndentBody Row Col
+  deriving (Show)
 
 data Parenthesized
   = ParenthesizedOpen Row Col
@@ -298,6 +305,7 @@ data Parenthesized
     ParenthesizedIndentOpen Row Col
   | ParenthesizedIndentEnd Row Col
   | ParenthesizedIndentExpr Row Col
+  deriving (Show)
 
 data Def
   = DefSpace Space Row Col
@@ -311,6 +319,7 @@ data Def
   | DefIndentType Row Col
   | DefIndentBody Row Col
   | DefAlignment Word16 Row Col
+  deriving (Show)
 
 data Destruct
   = DestructSpace Space Row Col
@@ -319,6 +328,7 @@ data Destruct
   | DestructBody Expr Row Col
   | DestructIndentEquals Row Col
   | DestructIndentBody Row Col
+  deriving (Show)
 
 -- PATTERNS
 
@@ -337,6 +347,7 @@ data Pattern
   | --
     PIndentStart Row Col
   | PIndentAlias Row Col
+  deriving (Show)
 
 data PParenthesized
   = PParenthesizedSpace Space Row Col
@@ -344,6 +355,7 @@ data PParenthesized
   | PParenthesizedPattern Pattern Row Col
   | PParenthesizedIndentEnd Row Col
   | PParenthesizedEnd Row Col
+  deriving (Show)
 
 data PRecord
   = PRecordOpen Row Col
@@ -356,6 +368,7 @@ data PRecord
     PRecordIndentOpen Row Col
   | PRecordIndentEnd Row Col
   | PRecordIndentField Row Col
+  deriving (Show)
 
 data PArray
   = PArrayOpen Row Col
@@ -366,6 +379,7 @@ data PArray
     PArrayIndentOpen Row Col
   | PArrayIndentEnd Row Col
   | PArrayIndentExpr Row Col
+  deriving (Show)
 
 -- TYPES
 
@@ -377,6 +391,7 @@ data Type
   | TSpace Space Row Col
   | --
     TIndentStart Row Col
+  deriving (Show)
 
 data TRecord
   = TRecordOpen Row Col
@@ -393,6 +408,7 @@ data TRecord
   | TRecordIndentColon Row Col
   | TRecordIndentType Row Col
   | TRecordIndentEnd Row Col
+  deriving (Show)
 
 data TParenthesis
   = TParenthesisEnd Row Col
@@ -401,6 +417,7 @@ data TParenthesis
   | --
     TParenthesisIndentOpen Row Col
   | TParenthesisIndentEnd Row Col
+  deriving (Show)
 
 -- LITERALS
 
@@ -408,26 +425,31 @@ data Char
   = CharEndless
   | CharEscape Escape
   | CharNotString Word16
+  deriving (Show)
 
 data String
   = StringEndless_Single
   | StringEndless_Multi
   | StringEscape Escape
+  deriving (Show)
 
 data Escape
   = EscapeUnknown
   | BadUnicodeFormat Word16
   | BadUnicodeCode Word16
   | BadUnicodeLength Word16 Int Int
+  deriving (Show)
 
 data Number
   = NumberEnd
   | NumberDot Int
   | NumberHexDigit
   | NumberNoLeadingZero
+  deriving (Show)
 
 data WildCard
   = WildCardAttempt Name.Name
+  deriving (Show)
 
 -- MISC
 
