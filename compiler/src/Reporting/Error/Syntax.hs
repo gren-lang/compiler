@@ -2782,10 +2782,11 @@ toExprReport source context expr startRow startCol =
               region
               Nothing
               ( D.reflow $
-                  "It appears you are try to use a variable name that starts with an underscore (_"
+                  "It appears you are attempting to use a variable name that starts with an underscore (_"
                     ++ Name.toChars name
-                    ++ "). Such variable names can appear in patterns but not expressions. Such a pattern is equivalent to using\
-                       \ a single '_' pattern with some documentation.",
+                    ++ ") in an expression. Such variable names can appear in patterns but not expressions.\
+                       \ A pattern consisting of a variable name prefixed by an underscore is equivalent to using\
+                       \ a single '_' pattern and is allowed so that you may name what you are ignoring.",
                 D.reflow $
                   "Perhaps rename the variable without the underscore prefix."
               )
