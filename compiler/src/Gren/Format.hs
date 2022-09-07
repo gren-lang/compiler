@@ -65,7 +65,6 @@ spaceOrIndent = Block.rowOrIndent (Just Block.space)
 spaceOrIndentForce :: Bool -> NonEmpty Block -> Block
 spaceOrIndentForce forceMultiline = Block.rowOrIndentForce forceMultiline (Just Block.space)
 
-{-# INLINE group #-}
 group :: Char -> Char -> Char -> Bool -> [Block] -> Block
 group open _ close _ [] = Block.line $ Block.char7 open <> Block.char7 close
 group open sep close forceMultiline (first : rest) =
@@ -78,7 +77,6 @@ group open sep close forceMultiline (first : rest) =
       Block.line (Block.char7 close)
     ]
 
-{-# INLINE surround #-}
 surround :: Char -> Char -> Block -> Block
 surround open close block =
   Block.rowOrStack
@@ -87,7 +85,6 @@ surround open close block =
       Block.line $ Block.char7 close
     ]
 
-{-# INLINE parens #-}
 parens :: Block -> Block
 parens = surround '(' ')'
 
