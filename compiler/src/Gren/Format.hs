@@ -697,6 +697,8 @@ formatPattern = \case
         fmap (formatField . A.toValue) fields
     where
       formatField = \case
+        Src.RFPattern (A.At _ name) (A.At _ (Src.PVar pname)) | name == pname ->
+          Block.line $ utf8 name
         Src.RFPattern name pat ->
           spaceOrIndent
             [ Block.line $ utf8 (A.toValue name) <> Block.space <> Block.char7 '=',
