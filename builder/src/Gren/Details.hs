@@ -21,7 +21,7 @@ import BackgroundWriter qualified as BW
 import Compile qualified
 import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar (MVar, newEmptyMVar, newMVar, putMVar, readMVar, takeMVar)
-import Control.Monad (liftM, liftM2)
+import Control.Monad (liftM2, liftM3)
 import Data.Binary (Binary, get, getWord8, put, putWord8)
 import Data.Either qualified as Either
 import Data.Map qualified as Map
@@ -43,6 +43,7 @@ import Gren.Kernel qualified as Kernel
 import Gren.ModuleName qualified as ModuleName
 import Gren.Outline qualified as Outline
 import Gren.Package qualified as Pkg
+import Gren.Platform qualified as P
 import Gren.Platform qualified as Platform
 import Gren.Version qualified as V
 import Json.Encode qualified as E
@@ -67,8 +68,8 @@ data Details = Details
 type BuildID = Word64
 
 data ValidOutline
-  = ValidApp (NE.List Outline.SrcDir)
-  | ValidPkg Pkg.Name [ModuleName.Raw]
+  = ValidApp P.Platform (NE.List Outline.SrcDir)
+  | ValidPkg P.Platform Pkg.Name [ModuleName.Raw]
 
 -- NOTE: we need two ways to detect if a file must be recompiled:
 --
@@ -190,7 +191,7 @@ verifyPkg env time (Outline.PkgOutline pkg _ _ _ exposed direct gren rootPlatfor
     then do
       solution <- verifyConstraints env rootPlatform (Map.map (Con.exactly . Con.lowerBound) direct)
       let exposedList = Outline.flattenExposed exposed
-      verifyDependencies env time (ValidPkg pkg exposedList) solution direct
+      verifyDependencies env time (ValidPkg rootPlatform pkg exposedList) solution direct
     else Task.throw $ Exit.DetailsBadGrenInPkg gren
 
 verifyApp :: Env -> File.Time -> Outline.AppOutline -> Task Details
@@ -200,7 +201,7 @@ verifyApp env time outline@(Outline.AppOutline grenVersion rootPlatform srcDirs 
       stated <- checkAppDeps outline
       actual <- verifyConstraints env rootPlatform (Map.map Con.exactly stated)
       if Map.size stated == Map.size actual
-        then verifyDependencies env time (ValidApp srcDirs) actual direct
+        then verifyDependencies env time (ValidApp rootPlatform srcDirs) actual direct
         else Task.throw Exit.DetailsHandEditedDependencies
     else Task.throw $ Exit.DetailsBadGrenInAppOutline grenVersion
 
@@ -346,7 +347,7 @@ build key cache depsMVar pkg (Solver.Details vsn _) f fs =
         do
           Reporting.report key Reporting.DBroken
           return $ Left $ Just $ Exit.BD_BadBuild pkg vsn f
-      Right (Outline.Pkg (Outline.PkgOutline _ _ _ _ exposed deps _ _)) ->
+      Right (Outline.Pkg (Outline.PkgOutline _ _ _ _ exposed deps _ platform)) ->
         do
           allDeps <- readMVar depsMVar
           directDeps <- traverse readMVar (Map.intersection allDeps deps)
@@ -374,7 +375,7 @@ build key cache depsMVar pkg (Solver.Details vsn _) f fs =
                   Just statuses ->
                     do
                       rmvar <- newEmptyMVar
-                      rmvars <- traverse (fork . compile pkg rmvar) statuses
+                      rmvars <- traverse (fork . compile platform pkg rmvar) statuses
                       putMVar rmvar rmvars
                       maybeResults <- traverse readMVar rmvars
                       case sequence maybeResults of
@@ -535,8 +536,8 @@ data Result
   | RKernelLocal [Kernel.Chunk]
   | RKernelForeign
 
-compile :: Pkg.Name -> MVar (Map.Map ModuleName.Raw (MVar (Maybe Result))) -> Status -> IO (Maybe Result)
-compile pkg mvar status =
+compile :: P.Platform -> Pkg.Name -> MVar (Map.Map ModuleName.Raw (MVar (Maybe Result))) -> Status -> IO (Maybe Result)
+compile platform pkg mvar status =
   case status of
     SLocal docsStatus deps modul ->
       do
@@ -546,7 +547,7 @@ compile pkg mvar status =
           Nothing ->
             return Nothing
           Just results ->
-            case Compile.compile pkg (Map.mapMaybe getInterface results) modul of
+            case Compile.compile platform pkg (Map.mapMaybe getInterface results) modul of
               Left _ ->
                 return Nothing
               Right (Compile.Artifacts canonical annotations objects) ->
@@ -626,15 +627,15 @@ instance Binary Details where
 instance Binary ValidOutline where
   put outline =
     case outline of
-      ValidApp a -> putWord8 0 >> put a
-      ValidPkg a b -> putWord8 1 >> put a >> put b
+      ValidApp a b -> putWord8 0 >> put a >> put b
+      ValidPkg a b c -> putWord8 1 >> put a >> put b >> put c
 
   get =
     do
       n <- getWord8
       case n of
-        0 -> liftM ValidApp get
-        1 -> liftM2 ValidPkg get get
+        0 -> liftM2 ValidApp get get
+        1 -> liftM3 ValidPkg get get get
         _ -> fail "binary encoding of ValidOutline was corrupted"
 
 instance Binary Local where

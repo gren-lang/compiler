@@ -3,7 +3,6 @@
 module Generate.JavaScript
   ( generate,
     generateForRepl,
-    generateForReplEndpoint,
   )
 where
 
@@ -43,7 +42,7 @@ generate mode (Opt.GlobalGraph graph _) mains =
         <> perfNote mode
         <> stateToBuilder state
         <> toMainExports mode mains
-        <> "}(this));"
+        <> "}(this.module ? this.module.exports : this));"
 
 addMain :: Mode.Mode -> Graph -> ModuleName.Canonical -> Opt.Main -> State -> State
 addMain mode graph home _ state =
@@ -55,12 +54,10 @@ perfNote mode =
     Mode.Prod _ ->
       ""
     Mode.Dev Nothing ->
-      "console.warn('Compiled in DEV mode. Follow the advice at "
-        <> B.stringUtf8 (D.makeNakedLink "optimize")
+      "console.warn('Compiled in DEV mode. Compile with --optimize "
         <> " for better performance and smaller assets.');"
     Mode.Dev (Just _) ->
-      "console.warn('Compiled in DEBUG mode. Follow the advice at "
-        <> B.stringUtf8 (D.makeNakedLink "optimize")
+      "console.warn('Compiled in DEV mode. Compile with --optimize "
         <> " for better performance and smaller assets.');"
 
 -- GENERATE FOR REPL
@@ -99,39 +96,6 @@ print ansi localizer home name tipe =
            \} else {\n\
            \    _print(' : ' + _type);\n\
            \}\n"
-
--- GENERATE FOR REPL ENDPOINT
-
-generateForReplEndpoint :: L.Localizer -> Opt.GlobalGraph -> ModuleName.Canonical -> Maybe Name.Name -> Can.Annotation -> B.Builder
-generateForReplEndpoint localizer (Opt.GlobalGraph graph _) home maybeName (Can.Forall _ tipe) =
-  let name = maybe Name.replValueToPrint id maybeName
-      mode = Mode.Dev Nothing
-      debugState = addGlobal mode graph emptyState (Opt.Global ModuleName.debug "toString")
-      evalState = addGlobal mode graph debugState (Opt.Global home name)
-   in Functions.functions
-        <> stateToBuilder evalState
-        <> postMessage localizer home maybeName tipe
-
-postMessage :: L.Localizer -> ModuleName.Canonical -> Maybe Name.Name -> Can.Type -> B.Builder
-postMessage localizer home maybeName tipe =
-  let name = maybe Name.replValueToPrint id maybeName
-      value = JsName.toBuilder (JsName.fromGlobal home name)
-      toString = JsName.toBuilder (JsName.fromKernel Name.debug "toAnsiString")
-      tipeDoc = RT.canToDoc localizer RT.None tipe
-      toName n = "\"" <> Name.toBuilder n <> "\""
-   in "self.postMessage({\n\
-      \  name: "
-        <> maybe "null" toName maybeName
-        <> ",\n\
-           \  value: "
-        <> toString
-        <> "(true, "
-        <> value
-        <> "),\n\
-           \  type: "
-        <> B.stringUtf8 (show (D.toString tipeDoc))
-        <> "\n\
-           \});\n"
 
 -- GRAPH TRAVERSAL STATE
 

@@ -8,6 +8,7 @@ module Reporting.Error.Main
 where
 
 import AST.Canonical qualified as Can
+import Data.List qualified as List
 import Data.Name qualified as Name
 import Reporting.Annotation qualified as A
 import Reporting.Doc qualified as D
@@ -20,7 +21,7 @@ import Reporting.Report qualified as Report
 -- ERROR
 
 data Error
-  = BadType A.Region Can.Type
+  = BadType A.Region Can.Type [String]
   | BadCycle A.Region Name.Name [Name.Name]
   | BadFlags A.Region Can.Type E.InvalidPayload
 
@@ -29,7 +30,7 @@ data Error
 toReport :: L.Localizer -> Code.Source -> Error -> Report.Report
 toReport localizer source err =
   case err of
-    BadType region tipe ->
+    BadType region tipe allowed ->
       Report.Report "BAD MAIN TYPE" region [] $
         Code.toSnippet
           source
@@ -39,9 +40,7 @@ toReport localizer source err =
             D.stack
               [ "The type of `main` value I am seeing is:",
                 D.indent 4 $ D.dullyellow $ RT.canToDoc localizer RT.None tipe,
-                D.reflow $
-                  "I only know how to handle Html, Svg, and Programs\
-                  \ though. Modify `main` to be one of those types of values!"
+                D.reflow $ "But I only know how to handle these types: " ++ List.intercalate ", " allowed
               ]
           )
     BadCycle region name names ->

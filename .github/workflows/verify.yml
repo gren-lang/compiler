@@ -21,7 +21,7 @@ jobs:
       id: setup-haskell
       with:
         ghc-version: '9.2.4'
-        cabal-version: '3.6'
+        cabal-version: '3.8.1.0'
 
     - name: Cache
       uses: actions/cache@v2
@@ -30,7 +30,7 @@ jobs:
         key: cabal-${{ runner.os }}-${{ hashFiles('*.cabal') }}
 
     - name: Build
-      run: cabal build -f dev
+      run: cabal build -f dev --enable-tests
 
     - name: Tests
       run: cabal test -f dev

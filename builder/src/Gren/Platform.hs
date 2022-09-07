@@ -9,6 +9,7 @@ module Gren.Platform
   )
 where
 
+import Data.Binary (Binary, get, getWord8, put, putWord8)
 import Data.Utf8 qualified as Utf8
 import Json.Decode qualified as D
 import Json.Encode qualified as E
@@ -50,3 +51,21 @@ fromString value =
     "browser" -> Just Browser
     "node" -> Just Node
     _ -> Nothing
+
+-- BINARY
+
+instance Binary Platform where
+  put platform =
+    case platform of
+      Common -> putWord8 0
+      Browser -> putWord8 1
+      Node -> putWord8 2
+
+  get =
+    do
+      n <- getWord8
+      case n of
+        0 -> return Common
+        1 -> return Browser
+        2 -> return Node
+        _ -> fail "binary encoding of Platform was corrupted"
