@@ -13,7 +13,7 @@ module Text.PrettyPrint.Avh4.Block
     line,
     mustBreak,
     stack,
-    stack',
+    stackForce,
     andThen,
     indent,
     prefix,
@@ -21,9 +21,9 @@ module Text.PrettyPrint.Avh4.Block
     joinMustBreak,
     prefixOrIndent,
     rowOrStack,
-    rowOrStack',
+    rowOrStackForce,
     rowOrIndent,
-    rowOrIndent',
+    rowOrIndentForce,
     render,
     char7,
     stringUtf8,
@@ -126,8 +126,8 @@ mkIndentedLine (Row Space next) =
    in Indented (Indent.spaces 1 <> i) rest'
 mkIndentedLine other = Indented mempty other
 
-stack' :: Block -> Block -> Block
-stack' b1 b2 =
+stackForce :: Block -> Block -> Block
+stackForce b1 b2 =
   let (line1first, line1rest) = destructure b1
       (line2first, line2rest) = destructure b2
    in case line1rest ++ line2first : line2rest of
@@ -138,10 +138,10 @@ stack' b1 b2 =
 
 andThen :: [Block] -> Block -> Block
 andThen rest first =
-  foldl stack' first rest
+  foldl stackForce first rest
 
 stack :: NonEmpty Block -> Block
-stack = foldr1 stack'
+stack = foldr1 stackForce
 
 joinMustBreak :: Block -> Block -> Block
 joinMustBreak inner eol =
@@ -155,7 +155,7 @@ joinMustBreak inner eol =
         Indented i1 $
           inner' <> space <> eol'
     _ ->
-      stack' inner eol
+      stackForce inner eol
 
 {-# INLINE prefixOrIndent #-}
 prefixOrIndent :: Maybe Line -> Line -> Block -> Block
@@ -170,7 +170,7 @@ prefixOrIndent joiner a b =
         MustBreak (Indented _ b') ->
           mustBreak $ join a b'
         _ ->
-          stack' (line a) (indent b)
+          stackForce (line a) (indent b)
 
 mapLines :: (Indented Line -> Indented Line) -> Block -> Block
 mapLines fn =
@@ -203,19 +203,19 @@ indent =
 
 {-# INLINE rowOrStack #-}
 rowOrStack :: Maybe Line -> NonEmpty Block -> Block
-rowOrStack = rowOrStack' False
+rowOrStack = rowOrStackForce False
 
-{-# INLINE rowOrStack' #-}
-rowOrStack' :: Bool -> Maybe Line -> NonEmpty Block -> Block
-rowOrStack' _ _ (single :| []) = single
-rowOrStack' forceMultiline (Just joiner) blocks =
+{-# INLINE rowOrStackForce #-}
+rowOrStackForce :: Bool -> Maybe Line -> NonEmpty Block -> Block
+rowOrStackForce _ _ (single :| []) = single
+rowOrStackForce forceMultiline (Just joiner) blocks =
   case allSingles blocks of
     Right lines
       | not forceMultiline ->
           line $ sconcat $ NonEmpty.intersperse joiner lines
     _ ->
       stack blocks
-rowOrStack' forceMultiline Nothing blocks =
+rowOrStackForce forceMultiline Nothing blocks =
   case allSingles blocks of
     Right lines
       | not forceMultiline ->
@@ -225,19 +225,19 @@ rowOrStack' forceMultiline Nothing blocks =
 
 {-# INLINE rowOrIndent #-}
 rowOrIndent :: Maybe Line -> NonEmpty Block -> Block
-rowOrIndent = rowOrIndent' False
+rowOrIndent = rowOrIndentForce False
 
-{-# INLINE rowOrIndent' #-}
-rowOrIndent' :: Bool -> Maybe Line -> NonEmpty Block -> Block
-rowOrIndent' _ _ (single :| []) = single
-rowOrIndent' forceMultiline (Just joiner) blocks@(b1 :| rest) =
+{-# INLINE rowOrIndentForce #-}
+rowOrIndentForce :: Bool -> Maybe Line -> NonEmpty Block -> Block
+rowOrIndentForce _ _ (single :| []) = single
+rowOrIndentForce forceMultiline (Just joiner) blocks@(b1 :| rest) =
   case allSingles blocks of
     Right lines
       | not forceMultiline ->
           line $ sconcat $ NonEmpty.intersperse joiner lines
     _ ->
       stack (b1 :| (indent <$> rest))
-rowOrIndent' forceMultiline Nothing blocks@(b1 :| rest) =
+rowOrIndentForce forceMultiline Nothing blocks@(b1 :| rest) =
   case allSingles blocks of
     Right lines
       | not forceMultiline ->

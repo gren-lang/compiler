@@ -33,13 +33,14 @@ toByteStringBuilder module_ =
 --
 
 repair :: [(a, b)] -> a -> (a, [(b, a)])
-repair [] a' = (a', [])
-repair ((first, b) : rest) a' =
-  (first, repairHelp b rest a')
-  where
-    repairHelp b1 [] a1 = [(b1, a1)]
-    repairHelp b1 ((a1, b2) : rest') a2 =
-      (b1, a1) : repairHelp b2 rest' a2
+repair [] single = (single, [])
+repair ((first, b) : rest) final =
+  (first, repairHelp b rest final)
+
+repairHelp :: b -> [(a, b)] -> a -> [(b, a)]
+repairHelp b [] a = [(b, a)]
+repairHelp b1 ((a1, b2) : rest) a2 =
+  (b1, a1) : repairHelp b2 rest a2
 
 --
 -- Helper functions
@@ -61,17 +62,17 @@ spaceOrStack = Block.rowOrStack (Just Block.space)
 spaceOrIndent :: NonEmpty Block -> Block
 spaceOrIndent = Block.rowOrIndent (Just Block.space)
 
-spaceOrIndent' :: Bool -> NonEmpty Block -> Block
-spaceOrIndent' forceMultiline = Block.rowOrIndent' forceMultiline (Just Block.space)
+spaceOrIndentForce :: Bool -> NonEmpty Block -> Block
+spaceOrIndentForce forceMultiline = Block.rowOrIndentForce forceMultiline (Just Block.space)
 
 {-# INLINE group #-}
 group :: Char -> Char -> Char -> Bool -> [Block] -> Block
 group open _ close _ [] = Block.line $ Block.char7 open <> Block.char7 close
 group open sep close forceMultiline (first : rest) =
-  Block.rowOrStack'
+  Block.rowOrStackForce
     forceMultiline
     (Just Block.space)
-    [ Block.rowOrStack' forceMultiline Nothing $
+    [ Block.rowOrStackForce forceMultiline Nothing $
         Block.prefix 2 (Block.char7 open <> Block.space) first
           :| fmap (Block.prefix 2 (Block.char7 sep <> Block.space)) (rest),
       Block.line (Block.char7 close)
@@ -117,10 +118,10 @@ extendedGroup open baseSep sep fieldSep close base fields =
           Block.line $ Block.char7 close
         ]
   where
-    formatField sep' (key, value) =
+    formatField punc (key, value) =
       spaceOrIndent
         [ Block.line $
-            Block.char7 sep'
+            Block.char7 punc
               <> Block.space
               <> key
               <> Block.space
@@ -132,7 +133,7 @@ extendedGroup open baseSep sep fieldSep close base fields =
 -- AST -> Block
 --
 formatModule :: Src.Module -> Block
-formatModule (Src.Module name exports docs imports values unions aliases binops effects) =
+formatModule (Src.Module moduleName exports docs imports values unions aliases binops effects) =
   -- TODO: implement actual formating
   Block.stack $
     NonEmpty.fromList $
@@ -142,7 +143,7 @@ formatModule (Src.Module name exports docs imports values unions aliases binops 
               NonEmpty.fromList $
                 catMaybes
                   [ Just $ Block.line $ Block.string7 moduleKeyword,
-                    Just $ Block.line $ maybe (Block.string7 "Main") (utf8 . A.toValue) name,
+                    Just $ Block.line $ maybe (Block.string7 "Main") (utf8 . A.toValue) moduleName,
                     formatEffectsModuleWhereClause effects,
                     formatExposing $ A.toValue exports
                   ],
@@ -183,18 +184,18 @@ formatModule (Src.Module name exports docs imports values unions aliases binops 
         Src.NoDocs _ -> Map.empty
         Src.YesDocs _ defs -> Map.fromList defs
 
-    valueName (Src.Value name_ _ _ _) = A.toValue name_
-    unionName (Src.Union name_ _ _) = A.toValue name_
-    aliasName (Src.Alias name_ _ _) = A.toValue name_
-    portName (Src.Port name_ _) = A.toValue name_
+    valueName (Src.Value name _ _ _) = A.toValue name
+    unionName (Src.Union name _ _) = A.toValue name
+    aliasName (Src.Alias name _ _) = A.toValue name
+    portName (Src.Port name _) = A.toValue name
 
     formatWithDocComment :: (a -> Name) -> (a -> Block) -> a -> Block
     formatWithDocComment getName render a =
       case Map.lookup (getName a) defDocs of
         Nothing -> render a
-        Just docs_ ->
+        Just defDoc ->
           Block.stack
-            [ formatDocComment docs_,
+            [ formatDocComment defDoc,
               render a
             ]
 
@@ -266,9 +267,9 @@ formatImport (Src.Import name alias exposing) =
           fmap formatImportAlias alias,
           formatExposing exposing
         ]
-  where
-    formatImportAlias :: Name -> Block
-    formatImportAlias name' = Block.line $ Block.string7 "as" <> Block.space <> utf8 name'
+
+formatImportAlias :: Name -> Block
+formatImportAlias name = Block.line $ Block.string7 "as" <> Block.space <> utf8 name
 
 formatDocComment :: Src.DocComment -> Block
 formatDocComment (Src.DocComment doc) =
@@ -343,10 +344,11 @@ formatUnion (Src.Union name args ctors) =
         [] -> []
         (first : rest) -> formatCtor '=' first : fmap (formatCtor '|') rest
 
-    formatCtor open (name', args') =
-      spaceOrIndent $
-        Block.line (Block.char7 open <> Block.space <> utf8 (A.toValue name'))
-          :| fmap (typeParensProtectSpaces . formatType . A.toValue) args'
+formatCtor :: Char -> (A.Located Name, [Src.Type]) -> Block
+formatCtor open (name, args) =
+  spaceOrIndent $
+    Block.line (Block.char7 open <> Block.space <> utf8 (A.toValue name))
+      :| fmap (typeParensProtectSpaces . formatType . A.toValue) args
 
 formatAlias :: Src.Alias -> Block
 formatAlias (Src.Alias name args type_) =
@@ -432,16 +434,16 @@ formatExpr = \case
         exprParensProtectSpaces $
           formatExpr $
             A.toValue expr
-  Src.Binops rest' last_ ->
-    let (first, rest) = repair rest' last_
+  Src.Binops postfixOps final ->
+    let (first, rest) = repair postfixOps final
      in ExpressionContainsInfixOps $
-          spaceOrIndent' forceMultiline $
+          spaceOrIndentForce forceMultiline $
             exprParensProtectInfixOps (formatExpr $ A.toValue first)
               :| fmap formatPair rest
     where
       -- for now we just use multiline formatting for specific operators,
       -- since we don't yet track where the linebreaks are in the source
-      forceMultiline = any (opForcesMultiline . A.toValue . snd) rest'
+      forceMultiline = any (opForcesMultiline . A.toValue . snd) postfixOps
       formatPair (op, expr) =
         Block.prefix
           4
@@ -484,11 +486,11 @@ formatExpr = \case
             ]
     where
       formatIfClause :: String -> (Src.Expr, Src.Expr) -> Block
-      formatIfClause keyword_ (predicate, body) =
+      formatIfClause keyword (predicate, body) =
         Block.stack
           [ spaceOrStack
               [ spaceOrIndent
-                  [ Block.line $ Block.string7 keyword_,
+                  [ Block.line $ Block.string7 keyword,
                     exprParensNone $ formatExpr $ A.toValue predicate
                   ],
                 Block.line $ Block.string7 "then"
@@ -697,8 +699,9 @@ formatPattern = \case
         fmap (formatField . A.toValue) fields
     where
       formatField = \case
-        Src.RFPattern (A.At _ name) (A.At _ (Src.PVar pname)) | name == pname ->
-          Block.line $ utf8 name
+        Src.RFPattern (A.At _ name) (A.At _ (Src.PVar pname))
+          | name == pname ->
+              Block.line $ utf8 name
         Src.RFPattern name pat ->
           spaceOrIndent
             [ Block.line $ utf8 (A.toValue name) <> Block.space <> Block.char7 '=',
@@ -748,7 +751,7 @@ data StringStyle
   deriving (Eq)
 
 formatString :: StringStyle -> Utf8.Utf8 any -> Block
-formatString style s' =
+formatString style str =
   case style of
     StringStyleChar ->
       stringBox (Block.char7 '\'')
@@ -759,4 +762,4 @@ formatString style s' =
   where
     stringBox :: Block.Line -> Block
     stringBox quotes =
-      Block.line $ quotes <> utf8 s' <> quotes
+      Block.line $ quotes <> utf8 str <> quotes
