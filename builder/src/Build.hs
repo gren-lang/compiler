@@ -277,7 +277,7 @@ crawlFile env@(Env _ root projectType _ _ buildID _ _) mvar docsNeed expectedNam
             if expectedName == actualName
               then
                 let deps = map Src.getImportName imports
-                    local = Details.Local path time deps (any isMain (fmap snd values)) lastChange buildID
+                    local = Details.Local path time deps (any (isMain . snd) values) lastChange buildID
                  in crawlDeps env mvar deps (SChanged local source modul docsNeed)
               else return $ SBadSyntax path time source (Syntax.ModuleNameMismatch expectedName name)
 
