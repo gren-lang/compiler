@@ -1,5 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
+-- TODO: Extract Text.PrettyPrint.Avh4 to a separate library
+
 module Text.PrettyPrint.Avh4.Indent (Indent, tab, spaces, width) where
 
 spacesInTab :: Word

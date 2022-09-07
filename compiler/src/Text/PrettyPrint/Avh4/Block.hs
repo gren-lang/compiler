@@ -2,6 +2,8 @@
 {-# LANGUAGE LambdaCase #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 
+-- TODO: Extract Text.PrettyPrint.Avh4 to a separate library
+
 module Text.PrettyPrint.Avh4.Block
   ( Line,
     string7,
