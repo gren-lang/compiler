@@ -28,10 +28,13 @@ module Parse.Primitives
     getCharWidth,
     Snippet (..),
     fromSnippet,
+    snippetToBuilder,
   )
 where
 
 import Control.Applicative qualified as Applicative (Applicative (..))
+import Data.ByteString.Builder (Builder)
+import Data.ByteString.Builder qualified as Builder
 import Data.ByteString.Internal qualified as B
 import Data.Word (Word16, Word8)
 import Foreign.ForeignPtr (ForeignPtr, touchForeignPtr)
@@ -204,6 +207,10 @@ fromSnippet (Parser parser) toBadEnd (Snippet fptr offset length row col) =
      in do
           touchForeignPtr fptr
           return result
+
+snippetToBuilder :: Snippet -> Builder
+snippetToBuilder (Snippet fptr offset length _ _) =
+  Builder.byteString $ B.fromForeignPtr fptr offset length
 
 -- POSITION
 

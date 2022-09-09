@@ -8,7 +8,7 @@ where
 import Bump qualified
 import Data.List qualified as List
 import Diff qualified
--- import qualified Format
+import Format qualified
 import Gren.Platform qualified as Platform
 import Gren.Version qualified as V
 import Init qualified
@@ -32,7 +32,7 @@ main =
       init,
       make,
       install,
-      -- format,
+      format,
       bump,
       diff,
       publish
@@ -266,7 +266,7 @@ diff =
    in Terminal.Command "diff" Uncommon details example diffArgs noFlags Diff.run
 
 -- FORMAT
-{-
+
 format :: Terminal.Command
 format =
   let details =
@@ -280,7 +280,6 @@ format =
           |-- onOff "yes" "Assume yes for all interactive prompts."
           |-- onOff "stdin" "Format stdin and write it to stdout."
    in Terminal.Command "format" Uncommon details example (zeroOrMore grenFileOrDirectory) formatFlags Format.run
-   -}
 
 -- HELPERS
 

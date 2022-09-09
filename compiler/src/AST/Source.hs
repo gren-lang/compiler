@@ -14,6 +14,7 @@ module AST.Source
     RecordFieldPattern_ (..),
     Type,
     Type_ (..),
+    SourceOrder,
     Module (..),
     getName,
     getImportName,
@@ -124,14 +125,16 @@ data Type_
 
 -- MODULE
 
+type SourceOrder = Int
+
 data Module = Module
   { _name :: Maybe (A.Located Name),
     _exports :: A.Located Exposing,
     _docs :: Docs,
     _imports :: [Import],
-    _values :: [A.Located Value],
-    _unions :: [A.Located Union],
-    _aliases :: [A.Located Alias],
+    _values :: [(SourceOrder, A.Located Value)],
+    _unions :: [(SourceOrder, A.Located Union)],
+    _aliases :: [(SourceOrder, A.Located Alias)],
     _binops :: [A.Located Infix],
     _effects :: Effects
   }
@@ -173,7 +176,7 @@ data Port = Port (A.Located Name) Type
 
 data Effects
   = NoEffects
-  | Ports [Port]
+  | Ports [(SourceOrder, Port)]
   | Manager A.Region Manager
   deriving (Show)
 

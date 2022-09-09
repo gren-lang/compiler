@@ -94,6 +94,8 @@ Common gren-common
         Gren.Constraint
         Gren.Docs
         Gren.Float
+        Gren.Format
+        Gren.Format.Normalize
         Gren.Interface
         Gren.Kernel
         Gren.Licenses
@@ -111,6 +113,8 @@ Common gren-common
         Data.NonEmptyList
         Data.OneOrMore
         Data.Utf8
+        Text.PrettyPrint.Avh4.Block
+        Text.PrettyPrint.Avh4.Indent
 
         -- json
         Json.Decode
