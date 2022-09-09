@@ -193,12 +193,16 @@ verifyVersion env pkg vsn newDocs publishedVersions =
         verifyBump env pkg vsn newDocs vsns
 
 verifyBump :: Env -> Pkg.Name -> V.Version -> Docs.Documentation -> (V.Version, [V.Version]) -> IO (Either Exit.Validate GoodVersion)
-verifyBump (Env _ cache _) pkg vsn newDocs knownVersions@(latest, _) =
+verifyBump (Env _ cache _) pkg vsn newDocs knownVersions@(latest, previous) =
   case List.find (\(_, new, _) -> vsn == new) (Package.bumpPossibilities knownVersions) of
     Nothing ->
-      return $
-        Left $
-          Exit.ValidateInvalidBump vsn latest
+      case List.find (\known -> vsn == known) (latest : previous) of
+        Just _ ->
+          return $ Right $ GoodBump vsn M.PATCH
+        Nothing ->
+          return $
+            Left $
+              Exit.ValidateInvalidBump vsn latest
     Just (old, new, magnitude) ->
       do
         result <- Task.run $ Diff.getDocs cache pkg old
