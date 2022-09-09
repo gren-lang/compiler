@@ -39,16 +39,14 @@ run args () =
         Nothing ->
           return (Left Exit.InstallNoOutline)
         Just root ->
-          case args of
-            NoArgs ->
-              do
-                grenHome <- Dirs.getGrenHome
-                return (Left (Exit.InstallNoArgs grenHome))
-            Install pkg ->
-              Task.run $
-                do
-                  env <- Task.io Solver.initEnv
-                  oldOutline <- Task.eio Exit.InstallBadOutline $ Outline.read root
+          Task.run $
+            do
+              env <- Task.io Solver.initEnv
+              oldOutline <- Task.eio Exit.InstallBadOutline $ Outline.read root
+              case args of
+                NoArgs ->
+                  installDependencies env oldOutline
+                Install pkg ->
                   case oldOutline of
                     Outline.App outline ->
                       do
@@ -171,6 +169,24 @@ attemptChangesHelp root env oldOutline newOutline question =
             putStrLn "Okay, I did not change anything!"
             return (Right ())
 
+-- INSTALL DEPENDENCIES
+
+installDependencies :: Solver.Env -> Outline.Outline -> Task ()
+installDependencies (Solver.Env cache) outline =
+  do
+    let rootPlatform = Outline.platform outline
+    let dependencies = Outline.dependencyConstraints outline
+    result <- Task.io $ Solver.verify cache rootPlatform dependencies
+    case result of
+      Solver.Ok _ ->
+        do
+          Task.io $ putStrLn "All required dependencies are installed."
+          return ()
+      Solver.NoSolution ->
+        Task.throw Exit.InstallNoSolverSolution
+      Solver.Err exit ->
+        Task.throw (Exit.InstallHadSolverTrouble exit)
+
 -- MAKE APP PLAN
 
 makeAppPlan :: Solver.Env -> Pkg.Name -> Outline.AppOutline -> Task (Changes V.Version)
@@ -205,8 +221,6 @@ makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ _ _ direct indi
                 return (Changes (detectChanges old new) (Outline.App app))
               Solver.NoSolution ->
                 Task.throw (Exit.InstallNoOnlineAppSolution pkg)
-              Solver.NoOfflineSolution ->
-                Task.throw (Exit.InstallNoOfflineAppSolution pkg)
               Solver.Err exit ->
                 Task.throw (Exit.InstallHadSolverTrouble exit)
 
@@ -248,8 +262,6 @@ makePkgPlan (Solver.Env cache) pkg outline@(Outline.PkgOutline _ _ _ _ _ deps _ 
                           }
             Solver.NoSolution ->
               Task.throw $ Exit.InstallNoOnlinePkgSolution pkg
-            Solver.NoOfflineSolution ->
-              Task.throw $ Exit.InstallNoOfflinePkgSolution pkg
             Solver.Err exit ->
               Task.throw $ Exit.InstallHadSolverTrouble exit
 

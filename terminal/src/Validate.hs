@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Publish
+module Validate
   ( run,
   )
 where
@@ -37,9 +37,9 @@ import System.Info qualified as Info
 
 run :: () -> () -> IO ()
 run () () =
-  Reporting.attempt Exit.publishToReport $
+  Reporting.attempt Exit.validateToReport $
     Task.run $
-      publish =<< getEnv
+      validate =<< getEnv
 
 -- ENV
 
@@ -49,29 +49,29 @@ data Env = Env
     _outline :: Outline.Outline
   }
 
-getEnv :: Task.Task Exit.Publish Env
+getEnv :: Task.Task Exit.Validate Env
 getEnv =
   do
-    root <- Task.mio Exit.PublishNoOutline Dirs.findRoot
+    root <- Task.mio Exit.ValidateNoOutline Dirs.findRoot
     cache <- Task.io Dirs.getPackageCache
-    outline <- Task.eio Exit.PublishBadOutline $ Outline.read root
+    outline <- Task.eio Exit.ValidateBadOutline $ Outline.read root
     return $ Env root cache outline
 
--- PUBLISH
+-- VALIDATE
 
-publish :: Env -> Task.Task Exit.Publish ()
-publish env@(Env root _ outline) =
+validate :: Env -> Task.Task Exit.Validate ()
+validate env@(Env root _ outline) =
   case outline of
     Outline.App _ ->
-      Task.throw Exit.PublishApplication
+      Task.throw Exit.ValidateApplication
     Outline.Pkg (Outline.PkgOutline pkg summary _ vsn exposed _ _ _) ->
       do
         knownVersionsResult <- Task.io $ Package.getVersions pkg
         let knownVersionsMaybe = Either.either (const Nothing) Just knownVersionsResult
-        reportPublishStart pkg vsn knownVersionsMaybe
+        reportValidateStart pkg vsn knownVersionsMaybe
 
-        if noExposed exposed then Task.throw Exit.PublishNoExposed else return ()
-        if badSummary summary then Task.throw Exit.PublishNoSummary else return ()
+        if noExposed exposed then Task.throw Exit.ValidateNoExposed else return ()
+        if badSummary summary then Task.throw Exit.ValidateNoSummary else return ()
 
         verifyReadme root
         verifyLicense root
@@ -98,23 +98,23 @@ noExposed exposed =
 
 -- VERIFY README
 
-verifyReadme :: FilePath -> Task.Task Exit.Publish ()
+verifyReadme :: FilePath -> Task.Task Exit.Validate ()
 verifyReadme root =
   reportReadmeCheck $
     do
       let readmePath = root </> "README.md"
       exists <- File.exists readmePath
       if not exists
-        then return (Left Exit.PublishNoReadme)
+        then return (Left Exit.ValidateNoReadme)
         else do
           size <- IO.withFile readmePath IO.ReadMode IO.hFileSize
           if size < 300
-            then return (Left Exit.PublishShortReadme)
+            then return (Left Exit.ValidateShortReadme)
             else return (Right ())
 
 -- VERIFY LICENSE
 
-verifyLicense :: FilePath -> Task.Task Exit.Publish ()
+verifyLicense :: FilePath -> Task.Task Exit.Validate ()
 verifyLicense root =
   reportLicenseCheck $
     do
@@ -122,56 +122,56 @@ verifyLicense root =
       exists <- File.exists licensePath
       if exists
         then return (Right ())
-        else return (Left Exit.PublishNoLicense)
+        else return (Left Exit.ValidateNoLicense)
 
 -- VERIFY BUILD
 
-verifyBuild :: FilePath -> Task.Task Exit.Publish Docs.Documentation
+verifyBuild :: FilePath -> Task.Task Exit.Validate Docs.Documentation
 verifyBuild root =
   reportBuildCheck $
     BW.withScope $ \scope ->
       Task.run $
         do
           details@(Details.Details _ outline _ _ _ _) <-
-            Task.eio Exit.PublishBadDetails $
+            Task.eio Exit.ValidateBadDetails $
               Details.load Reporting.silent scope root
 
           exposed <-
             case outline of
-              Details.ValidApp _ _ -> Task.throw Exit.PublishApplication
-              Details.ValidPkg _ _ [] -> Task.throw Exit.PublishNoExposed
+              Details.ValidApp _ _ -> Task.throw Exit.ValidateApplication
+              Details.ValidPkg _ _ [] -> Task.throw Exit.ValidateNoExposed
               Details.ValidPkg _ _ (e : es) -> return (NE.List e es)
 
-          Task.eio Exit.PublishBuildProblem $
+          Task.eio Exit.ValidateBuildProblem $
             Build.fromExposed Reporting.silent root details Build.KeepDocs exposed
 
 -- VERIFY LOCAL TAG
 
-verifyTag :: V.Version -> Task.Task Exit.Publish ()
+verifyTag :: V.Version -> Task.Task Exit.Validate ()
 verifyTag vsn =
   reportTagCheck vsn $
     do
       result <- Git.hasLocalTag vsn
       case result of
         Left Git.MissingGit ->
-          return $ Left Exit.PublishNoGit
+          return $ Left Exit.ValidateNoGit
         Left _ ->
-          return $ Left $ Exit.PublishMissingTag vsn
+          return $ Left $ Exit.ValidateMissingTag vsn
         Right () ->
           return $ Right ()
 
 -- VERIFY NO LOCAL CHANGES SINCE TAG
 
-verifyNoChanges :: V.Version -> Task.Task Exit.Publish ()
+verifyNoChanges :: V.Version -> Task.Task Exit.Validate ()
 verifyNoChanges vsn =
   reportLocalChangesCheck $
     do
       result <- Git.hasLocalChangesSinceTag vsn
       case result of
         Left Git.MissingGit ->
-          return $ Left Exit.PublishNoGit
+          return $ Left Exit.ValidateNoGit
         Left _ ->
-          return $ Left $ Exit.PublishLocalChanges vsn
+          return $ Left $ Exit.ValidateLocalChanges vsn
         Right () ->
           return $ Right ()
 
@@ -181,32 +181,34 @@ data GoodVersion
   = GoodStart
   | GoodBump V.Version M.Magnitude
 
-verifyVersion :: Env -> Pkg.Name -> V.Version -> Docs.Documentation -> Maybe (V.Version, [V.Version]) -> Task.Task Exit.Publish ()
+verifyVersion :: Env -> Pkg.Name -> V.Version -> Docs.Documentation -> Maybe (V.Version, [V.Version]) -> Task.Task Exit.Validate ()
 verifyVersion env pkg vsn newDocs publishedVersions =
   reportSemverCheck vsn $
     case publishedVersions of
       Nothing ->
         if vsn == V.one
           then return $ Right GoodStart
-          else return $ Left $ Exit.PublishNotInitialVersion vsn
-      Just vsns@(latest, previous) ->
-        if vsn == latest || elem vsn previous
-          then return $ Left $ Exit.PublishAlreadyPublished vsn
-          else verifyBump env pkg vsn newDocs vsns
+          else return $ Left $ Exit.ValidateNotInitialVersion vsn
+      Just vsns ->
+        verifyBump env pkg vsn newDocs vsns
 
-verifyBump :: Env -> Pkg.Name -> V.Version -> Docs.Documentation -> (V.Version, [V.Version]) -> IO (Either Exit.Publish GoodVersion)
-verifyBump (Env _ cache _) pkg vsn newDocs knownVersions@(latest, _) =
+verifyBump :: Env -> Pkg.Name -> V.Version -> Docs.Documentation -> (V.Version, [V.Version]) -> IO (Either Exit.Validate GoodVersion)
+verifyBump (Env _ cache _) pkg vsn newDocs knownVersions@(latest, previous) =
   case List.find (\(_, new, _) -> vsn == new) (Package.bumpPossibilities knownVersions) of
     Nothing ->
-      return $
-        Left $
-          Exit.PublishInvalidBump vsn latest
+      case List.find (\known -> vsn == known) (latest : previous) of
+        Just _ ->
+          return $ Right $ GoodBump vsn M.PATCH
+        Nothing ->
+          return $
+            Left $
+              Exit.ValidateInvalidBump vsn latest
     Just (old, new, magnitude) ->
       do
         result <- Task.run $ Diff.getDocs cache pkg old
         case result of
           Left dp ->
-            return $ Left $ Exit.PublishCannotGetDocs old new dp
+            return $ Left $ Exit.ValidateCannotGetDocs old new dp
           Right oldDocs ->
             let changes = Diff.diff oldDocs newDocs
                 realNew = Diff.bump changes old
@@ -215,12 +217,12 @@ verifyBump (Env _ cache _) pkg vsn newDocs knownVersions@(latest, _) =
                   else
                     return $
                       Left $
-                        Exit.PublishBadBump old new magnitude realNew (Diff.toMagnitude changes)
+                        Exit.ValidateBadBump old new magnitude realNew (Diff.toMagnitude changes)
 
 -- REPORTING
 
-reportPublishStart :: Pkg.Name -> V.Version -> Maybe (V.Version, [V.Version]) -> Task.Task x ()
-reportPublishStart pkg vsn maybeKnownVersions =
+reportValidateStart :: Pkg.Name -> V.Version -> Maybe (V.Version, [V.Version]) -> Task.Task x ()
+reportValidateStart pkg vsn maybeKnownVersions =
   Task.io $
     case maybeKnownVersions of
       Nothing ->

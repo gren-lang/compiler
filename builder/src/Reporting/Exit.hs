@@ -11,8 +11,8 @@ module Reporting.Exit
     bumpToReport,
     Repl (..),
     replToReport,
-    Publish (..),
-    publishToReport,
+    Validate (..),
+    validateToReport,
     Install (..),
     installToReport,
     Format (..),
@@ -80,7 +80,6 @@ toJson report =
 
 data Init
   = InitNoSolution [Pkg.Name]
-  | InitNoOfflineSolution [Pkg.Name]
   | InitSolverProblem Solver
   | InitAlreadyExists
   | InitNoCompatibleDependencies (Maybe Git.Error)
@@ -100,20 +99,6 @@ initToReport exit =
             "I could not find compatible versions though! This should not happen, so please\
             \ ask around one of the community forums at https://gren-lang.org/community to learn\
             \ what is going on!"
-        ]
-    InitNoOfflineSolution pkgs ->
-      Help.report
-        "NO OFFLINE SOLUTION"
-        Nothing
-        "I tried to create an gren.json with the following direct dependencies:"
-        [ D.indent 4 $
-            D.vcat $
-              map (D.dullyellow . D.fromChars . Pkg.toChars) pkgs,
-          D.reflow $
-            "I could not find compatible versions though, but that may be because I could not\
-            \ connect to https://package.gren-lang.org to get the latest list of packages. Are\
-            \ you able to connect to the internet? Please ask around one of the community\
-            \ forums at https://gren-lang.org/community for help!"
         ]
     InitSolverProblem solver ->
       toSolverReport solver
@@ -184,8 +169,7 @@ diffToReport diff =
         "CANNOT DIFF APPLICATIONS"
         (Just "gren.json")
         "Your gren.json says this project is an application, but `gren diff` only works\
-        \ with packages. That way there are previously published versions of the API to\
-        \ diff against!"
+        \ with packages."
         [ D.reflow $ "If you are just curious to see a diff, try running this command:",
           D.indent 4 $ D.dullyellow $ "gren diff gren/json 1.0.0 1.1.2"
         ]
@@ -200,9 +184,9 @@ diffToReport diff =
         ]
     DiffUnpublished ->
       Help.report
-        "UNPUBLISHED"
+        "UNTAGGED"
         Nothing
-        "This package is not published yet. There is nothing to diff against!"
+        "This package has no semver formatted tags. There is nothing to diff against!"
         []
     DiffUnknownPackage pkg suggestions ->
       Help.report
@@ -220,12 +204,10 @@ diffToReport diff =
         "UNKNOWN VERSION"
         Nothing
         ( D.fillSep $
-            [ "Version",
+            [ "Found",
+              "no",
               D.red (D.fromVersion vsn),
-              "has",
-              "never",
-              "been",
-              "published,",
+              "tag",
               "so",
               "I",
               "cannot",
@@ -234,7 +216,7 @@ diffToReport diff =
               "it."
             ]
         )
-        [ "Here are all the versions that HAVE been published:",
+        [ "Here are all the semver formatted tags I did find:",
           D.indent 4 $
             D.dullyellow $
               D.vcat $
@@ -282,8 +264,9 @@ bumpToReport bump =
       Help.report
         "CANNOT BUMP APPLICATIONS"
         (Just "gren.json")
-        "Your gren.json says this is an application. That means it cannot be published\
-        \ on <https://package.gren-lang.org> and therefore has no version to bump!"
+        "Your gren.json says this is an application. That means it cannot be used\
+        \ installed as a dependency in another project. There's no need to handle\
+        \ versioning of applications."
         []
     BumpUnexpectedVersion vsn versions ->
       Help.docReport
@@ -376,7 +359,7 @@ bumpToReport bump =
 newPackageOverview :: String
 newPackageOverview =
   unlines
-    [ "This package has never been published before. Here's how things work:",
+    [ "This package hasn't been tagged with a semver version. Here's how things work:",
       "",
       "  - Versions all have exactly three parts: MAJOR.MINOR.PATCH",
       "",
@@ -392,54 +375,57 @@ newPackageOverview =
       ""
     ]
 
--- PUBLISH
+-- VALIDATE
 
-data Publish
-  = PublishNoOutline
-  | PublishBadOutline Outline
-  | PublishBadDetails Details
-  | PublishApplication
-  | PublishNotInitialVersion V.Version
-  | PublishAlreadyPublished V.Version
-  | PublishInvalidBump V.Version V.Version
-  | PublishBadBump V.Version V.Version M.Magnitude V.Version M.Magnitude
-  | PublishNoSummary
-  | PublishNoExposed
-  | PublishNoReadme
-  | PublishShortReadme
-  | PublishNoLicense
-  | PublishBuildProblem BuildProblem
-  | PublishCannotGetDocs V.Version V.Version DocsProblem
-  | PublishMissingTag V.Version
-  | PublishNoGit
-  | PublishLocalChanges V.Version
+data Validate
+  = ValidateNoOutline
+  | ValidateBadOutline Outline
+  | ValidateBadDetails Details
+  | ValidateApplication
+  | ValidateNotInitialVersion V.Version
+  | ValidateInvalidBump V.Version V.Version
+  | ValidateBadBump V.Version V.Version M.Magnitude V.Version M.Magnitude
+  | ValidateNoSummary
+  | ValidateNoExposed
+  | ValidateNoReadme
+  | ValidateShortReadme
+  | ValidateNoLicense
+  | ValidateBuildProblem BuildProblem
+  | ValidateCannotGetDocs V.Version V.Version DocsProblem
+  | ValidateMissingTag V.Version
+  | ValidateNoGit
+  | ValidateLocalChanges V.Version
 
-publishToReport :: Publish -> Help.Report
-publishToReport publish =
-  case publish of
-    PublishNoOutline ->
+validateToReport :: Validate -> Help.Report
+validateToReport validate =
+  case validate of
+    ValidateNoOutline ->
       Help.report
-        "PUBLISH WHAT?"
+        "VALIDATE WHAT?"
         Nothing
-        "I cannot find an gren.json so I am not sure what you want me to publish."
+        "I cannot find an gren.json so I am not sure what you want me to validate."
         [ D.reflow $
             "Gren packages always have an gren.json that states the version number,\
             \ dependencies, exposed modules, etc."
         ]
-    PublishBadOutline outline ->
+    ValidateBadOutline outline ->
       toOutlineReport outline
-    PublishBadDetails problem ->
+    ValidateBadDetails problem ->
       toDetailsReport problem
-    PublishApplication ->
-      Help.report "UNPUBLISHABLE" Nothing "I cannot publish applications, only packages!" []
-    PublishNotInitialVersion vsn ->
+    ValidateApplication ->
+      Help.report
+        "NOT A PACKAGE"
+        Nothing
+        "I cannot validate applications, only packages!"
+        []
+    ValidateNotInitialVersion vsn ->
       Help.docReport
         "INVALID VERSION"
         Nothing
         ( D.fillSep
             [ "I",
               "cannot",
-              "publish",
+              "validate",
               D.red (D.fromVersion vsn),
               "as",
               "the",
@@ -463,33 +449,7 @@ publishToReport publish =
               "packages."
             ]
         ]
-    PublishAlreadyPublished vsn ->
-      Help.docReport
-        "ALREADY PUBLISHED"
-        Nothing
-        ( D.vcat
-            [ D.fillSep
-                [ "Version",
-                  D.green (D.fromVersion vsn),
-                  "has",
-                  "already",
-                  "been",
-                  "published.",
-                  "You",
-                  "cannot",
-                  "publish",
-                  "it",
-                  "again!"
-                ],
-              "Try using the `bump` command:"
-            ]
-        )
-        [ D.dullyellow $ D.indent 4 "gren bump",
-          D.reflow $
-            "It computes the version number based on API changes, ensuring\
-            \ that no breaking changes end up in PATCH releases!"
-        ]
-    PublishInvalidBump statedVersion latestVersion ->
+    ValidateInvalidBump statedVersion latestVersion ->
       Help.docReport
         "INVALID VERSION"
         (Just "gren.json")
@@ -512,7 +472,7 @@ publishToReport publish =
               "on",
               "the",
               "previously",
-              "published",
+              "tagged",
               "versions."
             ]
         )
@@ -528,7 +488,7 @@ publishToReport publish =
               "the",
               "most",
               "recently",
-              "published",
+              "tagged",
               "version.",
               "From",
               "there,",
@@ -545,7 +505,7 @@ publishToReport publish =
             "If you want more insight on the API changes Gren detects, you\
             \ can run `gren diff` at this point as well."
         ]
-    PublishBadBump old new magnitude realNew realMagnitude ->
+    ValidateBadBump old new magnitude realNew realMagnitude ->
       Help.docReport
         "INVALID VERSION"
         (Just "gren.json")
@@ -596,46 +556,34 @@ publishToReport publish =
               "version",
               "should",
               "be",
-              D.green (D.fromVersion realNew) <> ".",
-              "Double",
-              "check",
-              "everything",
-              "to",
-              "make",
-              "sure",
-              "you",
-              "are",
-              "publishing",
-              "what",
-              "you",
-              "want!"
+              D.green (D.fromVersion realNew) <> "."
             ],
           D.reflow $
             "Also, next time use `gren bump` and I'll figure all this out for you!"
         ]
-    PublishNoSummary ->
+    ValidateNoSummary ->
       Help.docReport
         "NO SUMMARY"
         (Just "gren.json")
         ( D.fillSep $
-            [ "To",
-              "publish",
-              "a",
+            [ "Every",
               "package,",
-              "your",
-              "gren.json",
-              "must",
+              "should",
               "have",
               "a",
               D.dullyellow "\"summary\"",
               "field",
+              "in",
+              "the",
+              "gren.json",
+              "file",
               "that",
               "gives",
               "a",
               "consice",
               "overview",
               "of",
-              "your",
+              "the",
               "project."
             ]
         )
@@ -643,16 +591,12 @@ publishToReport publish =
             "The summary must be less than 80 characters. It should describe\
             \ the concrete use of your package as clearly and as plainly as possible."
         ]
-    PublishNoExposed ->
+    ValidateNoExposed ->
       Help.docReport
         "NO EXPOSED MODULES"
         (Just "gren.json")
         ( D.fillSep $
-            [ "To",
-              "publish",
-              "a",
-              "package,",
-              "the",
+            [ "The",
               D.dullyellow "\"exposed-modules\"",
               "field",
               "of",
@@ -670,19 +614,19 @@ publishToReport publish =
             "Which modules do you want users of the package to have access to? Add their\
             \ names to the \"exposed-modules\" list."
         ]
-    PublishNoReadme ->
+    ValidateNoReadme ->
       toBadReadmeReport "NO README" $
-        "Every published package must have a helpful README.md\
+        "Every package should have a helpful README.md\
         \ file, but I do not see one in your project."
-    PublishShortReadme ->
+    ValidateShortReadme ->
       toBadReadmeReport "SHORT README" $
         "This README.md is too short. Having more details will help\
         \ people assess your package quickly and fairly."
-    PublishNoLicense ->
+    ValidateNoLicense ->
       Help.report
         "NO LICENSE FILE"
         (Just "LICENSE")
-        "By publishing a package you are inviting the Gren community to build\
+        "By making a package available you are inviting the Gren community to build\
         \ upon your work. But without knowing your license, we have no idea if\
         \ that is legal!"
         [ D.reflow $
@@ -692,16 +636,16 @@ publishToReport publish =
             \ license text must appear in the root of your project in a file\
             \ named LICENSE. Add that file and you will be all set!"
         ]
-    PublishBuildProblem buildProblem ->
+    ValidateBuildProblem buildProblem ->
       toBuildProblemReport buildProblem
-    PublishCannotGetDocs old new docsProblem ->
+    ValidateCannotGetDocs old new docsProblem ->
       toDocsProblemReport docsProblem $
         "I need the docs for "
           ++ V.toChars old
           ++ " to verify that "
           ++ V.toChars new
           ++ " really does come next"
-    PublishMissingTag version ->
+    ValidateMissingTag version ->
       let vsn = V.toChars version
        in Help.docReport
             "NO TAG"
@@ -735,7 +679,7 @@ publishToReport publish =
                       ],
               "The -m flag is for a helpful message. Try to make it more informative!"
             ]
-    PublishNoGit ->
+    ValidateNoGit ->
       Help.report
         "NO GIT"
         Nothing
@@ -749,7 +693,7 @@ publishToReport publish =
           D.toSimpleNote $
             "We plan to do this without the `git` binary in a future release."
         ]
-    PublishLocalChanges version ->
+    ValidateLocalChanges version ->
       let vsn = V.toChars version
        in Help.docReport
             "LOCAL CHANGES"
@@ -785,14 +729,12 @@ publishToReport publish =
                   "going",
                   "to",
                   "be",
-                  "published!"
+                  "available",
+                  "when",
+                  "downloaded!"
                 ]
             )
-            [ D.toSimpleNote $
-                "If you are sure everything is in order, you can run `git checkout "
-                  ++ vsn
-                  ++ "` and publish your code from there."
-            ]
+            []
 
 toBadReadmeReport :: String -> String -> Help.Report
 toBadReadmeReport title summary =
@@ -811,10 +753,10 @@ toBadReadmeReport title summary =
         \ most common usage scenario. Show people what they can expect if\
         \ they learn more!",
       D.toSimpleNote $
-        "By publishing your package, you are inviting people to invest time in\
+        "By tagging your package, you are inviting people to invest time in\
         \ understanding your work. Spending an hour on your README to communicate your\
         \ knowledge more clearly can save the community days or weeks of time in\
-        \ aggregate, and saving time in aggregate is the whole point of publishing\
+        \ aggregate, and saving time in aggregate is the whole point of building\
         \ packages! People really appreciate it, and it makes the whole ecosystem feel\
         \ nicer!"
     ]
@@ -870,15 +812,12 @@ toDocsProblemReport problem context =
 data Install
   = InstallNoOutline
   | InstallBadOutline Outline
-  | InstallNoArgs FilePath
   | InstallNoOnlineAppSolution Pkg.Name
-  | InstallNoOfflineAppSolution Pkg.Name
   | InstallNoOnlinePkgSolution Pkg.Name
-  | InstallNoOfflinePkgSolution Pkg.Name
   | InstallHadSolverTrouble Solver
+  | InstallNoSolverSolution
   | InstallNoCompatiblePkg Pkg.Name
   | InstallUnknownPackageOnline Pkg.Name [Pkg.Name]
-  | InstallUnknownPackageOffline Pkg.Name [Pkg.Name]
   | InstallBadDetails Details
 
 installToReport :: Install -> Help.Report
@@ -894,106 +833,6 @@ installToReport exit =
         ]
     InstallBadOutline outline ->
       toOutlineReport outline
-    InstallNoArgs grenHome ->
-      Help.report
-        "INSTALL WHAT?"
-        Nothing
-        "I am expecting commands like:"
-        [ D.green $
-            D.indent 4 $
-              D.vcat $
-                [ "gren install gren/http",
-                  "gren install gren/json",
-                  "gren install gren/random"
-                ],
-          D.toFancyHint
-            [ "In",
-              "JavaScript",
-              "folks",
-              "run",
-              "`npm install`",
-              "to",
-              "start",
-              "projects.",
-              "\"Gotta",
-              "download",
-              "everything!\"",
-              "But",
-              "why",
-              "download",
-              "packages",
-              "again",
-              "and",
-              "again?",
-              "Instead,",
-              "Gren",
-              "caches",
-              "packages",
-              "in",
-              D.dullyellow (D.fromChars grenHome),
-              "so",
-              "each",
-              "one",
-              "is",
-              "downloaded",
-              "and",
-              "built",
-              "ONCE",
-              "on",
-              "your",
-              "machine.",
-              "Gren",
-              "projects",
-              "check",
-              "that",
-              "cache",
-              "before",
-              "trying",
-              "the",
-              "internet.",
-              "This",
-              "reduces",
-              "build",
-              "times,",
-              "reduces",
-              "server",
-              "costs,",
-              "and",
-              "makes",
-              "it",
-              "easier",
-              "to",
-              "work",
-              "offline.",
-              "As",
-              "a",
-              "result",
-              D.dullcyan "gren install",
-              "is",
-              "only",
-              "for",
-              "adding",
-              "dependencies",
-              "to",
-              "gren.json,",
-              "whereas",
-              D.dullcyan "gren make",
-              "is",
-              "in",
-              "charge",
-              "of",
-              "gathering",
-              "dependencies",
-              "and",
-              "building",
-              "everything.",
-              "So",
-              "maybe",
-              "try",
-              D.green "gren make",
-              "instead?"
-            ]
-        ]
     InstallNoOnlineAppSolution pkg ->
       Help.report
         "CANNOT FIND COMPATIBLE VERSION"
@@ -1004,7 +843,7 @@ installToReport exit =
                \ with your existing dependencies."
         )
         [ D.reflow $
-            "I checked all the published versions. When that failed, I tried to find any\
+            "I checked all the semver-formatted tags. When that failed, I tried to find any\
             \ compatible combination of these packages, even if it meant changing all your\
             \ existing dependencies! That did not work either!",
           D.reflow $
@@ -1020,21 +859,6 @@ installToReport exit =
             \ authors are humans with families, friends, jobs, vacations, responsibilities,\
             \ goals, etc. They face obstacles outside of their technical work you will never\
             \ know about, so please assume the best and try to be patient and supportive!"
-        ]
-    InstallNoOfflineAppSolution pkg ->
-      Help.report
-        "CANNOT FIND COMPATIBLE VERSION LOCALLY"
-        (Just "gren.json")
-        ( "I cannot find a version of "
-            ++ Pkg.toChars pkg
-            ++ " that is compatible\
-               \ with your existing dependencies."
-        )
-        [ D.reflow $
-            "I was not able to connect to https://package.gren-lang.org/ though, so I was only\
-            \ able to look through packages that you have downloaded in the past.",
-          D.reflow $
-            "Try again later when you have internet!"
         ]
     InstallNoOnlinePkgSolution pkg ->
       Help.report
@@ -1057,23 +881,15 @@ installToReport exit =
             \ the solution may be to help other package authors to get their packages updated,\
             \ or to drop a dependency entirely."
         ]
-    InstallNoOfflinePkgSolution pkg ->
-      Help.report
-        "CANNOT FIND COMPATIBLE VERSION LOCALLY"
-        (Just "gren.json")
-        ( "I cannot find a version of "
-            ++ Pkg.toChars pkg
-            ++ " that is compatible\
-               \ with your existing constraints."
-        )
-        [ D.reflow $
-            "I was not able to connect to https://package.gren-lang.org/ though, so I was only\
-            \ able to look through packages that you have downloaded in the past.",
-          D.reflow $
-            "Try again later when you have internet!"
-        ]
     InstallHadSolverTrouble solver ->
       toSolverReport solver
+    InstallNoSolverSolution ->
+      Help.report
+        "COULD NOT RESOLVE DEPENDENCIES"
+        (Just "gren.json")
+        ( "I could not find a compatible set of dependencies."
+        )
+        []
     InstallNoCompatiblePkg pkg ->
       Help.report
         "CANNOT FIND COMPATIBLE VERSION"
@@ -1096,21 +912,6 @@ installToReport exit =
         [ D.reflow $
             "I looked through https://package.gren-lang.org for packages with similar names\
             \ and found these:",
-          D.indent 4 $ D.dullyellow $ D.vcat $ map D.fromPackage suggestions,
-          D.reflow $ "Maybe you want one of these instead?"
-        ]
-    InstallUnknownPackageOffline pkg suggestions ->
-      Help.docReport
-        "UNKNOWN PACKAGE"
-        Nothing
-        ( D.fillSep
-            ["I", "cannot", "find", "a", "package", "named", D.red (D.fromPackage pkg) <> "."]
-        )
-        [ D.reflow $
-            "I could not connect to https://package.gren-lang.org though, so new packages may\
-            \ have been published since I last updated my local cache of package names.",
-          D.reflow $
-            "Looking through the locally cached names, the closest ones are:",
           D.indent 4 $ D.dullyellow $ D.vcat $ map D.fromPackage suggestions,
           D.reflow $ "Maybe you want one of these instead?"
         ]
@@ -1713,7 +1514,6 @@ toOutlineProblemReport path source _ region problem =
 
 data Details
   = DetailsNoSolution
-  | DetailsNoOfflineSolution
   | DetailsSolverProblem Solver
   | DetailsBadGrenInPkg C.Constraint
   | DetailsBadGrenInAppOutline V.Version
@@ -1758,41 +1558,6 @@ toDetailsReport details =
           D.reflow $
             "Please ask for help on the community forums if you try those paths and are still\
             \ having problems!"
-        ]
-    DetailsNoOfflineSolution ->
-      Help.report
-        "TROUBLE VERIFYING DEPENDENCIES"
-        (Just "gren.json")
-        "I could not connect to https://package.gren-lang.org to get the latest list of\
-        \ packages, and I was unable to verify your dependencies with the information I\
-        \ have cached locally."
-        [ D.reflow $
-            "Are you able to connect to the internet? These dependencies may work once you\
-            \ get access to the registry!",
-          D.toFancyNote
-            [ "If",
-              "you",
-              "changed",
-              "your",
-              "dependencies",
-              "by",
-              "hand,",
-              "try",
-              "to",
-              "change",
-              "them",
-              "back!",
-              "It",
-              "is",
-              "much",
-              "more",
-              "reliable",
-              "to",
-              "add",
-              "dependencies",
-              "with",
-              D.green "gren install" <> "."
-            ]
         ]
     DetailsSolverProblem solver ->
       toSolverReport solver

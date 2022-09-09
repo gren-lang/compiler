@@ -10,6 +10,7 @@ module Terminal.Error
     exitWithError,
     exitWithUnknown,
     exitWithOverview,
+    exitPrefixWithHelp,
   )
 where
 
@@ -100,6 +101,14 @@ exitWithHelp maybeCommand details example (Args args) flags =
               P.indent 4 $ stack docs
             ]
 
+exitPrefixWithHelp :: String -> P.Doc -> IO a
+exitPrefixWithHelp details example =
+  do
+    exitSuccess $
+      [ reflow details,
+        example
+      ]
+
 toCommand :: Maybe String -> IO String
 toCommand maybeCommand =
   do
@@ -172,16 +181,20 @@ exitWithOverview intro outro commands =
       ]
 
 toSummary :: String -> Command -> Maybe P.Doc
-toSummary exeName (Command name summary _ _ (Args args) _ _) =
-  case summary of
-    Uncommon ->
+toSummary exeName cmd =
+  case cmd of
+    Prefix _ _ _ _ ->
       Nothing
-    Common summaryString ->
-      Just $
-        P.vcat
-          [ P.cyan $ argsToDoc (exeName ++ " " ++ name) (head args),
-            P.indent 4 $ reflow summaryString
-          ]
+    (Command name summary _ _ (Args args) _ _) ->
+      case summary of
+        Uncommon ->
+          Nothing
+        Common summaryString ->
+          Just $
+            P.vcat
+              [ P.cyan $ argsToDoc (exeName ++ " " ++ name) (head args),
+                P.indent 4 $ reflow summaryString
+              ]
 
 toCommandList :: String -> [Command] -> P.Doc
 toCommandList exeName commands =

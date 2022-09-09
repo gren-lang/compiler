@@ -222,7 +222,6 @@ verifyConstraints (Env _ _ _ cache) rootPlatform constraints =
     case result of
       Solver.Ok details -> return details
       Solver.NoSolution -> Task.throw $ Exit.DetailsNoSolution
-      Solver.NoOfflineSolution -> Task.throw $ Exit.DetailsNoOfflineSolution
       Solver.Err exit -> Task.throw $ Exit.DetailsSolverProblem exit
 
 -- UNION

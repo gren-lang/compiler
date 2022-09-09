@@ -17,6 +17,8 @@ module Gren.Outline
     toAbsoluteSrcDir,
     sourceDirs,
     testDirs,
+    platform,
+    dependencyConstraints,
   )
 where
 
@@ -95,6 +97,25 @@ flattenExposed exposed =
     ExposedDict sections ->
       concatMap snd sections
 
+platform :: Outline -> Platform.Platform
+platform outline =
+  case outline of
+    App (AppOutline _ pltform _ _ _) ->
+      pltform
+    Pkg (PkgOutline _ _ _ _ _ _ _ pltform) ->
+      pltform
+
+dependencyConstraints :: Outline -> Map.Map Pkg.Name Con.Constraint
+dependencyConstraints outline =
+  case outline of
+    App appOutline ->
+      let direct = _app_deps_direct appOutline
+          indirect = _app_deps_indirect appOutline
+          appDeps = Map.union direct indirect
+       in Map.map (\vsn -> Con.exactly vsn) appDeps
+    Pkg pkgOutline ->
+      _pkg_deps pkgOutline
+
 -- WRITE
 
 write :: FilePath -> Outline -> IO ()
@@ -106,10 +127,10 @@ write root outline =
 encode :: Outline -> E.Value
 encode outline =
   case outline of
-    App (AppOutline gren platform srcDirs depsDirect depsTrans) ->
+    App (AppOutline gren pltform srcDirs depsDirect depsTrans) ->
       E.object
         [ "type" ==> E.chars "application",
-          "platform" ==> Platform.encode platform,
+          "platform" ==> Platform.encode pltform,
           "source-directories" ==> E.list encodeSrcDir (NE.toList srcDirs),
           "gren-version" ==> V.encode gren,
           "dependencies"
@@ -118,10 +139,10 @@ encode outline =
                 "indirect" ==> encodeDeps V.encode depsTrans
               ]
         ]
-    Pkg (PkgOutline name summary license version exposed deps gren platform) ->
+    Pkg (PkgOutline name summary license version exposed deps gren pltform) ->
       E.object
         [ "type" ==> E.string (Json.fromChars "package"),
-          "platform" ==> Platform.encode platform,
+          "platform" ==> Platform.encode pltform,
           "name" ==> Pkg.encode name,
           "summary" ==> E.string summary,
           "license" ==> Licenses.encode license,
