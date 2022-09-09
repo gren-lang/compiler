@@ -187,7 +187,7 @@ package =
       example =
         stack
           [ reflow
-              "For example, if you want to install packages for Browser APIs in your project,\
+              "For example, if you want to get access to Web APIs in your project,\
               \ you would say:",
             P.indent 4 $
               P.green $
@@ -199,9 +199,9 @@ package =
             P.indent 4 $
               P.green $
                 P.vcat $
-                  ["gren package"]
+                  ["gren package --help"]
           ]
-   in Terminal.Command "package" Uncommon details example noArgs noFlags Package.run
+   in Terminal.Prefix "package" details example Package.run
 
 -- FORMAT
 

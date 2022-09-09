@@ -1,5 +1,6 @@
 module Terminal
   ( app,
+    prefix,
     Command (..),
     Summary (..),
     Flags,
@@ -77,27 +78,39 @@ app intro outro commands =
     setLocaleEncoding utf8
     argStrings <- Env.getArgs
     case argStrings of
-      [] ->
-        Error.exitWithOverview intro outro commands
-      ["--help"] ->
-        Error.exitWithOverview intro outro commands
       ["--version"] ->
         do
           hPutStrLn stdout (V.toChars V.compiler)
           Exit.exitSuccess
-      command : chunks ->
-        do
-          case List.find (\cmd -> toName cmd == command) commands of
-            Nothing ->
-              Error.exitWithUnknown command (map toName commands)
-            Just (Command _ _ details example args_ flags_ callback) ->
-              if elem "--help" chunks
-                then Error.exitWithHelp (Just command) details example args_ flags_
-                else case snd $ Chomp.chomp Nothing chunks args_ flags_ of
-                  Right (argsValue, flagsValue) ->
-                    callback argsValue flagsValue
-                  Left err ->
-                    Error.exitWithError err
+      _ ->
+        prefix intro outro commands argStrings
+
+-- PREFIX
+
+prefix :: P.Doc -> P.Doc -> [Command] -> [String] -> IO ()
+prefix intro outro commands argStrings =
+  case argStrings of
+    [] ->
+      Error.exitWithOverview intro outro commands
+    ["--help"] ->
+      Error.exitWithOverview intro outro commands
+    command : chunks ->
+      do
+        case List.find (\cmd -> toName cmd == command) commands of
+          Nothing ->
+            Error.exitWithUnknown command (map toName commands)
+          Just (Prefix _ details example callback) ->
+            if chunks == []
+              then Error.exitPrefixWithHelp details example
+              else callback chunks
+          Just (Command _ _ details example args_ flags_ callback) ->
+            if elem "--help" chunks
+              then Error.exitWithHelp (Just command) details example args_ flags_
+              else case snd $ Chomp.chomp Nothing chunks args_ flags_ of
+                Right (argsValue, flagsValue) ->
+                  callback argsValue flagsValue
+                Left err ->
+                  Error.exitWithError err
 
 -- AUTO-COMPLETE
 
@@ -167,6 +180,8 @@ _complexSuggest commands index strings =
         then return (filter (List.isPrefixOf command) (map toName commands))
         else case List.find (\cmd -> toName cmd == command) commands of
           Nothing ->
+            return []
+          Just (Prefix _ _ _ _) ->
             return []
           Just (Command _ _ _ _ args_ flags_ _) ->
             fst $ Chomp.chomp (Just (index - 1)) chunks args_ flags_

@@ -8,21 +8,19 @@ where
 import Bump qualified
 import Data.List qualified as List
 import Diff qualified
-import Gren.Version qualified as V
 import Install qualified
 import Publish qualified
 import Terminal
 import Terminal.Helpers
 import Text.PrettyPrint.ANSI.Leijen qualified as P
-import Prelude hiding (init)
 
 -- RUN
 
-run :: () -> () -> IO ()
-run () () =
-  Terminal.app
+run :: [String] -> IO ()
+run =
+  Terminal.prefix
     intro
-    outro
+    P.empty
     [ install,
       bump,
       diff,
@@ -31,55 +29,33 @@ run () () =
 
 intro :: P.Doc
 intro =
-  P.vcat
-    [ P.fillSep
-        [ "Hi,",
-          "thank",
-          "you",
-          "for",
-          "trying",
-          "out",
-          P.green "Gren",
-          P.green (P.text (V.toChars V.compiler)) <> ".",
-          "I hope you like it!"
-        ],
-      "",
-      P.black "-------------------------------------------------------------------------------",
-      P.black "I highly recommend working through <https://gren-lang.org/learn> to get started.",
-      P.black "It teaches many important concepts, including how to use `gren` in the terminal.",
-      P.black "-------------------------------------------------------------------------------"
-    ]
-
-outro :: P.Doc
-outro =
-  P.fillSep $
-    map P.text $
-      words
-        "Be sure to ask on the Gren zulip if you run into trouble! Folks are friendly and\
-        \ happy to help out. They hang out there because it is fun, so be kind to get the\
-        \ best results!"
+  reflow
+    "This is a group of commands for helping you manage packages,\
+    \ your own or those you depend on."
 
 -- INSTALL
 
 install :: Terminal.Command
 install =
   let details =
-        "The `install` command fetches packages from <https://package.gren-lang.org> for\
+        "The `install` command fetches packages from github for\
         \ use in your project:"
+
+      summary =
+        "Add dependencies to your project."
 
       example =
         stack
           [ reflow
-              "For example, if you want to get packages for HTTP and JSON, you would say:",
+              "For example, if you want to get access to Web APIs in your project, you would say:",
             P.indent 4 $
               P.green $
                 P.vcat $
-                  [ "gren install gren/http",
-                    "gren install gren/json"
+                  [ "gren package install gren-lang/browser"
                   ],
             reflow
               "Notice that you must say the AUTHOR name and PROJECT name! After running those\
-              \ commands, you could say `import Http` or `import Json.Decode` in your code.",
+              \ commands, you could say `import Browser` in your code.",
             reflow
               "What if two projects use different versions of the same package? No problem!\
               \ Each project is independent, so there cannot be conflicts like that!"
@@ -90,7 +66,7 @@ install =
           [ require0 Install.NoArgs,
             require1 Install.Install package
           ]
-   in Terminal.Command "install" Uncommon details example installArgs noFlags Install.run
+   in Terminal.Command "install" (Common summary) details example installArgs noFlags Install.run
 
 -- PUBLISH
 
