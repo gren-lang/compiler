@@ -57,6 +57,7 @@ Common gren-common
         Init
         Install
         Make
+        Docs
         Publish
         Repl
 

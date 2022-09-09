@@ -7,7 +7,6 @@ module Make
     run,
     reportType,
     output,
-    docsFile,
   )
 where
 
@@ -39,8 +38,7 @@ data Flags = Flags
   { _debug :: Bool,
     _optimize :: Bool,
     _output :: Maybe Output,
-    _report :: Maybe ReportType,
-    _docs :: Maybe FilePath
+    _report :: Maybe ReportType
   }
 
 data Output
@@ -58,7 +56,7 @@ data ReportType
 type Task a = Task.Task Exit.Make a
 
 run :: [FilePath] -> Flags -> IO ()
-run paths flags@(Flags _ _ _ report _) =
+run paths flags@(Flags _ _ _ report) =
   do
     style <- getStyle report
     maybeRoot <- Dirs.findRoot
@@ -68,7 +66,7 @@ run paths flags@(Flags _ _ _ report _) =
         Nothing -> return $ Left $ Exit.MakeNoOutline
 
 runHelp :: FilePath -> [FilePath] -> Reporting.Style -> Flags -> IO (Either Exit.Make ())
-runHelp root paths style (Flags debug optimize maybeOutput _ maybeDocs) =
+runHelp root paths style (Flags debug optimize maybeOutput _) =
   BW.withScope $ \scope ->
     Dirs.withRootLock root $
       Task.run $
@@ -80,7 +78,7 @@ runHelp root paths style (Flags debug optimize maybeOutput _ maybeDocs) =
             [] ->
               do
                 exposed <- getExposed details
-                buildExposed style root details maybeDocs exposed
+                buildExposed style root details exposed
             p : ps ->
               do
                 artifacts <- buildPaths style root details (NE.List p ps)
@@ -171,11 +169,10 @@ getPlatform (Details.Details _ validOutline _ _ _ _) = do
 
 -- BUILD PROJECTS
 
-buildExposed :: Reporting.Style -> FilePath -> Details.Details -> Maybe FilePath -> NE.List ModuleName.Raw -> Task ()
-buildExposed style root details maybeDocs exposed =
-  let docsGoal = maybe Build.IgnoreDocs Build.WriteDocs maybeDocs
-   in Task.eio Exit.MakeCannotBuild $
-        Build.fromExposed style root details docsGoal exposed
+buildExposed :: Reporting.Style -> FilePath -> Details.Details -> NE.List ModuleName.Raw -> Task ()
+buildExposed style root details exposed =
+  Task.eio Exit.MakeCannotBuild $
+    Build.fromExposed style root details Build.IgnoreDocs exposed
 
 buildPaths :: Reporting.Style -> FilePath -> Details.Details -> NE.List FilePath -> Task Build.Artifacts
 buildPaths style root details paths =
@@ -286,16 +283,6 @@ parseOutput name
   | hasExt ".js" name = Just (JS name)
   | noExt name = Just (Exe name)
   | otherwise = Nothing
-
-docsFile :: Parser FilePath
-docsFile =
-  Parser
-    { _singular = "json file",
-      _plural = "json files",
-      _parser = \name -> if hasExt ".json" name then Just name else Nothing,
-      _suggest = \_ -> return [],
-      _examples = \_ -> return ["docs.json", "documentation.json"]
-    }
 
 hasExt :: String -> String -> Bool
 hasExt ext path =

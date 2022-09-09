@@ -8,6 +8,7 @@ where
 import Bump qualified
 import Data.List qualified as List
 import Diff qualified
+import Docs qualified
 import Format qualified
 import Gren.Platform qualified as Platform
 import Gren.Version qualified as V
@@ -31,6 +32,7 @@ main =
     [ repl,
       init,
       make,
+      docs,
       install,
       format,
       bump,
@@ -155,8 +157,30 @@ make =
           |-- onOff "optimize" "Turn on optimizations to make code smaller and faster. For example, the compiler renames record fields to be as short as possible and unboxes values to reduce allocation."
           |-- flag "output" Make.output "Specify the name of the resulting JS file. For example --output=assets/gren.js to generate the JS at assets/gren.js. You can also use --output=/dev/stdout to output the JS to the terminal, or --output=/dev/null to generate no output at all!"
           |-- flag "report" Make.reportType "You can say --report=json to get error messages as JSON. This is only really useful if you are an editor plugin. Humans should avoid it!"
-          |-- flag "docs" Make.docsFile "Generate a JSON file of documentation for a package."
    in Terminal.Command "make" Uncommon details example (zeroOrMore grenFile) makeFlags Make.run
+
+-- DOCS
+
+docs :: Terminal.Command
+docs =
+  let details =
+        "The `docs` command collects all documentation for a package in a JSON file:"
+
+      example =
+        stack
+          [ reflow
+              "For example:",
+            P.indent 4 $ P.green "gren docs",
+            reflow
+              "This collects all documentation for the current package and writes it to a\
+              \ docs.json file, if possible"
+          ]
+
+      docsFlags =
+        flags Docs.Flags
+          |-- flag "output" Docs.output "Specify the name of the resulting JSON file. For example --output=assets/docs.json to generate the JSON at assets/docs.json. You can also use --output=/dev/stdout to output the JSON to the terminal, or --output=/dev/null to verify that generating the documentation would work."
+          |-- flag "report" Docs.reportType "You can say --report=json to get error messages as JSON. This is only really useful if you are an editor plugin. Humans should avoid it!"
+   in Terminal.Command "docs" Uncommon details example noArgs docsFlags Docs.run
 
 -- INSTALL
 
@@ -284,8 +308,8 @@ format =
 -- HELPERS
 
 stack :: [P.Doc] -> P.Doc
-stack docs =
-  P.vcat $ List.intersperse "" docs
+stack docList =
+  P.vcat $ List.intersperse "" docList
 
 reflow :: String -> P.Doc
 reflow string =
