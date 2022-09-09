@@ -682,10 +682,10 @@ patternParensProtectSpaces = \case
 
 formatPattern :: Src.Pattern_ -> PatternBlock
 formatPattern = \case
-  Src.PAnything ->
+  Src.PAnything name ->
     NoPatternParens $
       Block.line $
-        Block.char7 '_'
+        Block.char7 '_' <> utf8 name
   Src.PVar name ->
     NoPatternParens $
       Block.line $
