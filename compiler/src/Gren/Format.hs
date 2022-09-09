@@ -17,6 +17,7 @@ import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Maybe (catMaybes)
 import Data.Name (Name)
+import Data.Name qualified as Name
 import Data.Semigroup (sconcat)
 import Data.Utf8 qualified as Utf8
 import Parse.Primitives qualified as P
@@ -251,7 +252,7 @@ formatExposing = \case
 formatExposed :: Src.Exposed -> Block
 formatExposed = \case
   Src.Lower name -> Block.line $ utf8 $ A.toValue name
-  Src.Upper name privacy -> Block.line $ utf8 $ A.toValue name
+  Src.Upper name _ -> Block.line $ utf8 $ A.toValue name
   Src.Operator _ name -> Block.line $ Block.char7 '(' <> utf8 name <> Block.char7 ')'
 
 formatImport :: Src.Import -> Block
@@ -682,10 +683,10 @@ patternParensProtectSpaces = \case
 
 formatPattern :: Src.Pattern_ -> PatternBlock
 formatPattern = \case
-  Src.PAnything ->
+  Src.PAnything name ->
     NoPatternParens $
       Block.line $
-        Block.char7 '_'
+        Block.stringUtf8 ("_" <> Name.toChars name)
   Src.PVar name ->
     NoPatternParens $
       Block.line $
