@@ -9,10 +9,10 @@ import Bump qualified
 import Data.List qualified as List
 import Diff qualified
 import Install qualified
-import Publish qualified
 import Terminal
 import Terminal.Helpers
 import Text.PrettyPrint.ANSI.Leijen qualified as P
+import Validate qualified
 
 -- RUN
 
@@ -24,7 +24,7 @@ run =
     [ install,
       bump,
       diff,
-      publish
+      validate
     ]
 
 intro :: P.Doc
@@ -68,37 +68,35 @@ install =
           ]
    in Terminal.Command "install" (Common summary) details example installArgs noFlags Install.run
 
--- PUBLISH
+-- VALIDATE
 
-publish :: Terminal.Command
-publish =
+validate :: Terminal.Command
+validate =
   let details =
-        "The `publish` command publishes your package on <https://package.gren-lang.org>\
-        \ so that anyone in the Gren community can use it."
+        "The `validate` command checks that you have done everything necessary\
+        \ so that anyone in the Gren community can use your package."
 
       example =
         stack
           [ reflow
-              "Think hard if you are ready to publish NEW packages though!",
+              "Gren packages are \"just\" git repositories hosted on github. As\
+              \ long as you've tagged your repository with semver formatted tags,\
+              \ anyone can add your package as a dependency.",
             reflow
-              "Part of what makes Gren great is the packages ecosystem. The fact that\
-              \ there is usually one option (usually very well done) makes it way\
-              \ easier to pick packages and become productive. So having a million\
-              \ packages would be a failure in Gren. We do not need twenty of\
-              \ everything, all coded in a single weekend.",
+              "However, a package is no better than its documentation. This command\
+              \ therefore checks that your package exposes a bare minimum of\
+              \ prose that the users of your package can read.",
             reflow
-              "So as community members gain wisdom through experience, we want\
-              \ them to share that through thoughtful API design and excellent\
-              \ documentation. It is more about sharing ideas and insights than\
-              \ just sharing code! The first step may be asking for advice from\
-              \ people you respect, or in community forums. The second step may\
-              \ be using it at work to see if it is as nice as you think. Maybe\
-              \ it ends up as an experiment on GitHub only. Point is, try to be\
-              \ respectful of the community and package ecosystem!",
+              "Keep in mind, you don't just want to tell people HOW to use\
+              \ your package. It's equally important to tell them WHY. What\
+              \ problem does it solve? Why should people use this particular\
+              \ package to solve their problem?",
             reflow
-              "Check out <https://package.gren-lang.org/help/design-guidelines> for guidance on how to create great packages!"
+              "Once this command passes, you may want to add your repo to\
+              \ https://packages.gren-lang.org so it becomes easier for the Gren\
+              \ community to find your package, and its documentation."
           ]
-   in Terminal.Command "publish" Uncommon details example noArgs noFlags Publish.run
+   in Terminal.Command "validate" Uncommon details example noArgs noFlags Validate.run
 
 -- BUMP
 
@@ -125,9 +123,9 @@ diff =
       example =
         stack
           [ reflow
-              "For example, to see what changed in the HTML package between\
+              "For example, to see what changed in the Browser package between\
               \ versions 1.0.0 and 2.0.0, you can say:",
-            P.indent 4 $ P.green $ "gren diff gren/html 1.0.0 2.0.0",
+            P.indent 4 $ P.green $ "gren package diff gren-lang/browser 1.0.0 2.0.0",
             reflow
               "Sometimes a MAJOR change is not actually very big, so\
               \ this can help you plan your upgrade timelines."
