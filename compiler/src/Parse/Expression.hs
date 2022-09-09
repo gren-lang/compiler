@@ -37,7 +37,8 @@ term =
         array start,
         record start >>= accessible start,
         accessor start,
-        character start
+        character start,
+        wildcard
       ]
 
 string :: A.Position -> Parser E.Expr Src.Expr
@@ -111,6 +112,15 @@ variable start =
   do
     var <- Var.foreignAlpha E.Start
     addEnd start var
+
+wildcard :: Parser E.Expr a
+wildcard =
+  do
+    word1 0x5F {- _ -} E.Start
+    -- Note, because this is not optional, this will not match '_' on its own.
+    name <- Var.lower E.Start
+    P.Parser $ \(P.State _ _ _ _ row col) _ _ cerr _ ->
+      cerr row col (E.WildCard $ E.WildCardAttempt name)
 
 accessible :: A.Position -> Src.Expr -> Parser E.Expr Src.Expr
 accessible start expr =

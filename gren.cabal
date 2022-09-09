@@ -239,10 +239,12 @@ Test-Suite gren-tests
 
     other-modules:
         Helpers.Instances
+        Helpers.Parse
 
         -- tests
         Parse.SpaceSpec
         Parse.RecordUpdateSpec
+        Parse.UnderscorePatternSpec
 
     Build-Depends:
         hspec >= 2.7.10 && < 3
