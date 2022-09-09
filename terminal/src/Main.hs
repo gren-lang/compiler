@@ -5,20 +5,17 @@ module Main
   )
 where
 
-import Bump qualified
 import Data.List qualified as List
-import Diff qualified
 import Docs qualified
 import Format qualified
 import Gren.Platform qualified as Platform
 import Gren.Version qualified as V
 import Init qualified
-import Install qualified
 import Make qualified
-import Publish qualified
+import Package qualified
 import Repl qualified
 import Terminal
-import Terminal.Helpers
+import Terminal.Helpers qualified as H
 import Text.PrettyPrint.ANSI.Leijen qualified as P
 import Prelude hiding (init)
 
@@ -33,11 +30,8 @@ main =
       init,
       make,
       docs,
-      install,
       format,
-      bump,
-      diff,
-      publish
+      package
     ]
 
 intro :: P.Doc
@@ -157,7 +151,7 @@ make =
           |-- onOff "optimize" "Turn on optimizations to make code smaller and faster. For example, the compiler renames record fields to be as short as possible and unboxes values to reduce allocation."
           |-- flag "output" Make.output "Specify the name of the resulting JS file. For example --output=assets/gren.js to generate the JS at assets/gren.js. You can also use --output=/dev/stdout to output the JS to the terminal, or --output=/dev/null to generate no output at all!"
           |-- flag "report" Make.reportType "You can say --report=json to get error messages as JSON. This is only really useful if you are an editor plugin. Humans should avoid it!"
-   in Terminal.Command "make" Uncommon details example (zeroOrMore grenFile) makeFlags Make.run
+   in Terminal.Command "make" Uncommon details example (zeroOrMore H.grenFile) makeFlags Make.run
 
 -- DOCS
 
@@ -182,112 +176,32 @@ docs =
           |-- flag "report" Docs.reportType "You can say --report=json to get error messages as JSON. This is only really useful if you are an editor plugin. Humans should avoid it!"
    in Terminal.Command "docs" Uncommon details example noArgs docsFlags Docs.run
 
--- INSTALL
+-- PACKAGE
 
-install :: Terminal.Command
-install =
+package :: Terminal.Command
+package =
   let details =
-        "The `install` command fetches packages from <https://package.gren-lang.org> for\
-        \ use in your project:"
+        "The `package` command contains sub-commands which help you manage your package,\
+        \ or your dependant packages:"
 
       example =
         stack
           [ reflow
-              "For example, if you want to get packages for HTTP and JSON, you would say:",
+              "For example, if you want to install packages for Browser APIs in your project,\
+              \ you would say:",
             P.indent 4 $
               P.green $
                 P.vcat $
-                  [ "gren install gren/http",
-                    "gren install gren/json"
+                  [ "gren package install gren-lang/browser"
                   ],
             reflow
-              "Notice that you must say the AUTHOR name and PROJECT name! After running those\
-              \ commands, you could say `import Http` or `import Json.Decode` in your code.",
-            reflow
-              "What if two projects use different versions of the same package? No problem!\
-              \ Each project is independent, so there cannot be conflicts like that!"
+              "To see a description of all available sub-commands, execute:",
+            P.indent 4 $
+              P.green $
+                P.vcat $
+                  ["gren package"]
           ]
-
-      installArgs =
-        oneOf
-          [ require0 Install.NoArgs,
-            require1 Install.Install package
-          ]
-   in Terminal.Command "install" Uncommon details example installArgs noFlags Install.run
-
--- PUBLISH
-
-publish :: Terminal.Command
-publish =
-  let details =
-        "The `publish` command publishes your package on <https://package.gren-lang.org>\
-        \ so that anyone in the Gren community can use it."
-
-      example =
-        stack
-          [ reflow
-              "Think hard if you are ready to publish NEW packages though!",
-            reflow
-              "Part of what makes Gren great is the packages ecosystem. The fact that\
-              \ there is usually one option (usually very well done) makes it way\
-              \ easier to pick packages and become productive. So having a million\
-              \ packages would be a failure in Gren. We do not need twenty of\
-              \ everything, all coded in a single weekend.",
-            reflow
-              "So as community members gain wisdom through experience, we want\
-              \ them to share that through thoughtful API design and excellent\
-              \ documentation. It is more about sharing ideas and insights than\
-              \ just sharing code! The first step may be asking for advice from\
-              \ people you respect, or in community forums. The second step may\
-              \ be using it at work to see if it is as nice as you think. Maybe\
-              \ it ends up as an experiment on GitHub only. Point is, try to be\
-              \ respectful of the community and package ecosystem!",
-            reflow
-              "Check out <https://package.gren-lang.org/help/design-guidelines> for guidance on how to create great packages!"
-          ]
-   in Terminal.Command "publish" Uncommon details example noArgs noFlags Publish.run
-
--- BUMP
-
-bump :: Terminal.Command
-bump =
-  let details =
-        "The `bump` command figures out the next version number based on API changes:"
-
-      example =
-        reflow
-          "Say you just published version 1.0.0, but then decided to remove a function.\
-          \ I will compare the published API to what you have locally, figure out that\
-          \ it is a MAJOR change, and bump your version number to 2.0.0. I do this with\
-          \ all packages, so there cannot be MAJOR changes hiding in PATCH releases in Gren!"
-   in Terminal.Command "bump" Uncommon details example noArgs noFlags Bump.run
-
--- DIFF
-
-diff :: Terminal.Command
-diff =
-  let details =
-        "The `diff` command detects API changes:"
-
-      example =
-        stack
-          [ reflow
-              "For example, to see what changed in the HTML package between\
-              \ versions 1.0.0 and 2.0.0, you can say:",
-            P.indent 4 $ P.green $ "gren diff gren/html 1.0.0 2.0.0",
-            reflow
-              "Sometimes a MAJOR change is not actually very big, so\
-              \ this can help you plan your upgrade timelines."
-          ]
-
-      diffArgs =
-        oneOf
-          [ require0 Diff.CodeVsLatest,
-            require1 Diff.CodeVsExactly version,
-            require2 Diff.LocalInquiry version version,
-            require3 Diff.GlobalInquiry package version version
-          ]
-   in Terminal.Command "diff" Uncommon details example diffArgs noFlags Diff.run
+   in Terminal.Command "package" Uncommon details example noArgs noFlags Package.run
 
 -- FORMAT
 
@@ -303,7 +217,7 @@ format =
         flags Format.Flags
           |-- onOff "yes" "Assume yes for all interactive prompts."
           |-- onOff "stdin" "Format stdin and write it to stdout."
-   in Terminal.Command "format" Uncommon details example (zeroOrMore grenFileOrDirectory) formatFlags Format.run
+   in Terminal.Command "format" Uncommon details example (zeroOrMore H.grenFileOrDirectory) formatFlags Format.run
 
 -- HELPERS
 

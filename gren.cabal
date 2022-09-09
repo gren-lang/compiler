@@ -60,6 +60,7 @@ Common gren-common
         Docs
         Publish
         Repl
+        Package
 
         -- terminal args
         Terminal
