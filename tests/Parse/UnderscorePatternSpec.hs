@@ -6,8 +6,8 @@ import AST.Source qualified as Src
 import Data.ByteString qualified as BS
 import Data.Name qualified as Name
 import Helpers.Instances ()
+import Helpers.Parse qualified as Helpers
 import Parse.Expression qualified as Expression
-import Parse.Helpers qualified as Helpers
 import Parse.Pattern qualified as Pattern
 import Reporting.Error.Syntax qualified as Error.Syntax
 import Test.Hspec (Spec, describe, it)

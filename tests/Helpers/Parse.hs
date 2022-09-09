@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Parse.Helpers
+module Helpers.Parse
   ( checkParse,
     checkSuccessfulParse,
     checkParseError,

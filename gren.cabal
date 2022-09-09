@@ -239,7 +239,7 @@ Test-Suite gren-tests
 
     other-modules:
         Helpers.Instances
-        Parse.Helpers
+        Helpers.Parse
 
         -- tests
         Parse.SpaceSpec
