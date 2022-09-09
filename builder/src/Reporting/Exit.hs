@@ -80,7 +80,6 @@ toJson report =
 
 data Init
   = InitNoSolution [Pkg.Name]
-  | InitNoOfflineSolution [Pkg.Name]
   | InitSolverProblem Solver
   | InitAlreadyExists
   | InitNoCompatibleDependencies (Maybe Git.Error)
@@ -100,20 +99,6 @@ initToReport exit =
             "I could not find compatible versions though! This should not happen, so please\
             \ ask around one of the community forums at https://gren-lang.org/community to learn\
             \ what is going on!"
-        ]
-    InitNoOfflineSolution pkgs ->
-      Help.report
-        "NO OFFLINE SOLUTION"
-        Nothing
-        "I tried to create an gren.json with the following direct dependencies:"
-        [ D.indent 4 $
-            D.vcat $
-              map (D.dullyellow . D.fromChars . Pkg.toChars) pkgs,
-          D.reflow $
-            "I could not find compatible versions though, but that may be because I could not\
-            \ connect to https://package.gren-lang.org to get the latest list of packages. Are\
-            \ you able to connect to the internet? Please ask around one of the community\
-            \ forums at https://gren-lang.org/community for help!"
         ]
     InitSolverProblem solver ->
       toSolverReport solver
@@ -870,11 +855,8 @@ toDocsProblemReport problem context =
 data Install
   = InstallNoOutline
   | InstallBadOutline Outline
-  | InstallNoArgs FilePath
   | InstallNoOnlineAppSolution Pkg.Name
-  | InstallNoOfflineAppSolution Pkg.Name
   | InstallNoOnlinePkgSolution Pkg.Name
-  | InstallNoOfflinePkgSolution Pkg.Name
   | InstallHadSolverTrouble Solver
   | InstallNoCompatiblePkg Pkg.Name
   | InstallUnknownPackageOnline Pkg.Name [Pkg.Name]
@@ -894,106 +876,6 @@ installToReport exit =
         ]
     InstallBadOutline outline ->
       toOutlineReport outline
-    InstallNoArgs grenHome ->
-      Help.report
-        "INSTALL WHAT?"
-        Nothing
-        "I am expecting commands like:"
-        [ D.green $
-            D.indent 4 $
-              D.vcat $
-                [ "gren install gren/http",
-                  "gren install gren/json",
-                  "gren install gren/random"
-                ],
-          D.toFancyHint
-            [ "In",
-              "JavaScript",
-              "folks",
-              "run",
-              "`npm install`",
-              "to",
-              "start",
-              "projects.",
-              "\"Gotta",
-              "download",
-              "everything!\"",
-              "But",
-              "why",
-              "download",
-              "packages",
-              "again",
-              "and",
-              "again?",
-              "Instead,",
-              "Gren",
-              "caches",
-              "packages",
-              "in",
-              D.dullyellow (D.fromChars grenHome),
-              "so",
-              "each",
-              "one",
-              "is",
-              "downloaded",
-              "and",
-              "built",
-              "ONCE",
-              "on",
-              "your",
-              "machine.",
-              "Gren",
-              "projects",
-              "check",
-              "that",
-              "cache",
-              "before",
-              "trying",
-              "the",
-              "internet.",
-              "This",
-              "reduces",
-              "build",
-              "times,",
-              "reduces",
-              "server",
-              "costs,",
-              "and",
-              "makes",
-              "it",
-              "easier",
-              "to",
-              "work",
-              "offline.",
-              "As",
-              "a",
-              "result",
-              D.dullcyan "gren install",
-              "is",
-              "only",
-              "for",
-              "adding",
-              "dependencies",
-              "to",
-              "gren.json,",
-              "whereas",
-              D.dullcyan "gren make",
-              "is",
-              "in",
-              "charge",
-              "of",
-              "gathering",
-              "dependencies",
-              "and",
-              "building",
-              "everything.",
-              "So",
-              "maybe",
-              "try",
-              D.green "gren make",
-              "instead?"
-            ]
-        ]
     InstallNoOnlineAppSolution pkg ->
       Help.report
         "CANNOT FIND COMPATIBLE VERSION"
@@ -1021,21 +903,6 @@ installToReport exit =
             \ goals, etc. They face obstacles outside of their technical work you will never\
             \ know about, so please assume the best and try to be patient and supportive!"
         ]
-    InstallNoOfflineAppSolution pkg ->
-      Help.report
-        "CANNOT FIND COMPATIBLE VERSION LOCALLY"
-        (Just "gren.json")
-        ( "I cannot find a version of "
-            ++ Pkg.toChars pkg
-            ++ " that is compatible\
-               \ with your existing dependencies."
-        )
-        [ D.reflow $
-            "I was not able to connect to https://package.gren-lang.org/ though, so I was only\
-            \ able to look through packages that you have downloaded in the past.",
-          D.reflow $
-            "Try again later when you have internet!"
-        ]
     InstallNoOnlinePkgSolution pkg ->
       Help.report
         "CANNOT FIND COMPATIBLE VERSION"
@@ -1056,21 +923,6 @@ installToReport exit =
             \ how to proceed in a way that will disrupt your users as little as possible. And\
             \ the solution may be to help other package authors to get their packages updated,\
             \ or to drop a dependency entirely."
-        ]
-    InstallNoOfflinePkgSolution pkg ->
-      Help.report
-        "CANNOT FIND COMPATIBLE VERSION LOCALLY"
-        (Just "gren.json")
-        ( "I cannot find a version of "
-            ++ Pkg.toChars pkg
-            ++ " that is compatible\
-               \ with your existing constraints."
-        )
-        [ D.reflow $
-            "I was not able to connect to https://package.gren-lang.org/ though, so I was only\
-            \ able to look through packages that you have downloaded in the past.",
-          D.reflow $
-            "Try again later when you have internet!"
         ]
     InstallHadSolverTrouble solver ->
       toSolverReport solver
@@ -1713,7 +1565,6 @@ toOutlineProblemReport path source _ region problem =
 
 data Details
   = DetailsNoSolution
-  | DetailsNoOfflineSolution
   | DetailsSolverProblem Solver
   | DetailsBadGrenInPkg C.Constraint
   | DetailsBadGrenInAppOutline V.Version
@@ -1758,41 +1609,6 @@ toDetailsReport details =
           D.reflow $
             "Please ask for help on the community forums if you try those paths and are still\
             \ having problems!"
-        ]
-    DetailsNoOfflineSolution ->
-      Help.report
-        "TROUBLE VERIFYING DEPENDENCIES"
-        (Just "gren.json")
-        "I could not connect to https://package.gren-lang.org to get the latest list of\
-        \ packages, and I was unable to verify your dependencies with the information I\
-        \ have cached locally."
-        [ D.reflow $
-            "Are you able to connect to the internet? These dependencies may work once you\
-            \ get access to the registry!",
-          D.toFancyNote
-            [ "If",
-              "you",
-              "changed",
-              "your",
-              "dependencies",
-              "by",
-              "hand,",
-              "try",
-              "to",
-              "change",
-              "them",
-              "back!",
-              "It",
-              "is",
-              "much",
-              "more",
-              "reliable",
-              "to",
-              "add",
-              "dependencies",
-              "with",
-              D.green "gren install" <> "."
-            ]
         ]
     DetailsSolverProblem solver ->
       toSolverReport solver

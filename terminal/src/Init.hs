@@ -90,8 +90,6 @@ init flags =
             return (Left (Exit.InitSolverProblem exit))
           Solver.NoSolution ->
             return (Left (Exit.InitNoSolution initialDeps))
-          Solver.NoOfflineSolution ->
-            return (Left (Exit.InitNoOfflineSolution initialDeps))
           Solver.Ok details ->
             let outline =
                   if _isPackage flags

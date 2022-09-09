@@ -59,7 +59,6 @@ data Constraints = Constraints
 data Result a
   = Ok a
   | NoSolution
-  | NoOfflineSolution
   | Err Exit.Solver
 
 -- VERIFY -- used by Gren.Details
