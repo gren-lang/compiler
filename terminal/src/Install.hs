@@ -180,11 +180,10 @@ installDependencies (Solver.Env cache) outline =
     case result of
       Solver.Ok _ ->
         do
-          Task.io $ putStrLn "Success!"
+          Task.io $ putStrLn "All required dependencies are installed."
           return ()
       Solver.NoSolution ->
-        -- TODO: Fix error
-        Task.throw Exit.InstallNoOutline
+        Task.throw Exit.InstallNoSolverSolution
       Solver.Err exit ->
         Task.throw (Exit.InstallHadSolverTrouble exit)
 

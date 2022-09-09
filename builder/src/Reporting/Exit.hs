@@ -815,6 +815,7 @@ data Install
   | InstallNoOnlineAppSolution Pkg.Name
   | InstallNoOnlinePkgSolution Pkg.Name
   | InstallHadSolverTrouble Solver
+  | InstallNoSolverSolution
   | InstallNoCompatiblePkg Pkg.Name
   | InstallUnknownPackageOnline Pkg.Name [Pkg.Name]
   | InstallBadDetails Details
@@ -882,6 +883,13 @@ installToReport exit =
         ]
     InstallHadSolverTrouble solver ->
       toSolverReport solver
+    InstallNoSolverSolution ->
+      Help.report
+        "COULD NOT RESOLVE DEPENDENCIES"
+        (Just "gren.json")
+        ( "I could not find a compatible set of dependencies."
+        )
+        []
     InstallNoCompatiblePkg pkg ->
       Help.report
         "CANNOT FIND COMPATIBLE VERSION"
