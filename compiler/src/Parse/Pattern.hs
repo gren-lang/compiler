@@ -81,7 +81,7 @@ termHelp start =
 
 wildcard :: Parser E.Pattern Name.Name
 wildcard =
-  P.Parser $ \(P.State src pos end indent row col) cok _ cerr eerr ->
+  P.Parser $ \(P.State src pos end indent row col) cok _ _ eerr ->
     if pos == end || P.unsafeIndex pos /= 0x5F {- _ -}
       then eerr row col E.PStart
       else

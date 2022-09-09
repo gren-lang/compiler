@@ -11,7 +11,6 @@ import Data.ByteString qualified as BS
 import Parse.Primitives qualified as P
 import Parse.Space qualified as Space
 import Reporting.Annotation qualified as A
-import Test.Hspec (Spec, describe, it)
 import Test.Hspec qualified as Hspec
 
 checkParse :: (Show error, Show target) => Space.Parser error (A.Located target) -> (P.Row -> P.Col -> error) -> (Either error (A.Located target, A.Position) -> Bool) -> BS.ByteString -> IO ()
@@ -34,8 +33,8 @@ checkParseError :: (Show error, Show target) => Space.Parser error (A.Located ta
 checkParseError parser toBadEnd checkError =
   let checkResult result =
         case result of
-          Left error ->
-            checkError error
+          Left err ->
+            checkError err
           Right _ ->
             False
    in checkParse parser toBadEnd checkResult

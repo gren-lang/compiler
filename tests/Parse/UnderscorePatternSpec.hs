@@ -4,17 +4,13 @@ module Parse.UnderscorePatternSpec where
 
 import AST.Source qualified as Src
 import Data.ByteString qualified as BS
-import Data.ByteString.Internal qualified as B
 import Data.Name qualified as Name
 import Helpers.Instances ()
 import Parse.Expression qualified as Expression
 import Parse.Helpers qualified as Helpers
 import Parse.Pattern qualified as Pattern
-import Parse.Primitives qualified as P
-import Reporting.Annotation qualified as A
 import Reporting.Error.Syntax qualified as Error.Syntax
 import Test.Hspec (Spec, describe, it)
-import Test.Hspec qualified as Hspec
 
 spec :: Spec
 spec = do
@@ -35,8 +31,8 @@ spec = do
       failToParse "_Hello"
     it "We should give the specialised error when we attempt to parse _key as an expression" $
       let isWildCardAttemptError :: Error.Syntax.Expr -> Bool
-          isWildCardAttemptError error =
-            case error of
+          isWildCardAttemptError err =
+            case err of
               Error.Syntax.WildCard (Error.Syntax.WildCardAttempt _) _ _ ->
                 True
               _ ->
