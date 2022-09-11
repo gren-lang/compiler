@@ -34,6 +34,7 @@ import Data.Map qualified as Map
 import Data.Maybe qualified as Maybe
 import Data.Name qualified as N
 import Deps.Package qualified as DPkg
+import Deps.Solver qualified as Solver
 import Directories qualified as Dirs
 import Generate qualified
 import Gren.Constraint qualified as C
@@ -79,9 +80,9 @@ data Flags = Flags
 run :: () -> Flags -> IO ()
 run () flags =
   do
-    printWelcomeMessage
     settings <- initSettings
     env <- initEnv flags
+    printWelcomeMessage
     let looper = Repl.runInputT settings (Repl.withInterrupt (loop env initialState))
     exitCode <- State.evalStateT looper initialState
     Exit.exitWith exitCode
@@ -113,8 +114,23 @@ initEnv :: Flags -> IO Env
 initEnv (Flags maybeAlternateInterpreter noColors) =
   do
     root <- getRoot
+    _ <- installDeps root
     interpreter <- getInterpreter maybeAlternateInterpreter
     return $ Env root interpreter (not noColors)
+
+installDeps :: FilePath -> IO ()
+installDeps root =
+  do
+    potentialOutline <- Outline.read root
+    case potentialOutline of
+      Left _ ->
+        return ()
+      Right outline -> do
+        packageCache <- Dirs.getPackageCache
+        let platform = Outline.platform outline
+        let dependencies = Outline.dependencyConstraints outline
+        _ <- Solver.verify packageCache platform dependencies
+        return ()
 
 -- LOOP
 
@@ -455,9 +471,9 @@ outputToBuilder output =
     <> " ="
     <> case output of
       OutputNothing ->
-        " ()\n"
+        " {}\n"
       OutputDecl _ ->
-        " ()\n"
+        " {}\n"
       OutputExpr expr ->
         foldr (\line rest -> "\n  " <> B.byteString line <> rest) "\n" (BSC.lines expr)
 
