@@ -471,9 +471,9 @@ outputToBuilder output =
     <> " ="
     <> case output of
       OutputNothing ->
-        " ()\n"
+        " {}\n"
       OutputDecl _ ->
-        " ()\n"
+        " {}\n"
       OutputExpr expr ->
         foldr (\line rest -> "\n  " <> B.byteString line <> rest) "\n" (BSC.lines expr)
 
