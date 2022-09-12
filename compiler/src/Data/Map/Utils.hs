@@ -6,7 +6,7 @@ module Data.Map.Utils
   )
 where
 
-import qualified Data.Map as Map
+import Data.Map qualified as Map
 import Data.Map.Internal (Map (..))
 import Prelude hiding (any)
 

@@ -9,12 +9,12 @@ module Gren.Licenses
   )
 where
 
-import qualified Data.Map as Map
-import qualified Data.Utf8 as Utf8
-import qualified Json.Decode as D
-import qualified Json.Encode as E
-import qualified Json.String as Json
-import qualified Reporting.Suggest as Suggest
+import Data.Map qualified as Map
+import Data.Utf8 qualified as Utf8
+import Json.Decode qualified as D
+import Json.Encode qualified as E
+import Json.String qualified as Json
+import Reporting.Suggest qualified as Suggest
 
 -- LICENCES
 

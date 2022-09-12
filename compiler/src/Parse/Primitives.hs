@@ -1,7 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE UnboxedTuples #-}
-{-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind -fno-warn-name-shadowing #-}
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 
 module Parse.Primitives
   ( fromByteString,
@@ -28,17 +28,20 @@ module Parse.Primitives
     getCharWidth,
     Snippet (..),
     fromSnippet,
+    snippetToBuilder,
   )
 where
 
-import qualified Control.Applicative as Applicative (Applicative (..))
-import qualified Data.ByteString.Internal as B
+import Control.Applicative qualified as Applicative (Applicative (..))
+import Data.ByteString.Builder (Builder)
+import Data.ByteString.Builder qualified as Builder
+import Data.ByteString.Internal qualified as B
 import Data.Word (Word16, Word8)
 import Foreign.ForeignPtr (ForeignPtr, touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (Ptr, plusPtr)
 import Foreign.Storable (peek)
-import qualified Reporting.Annotation as A
+import Reporting.Annotation qualified as A
 import Prelude hiding (length)
 
 -- PARSER
@@ -192,6 +195,7 @@ data Snippet = Snippet
     _offRow :: Row,
     _offCol :: Col
   }
+  deriving (Show)
 
 fromSnippet :: Parser x a -> (Row -> Col -> x) -> Snippet -> Either x a
 fromSnippet (Parser parser) toBadEnd (Snippet fptr offset length row col) =
@@ -203,6 +207,10 @@ fromSnippet (Parser parser) toBadEnd (Snippet fptr offset length row col) =
      in do
           touchForeignPtr fptr
           return result
+
+snippetToBuilder :: Snippet -> Builder
+snippetToBuilder (Snippet fptr offset length _ _) =
+  Builder.byteString $ B.fromForeignPtr fptr offset length
 
 -- POSITION
 

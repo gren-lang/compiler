@@ -17,16 +17,16 @@ module Gren.Interface
   )
 where
 
-import qualified AST.Canonical as Can
-import qualified AST.Utils.Binop as Binop
+import AST.Canonical qualified as Can
+import AST.Utils.Binop qualified as Binop
 import Control.Monad (liftM, liftM3, liftM4, liftM5)
 import Data.Binary
-import qualified Data.Map.Merge.Strict as Map
+import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict ((!))
-import qualified Data.Map.Strict as Map
-import qualified Data.Name as Name
-import qualified Gren.Package as Pkg
-import qualified Reporting.Annotation as A
+import Data.Map.Strict qualified as Map
+import Data.Name qualified as Name
+import Gren.Package qualified as Pkg
+import Reporting.Annotation qualified as A
 
 -- INTERFACE
 
@@ -37,18 +37,18 @@ data Interface = Interface
     _aliases :: Map.Map Name.Name Alias,
     _binops :: Map.Map Name.Name Binop
   }
-  deriving (Eq)
+  deriving (Eq, Show)
 
 data Union
   = OpenUnion Can.Union
   | ClosedUnion Can.Union
   | PrivateUnion Can.Union
-  deriving (Eq)
+  deriving (Eq, Show)
 
 data Alias
   = PublicAlias Can.Alias
   | PrivateAlias Can.Alias
-  deriving (Eq)
+  deriving (Eq, Show)
 
 data Binop = Binop
   { _op_name :: Name.Name,
@@ -56,7 +56,7 @@ data Binop = Binop
     _op_associativity :: Binop.Associativity,
     _op_precedence :: Binop.Precedence
   }
-  deriving (Eq)
+  deriving (Eq, Show)
 
 -- FROM MODULE
 

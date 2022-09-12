@@ -4,7 +4,8 @@
 module Gren.Constraint
   ( Constraint,
     exactly,
-    anything,
+    lowerBound,
+    upperBound,
     toChars,
     satisfies,
     check,
@@ -23,11 +24,11 @@ where
 
 import Control.Monad (liftM4)
 import Data.Binary (Binary, get, getWord8, put, putWord8)
-import qualified Gren.Version as V
-import qualified Json.Decode as D
-import qualified Json.Encode as E
+import Gren.Version qualified as V
+import Json.Decode qualified as D
+import Json.Encode qualified as E
 import Parse.Primitives (Col, Row)
-import qualified Parse.Primitives as P
+import Parse.Primitives qualified as P
 
 -- CONSTRAINTS
 
@@ -46,9 +47,15 @@ exactly :: V.Version -> Constraint
 exactly version =
   Range version LessOrEqual LessOrEqual version
 
-anything :: Constraint
-anything =
-  Range V.one LessOrEqual LessOrEqual V.max
+-- EXTRACT VERSION
+
+lowerBound :: Constraint -> V.Version
+lowerBound (Range lower _ _ _) =
+  lower
+
+upperBound :: Constraint -> V.Version
+upperBound (Range _ _ _ upper) =
+  upper
 
 -- TO CHARS
 

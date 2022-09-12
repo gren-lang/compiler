@@ -1,25 +1,26 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
+-- Temporary while implementing gren format
+{-# OPTIONS_GHC -Wno-error=unused-do-bind #-}
 
 module Parse.Expression
   ( expression,
   )
 where
 
-import qualified AST.Source as Src
-import qualified Data.Name as Name
-import qualified Parse.Keyword as Keyword
-import qualified Parse.Number as Number
-import qualified Parse.Pattern as Pattern
+import AST.Source qualified as Src
+import Data.Name qualified as Name
+import Parse.Keyword qualified as Keyword
+import Parse.Number qualified as Number
+import Parse.Pattern qualified as Pattern
 import Parse.Primitives hiding (State)
-import qualified Parse.Primitives as P
-import qualified Parse.Space as Space
-import qualified Parse.String as String
-import qualified Parse.Symbol as Symbol
-import qualified Parse.Type as Type
-import qualified Parse.Variable as Var
-import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Syntax as E
+import Parse.Primitives qualified as P
+import Parse.Space qualified as Space
+import Parse.String qualified as String
+import Parse.Symbol qualified as Symbol
+import Parse.Type qualified as Type
+import Parse.Variable qualified as Var
+import Reporting.Annotation qualified as A
+import Reporting.Error.Syntax qualified as E
 
 -- TERMS
 
@@ -36,7 +37,8 @@ term =
         array start,
         record start >>= accessible start,
         accessor start,
-        character start
+        character start,
+        wildcard
       ]
 
 string :: A.Position -> Parser E.Expr Src.Expr
@@ -111,6 +113,15 @@ variable start =
     var <- Var.foreignAlpha E.Start
     addEnd start var
 
+wildcard :: Parser E.Expr a
+wildcard =
+  do
+    word1 0x5F {- _ -} E.Start
+    -- Note, because this is not optional, this will not match '_' on its own.
+    name <- Var.lower E.Start
+    P.Parser $ \(P.State _ _ _ _ row col) _ _ cerr _ ->
+      cerr row col (E.WildCard $ E.WildCardAttempt name)
+
 accessible :: A.Position -> Src.Expr -> Parser E.Expr Src.Expr
 accessible start expr =
   oneOfWithFallback
@@ -167,26 +178,31 @@ record start =
       oneOf
         E.RecordOpen
         [ do
-            word1 0x7D {-}-} E.RecordOpen
+            word1 0x7D {-}-} E.RecordEnd
             addEnd start (Src.Record []),
           do
-            starter <- addLocation (Var.lower E.RecordField)
+            expr <- specialize E.RecordUpdateExpr term
             Space.chompAndCheckIndent E.RecordSpace E.RecordIndentEquals
             oneOf
               E.RecordEquals
               [ do
-                  word1 0x7C E.RecordEquals
+                  word1 0x7C {- vertical bar -} E.RecordPipe
                   Space.chompAndCheckIndent E.RecordSpace E.RecordIndentField
                   firstField <- chompField
                   fields <- chompFields [firstField]
-                  addEnd start (Src.Update starter fields),
+                  addEnd start (Src.Update expr fields),
                 do
                   word1 0x3D {-=-} E.RecordEquals
                   Space.chompAndCheckIndent E.RecordSpace E.RecordIndentExpr
                   (value, end) <- specialize E.RecordExpr expression
                   Space.checkIndent end E.RecordIndentEnd
-                  fields <- chompFields [(starter, value)]
-                  addEnd start (Src.Record fields)
+                  case expr of
+                    A.At exprRegion (Src.Var Src.LowVar name) -> do
+                      fields <- chompFields [(A.At exprRegion name, value)]
+                      addEnd start (Src.Record fields)
+                    A.At (A.Region (A.Position row col) _) _ ->
+                      P.Parser $ \_ _ _ _ eerr ->
+                        eerr row col E.RecordField
               ]
         ]
 

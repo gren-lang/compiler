@@ -1,7 +1,9 @@
+{-# LANGUAGE EmptyDataDecls #-}
 {-# OPTIONS_GHC -Wall #-}
 
 module AST.Source
   ( Comment (..),
+    GREN_COMMENT,
     Expr,
     Expr_ (..),
     VarType (..),
@@ -12,6 +14,7 @@ module AST.Source
     RecordFieldPattern_ (..),
     Type,
     Type_ (..),
+    SourceOrder,
     Module (..),
     getName,
     getImportName,
@@ -31,22 +34,23 @@ module AST.Source
   )
 where
 
-import qualified AST.Utils.Binop as Binop
+import AST.Utils.Binop qualified as Binop
 import Data.Name (Name)
-import qualified Data.Name as Name
-import qualified Gren.Float as EF
-import qualified Gren.String as ES
-import qualified Parse.Primitives as P
-import qualified Reporting.Annotation as A
+import Data.Name qualified as Name
+import Data.Utf8 qualified as Utf8
+import Gren.Float qualified as EF
+import Gren.String qualified as ES
+import Parse.Primitives qualified as P
+import Reporting.Annotation qualified as A
 
 -- COMMENTS
 
 data Comment
-  = BlockComment [ES.String]
-  | LineComment ES.String
-  | CommentTrickOpener
-  | CommentTrickCloser
-  | CommentTrickBlock ES.String
+  = BlockComment (Utf8.Utf8 GREN_COMMENT)
+  | LineComment (Utf8.Utf8 GREN_COMMENT)
+  deriving (Show)
+
+data GREN_COMMENT
 
 -- EXPRESSIONS
 
@@ -70,24 +74,27 @@ data Expr_
   | Case Expr [(Pattern, Expr)]
   | Accessor Name
   | Access Expr (A.Located Name)
-  | Update (A.Located Name) [(A.Located Name, Expr)]
+  | Update Expr [(A.Located Name, Expr)]
   | Record [(A.Located Name, Expr)]
   | Parens [Comment] Expr [Comment]
+  deriving (Show)
 
 data VarType = LowVar | CapVar
+  deriving (Show)
 
 -- DEFINITIONS
 
 data Def
   = Define (A.Located Name) [Pattern] Expr (Maybe Type)
   | Destruct Pattern Expr
+  deriving (Show)
 
 -- PATTERN
 
 type Pattern = A.Located Pattern_
 
 data Pattern_
-  = PAnything
+  = PAnything Name
   | PVar Name
   | PRecord [RecordFieldPattern]
   | PAlias Pattern (A.Located Name)
@@ -97,10 +104,12 @@ data Pattern_
   | PChr ES.String
   | PStr ES.String
   | PInt Int
+  deriving (Show)
 
 type RecordFieldPattern = A.Located RecordFieldPattern_
 
 data RecordFieldPattern_ = RFPattern (A.Located Name) Pattern
+  deriving (Show)
 
 -- TYPE
 
@@ -113,21 +122,25 @@ data Type_
   | TType A.Region Name [Type]
   | TTypeQual A.Region Name Name [Type]
   | TRecord [(A.Located Name, Type)] (Maybe (A.Located Name))
+  deriving (Show)
 
 -- MODULE
+
+type SourceOrder = Int
 
 data Module = Module
   { _name :: Maybe (A.Located Name),
     _exports :: A.Located Exposing,
     _docs :: Docs,
     _imports :: [Import],
-    _values :: [A.Located Value],
-    _unions :: [A.Located Union],
-    _aliases :: [A.Located Alias],
+    _values :: [(SourceOrder, A.Located Value)],
+    _unions :: [(SourceOrder, A.Located Union)],
+    _aliases :: [(SourceOrder, A.Located Alias)],
     _binops :: [A.Located Infix],
     _comments :: [A.Located [Comment]],
     _effects :: Effects
   }
+  deriving (Show)
 
 getName :: Module -> Name
 getName (Module maybeName _ _ _ _ _ _ _ _ _) =
@@ -146,45 +159,58 @@ data Import = Import
     _alias :: Maybe Name,
     _exposing :: Exposing
   }
+  deriving (Show)
 
 data Value = Value (A.Located Name) [Pattern] Expr (Maybe Type)
+  deriving (Show)
 
 data Union = Union (A.Located Name) [A.Located Name] [(A.Located Name, [Type])]
+  deriving (Show)
 
 data Alias = Alias (A.Located Name) [A.Located Name] Type
+  deriving (Show)
 
 data Infix = Infix Name Binop.Associativity Binop.Precedence Name
+  deriving (Show)
 
 data Port = Port (A.Located Name) Type
+  deriving (Show)
 
 data Effects
   = NoEffects
-  | Ports [Port]
+  | Ports [(SourceOrder, Port)]
   | Manager A.Region Manager
+  deriving (Show)
 
 data Manager
   = Cmd (A.Located Name)
   | Sub (A.Located Name)
   | Fx (A.Located Name) (A.Located Name)
+  deriving (Show)
 
 data Docs
   = NoDocs A.Region
   | YesDocs DocComment [(Name, DocComment)]
+  deriving (Show)
 
 newtype DocComment
   = DocComment P.Snippet
+  deriving (Show)
 
 -- EXPOSING
 
 data Exposing
   = Open
   | Explicit [Exposed]
+  deriving (Show)
 
 data Exposed
   = Lower (A.Located Name)
   | Upper (A.Located Name) Privacy
   | Operator A.Region Name
+  deriving (Show)
 
 data Privacy
   = Public A.Region
   | Private
+  deriving (Show)

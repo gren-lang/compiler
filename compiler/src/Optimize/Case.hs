@@ -5,14 +5,14 @@ module Optimize.Case
   )
 where
 
-import qualified AST.Canonical as Can
-import qualified AST.Optimized as Opt
+import AST.Canonical qualified as Can
+import AST.Optimized qualified as Opt
 import Control.Arrow (second)
 import Data.Map ((!))
-import qualified Data.Map as Map
-import qualified Data.Maybe as Maybe
-import qualified Data.Name as Name
-import qualified Optimize.DecisionTree as DT
+import Data.Map qualified as Map
+import Data.Maybe qualified as Maybe
+import Data.Name qualified as Name
+import Optimize.DecisionTree qualified as DT
 
 -- OPTIMIZE A CASE EXPRESSION
 

@@ -19,10 +19,7 @@ module Gren.Package
     kernel,
     core,
     browser,
-    virtualDom,
-    html,
-    json,
-    http,
+    node,
     url,
     --
     suggestions,
@@ -38,20 +35,20 @@ where
 
 import Control.Monad (liftM2)
 import Data.Binary (Binary, get, put)
-import qualified Data.Coerce as Coerce
-import qualified Data.List as List
-import qualified Data.Map as Map
-import qualified Data.Name as Name
-import qualified Data.Utf8 as Utf8
+import Data.Coerce qualified as Coerce
+import Data.List qualified as List
+import Data.Map qualified as Map
+import Data.Name qualified as Name
+import Data.Utf8 qualified as Utf8
 import Data.Word (Word8)
 import Foreign.Ptr (Ptr, minusPtr, plusPtr)
-import qualified Gren.Version as V
-import qualified Json.Decode as D
-import qualified Json.Encode as E
-import qualified Json.String as Json
+import Gren.Version qualified as V
+import Json.Decode qualified as D
+import Json.Encode qualified as E
+import Json.String qualified as Json
 import Parse.Primitives (Col, Row)
-import qualified Parse.Primitives as P
-import qualified Reporting.Suggest as Suggest
+import Parse.Primitives qualified as P
+import Reporting.Suggest qualified as Suggest
 import System.FilePath ((</>))
 
 -- PACKGE NAMES
@@ -60,7 +57,7 @@ data Name = Name
   { _author :: !Author,
     _project :: !Project
   }
-  deriving (Ord)
+  deriving (Ord, Show)
 
 type Author = Utf8.Utf8 AUTHOR
 
@@ -120,21 +117,9 @@ browser :: Name
 browser =
   toName gren "browser"
 
-virtualDom :: Name
-virtualDom =
-  toName gren "virtual-dom"
-
-html :: Name
-html =
-  toName gren "html"
-
-json :: Name
-json =
-  toName gren "json"
-
-http :: Name
-http =
-  toName gren "http"
+node :: Name
+node =
+  toName gren "node"
 
 url :: Name
 url =
@@ -148,25 +133,22 @@ gren =
 
 suggestions :: Map.Map Name.Name Name
 suggestions =
-  let random = toName gren "random"
-      time = toName gren "time"
-      file = toName gren "file"
-   in Map.fromList
-        [ "Browser" ==> browser,
-          "File" ==> file,
-          "File.Download" ==> file,
-          "File.Select" ==> file,
-          "Html" ==> html,
-          "Html.Attributes" ==> html,
-          "Html.Events" ==> html,
-          "Http" ==> http,
-          "Json.Decode" ==> json,
-          "Json.Encode" ==> json,
-          "Random" ==> random,
-          "Time" ==> time,
-          "Url.Parser" ==> url,
-          "Url" ==> url
-        ]
+  Map.fromList
+    [ "Browser" ==> browser,
+      "File" ==> browser,
+      "File.Download" ==> browser,
+      "File.Select" ==> browser,
+      "Html" ==> browser,
+      "Html.Attributes" ==> browser,
+      "Html.Events" ==> browser,
+      "Http" ==> browser,
+      "Json.Decode" ==> core,
+      "Json.Encode" ==> core,
+      "Random" ==> core,
+      "Time" ==> core,
+      "Url.Parser" ==> url,
+      "Url" ==> url
+    ]
 
 (==>) :: [Char] -> Name -> (Name.Name, Name)
 (==>) moduleName package =

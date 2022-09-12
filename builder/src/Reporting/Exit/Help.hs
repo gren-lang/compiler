@@ -16,10 +16,10 @@ where
 
 import GHC.IO.Handle (hIsTerminalDevice)
 import Json.Encode ((==>))
-import qualified Json.Encode as E
+import Json.Encode qualified as E
 import Reporting.Doc ((<+>))
-import qualified Reporting.Doc as D
-import qualified Reporting.Error as Error
+import Reporting.Doc qualified as D
+import Reporting.Error qualified as Error
 import System.IO (Handle, hPutStr, stderr, stdout)
 
 -- REPORT

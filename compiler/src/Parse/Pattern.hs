@@ -1,7 +1,8 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE UnboxedTuples #-}
-{-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
+-- Temporary while implementing gren format
+{-# OPTIONS_GHC -Wno-error=unused-do-bind #-}
 
 module Parse.Pattern
   ( term,
@@ -9,19 +10,19 @@ module Parse.Pattern
   )
 where
 
-import qualified AST.Source as Src
-import qualified Data.Name as Name
-import qualified Data.Utf8 as Utf8
+import AST.Source qualified as Src
+import Data.Name qualified as Name
+import Data.Utf8 qualified as Utf8
 import Foreign.Ptr (plusPtr)
-import qualified Parse.Keyword as Keyword
-import qualified Parse.Number as Number
+import Parse.Keyword qualified as Keyword
+import Parse.Number qualified as Number
 import Parse.Primitives (Parser, addEnd, getPosition, inContext, oneOf, oneOfWithFallback, word1)
-import qualified Parse.Primitives as P
-import qualified Parse.Space as Space
-import qualified Parse.String as String
-import qualified Parse.Variable as Var
-import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Syntax as E
+import Parse.Primitives qualified as P
+import Parse.Space qualified as Space
+import Parse.String qualified as String
+import Parse.Variable qualified as Var
+import Reporting.Annotation qualified as A
+import Reporting.Error.Syntax qualified as E
 
 -- TERM
 
@@ -42,8 +43,8 @@ termHelp start =
   oneOf
     E.PStart
     [ do
-        wildcard
-        addEnd start Src.PAnything,
+        name <- wildcard
+        addEnd start (Src.PAnything name),
       do
         name <- Var.lower E.PStart
         addEnd start (Src.PVar name),
@@ -78,21 +79,26 @@ termHelp start =
 
 -- WILDCARD
 
-wildcard :: Parser E.Pattern ()
+wildcard :: Parser E.Pattern Name.Name
 wildcard =
-  P.Parser $ \(P.State src pos end indent row col) cok _ cerr eerr ->
+  P.Parser $ \(P.State src pos end indent row col) cok _ _ eerr ->
     if pos == end || P.unsafeIndex pos /= 0x5F {- _ -}
       then eerr row col E.PStart
       else
-        let !newPos = plusPtr pos 1
-            !newCol = col + 1
-         in if Var.getInnerWidth newPos end > 0
-              then
-                let (# badPos, badCol #) = Var.chompInnerChars newPos end newCol
-                 in cerr row col (E.PWildcardNotVar (Name.fromPtr pos badPos) (fromIntegral (badCol - col)))
-              else
-                let !newState = P.State src newPos end indent row newCol
-                 in cok () newState
+        let lowerVarPosition = plusPtr pos 1
+            (# newPos, newCol #) = Var.chompLower lowerVarPosition end (col + 1)
+            -- Note although we are getting the name, to check that it is not a reserved keyword, we are not storing it.
+            -- We ultimately wish to throw it away, but in theory we could make the AST of wildcard take the name
+            -- as a parameter, and then we could use that, to, for example, check that we are not shadowing/duplicating any
+            -- such wildcard names, eg. check against something like:
+            -- getZ _x _x z = z
+            -- when you probably meant
+            -- getZ _x _y z = z
+            !name = Name.fromPtr lowerVarPosition newPos
+            !newState = P.State src newPos end indent row newCol
+         in if Var.isReservedWord name
+              then eerr row col E.PStart
+              else cok name newState
 
 -- PARENTHESIZED PATTERNS
 

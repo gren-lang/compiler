@@ -7,20 +7,21 @@ module Reporting.Error.Main
   )
 where
 
-import qualified AST.Canonical as Can
-import qualified Data.Name as Name
-import qualified Reporting.Annotation as A
-import qualified Reporting.Doc as D
-import qualified Reporting.Error.Canonicalize as E
-import qualified Reporting.Render.Code as Code
-import qualified Reporting.Render.Type as RT
-import qualified Reporting.Render.Type.Localizer as L
-import qualified Reporting.Report as Report
+import AST.Canonical qualified as Can
+import Data.List qualified as List
+import Data.Name qualified as Name
+import Reporting.Annotation qualified as A
+import Reporting.Doc qualified as D
+import Reporting.Error.Canonicalize qualified as E
+import Reporting.Render.Code qualified as Code
+import Reporting.Render.Type qualified as RT
+import Reporting.Render.Type.Localizer qualified as L
+import Reporting.Report qualified as Report
 
 -- ERROR
 
 data Error
-  = BadType A.Region Can.Type
+  = BadType A.Region Can.Type [String]
   | BadCycle A.Region Name.Name [Name.Name]
   | BadFlags A.Region Can.Type E.InvalidPayload
 
@@ -29,7 +30,7 @@ data Error
 toReport :: L.Localizer -> Code.Source -> Error -> Report.Report
 toReport localizer source err =
   case err of
-    BadType region tipe ->
+    BadType region tipe allowed ->
       Report.Report "BAD MAIN TYPE" region [] $
         Code.toSnippet
           source
@@ -39,9 +40,7 @@ toReport localizer source err =
             D.stack
               [ "The type of `main` value I am seeing is:",
                 D.indent 4 $ D.dullyellow $ RT.canToDoc localizer RT.None tipe,
-                D.reflow $
-                  "I only know how to handle Html, Svg, and Programs\
-                  \ though. Modify `main` to be one of those types of values!"
+                D.reflow $ "But I only know how to handle these types: " ++ List.intercalate ", " allowed
               ]
           )
     BadCycle region name names ->
@@ -85,7 +84,8 @@ toReport localizer source err =
               E.TypeVariable name ->
                 ( "an unspecified type",
                   D.reflow $
-                    "But type variables like `" ++ Name.toChars name
+                    "But type variables like `"
+                      ++ Name.toChars name
                       ++ "` cannot be given as flags.\
                          \ I need to know exactly what type of data I am getting, so I can guarantee that\
                          \ unexpected data cannot sneak in and crash the Gren program."

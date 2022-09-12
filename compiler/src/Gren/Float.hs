@@ -10,8 +10,8 @@ module Gren.Float
 where
 
 import Data.Binary (Binary, get, put)
-import qualified Data.ByteString.Builder as B
-import qualified Data.Utf8 as Utf8
+import Data.ByteString.Builder qualified as B
+import Data.Utf8 qualified as Utf8
 import Data.Word (Word8)
 import Foreign.Ptr (Ptr)
 import Prelude hiding (Float)

@@ -7,27 +7,29 @@ module Make
     run,
     reportType,
     output,
-    docsFile,
   )
 where
 
-import qualified AST.Optimized as Opt
-import qualified BackgroundWriter as BW
-import qualified Build
-import qualified Data.ByteString.Builder as B
-import qualified Data.Maybe as Maybe
-import qualified Data.NonEmptyList as NE
-import qualified Directories as Dirs
-import qualified File
-import qualified Generate
-import qualified Generate.Html as Html
-import qualified Gren.Details as Details
-import qualified Gren.ModuleName as ModuleName
-import qualified Reporting
-import qualified Reporting.Exit as Exit
-import qualified Reporting.Task as Task
-import qualified System.Directory as Dir
-import qualified System.FilePath as FP
+import AST.Optimized qualified as Opt
+import BackgroundWriter qualified as BW
+import Build qualified
+import Data.ByteString.Builder qualified as B
+import Data.Maybe qualified as Maybe
+import Data.NonEmptyList qualified as NE
+import Directories qualified as Dirs
+import File qualified
+import Generate qualified
+import Generate.Html qualified as Html
+import Generate.Node qualified as Node
+import Gren.Details qualified as Details
+import Gren.ModuleName qualified as ModuleName
+import Gren.Platform qualified as Platform
+import Reporting qualified
+import Reporting.Exit qualified as Exit
+import Reporting.Task qualified as Task
+import System.Directory qualified as Dir
+import System.FilePath qualified as FP
+import System.IO qualified as IO
 import Terminal (Parser (..))
 
 -- FLAGS
@@ -36,14 +38,15 @@ data Flags = Flags
   { _debug :: Bool,
     _optimize :: Bool,
     _output :: Maybe Output,
-    _report :: Maybe ReportType,
-    _docs :: Maybe FilePath
+    _report :: Maybe ReportType
   }
 
 data Output
-  = JS FilePath
+  = Exe FilePath
+  | JS FilePath
   | Html FilePath
   | DevNull
+  | DevStdOut
 
 data ReportType
   = Json
@@ -53,7 +56,7 @@ data ReportType
 type Task a = Task.Task Exit.Make a
 
 run :: [FilePath] -> Flags -> IO ()
-run paths flags@(Flags _ _ _ report _) =
+run paths flags@(Flags _ _ _ report) =
   do
     style <- getStyle report
     maybeRoot <- Dirs.findRoot
@@ -63,49 +66,72 @@ run paths flags@(Flags _ _ _ report _) =
         Nothing -> return $ Left $ Exit.MakeNoOutline
 
 runHelp :: FilePath -> [FilePath] -> Reporting.Style -> Flags -> IO (Either Exit.Make ())
-runHelp root paths style (Flags debug optimize maybeOutput _ maybeDocs) =
+runHelp root paths style (Flags debug optimize maybeOutput _) =
   BW.withScope $ \scope ->
     Dirs.withRootLock root $
       Task.run $
         do
           desiredMode <- getMode debug optimize
           details <- Task.eio Exit.MakeBadDetails (Details.load style scope root)
+          let platform = getPlatform details
           case paths of
             [] ->
               do
                 exposed <- getExposed details
-                buildExposed style root details maybeDocs exposed
+                buildExposed style root details exposed
             p : ps ->
               do
                 artifacts <- buildPaths style root details (NE.List p ps)
                 case maybeOutput of
                   Nothing ->
-                    case getMains artifacts of
-                      [] ->
+                    case (platform, getMains artifacts) of
+                      (_, []) ->
                         return ()
-                      [name] ->
+                      (Platform.Browser, [name]) ->
                         do
                           builder <- toBuilder root details desiredMode artifacts
                           generate style "index.html" (Html.sandwich name builder) (NE.List name [])
-                      name : names ->
+                      (Platform.Node, [name]) ->
                         do
                           builder <- toBuilder root details desiredMode artifacts
-                          generate style "gren.js" builder (NE.List name names)
+                          generate style "app" (Node.sandwich name builder) (NE.List name [])
+                      (_, name : names) ->
+                        do
+                          builder <- toBuilder root details desiredMode artifacts
+                          generate style "index.js" builder (NE.List name names)
+                  Just DevStdOut ->
+                    case getMains artifacts of
+                      [] ->
+                        return ()
+                      _ ->
+                        do
+                          builder <- toBuilder root details desiredMode artifacts
+                          Task.io $ B.hPutBuilder IO.stdout builder
                   Just DevNull ->
                     return ()
+                  Just (Exe target) ->
+                    case platform of
+                      Platform.Node -> do
+                        name <- hasOneMain artifacts
+                        builder <- toBuilder root details desiredMode artifacts
+                        generate style target (Node.sandwich name builder) (NE.List name [])
+                      _ -> do
+                        Task.throw Exit.MakeExeOnlyForNodePlatform
                   Just (JS target) ->
                     case getNoMains artifacts of
-                      [] ->
-                        do
-                          builder <- toBuilder root details desiredMode artifacts
-                          generate style target builder (Build.getRootNames artifacts)
+                      [] -> do
+                        builder <- toBuilder root details desiredMode artifacts
+                        generate style target builder (Build.getRootNames artifacts)
                       name : names ->
                         Task.throw (Exit.MakeNonMainFilesIntoJavaScript name names)
                   Just (Html target) ->
-                    do
-                      name <- hasOneMain artifacts
-                      builder <- toBuilder root details desiredMode artifacts
-                      generate style target (Html.sandwich name builder) (NE.List name [])
+                    case platform of
+                      Platform.Browser -> do
+                        name <- hasOneMain artifacts
+                        builder <- toBuilder root details desiredMode artifacts
+                        generate style target (Html.sandwich name builder) (NE.List name [])
+                      _ -> do
+                        Task.throw Exit.MakeHtmlOnlyForBrowserPlatform
 
 -- GET INFORMATION
 
@@ -126,20 +152,27 @@ getMode debug optimize =
 getExposed :: Details.Details -> Task (NE.List ModuleName.Raw)
 getExposed (Details.Details _ validOutline _ _ _ _) =
   case validOutline of
-    Details.ValidApp _ ->
+    Details.ValidApp _ _ ->
       Task.throw Exit.MakeAppNeedsFileNames
-    Details.ValidPkg _ exposed _ ->
+    Details.ValidPkg _ _ exposed ->
       case exposed of
         [] -> Task.throw Exit.MakePkgNeedsExposing
         m : ms -> return (NE.List m ms)
 
+getPlatform :: Details.Details -> Platform.Platform
+getPlatform (Details.Details _ validOutline _ _ _ _) = do
+  case validOutline of
+    Details.ValidApp platform _ ->
+      platform
+    Details.ValidPkg platform _ _ ->
+      platform
+
 -- BUILD PROJECTS
 
-buildExposed :: Reporting.Style -> FilePath -> Details.Details -> Maybe FilePath -> NE.List ModuleName.Raw -> Task ()
-buildExposed style root details maybeDocs exposed =
-  let docsGoal = maybe Build.IgnoreDocs Build.WriteDocs maybeDocs
-   in Task.eio Exit.MakeCannotBuild $
-        Build.fromExposed style root details docsGoal exposed
+buildExposed :: Reporting.Style -> FilePath -> Details.Details -> NE.List ModuleName.Raw -> Task ()
+buildExposed style root details exposed =
+  Task.eio Exit.MakeCannotBuild $
+    Build.fromExposed style root details Build.IgnoreDocs exposed
 
 buildPaths :: Reporting.Style -> FilePath -> Details.Details -> NE.List FilePath -> Task Build.Artifacts
 buildPaths style root details paths =
@@ -178,7 +211,7 @@ hasOneMain :: Build.Artifacts -> Task ModuleName.Raw
 hasOneMain (Build.Artifacts _ _ roots modules) =
   case roots of
     NE.List root [] -> Task.mio Exit.MakeNoMain (return $ getMain modules root)
-    NE.List _ (_ : _) -> Task.throw Exit.MakeMultipleFilesIntoHtml
+    NE.List _ (_ : _) -> Task.throw Exit.MakeMultipleFiles
 
 -- GET MAINLESS
 
@@ -239,29 +272,25 @@ output =
       _plural = "output files",
       _parser = parseOutput,
       _suggest = \_ -> return [],
-      _examples = \_ -> return ["gren.js", "index.html", "/dev/null"]
+      _examples = \_ -> return ["gren.js", "index.html", "/dev/null", "/dev/stdout"]
     }
 
 parseOutput :: String -> Maybe Output
 parseOutput name
+  | name == "/dev/stdout" = Just DevStdOut
   | isDevNull name = Just DevNull
   | hasExt ".html" name = Just (Html name)
   | hasExt ".js" name = Just (JS name)
+  | noExt name = Just (Exe name)
   | otherwise = Nothing
-
-docsFile :: Parser FilePath
-docsFile =
-  Parser
-    { _singular = "json file",
-      _plural = "json files",
-      _parser = \name -> if hasExt ".json" name then Just name else Nothing,
-      _suggest = \_ -> return [],
-      _examples = \_ -> return ["docs.json", "documentation.json"]
-    }
 
 hasExt :: String -> String -> Bool
 hasExt ext path =
   FP.takeExtension path == ext && length path > length ext
+
+noExt :: String -> Bool
+noExt path =
+  FP.takeExtension path == ""
 
 isDevNull :: String -> Bool
 isDevNull name =

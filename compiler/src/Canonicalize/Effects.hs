@@ -7,18 +7,18 @@ module Canonicalize.Effects
   )
 where
 
-import qualified AST.Canonical as Can
-import qualified AST.Source as Src
-import qualified AST.Utils.Type as Type
-import qualified Canonicalize.Environment as Env
-import qualified Canonicalize.Type as Type
-import qualified Data.Foldable as F
-import qualified Data.Map as Map
-import qualified Data.Name as Name
-import qualified Gren.ModuleName as ModuleName
-import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Canonicalize as Error
-import qualified Reporting.Result as Result
+import AST.Canonical qualified as Can
+import AST.Source qualified as Src
+import AST.Utils.Type qualified as Type
+import Canonicalize.Environment qualified as Env
+import Canonicalize.Type qualified as Type
+import Data.Foldable qualified as F
+import Data.Map qualified as Map
+import Data.Name qualified as Name
+import Gren.ModuleName qualified as ModuleName
+import Reporting.Annotation qualified as A
+import Reporting.Error.Canonicalize qualified as Error
+import Reporting.Result qualified as Result
 
 -- RESULT
 
@@ -39,7 +39,7 @@ canonicalize env values unions effects =
       Result.ok Can.NoEffects
     Src.Ports ports ->
       do
-        pairs <- traverse (canonicalizePort env) ports
+        pairs <- traverse (canonicalizePort env) (fmap snd ports)
         return $ Can.Ports (Map.fromList pairs)
     Src.Manager region manager ->
       let dict = Map.fromList (map toNameRegion values)

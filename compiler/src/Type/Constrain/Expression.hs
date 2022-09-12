@@ -7,16 +7,16 @@ module Type.Constrain.Expression
   )
 where
 
-import qualified AST.Canonical as Can
-import qualified Data.Index as Index
-import qualified Data.Map.Strict as Map
-import qualified Data.Name as Name
-import qualified Gren.ModuleName as ModuleName
-import qualified Reporting.Annotation as A
+import AST.Canonical qualified as Can
+import Data.Index qualified as Index
+import Data.Map.Strict qualified as Map
+import Data.Name qualified as Name
+import Gren.ModuleName qualified as ModuleName
+import Reporting.Annotation qualified as A
 import Reporting.Error.Type (Category (..), Context (..), Expected (..), MaybeName (..), PContext (..), PExpected (..), SubContext (..))
-import qualified Reporting.Error.Type as E
-import qualified Type.Constrain.Pattern as Pattern
-import qualified Type.Instantiate as Instantiate
+import Reporting.Error.Type qualified as E
+import Type.Constrain.Pattern qualified as Pattern
+import Type.Instantiate qualified as Instantiate
 import Type.Type as Type hiding (Descriptor (..))
 
 -- CONSTRAIN
@@ -113,8 +113,8 @@ constrain rtv (A.At region expression) expected =
               [ recordCon,
                 CEqual region (Access field) fieldType expected
               ]
-    Can.Update name expr fields ->
-      constrainUpdate rtv region name expr fields expected
+    Can.Update expr fields ->
+      constrainUpdate rtv region expr fields expected
     Can.Record fields ->
       constrainRecord rtv region fields expected
 
@@ -360,8 +360,8 @@ constrainField rtv expr =
 
 -- CONSTRAIN RECORD UPDATE
 
-constrainUpdate :: RTV -> A.Region -> Name.Name -> Can.Expr -> Map.Map Name.Name Can.FieldUpdate -> Expected Type -> IO Constraint
-constrainUpdate rtv region name expr fields expected =
+constrainUpdate :: RTV -> A.Region -> Can.Expr -> Map.Map Name.Name Can.FieldUpdate -> Expected Type -> IO Constraint
+constrainUpdate rtv region expr fields expected =
   do
     extVar <- mkFlexVar
     fieldDict <- Map.traverseWithKey (constrainUpdateField rtv region) fields
@@ -377,7 +377,7 @@ constrainUpdate rtv region name expr fields expected =
     let vars = Map.foldr (\(v, _, _) vs -> v : vs) [recordVar, extVar] fieldDict
     let cons = Map.foldr (\(_, _, c) cs -> c : cs) [recordCon] fieldDict
 
-    con <- constrain rtv expr (FromContext region (RecordUpdateKeys name fields) recordType)
+    con <- constrain rtv expr (FromContext region (RecordUpdateKeys fields) recordType)
 
     return $ exists vars $ CAnd (fieldsCon : con : cons)
 

@@ -42,10 +42,10 @@ import Data.Binary (Get, Put, get, getWord8, put, putWord8)
 import Data.Binary.Get.Internal (readN)
 import Data.Binary.Put (putBuilder)
 import Data.Bits (shiftR, (.&.))
-import qualified Data.ByteString.Builder.Internal as B
-import qualified Data.ByteString.Internal as B
-import qualified Data.Char as Char
-import qualified Data.List as List
+import Data.ByteString.Builder.Internal qualified as B
+import Data.ByteString.Internal qualified as B
+import Data.Char qualified as Char
+import Data.List qualified as List
 import Foreign.ForeignPtr (touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (minusPtr, plusPtr)
@@ -59,13 +59,16 @@ import GHC.IO
 import GHC.Prim
 import GHC.ST (ST (ST), runST)
 import GHC.Word (Word8 (W8#))
-import qualified Parse.Primitives as P
+import Parse.Primitives qualified as P
 import Prelude hiding (String, all, any, concat)
 
 -- UTF-8
 
 data Utf8 tipe
   = Utf8 ByteArray#
+
+instance Show (Utf8 tipe) where
+  show str = '"' : toChars str ++ "\""
 
 -- EMPTY
 

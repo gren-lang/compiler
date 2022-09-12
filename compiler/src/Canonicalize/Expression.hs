@@ -10,26 +10,26 @@ module Canonicalize.Expression
   )
 where
 
-import qualified AST.Canonical as Can
-import qualified AST.Source as Src
-import qualified AST.Utils.Binop as Binop
-import qualified AST.Utils.Type as Type
-import qualified Canonicalize.Environment as Env
-import qualified Canonicalize.Environment.Dups as Dups
-import qualified Canonicalize.Pattern as Pattern
-import qualified Canonicalize.Type as Type
+import AST.Canonical qualified as Can
+import AST.Source qualified as Src
+import AST.Utils.Binop qualified as Binop
+import AST.Utils.Type qualified as Type
+import Canonicalize.Environment qualified as Env
+import Canonicalize.Environment.Dups qualified as Dups
+import Canonicalize.Pattern qualified as Pattern
+import Canonicalize.Type qualified as Type
 import Control.Monad (foldM)
-import qualified Data.Graph as Graph
-import qualified Data.Index as Index
-import qualified Data.List as List
-import qualified Data.Map.Strict as Map
-import qualified Data.Name as Name
-import qualified Gren.ModuleName as ModuleName
-import qualified Gren.Package as Pkg
-import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Canonicalize as Error
-import qualified Reporting.Result as Result
-import qualified Reporting.Warning as W
+import Data.Graph qualified as Graph
+import Data.Index qualified as Index
+import Data.List qualified as List
+import Data.Map.Strict qualified as Map
+import Data.Name qualified as Name
+import Gren.ModuleName qualified as ModuleName
+import Gren.Package qualified as Pkg
+import Reporting.Annotation qualified as A
+import Reporting.Error.Canonicalize qualified as Error
+import Reporting.Result qualified as Result
+import Reporting.Warning qualified as W
 
 -- RESULTS
 
@@ -110,11 +110,11 @@ canonicalize env (A.At region expression) =
         Can.Access
           <$> canonicalize env record
           <*> Result.ok field
-      Src.Update (A.At reg name) fields ->
+      Src.Update baseRecord fields ->
         let makeCanFields =
               Dups.checkFields' (\r t -> Can.FieldUpdate r <$> canonicalize env t) fields
-         in Can.Update name
-              <$> (A.At reg <$> findVar reg env name)
+         in Can.Update
+              <$> (canonicalize env baseRecord)
               <*> (sequenceA =<< makeCanFields)
       Src.Record fields ->
         do
@@ -239,7 +239,7 @@ addBindings bindings (A.At _ def) =
 addBindingsHelp :: Dups.Dict A.Region -> Src.Pattern -> Dups.Dict A.Region
 addBindingsHelp bindings (A.At region pattern) =
   case pattern of
-    Src.PAnything ->
+    Src.PAnything _ ->
       bindings
     Src.PVar name ->
       Dups.insert name region region bindings
@@ -351,7 +351,7 @@ addEdge edges nodes aname@(A.At _ name) =
 getPatternNames :: [A.Located Name.Name] -> Src.Pattern -> [A.Located Name.Name]
 getPatternNames names (A.At region pattern) =
   case pattern of
-    Src.PAnything -> names
+    Src.PAnything _ -> names
     Src.PVar name -> A.At region name : names
     Src.PRecord fields ->
       List.foldl' (\n f -> getPatternNames n (extractRecordFieldPattern f)) names fields

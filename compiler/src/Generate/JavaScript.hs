@@ -3,30 +3,29 @@
 module Generate.JavaScript
   ( generate,
     generateForRepl,
-    generateForReplEndpoint,
   )
 where
 
-import qualified AST.Canonical as Can
-import qualified AST.Optimized as Opt
-import qualified Data.ByteString.Builder as B
-import qualified Data.Index as Index
-import qualified Data.List as List
+import AST.Canonical qualified as Can
+import AST.Optimized qualified as Opt
+import Data.ByteString.Builder qualified as B
+import Data.Index qualified as Index
+import Data.List qualified as List
 import Data.Map ((!))
-import qualified Data.Map as Map
-import qualified Data.Name as Name
-import qualified Data.Set as Set
-import qualified Data.Utf8 as Utf8
-import qualified Generate.JavaScript.Builder as JS
-import qualified Generate.JavaScript.Expression as Expr
-import qualified Generate.JavaScript.Functions as Functions
-import qualified Generate.JavaScript.Name as JsName
-import qualified Generate.Mode as Mode
-import qualified Gren.Kernel as K
-import qualified Gren.ModuleName as ModuleName
-import qualified Reporting.Doc as D
-import qualified Reporting.Render.Type as RT
-import qualified Reporting.Render.Type.Localizer as L
+import Data.Map qualified as Map
+import Data.Name qualified as Name
+import Data.Set qualified as Set
+import Data.Utf8 qualified as Utf8
+import Generate.JavaScript.Builder qualified as JS
+import Generate.JavaScript.Expression qualified as Expr
+import Generate.JavaScript.Functions qualified as Functions
+import Generate.JavaScript.Name qualified as JsName
+import Generate.Mode qualified as Mode
+import Gren.Kernel qualified as K
+import Gren.ModuleName qualified as ModuleName
+import Reporting.Doc qualified as D
+import Reporting.Render.Type qualified as RT
+import Reporting.Render.Type.Localizer qualified as L
 import Prelude hiding (cycle, print)
 
 -- GENERATE
@@ -43,7 +42,7 @@ generate mode (Opt.GlobalGraph graph _) mains =
         <> perfNote mode
         <> stateToBuilder state
         <> toMainExports mode mains
-        <> "}(this));"
+        <> "}(this.module ? this.module.exports : this));"
 
 addMain :: Mode.Mode -> Graph -> ModuleName.Canonical -> Opt.Main -> State -> State
 addMain mode graph home _ state =
@@ -55,12 +54,10 @@ perfNote mode =
     Mode.Prod _ ->
       ""
     Mode.Dev Nothing ->
-      "console.warn('Compiled in DEV mode. Follow the advice at "
-        <> B.stringUtf8 (D.makeNakedLink "optimize")
+      "console.warn('Compiled in DEV mode. Compile with --optimize "
         <> " for better performance and smaller assets.');"
     Mode.Dev (Just _) ->
-      "console.warn('Compiled in DEBUG mode. Follow the advice at "
-        <> B.stringUtf8 (D.makeNakedLink "optimize")
+      "console.warn('Compiled in DEV mode. Compile with --optimize "
         <> " for better performance and smaller assets.');"
 
 -- GENERATE FOR REPL
@@ -81,7 +78,12 @@ print ansi localizer home name tipe =
       toString = JsName.toBuilder (JsName.fromKernel Name.debug "toAnsiString")
       tipeDoc = RT.canToDoc localizer RT.None tipe
       bool = if ansi then "true" else "false"
-   in "var _value = " <> toString <> "(" <> bool <> ", " <> value
+   in "var _value = "
+        <> toString
+        <> "("
+        <> bool
+        <> ", "
+        <> value
         <> ");\n\
            \var _type = "
         <> B.stringUtf8 (show (D.toString tipeDoc))
@@ -94,39 +96,6 @@ print ansi localizer home name tipe =
            \} else {\n\
            \    _print(' : ' + _type);\n\
            \}\n"
-
--- GENERATE FOR REPL ENDPOINT
-
-generateForReplEndpoint :: L.Localizer -> Opt.GlobalGraph -> ModuleName.Canonical -> Maybe Name.Name -> Can.Annotation -> B.Builder
-generateForReplEndpoint localizer (Opt.GlobalGraph graph _) home maybeName (Can.Forall _ tipe) =
-  let name = maybe Name.replValueToPrint id maybeName
-      mode = Mode.Dev Nothing
-      debugState = addGlobal mode graph emptyState (Opt.Global ModuleName.debug "toString")
-      evalState = addGlobal mode graph debugState (Opt.Global home name)
-   in Functions.functions
-        <> stateToBuilder evalState
-        <> postMessage localizer home maybeName tipe
-
-postMessage :: L.Localizer -> ModuleName.Canonical -> Maybe Name.Name -> Can.Type -> B.Builder
-postMessage localizer home maybeName tipe =
-  let name = maybe Name.replValueToPrint id maybeName
-      value = JsName.toBuilder (JsName.fromGlobal home name)
-      toString = JsName.toBuilder (JsName.fromKernel Name.debug "toAnsiString")
-      tipeDoc = RT.canToDoc localizer RT.None tipe
-      toName n = "\"" <> Name.toBuilder n <> "\""
-   in "self.postMessage({\n\
-      \  name: "
-        <> maybe "null" toName maybeName
-        <> ",\n\
-           \  value: "
-        <> toString
-        <> "(true, "
-        <> value
-        <> "),\n\
-           \  type: "
-        <> B.stringUtf8 (show (D.toString tipeDoc))
-        <> "\n\
-           \});\n"
 
 -- GRAPH TRAVERSAL STATE
 
@@ -251,7 +220,9 @@ generateCycle mode (Opt.Global home _) names values functions =
               JS.Try (JS.Block realBlock) JsName.dollar $
                 JS.Throw $
                   JS.String $
-                    "Some top-level definitions from `" <> Name.toBuilder (ModuleName._module home) <> "` are causing infinite recursion:\\n"
+                    "Some top-level definitions from `"
+                      <> Name.toBuilder (ModuleName._module home)
+                      <> "` are causing infinite recursion:\\n"
                       <> drawCycle names
                       <> "\\n\\nThese errors are very tricky, so read "
                       <> B.stringUtf8 (D.makeNakedLink "bad-recursion")

@@ -12,14 +12,14 @@ module Parse.Number
   )
 where
 
-import qualified AST.Utils.Binop as Binop
+import AST.Utils.Binop qualified as Binop
 import Data.Word (Word8)
 import Foreign.Ptr (Ptr, minusPtr, plusPtr)
-import qualified Gren.Float as EF
+import Gren.Float qualified as EF
 import Parse.Primitives (Col, Parser, Row)
-import qualified Parse.Primitives as P
-import qualified Parse.Variable as Var
-import qualified Reporting.Error.Syntax as E
+import Parse.Primitives qualified as P
+import Parse.Variable qualified as Var
+import Reporting.Error.Syntax qualified as E
 
 -- HELPERS
 

@@ -7,15 +7,15 @@ module Reporting.Error.Import
   )
 where
 
-import qualified Data.Map as Map
-import qualified Data.Set as Set
-import qualified Gren.ModuleName as ModuleName
-import qualified Gren.Package as Pkg
-import qualified Reporting.Annotation as A
-import qualified Reporting.Doc as D
-import qualified Reporting.Render.Code as Code
-import qualified Reporting.Report as Report
-import qualified Reporting.Suggest as Suggest
+import Data.Map qualified as Map
+import Data.Set qualified as Set
+import Gren.ModuleName qualified as ModuleName
+import Gren.Package qualified as Pkg
+import Reporting.Annotation qualified as A
+import Reporting.Doc qualified as D
+import Reporting.Render.Code qualified as Code
+import Reporting.Report qualified as Report
+import Reporting.Suggest qualified as Suggest
 
 -- ERROR
 

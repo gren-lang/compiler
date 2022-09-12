@@ -9,14 +9,14 @@ module Parse.Symbol
   )
 where
 
-import qualified Data.Char as Char
-import qualified Data.IntSet as IntSet
-import qualified Data.Name as Name
-import qualified Data.Vector as Vector
+import Data.Char qualified as Char
+import Data.IntSet qualified as IntSet
+import Data.Name qualified as Name
+import Data.Vector qualified as Vector
 import Foreign.Ptr (Ptr, minusPtr, plusPtr)
 import GHC.Word (Word8)
 import Parse.Primitives (Col, Parser, Row)
-import qualified Parse.Primitives as P
+import Parse.Primitives qualified as P
 
 -- OPERATOR
 
@@ -26,6 +26,7 @@ data BadOperator
   | BadArrow
   | BadEquals
   | BadHasType
+  deriving (Show)
 
 operator :: (Row -> Col -> x) -> (BadOperator -> Row -> Col -> x) -> Parser x Name.Name
 operator toExpectation toError =

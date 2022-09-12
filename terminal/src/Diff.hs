@@ -7,31 +7,31 @@ module Diff
   )
 where
 
-import qualified BackgroundWriter as BW
-import qualified Build
-import qualified Data.List as List
-import qualified Data.Map as Map
-import qualified Data.Maybe as Maybe
-import qualified Data.Name as Name
-import qualified Data.NonEmptyList as NE
+import BackgroundWriter qualified as BW
+import Build qualified
+import Data.List qualified as List
+import Data.Map qualified as Map
+import Data.Maybe qualified as Maybe
+import Data.Name qualified as Name
+import Data.NonEmptyList qualified as NE
 import Deps.Diff (Changes (..), ModuleChanges (..), PackageChanges (..))
-import qualified Deps.Diff as DD
-import qualified Deps.Package as Package
-import qualified Directories as Dirs
-import qualified Gren.Compiler.Type as Type
-import qualified Gren.Details as Details
-import qualified Gren.Docs as Docs
-import qualified Gren.Magnitude as M
-import qualified Gren.Outline as Outline
-import qualified Gren.Package as Pkg
-import qualified Gren.Version as V
-import qualified Reporting
+import Deps.Diff qualified as DD
+import Deps.Package qualified as Package
+import Directories qualified as Dirs
+import Gren.Compiler.Type qualified as Type
+import Gren.Details qualified as Details
+import Gren.Docs qualified as Docs
+import Gren.Magnitude qualified as M
+import Gren.Outline qualified as Outline
+import Gren.Package qualified as Pkg
+import Gren.Version qualified as V
+import Reporting qualified
 import Reporting.Doc ((<+>))
-import qualified Reporting.Doc as D
-import qualified Reporting.Exit as Exit
-import qualified Reporting.Exit.Help as Help
-import qualified Reporting.Render.Type.Localizer as L
-import qualified Reporting.Task as Task
+import Reporting.Doc qualified as D
+import Reporting.Exit qualified as Exit
+import Reporting.Exit.Help qualified as Help
+import Reporting.Render.Type.Localizer qualified as L
+import Reporting.Task qualified as Task
 
 -- RUN
 
@@ -69,11 +69,11 @@ type Task a =
   Task.Task Exit.Diff a
 
 diff :: Env -> Args -> Task ()
-diff env@(Env _ cache) args =
+diff env@(Env _ _) args =
   case args of
     GlobalInquiry name v1 v2 ->
       do
-        versionResult <- Task.io $ Dirs.withRegistryLock cache $ Package.getVersions cache name
+        versionResult <- Task.io $ Package.getVersions name
         case versionResult of
           Right vsns ->
             do
@@ -116,7 +116,7 @@ getLatestDocs (Env _ cache) name (latest, _) =
 -- READ OUTLINE
 
 readOutline :: Env -> Task (Pkg.Name, (V.Version, [V.Version]))
-readOutline (Env maybeRoot cache) =
+readOutline (Env maybeRoot _) =
   case maybeRoot of
     Nothing ->
       Task.throw Exit.DiffNoOutline
@@ -132,7 +132,7 @@ readOutline (Env maybeRoot cache) =
                 Task.throw Exit.DiffApplication
               Outline.Pkg (Outline.PkgOutline pkg _ _ _ _ _ _ _) ->
                 do
-                  versionResult <- Task.io $ Dirs.withRegistryLock cache $ Package.getVersions cache pkg
+                  versionResult <- Task.io $ Package.getVersions pkg
                   case versionResult of
                     Right vsns ->
                       return (pkg, vsns)
@@ -154,9 +154,9 @@ generateDocs (Env maybeRoot _) =
               Details.load Reporting.silent scope root
 
         case Details._outline details of
-          Details.ValidApp _ ->
+          Details.ValidApp _ _ ->
             Task.throw Exit.DiffApplication
-          Details.ValidPkg _ exposed _ ->
+          Details.ValidPkg _ _ exposed ->
             case exposed of
               [] ->
                 Task.throw Exit.DiffNoExposed
@@ -190,7 +190,8 @@ toDoc localizer changes@(PackageChanges added changed removed) =
               then []
               else
                 [ Chunk "ADDED MODULES" M.MINOR $
-                    D.vcat $ map D.fromName added
+                    D.vcat $
+                      map D.fromName added
                 ]
 
           removedChunk =
@@ -198,7 +199,8 @@ toDoc localizer changes@(PackageChanges added changed removed) =
               then []
               else
                 [ Chunk "REMOVED MODULES" M.MAJOR $
-                    D.vcat $ map D.fromName removed
+                    D.vcat $
+                      map D.fromName removed
                 ]
 
           chunks =

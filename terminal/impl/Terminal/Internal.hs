@@ -27,10 +27,18 @@ data Command where
     Flags flags ->
     (args -> flags -> IO ()) ->
     Command
+  Prefix ::
+    String ->
+    String ->
+    Doc ->
+    ([String] -> IO ()) ->
+    Command
 
 toName :: Command -> String
-toName (Command name _ _ _ _ _ _) =
-  name
+toName cmd =
+  case cmd of
+    (Command name _ _ _ _ _ _) -> name
+    (Prefix name _ _ _) -> name
 
 -- | The information that shows when you run the executable with no arguments.
 -- If you say it is `Common`, you need to tell people what it does. Try to keep

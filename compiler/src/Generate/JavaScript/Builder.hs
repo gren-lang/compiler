@@ -18,12 +18,12 @@ where
 -- They did the hard work of reading the spec to figure out
 -- how all the types should fit together.
 
-import qualified Data.ByteString as BS
+import Data.ByteString qualified as BS
 import Data.ByteString.Builder as B
-import qualified Data.List as List
+import Data.List qualified as List
 import Generate.JavaScript.Name (Name)
-import qualified Generate.JavaScript.Name as Name
-import qualified Json.Encode as Json
+import Generate.JavaScript.Name qualified as Name
+import Json.Encode qualified as Json
 import Prelude hiding (lines)
 
 -- EXPRESSIONS
@@ -240,7 +240,12 @@ fromStmt level@(Level indent nextLevel) statement =
     Vars vars ->
       indent <> "var " <> commaNewlineSep level (map (varToBuilder level) vars) <> ";\n"
     FunctionStmt name args stmts ->
-      indent <> "function " <> Name.toBuilder name <> "(" <> commaSep (map Name.toBuilder args) <> ") {\n"
+      indent
+        <> "function "
+        <> Name.toBuilder name
+        <> "("
+        <> commaSep (map Name.toBuilder args)
+        <> ") {\n"
         <> fromStmtBlock nextLevel stmts
         <> indent
         <> "}\n"
@@ -251,10 +256,14 @@ fromClause :: Level -> Case -> Builder
 fromClause level@(Level indent nextLevel) clause =
   case clause of
     Case expr stmts ->
-      indent <> "case " <> snd (fromExpr level Whatever expr) <> ":\n"
+      indent
+        <> "case "
+        <> snd (fromExpr level Whatever expr)
+        <> ":\n"
         <> fromStmtBlock nextLevel stmts
     Default stmts ->
-      indent <> "default:\n"
+      indent
+        <> "default:\n"
         <> fromStmtBlock nextLevel stmts
 
 -- VAR DECLS
@@ -366,7 +375,11 @@ fromExpr level@(Level indent nextLevel@(Level deeperIndent _)) grouping expressi
               else funcB <> "(" <> commaSep argsB <> ")"
     Function maybeName args stmts ->
       (,) Many $
-        "function " <> maybe mempty Name.toBuilder maybeName <> "(" <> commaSep (map Name.toBuilder args) <> ") {\n"
+        "function "
+          <> maybe mempty Name.toBuilder maybeName
+          <> "("
+          <> commaSep (map Name.toBuilder args)
+          <> ") {\n"
           <> fromStmtBlock nextLevel stmts
           <> indent
           <> "}"

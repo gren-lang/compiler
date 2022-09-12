@@ -21,14 +21,14 @@ where
 
 import Control.Monad (liftM3)
 import Data.Binary (Binary, get, getWord8, put, putWord8)
-import qualified Data.Version as Version
+import Data.Version qualified as Version
 import Data.Word (Word16, Word8)
 import Foreign.Ptr (Ptr, minusPtr, plusPtr)
-import qualified Json.Decode as D
-import qualified Json.Encode as E
+import Json.Decode qualified as D
+import Json.Encode qualified as E
 import Parse.Primitives (Col, Row)
-import qualified Parse.Primitives as P
-import qualified Paths_gren
+import Parse.Primitives qualified as P
+import Paths_gren qualified
 import Prelude hiding (max)
 
 -- VERSION

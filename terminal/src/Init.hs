@@ -1,27 +1,38 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Init
-  ( run,
+  ( Flags (..),
+    run,
   )
 where
 
-import qualified Data.Map as Map
-import qualified Data.NonEmptyList as NE
-import qualified Deps.Solver as Solver
-import qualified Gren.Constraint as Con
-import qualified Gren.Outline as Outline
-import qualified Gren.Package as Pkg
-import qualified Gren.Version as V
-import qualified Reporting
-import qualified Reporting.Doc as D
-import qualified Reporting.Exit as Exit
-import qualified System.Directory as Dir
+import Data.Map qualified as Map
+import Data.NonEmptyList qualified as NE
+import Deps.Package qualified as DPkg
+import Deps.Solver qualified as Solver
+import Directories qualified as Dirs
+import Gren.Constraint qualified as Con
+import Gren.Licenses qualified as Licenses
+import Gren.Outline qualified as Outline
+import Gren.Package qualified as Pkg
+import Gren.Platform qualified as Platform
+import Gren.Version qualified as V
+import Json.String qualified as Json
+import Reporting qualified
+import Reporting.Doc qualified as D
+import Reporting.Exit qualified as Exit
+import System.Directory qualified as Dir
 import Prelude hiding (init)
+
+data Flags = Flags
+  { _isPackage :: Bool,
+    _platform :: Maybe Platform.Platform
+  }
 
 -- RUN
 
-run :: () -> () -> IO ()
-run () () =
+run :: () -> Flags -> IO ()
+run () flags =
   Reporting.attempt Exit.initToReport $
     do
       exists <- Dir.doesFileExist "gren.json"
@@ -30,7 +41,7 @@ run () () =
         else do
           approved <- Reporting.ask question
           if approved
-            then init
+            then init flags
             else do
               putStrLn "Okay, I did not make any changes!"
               return (Right ())
@@ -53,52 +64,84 @@ question =
           "create",
           "them!"
         ],
-      D.reflow
-        "Now you may be wondering, what will be in this file? How do I add Gren files to\
-        \ my project? How do I see it in the browser? How will my code grow? Do I need\
-        \ more directories? What about tests? Etc.",
-      D.fillSep
-        [ "Check",
-          "out",
-          D.cyan (D.fromChars (D.makeLink "init")),
-          "for",
-          "all",
-          "the",
-          "answers!"
-        ],
-      "Knowing all that, would you like me to create an gren.json file now? [Y/n]: "
+      "Would you like me to create an gren.json file now? [Y/n]: "
     ]
 
 -- INIT
 
-init :: IO (Either Exit.Init ())
-init =
+init :: Flags -> IO (Either Exit.Init ())
+init flags =
   do
+    let platform = selectPlatform flags
+    let initialDeps = suggestDependencies platform
     (Solver.Env cache) <- Solver.initEnv
-    result <- Solver.verify cache defaults
-    case result of
-      Solver.Err exit ->
-        return (Left (Exit.InitSolverProblem exit))
-      Solver.NoSolution ->
-        return (Left (Exit.InitNoSolution (Map.keys defaults)))
-      Solver.NoOfflineSolution ->
-        return (Left (Exit.InitNoOfflineSolution (Map.keys defaults)))
-      Solver.Ok details ->
-        let solution = Map.map (\(Solver.Details vsn _) -> vsn) details
-            directs = Map.intersection solution defaults
-            indirects = Map.difference solution defaults
-         in do
-              Dir.createDirectoryIfMissing True "src"
-              Outline.write "." $
-                Outline.App $
-                  Outline.AppOutline V.compiler (NE.List (Outline.RelativeSrcDir "src") []) directs indirects Map.empty Map.empty
-              putStrLn "Okay, I created it. Now read that link!"
-              return (Right ())
+    potentialDeps <-
+      Dirs.withRegistryLock cache $
+        DPkg.latestCompatibleVersionForPackages cache initialDeps
+    case potentialDeps of
+      Left DPkg.NoCompatiblePackage ->
+        return $ Left $ Exit.InitNoCompatibleDependencies Nothing
+      Left (DPkg.GitError gitError) ->
+        return $ Left $ Exit.InitNoCompatibleDependencies $ Just gitError
+      Right deps -> do
+        result <- Solver.verify cache platform deps
+        case result of
+          Solver.Err exit ->
+            return (Left (Exit.InitSolverProblem exit))
+          Solver.NoSolution ->
+            return (Left (Exit.InitNoSolution initialDeps))
+          Solver.Ok details ->
+            let outline =
+                  if _isPackage flags
+                    then pkgOutline platform deps
+                    else appOutlineFromSolverDetails platform initialDeps details
+             in do
+                  Dir.createDirectoryIfMissing True "src"
+                  Outline.write "." outline
+                  putStrLn "Okay, I created it."
+                  return (Right ())
 
-defaults :: Map.Map Pkg.Name Con.Constraint
-defaults =
-  Map.fromList
-    [ (Pkg.core, Con.anything),
-      (Pkg.browser, Con.anything),
-      (Pkg.html, Con.anything)
-    ]
+pkgOutline :: Platform.Platform -> Map.Map Pkg.Name Con.Constraint -> Outline.Outline
+pkgOutline platform deps =
+  Outline.Pkg $
+    Outline.PkgOutline
+      Pkg.dummyName
+      (Json.fromChars "")
+      Licenses.bsd3
+      V.one
+      (Outline.ExposedList [])
+      deps
+      Con.defaultGren
+      platform
+
+appOutlineFromSolverDetails ::
+  Platform.Platform ->
+  [Pkg.Name] ->
+  (Map.Map Pkg.Name Solver.Details) ->
+  Outline.Outline
+appOutlineFromSolverDetails platform initialDeps details =
+  let solution = Map.map (\(Solver.Details vsn _) -> vsn) details
+      defaultDeps = Map.fromList $ map (\dep -> (dep, Con.exactly V.one)) initialDeps
+      directs = Map.intersection solution defaultDeps
+      indirects = Map.difference solution defaultDeps
+   in Outline.App $
+        Outline.AppOutline
+          V.compiler
+          platform
+          (NE.List (Outline.RelativeSrcDir "src") [])
+          directs
+          indirects
+
+selectPlatform :: Flags -> Platform.Platform
+selectPlatform flags =
+  case (_isPackage flags, _platform flags) of
+    (True, Nothing) -> Platform.Common
+    (False, Nothing) -> Platform.Browser
+    (_, Just platform) -> platform
+
+suggestDependencies :: Platform.Platform -> [Pkg.Name]
+suggestDependencies platform =
+  case platform of
+    Platform.Common -> [Pkg.core]
+    Platform.Browser -> [Pkg.core, Pkg.browser]
+    Platform.Node -> [Pkg.core, Pkg.node]

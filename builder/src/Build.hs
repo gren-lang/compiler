@@ -17,48 +17,49 @@ module Build
   )
 where
 
-import qualified AST.Canonical as Can
-import qualified AST.Optimized as Opt
-import qualified AST.Source as Src
+import AST.Canonical qualified as Can
+import AST.Optimized qualified as Opt
+import AST.Source qualified as Src
 import AbsoluteSrcDir (AbsoluteSrcDir (..))
-import qualified AbsoluteSrcDir
-import qualified Compile
+import AbsoluteSrcDir qualified
+import Compile qualified
 import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar
 import Control.Monad (filterM)
-import qualified Data.ByteString as B
-import qualified Data.Char as Char
-import qualified Data.Graph as Graph
-import qualified Data.List as List
+import Data.ByteString qualified as B
+import Data.Char qualified as Char
+import Data.Graph qualified as Graph
+import Data.List qualified as List
 import Data.Map.Strict ((!))
-import qualified Data.Map.Strict as Map
-import qualified Data.Map.Utils as Map
-import qualified Data.Maybe as Maybe
-import qualified Data.Name as Name
-import qualified Data.NonEmptyList as NE
-import qualified Data.OneOrMore as OneOrMore
-import qualified Data.Set as Set
-import qualified Directories as Dirs
-import qualified File
-import qualified Gren.Details as Details
-import qualified Gren.Docs as Docs
-import qualified Gren.Interface as I
-import qualified Gren.ModuleName as ModuleName
-import qualified Gren.Outline as Outline
-import qualified Gren.Package as Pkg
-import qualified Json.Encode as E
-import qualified Parse.Module as Parse
-import qualified Reporting
-import qualified Reporting.Annotation as A
-import qualified Reporting.Error as Error
-import qualified Reporting.Error.Docs as EDocs
-import qualified Reporting.Error.Import as Import
-import qualified Reporting.Error.Syntax as Syntax
-import qualified Reporting.Exit as Exit
-import qualified Reporting.Render.Type.Localizer as L
-import qualified System.Directory as Dir
+import Data.Map.Strict qualified as Map
+import Data.Map.Utils qualified as Map
+import Data.Maybe qualified as Maybe
+import Data.Name qualified as Name
+import Data.NonEmptyList qualified as NE
+import Data.OneOrMore qualified as OneOrMore
+import Data.Set qualified as Set
+import Directories qualified as Dirs
+import File qualified
+import Gren.Details qualified as Details
+import Gren.Docs qualified as Docs
+import Gren.Interface qualified as I
+import Gren.ModuleName qualified as ModuleName
+import Gren.Outline qualified as Outline
+import Gren.Package qualified as Pkg
+import Gren.Platform qualified as P
+import Json.Encode qualified as E
+import Parse.Module qualified as Parse
+import Reporting qualified
+import Reporting.Annotation qualified as A
+import Reporting.Error qualified as Error
+import Reporting.Error.Docs qualified as EDocs
+import Reporting.Error.Import qualified as Import
+import Reporting.Error.Syntax qualified as Syntax
+import Reporting.Exit qualified as Exit
+import Reporting.Render.Type.Localizer qualified as L
+import System.Directory qualified as Dir
 import System.FilePath ((<.>), (</>))
-import qualified System.FilePath as FP
+import System.FilePath qualified as FP
 
 -- ENVIRONMENT
 
@@ -66,6 +67,7 @@ data Env = Env
   { _key :: Reporting.BKey,
     _root :: FilePath,
     _project :: Parse.ProjectType,
+    _platform :: P.Platform,
     _srcDirs :: [AbsoluteSrcDir],
     _buildID :: Details.BuildID,
     _locals :: Map.Map ModuleName.Raw Details.Local,
@@ -75,14 +77,14 @@ data Env = Env
 makeEnv :: Reporting.BKey -> FilePath -> Details.Details -> IO Env
 makeEnv key root (Details.Details _ validOutline buildID locals foreigns _) =
   case validOutline of
-    Details.ValidApp givenSrcDirs ->
+    Details.ValidApp platform givenSrcDirs ->
       do
         srcDirs <- traverse (Outline.toAbsoluteSrcDir root) (NE.toList givenSrcDirs)
-        return $ Env key root Parse.Application srcDirs buildID locals foreigns
-    Details.ValidPkg pkg _ _ ->
+        return $ Env key root Parse.Application platform srcDirs buildID locals foreigns
+    Details.ValidPkg platform pkg _ ->
       do
         srcDir <- Outline.toAbsoluteSrcDir root (Outline.RelativeSrcDir "src")
-        return $ Env key root (Parse.Package pkg) [srcDir] buildID locals foreigns
+        return $ Env key root (Parse.Package pkg) platform [srcDir] buildID locals foreigns
 
 -- FORK
 
@@ -221,7 +223,7 @@ crawlDeps env mvar deps blockedValue =
     crawlNew name () = fork (crawlModule env mvar (DocsNeed False) name)
 
 crawlModule :: Env -> MVar StatusDict -> DocsNeed -> ModuleName.Raw -> IO Status
-crawlModule env@(Env _ root projectType srcDirs buildID locals foreigns) mvar docsNeed name =
+crawlModule env@(Env _ root projectType _ srcDirs buildID locals foreigns) mvar docsNeed name =
   do
     let fileName = ModuleName.toFilePath name <.> "gren"
 
@@ -260,7 +262,7 @@ crawlModule env@(Env _ root projectType srcDirs buildID locals foreigns) mvar do
               else return $ SBadImport Import.NotFound
 
 crawlFile :: Env -> MVar StatusDict -> DocsNeed -> ModuleName.Raw -> FilePath -> File.Time -> Details.BuildID -> IO Status
-crawlFile env@(Env _ root projectType _ buildID _ _) mvar docsNeed expectedName path time lastChange =
+crawlFile env@(Env _ root projectType _ _ buildID _ _) mvar docsNeed expectedName path time lastChange =
   do
     source <- File.readUtf8 (root </> path)
 
@@ -275,7 +277,7 @@ crawlFile env@(Env _ root projectType _ buildID _ _) mvar docsNeed expectedName 
             if expectedName == actualName
               then
                 let deps = map Src.getImportName imports
-                    local = Details.Local path time deps (any isMain values) lastChange buildID
+                    local = Details.Local path time deps (any (isMain . snd) values) lastChange buildID
                  in crawlDeps env mvar deps (SChanged local source modul docsNeed)
               else return $ SBadSyntax path time source (Syntax.ModuleNameMismatch expectedName name)
 
@@ -304,7 +306,7 @@ data CachedInterface
   | Corrupted
 
 checkModule :: Env -> Dependencies -> MVar ResultDict -> ModuleName.Raw -> Status -> IO Result
-checkModule env@(Env _ root projectType _ _ _ _) foreigns resultsMVar name status =
+checkModule env@(Env _ root projectType _ _ _ _ _) foreigns resultsMVar name status =
   case status of
     SCached local@(Details.Local path time deps hasMain lastChange lastCompile) ->
       do
@@ -429,7 +431,7 @@ checkDepsHelp root results deps new same cached importProblems isBlocked lastDep
 -- TO IMPORT ERROR
 
 toImportErrors :: Env -> ResultDict -> [Src.Import] -> NE.List (ModuleName.Raw, Import.Problem) -> NE.List Import.Error
-toImportErrors (Env _ _ _ _ _ locals foreigns) results imports problems =
+toImportErrors (Env _ _ _ _ _ _ locals foreigns) results imports problems =
   let knownModules =
         Set.unions
           [ Map.keysSet foreigns,
@@ -596,9 +598,9 @@ checkInside name p1 status =
 -- COMPILE MODULE
 
 compile :: Env -> DocsNeed -> Details.Local -> B.ByteString -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> IO Result
-compile (Env key root projectType _ buildID _ _) docsNeed (Details.Local path time deps main lastChange _) source ifaces modul =
+compile (Env key root projectType platform _ buildID _ _) docsNeed (Details.Local path time deps main lastChange _) source ifaces modul =
   let pkg = projectTypeToPkg projectType
-   in case Compile.compile pkg ifaces modul of
+   in case Compile.compile platform pkg ifaces modul of
         Right (Compile.Artifacts canonical annotations objects) ->
           case makeDocs docsNeed canonical of
             Left err ->
@@ -754,7 +756,7 @@ data ReplArtifacts = ReplArtifacts
 fromRepl :: FilePath -> Details.Details -> B.ByteString -> IO (Either Exit.Repl ReplArtifacts)
 fromRepl root details source =
   do
-    env@(Env _ _ projectType _ _ _ _) <- makeEnv Reporting.ignorer root details
+    env@(Env _ _ projectType _ _ _ _ _) <- makeEnv Reporting.ignorer root details
     case Parse.fromByteString projectType source of
       Left syntaxError ->
         return $ Left $ Exit.ReplBadInput source $ Error.BadSyntax syntaxError
@@ -783,12 +785,12 @@ fromRepl root details source =
                 finalizeReplArtifacts env source modul depsStatus resultMVars results
 
 finalizeReplArtifacts :: Env -> B.ByteString -> Src.Module -> DepsStatus -> ResultDict -> Map.Map ModuleName.Raw Result -> IO (Either Exit.Repl ReplArtifacts)
-finalizeReplArtifacts env@(Env _ root projectType _ _ _ _) source modul@(Src.Module _ _ _ imports _ _ _ _ _ _) depsStatus resultMVars results =
+finalizeReplArtifacts env@(Env _ root projectType platform _ _ _ _) source modul@(Src.Module _ _ _ imports _ _ _ _ _ _) depsStatus resultMVars results =
   let pkg =
         projectTypeToPkg projectType
 
       compileInput ifaces =
-        case Compile.compile pkg ifaces modul of
+        case Compile.compile platform pkg ifaces modul of
           Right (Compile.Artifacts canonical annotations objects) ->
             let h = Can._name canonical
                 m = Fresh (Src.getName modul) (I.fromModule pkg canonical annotations) objects
@@ -846,7 +848,8 @@ checkRoots infos =
           loc2 : _ -> Left (Exit.BP_MainPathDuplicate (_relative loc) (_relative loc2))
    in fmap (\_ -> fmap _location infos) $
         traverse (OneOrMore.destruct fromOneOrMore) $
-          Map.fromListWith OneOrMore.more $ map toOneOrMore (NE.toList infos)
+          Map.fromListWith OneOrMore.more $
+            map toOneOrMore (NE.toList infos)
 
 -- ROOT INFO
 
@@ -865,7 +868,7 @@ getRootInfo env path =
       else return (Left (Exit.BP_PathUnknown path))
 
 getRootInfoHelp :: Env -> FilePath -> FilePath -> IO (Either Exit.BuildProjectProblem RootInfo)
-getRootInfoHelp (Env _ _ _ srcDirs _ _ _) path absolutePath =
+getRootInfoHelp (Env _ _ _ _ srcDirs _ _ _) path absolutePath =
   let (dirs, file) = FP.splitFileName absolutePath
       (final, ext) = FP.splitExtension file
    in if ext /= ".gren"
@@ -934,7 +937,7 @@ data RootStatus
   | SOutsideErr Error.Module
 
 crawlRoot :: Env -> MVar StatusDict -> RootLocation -> IO RootStatus
-crawlRoot env@(Env _ _ projectType _ buildID _ _) mvar root =
+crawlRoot env@(Env _ _ projectType _ _ buildID _ _) mvar root =
   case root of
     LInside name ->
       do
@@ -951,7 +954,7 @@ crawlRoot env@(Env _ _ projectType _ buildID _ _) mvar root =
           Right modul@(Src.Module _ _ _ imports values _ _ _ _ _) ->
             do
               let deps = map Src.getImportName imports
-              let local = Details.Local path time deps (any isMain values) buildID buildID
+              let local = Details.Local path time deps (any (isMain . snd) values) buildID buildID
               crawlDeps env mvar deps (SOutsideOk local source modul)
           Left syntaxError ->
             return $
@@ -967,7 +970,7 @@ data RootResult
   | ROutsideBlocked
 
 checkRoot :: Env -> ResultDict -> RootStatus -> IO RootResult
-checkRoot env@(Env _ root _ _ _ _ _) results rootStatus =
+checkRoot env@(Env _ root _ _ _ _ _ _) results rootStatus =
   case rootStatus of
     SInside name ->
       return (RInside name)
@@ -994,10 +997,10 @@ checkRoot env@(Env _ root _ _ _ _ _) results rootStatus =
                   Error.BadImports (toImportErrors env results imports problems)
 
 compileOutside :: Env -> Details.Local -> B.ByteString -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> IO RootResult
-compileOutside (Env key _ projectType _ _ _ _) (Details.Local path time _ _ _ _) source ifaces modul =
+compileOutside (Env key _ projectType platform _ _ _ _) (Details.Local path time _ _ _ _) source ifaces modul =
   let pkg = projectTypeToPkg projectType
       name = Src.getName modul
-   in case Compile.compile pkg ifaces modul of
+   in case Compile.compile platform pkg ifaces modul of
         Right (Compile.Artifacts canonical annotations objects) ->
           do
             Reporting.report key Reporting.BDone
@@ -1012,7 +1015,7 @@ data Root
   | Outside ModuleName.Raw I.Interface Opt.LocalGraph
 
 toArtifacts :: Env -> Dependencies -> Map.Map ModuleName.Raw Result -> NE.List RootResult -> Either Exit.BuildProblem Artifacts
-toArtifacts (Env _ root projectType _ _ _ _) foreigns results rootResults =
+toArtifacts (Env _ root projectType _ _ _ _ _) foreigns results rootResults =
   case gatherProblemsOrMains results rootResults of
     Left (NE.List e es) ->
       Left (Exit.BuildBadModules root e es)

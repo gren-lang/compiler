@@ -6,14 +6,14 @@ module Type.Constrain.Module
   )
 where
 
-import qualified AST.Canonical as Can
-import qualified Data.Map.Strict as Map
-import qualified Data.Name as Name
-import qualified Gren.ModuleName as ModuleName
-import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Type as E
-import qualified Type.Constrain.Expression as Expr
-import qualified Type.Instantiate as Instantiate
+import AST.Canonical qualified as Can
+import Data.Map.Strict qualified as Map
+import Data.Name qualified as Name
+import Gren.ModuleName qualified as ModuleName
+import Reporting.Annotation qualified as A
+import Reporting.Error.Type qualified as E
+import Type.Constrain.Expression qualified as Expr
+import Type.Instantiate qualified as Instantiate
 import Type.Type (Constraint (..), Type (..), mkFlexVar, nameToRigid, never, (==>))
 
 -- CONSTRAIN

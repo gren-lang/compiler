@@ -11,7 +11,9 @@ module Parse.Variable
     Upper (..),
     foreignUpper,
     foreignAlpha,
+    chompLower,
     chompInnerChars,
+    isReservedWord,
     getUpperWidth,
     getInnerWidth,
     getInnerWidthHelp,
@@ -19,16 +21,16 @@ module Parse.Variable
   )
 where
 
-import qualified AST.Source as Src
-import qualified Data.Char as Char
-import qualified Data.Name as Name
-import qualified Data.Set as Set
+import AST.Source qualified as Src
+import Data.Char qualified as Char
+import Data.Name qualified as Name
+import Data.Set qualified as Set
 import Data.Word (Word8)
 import Foreign.Ptr (Ptr, plusPtr)
 import GHC.Exts (Char (C#), Int#, chr#, int8ToInt#, uncheckedIShiftL#, word8ToInt8#, (+#), (-#))
 import GHC.Word (Word8 (W8#))
 import Parse.Primitives (Col, Parser, Row, unsafeIndex)
-import qualified Parse.Primitives as P
+import Parse.Primitives qualified as P
 
 -- LOCAL UPPER
 
@@ -52,12 +54,16 @@ lower toError =
           then eerr row col toError
           else
             let !name = Name.fromPtr pos newPos
-             in if Set.member name reservedWords
+             in if isReservedWord name
                   then eerr row col toError
                   else
                     let !newState =
                           P.State src newPos end indent row newCol
                      in cok name newState
+
+isReservedWord :: Name.Name -> Bool
+isReservedWord name =
+  Set.member name reservedWords
 
 reservedWords :: Set.Set Name.Name
 reservedWords =

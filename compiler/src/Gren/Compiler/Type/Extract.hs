@@ -15,16 +15,16 @@ module Gren.Compiler.Type.Extract
   )
 where
 
-import qualified AST.Canonical as Can
-import qualified AST.Optimized as Opt
-import qualified AST.Utils.Type as Type
+import AST.Canonical qualified as Can
+import AST.Optimized qualified as Opt
+import AST.Utils.Type qualified as Type
 import Data.Map ((!))
-import qualified Data.Map as Map
-import qualified Data.Name as Name
-import qualified Data.Set as Set
-import qualified Gren.Compiler.Type as T
-import qualified Gren.Interface as I
-import qualified Gren.ModuleName as ModuleName
+import Data.Map qualified as Map
+import Data.Name qualified as Name
+import Data.Set qualified as Set
+import Gren.Compiler.Type qualified as T
+import Gren.Interface qualified as I
+import Gren.ModuleName qualified as ModuleName
 
 -- EXTRACTION
 

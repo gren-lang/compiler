@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE UnboxedTuples #-}
-{-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind -fno-warn-name-shadowing #-}
+{-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 
 module Json.Decode
   ( fromByteString,
@@ -20,6 +20,7 @@ module Json.Decode
     pairs,
     field,
     --
+    succeed,
     oneOf,
     failure,
     mapError,
@@ -32,17 +33,17 @@ module Json.Decode
   )
 where
 
-import qualified Data.ByteString.Internal as B
-import qualified Data.Map as Map
-import qualified Data.NonEmptyList as NE
+import Data.ByteString.Internal qualified as B
+import Data.Map qualified as Map
+import Data.NonEmptyList qualified as NE
 import Data.Word (Word8)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (Ptr, minusPtr, plusPtr)
-import qualified Json.String as Json
-import qualified Parse.Keyword as K
+import Json.String qualified as Json
+import Parse.Keyword qualified as K
 import Parse.Primitives (Col, Row)
-import qualified Parse.Primitives as P
-import qualified Reporting.Annotation as A
+import Parse.Primitives qualified as P
+import Reporting.Annotation qualified as A
 
 -- RUNNERS
 
@@ -278,6 +279,13 @@ findField key pairs =
       if key == B.PS fptr off len
         then Just value
         else findField key remainingPairs
+
+-- SUCCEED
+
+succeed :: a -> Decoder x a
+succeed value =
+  Decoder $ \_ ok _ ->
+    ok value
 
 -- ONE OF
 

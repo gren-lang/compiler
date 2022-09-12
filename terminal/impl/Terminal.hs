@@ -1,5 +1,6 @@
 module Terminal
   ( app,
+    prefix,
     Command (..),
     Summary (..),
     Flags,
@@ -32,21 +33,21 @@ module Terminal
   )
 where
 
-import qualified Data.List as List
-import qualified Data.Maybe as Maybe
+import Data.List qualified as List
+import Data.Maybe qualified as Maybe
 import GHC.IO.Encoding (setLocaleEncoding, utf8)
-import qualified Gren.Version as V
-import qualified System.Directory as Dir
-import qualified System.Environment as Env
-import qualified System.Exit as Exit
+import Gren.Version qualified as V
+import System.Directory qualified as Dir
+import System.Environment qualified as Env
+import System.Exit qualified as Exit
 import System.FilePath ((</>))
-import qualified System.FilePath as FP
+import System.FilePath qualified as FP
 import System.IO (hPutStr, hPutStrLn, stdout)
-import qualified Terminal.Chomp as Chomp
-import qualified Terminal.Error as Error
+import Terminal.Chomp qualified as Chomp
+import Terminal.Error qualified as Error
 import Terminal.Internal
-import qualified Text.PrettyPrint.ANSI.Leijen as P
-import qualified Text.Read as Read
+import Text.PrettyPrint.ANSI.Leijen qualified as P
+import Text.Read qualified as Read
 
 -- COMMAND
 
@@ -77,27 +78,39 @@ app intro outro commands =
     setLocaleEncoding utf8
     argStrings <- Env.getArgs
     case argStrings of
-      [] ->
-        Error.exitWithOverview intro outro commands
-      ["--help"] ->
-        Error.exitWithOverview intro outro commands
       ["--version"] ->
         do
           hPutStrLn stdout (V.toChars V.compiler)
           Exit.exitSuccess
-      command : chunks ->
-        do
-          case List.find (\cmd -> toName cmd == command) commands of
-            Nothing ->
-              Error.exitWithUnknown command (map toName commands)
-            Just (Command _ _ details example args_ flags_ callback) ->
-              if elem "--help" chunks
-                then Error.exitWithHelp (Just command) details example args_ flags_
-                else case snd $ Chomp.chomp Nothing chunks args_ flags_ of
-                  Right (argsValue, flagsValue) ->
-                    callback argsValue flagsValue
-                  Left err ->
-                    Error.exitWithError err
+      _ ->
+        prefix intro outro commands argStrings
+
+-- PREFIX
+
+prefix :: P.Doc -> P.Doc -> [Command] -> [String] -> IO ()
+prefix intro outro commands argStrings =
+  case argStrings of
+    [] ->
+      Error.exitWithOverview intro outro commands
+    ["--help"] ->
+      Error.exitWithOverview intro outro commands
+    command : chunks ->
+      do
+        case List.find (\cmd -> toName cmd == command) commands of
+          Nothing ->
+            Error.exitWithUnknown command (map toName commands)
+          Just (Prefix _ details example callback) ->
+            if chunks == []
+              then Error.exitPrefixWithHelp details example
+              else callback chunks
+          Just (Command _ _ details example args_ flags_ callback) ->
+            if elem "--help" chunks
+              then Error.exitWithHelp (Just command) details example args_ flags_
+              else case snd $ Chomp.chomp Nothing chunks args_ flags_ of
+                Right (argsValue, flagsValue) ->
+                  callback argsValue flagsValue
+                Left err ->
+                  Error.exitWithError err
 
 -- AUTO-COMPLETE
 
@@ -167,6 +180,8 @@ _complexSuggest commands index strings =
         then return (filter (List.isPrefixOf command) (map toName commands))
         else case List.find (\cmd -> toName cmd == command) commands of
           Nothing ->
+            return []
+          Just (Prefix _ _ _ _) ->
             return []
           Just (Command _ _ _ _ args_ flags_ _) ->
             fst $ Chomp.chomp (Just (index - 1)) chunks args_ flags_

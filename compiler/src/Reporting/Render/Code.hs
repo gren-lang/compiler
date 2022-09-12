@@ -13,21 +13,21 @@ module Reporting.Render.Code
   )
 where
 
-import qualified Data.ByteString as B
-import qualified Data.ByteString.UTF8 as UTF8_BS
-import qualified Data.Char as Char
-import qualified Data.IntSet as IntSet
-import qualified Data.List as List
-import qualified Data.Maybe as Maybe
-import qualified Data.Name as Name
-import qualified Data.Set as Set
+import Data.ByteString qualified as B
+import Data.ByteString.UTF8 qualified as UTF8_BS
+import Data.Char qualified as Char
+import Data.IntSet qualified as IntSet
+import Data.List qualified as List
+import Data.Maybe qualified as Maybe
+import Data.Name qualified as Name
+import Data.Set qualified as Set
 import Data.Word (Word16)
 import Parse.Primitives (Col, Row)
 import Parse.Symbol (binopCharSet)
 import Parse.Variable (reservedWords)
-import qualified Reporting.Annotation as A
+import Reporting.Annotation qualified as A
 import Reporting.Doc (Doc)
-import qualified Reporting.Doc as D
+import Reporting.Doc qualified as D
 
 -- CODE
 
@@ -151,7 +151,8 @@ renderPair source@(Source sourceLines) region1 region2 =
            in OneLine $
                 D.vcat
                   [ D.fromChars lineNumber <> "| " <> D.fromChars line,
-                    D.fromChars spaces1 <> D.red (D.fromChars zigzag1)
+                    D.fromChars spaces1
+                      <> D.red (D.fromChars zigzag1)
                       <> D.fromChars spaces2
                       <> D.red (D.fromChars zigzag2)
                   ]

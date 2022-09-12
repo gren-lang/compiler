@@ -21,21 +21,21 @@ module AST.Optimized
   )
 where
 
-import qualified AST.Canonical as Can
+import AST.Canonical qualified as Can
 import Control.Monad (liftM, liftM2, liftM3, liftM4)
 import Data.Binary (Binary, get, getWord8, put, putWord8)
-import qualified Data.Index as Index
-import qualified Data.Map as Map
+import Data.Index qualified as Index
+import Data.Map qualified as Map
 import Data.Name (Name)
-import qualified Data.Name as Name
-import qualified Data.Set as Set
-import qualified Gren.Float as EF
-import qualified Gren.Kernel as K
-import qualified Gren.ModuleName as ModuleName
-import qualified Gren.Package as Pkg
-import qualified Gren.String as ES
-import qualified Optimize.DecisionTree as DT
-import qualified Reporting.Annotation as A
+import Data.Name qualified as Name
+import Data.Set qualified as Set
+import Gren.Float qualified as EF
+import Gren.Kernel qualified as K
+import Gren.ModuleName qualified as ModuleName
+import Gren.Package qualified as Pkg
+import Gren.String qualified as ES
+import Optimize.DecisionTree qualified as DT
+import Reporting.Annotation qualified as A
 
 -- EXPRESSIONS
 
@@ -117,7 +117,8 @@ data LocalGraph = LocalGraph
   }
 
 data Main
-  = Static
+  = StaticString
+  | StaticVDom
   | Dynamic
       { _message :: Can.Type,
         _decoder :: Expr
@@ -339,15 +340,17 @@ instance Binary LocalGraph where
 instance Binary Main where
   put main =
     case main of
-      Static -> putWord8 0
-      Dynamic a b -> putWord8 1 >> put a >> put b
+      StaticString -> putWord8 0
+      StaticVDom -> putWord8 1
+      Dynamic a b -> putWord8 2 >> put a >> put b
 
   get =
     do
       word <- getWord8
       case word of
-        0 -> return Static
-        1 -> liftM2 Dynamic get get
+        0 -> return StaticString
+        1 -> return StaticVDom
+        2 -> liftM2 Dynamic get get
         _ -> fail "problem getting Opt.Main binary"
 
 instance Binary Node where

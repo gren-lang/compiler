@@ -1,5 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wall #-}
+-- Temporary while implementing gren format
+{-# OPTIONS_GHC -Wno-error=unused-do-bind #-}
+{-# OPTIONS_GHC -Wno-error=unused-matches #-}
 
 module Parse.Module
   ( fromByteString,
@@ -10,20 +13,20 @@ module Parse.Module
   )
 where
 
-import qualified AST.Source as Src
-import qualified Data.ByteString as BS
-import qualified Data.Name as Name
-import qualified Gren.Compiler.Imports as Imports
-import qualified Gren.Package as Pkg
-import qualified Parse.Declaration as Decl
-import qualified Parse.Keyword as Keyword
+import AST.Source qualified as Src
+import Data.ByteString qualified as BS
+import Data.Name qualified as Name
+import Gren.Compiler.Imports qualified as Imports
+import Gren.Package qualified as Pkg
+import Parse.Declaration qualified as Decl
+import Parse.Keyword qualified as Keyword
 import Parse.Primitives hiding (State, fromByteString)
-import qualified Parse.Primitives as P
-import qualified Parse.Space as Space
-import qualified Parse.Symbol as Symbol
-import qualified Parse.Variable as Var
-import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Syntax as E
+import Parse.Primitives qualified as P
+import Parse.Space qualified as Space
+import Parse.Symbol qualified as Symbol
+import Parse.Variable qualified as Var
+import Reporting.Annotation qualified as A
+import Reporting.Error.Syntax qualified as E
 
 -- FROM BYTE STRING
 
@@ -73,7 +76,7 @@ chompModule projectType =
 
 checkModule :: ProjectType -> Module -> Either E.Error Src.Module
 checkModule projectType (Module maybeHeader imports infixes decls) =
-  let (values, unions, aliases, ports) = categorizeDecls [] [] [] [] decls
+  let (values, unions, aliases, ports) = categorizeDecls [] [] [] [] 0 decls
    in case maybeHeader of
         Just (Header name effects exports docs comments) ->
           Src.Module (Just name) exports (toDocs docs decls) imports values unions aliases infixes comments
@@ -85,14 +88,14 @@ checkModule projectType (Module maybeHeader imports infixes decls) =
                 [] -> Src.NoEffects
                 _ : _ -> Src.Ports ports
 
-checkEffects :: ProjectType -> [Src.Port] -> Effects -> Either E.Error Src.Effects
+checkEffects :: ProjectType -> [(Src.SourceOrder, Src.Port)] -> Effects -> Either E.Error Src.Effects
 checkEffects projectType ports effects =
   case effects of
     NoEffects region ->
       case ports of
         [] ->
           Right Src.NoEffects
-        Src.Port name _ : _ ->
+        (_, Src.Port name _) : _ ->
           case projectType of
             Package _ -> Left (E.NoPortsInPackage name)
             Application -> Left (E.UnexpectedPort region)
@@ -111,17 +114,28 @@ checkEffects projectType ports effects =
           _ : _ -> Left (E.UnexpectedPort region)
         else Left (E.NoEffectsOutsideKernel region)
 
-categorizeDecls :: [A.Located Src.Value] -> [A.Located Src.Union] -> [A.Located Src.Alias] -> [Src.Port] -> [Decl.Decl] -> ([A.Located Src.Value], [A.Located Src.Union], [A.Located Src.Alias], [Src.Port])
-categorizeDecls values unions aliases ports decls =
+categorizeDecls ::
+  [(Src.SourceOrder, A.Located Src.Value)] ->
+  [(Src.SourceOrder, A.Located Src.Union)] ->
+  [(Src.SourceOrder, A.Located Src.Alias)] ->
+  [(Src.SourceOrder, Src.Port)] ->
+  Src.SourceOrder ->
+  [Decl.Decl] ->
+  ( [(Src.SourceOrder, A.Located Src.Value)],
+    [(Src.SourceOrder, A.Located Src.Union)],
+    [(Src.SourceOrder, A.Located Src.Alias)],
+    [(Src.SourceOrder, Src.Port)]
+  )
+categorizeDecls values unions aliases ports index decls =
   case decls of
     [] ->
       (values, unions, aliases, ports)
     decl : otherDecls ->
       case decl of
-        Decl.Value _ value -> categorizeDecls (value : values) unions aliases ports otherDecls
-        Decl.Union _ union -> categorizeDecls values (union : unions) aliases ports otherDecls
-        Decl.Alias _ alias -> categorizeDecls values unions (alias : aliases) ports otherDecls
-        Decl.Port _ port_ -> categorizeDecls values unions aliases (port_ : ports) otherDecls
+        Decl.Value _ value -> categorizeDecls ((index, value) : values) unions aliases ports (index + 1) otherDecls
+        Decl.Union _ union -> categorizeDecls values ((index, union) : unions) aliases ports (index + 1) otherDecls
+        Decl.Alias _ alias -> categorizeDecls values unions ((index, alias) : aliases) ports (index + 1) otherDecls
+        Decl.Port _ port_ -> categorizeDecls values unions aliases ((index, port_) : ports) (index + 1) otherDecls
 
 -- TO DOCS
 

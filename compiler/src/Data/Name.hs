@@ -67,12 +67,12 @@ module Data.Name
 where
 
 import Control.Exception (assert)
-import qualified Data.Binary as Binary
-import qualified Data.ByteString.Builder.Internal as B
-import qualified Data.Coerce as Coerce
-import qualified Data.List as List
-import qualified Data.String as Chars
-import qualified Data.Utf8 as Utf8
+import Data.Binary qualified as Binary
+import Data.ByteString.Builder.Internal qualified as B
+import Data.Coerce qualified as Coerce
+import Data.List qualified as List
+import Data.String qualified as Chars
+import Data.Utf8 qualified as Utf8
 import GHC.Exts
   ( Int (I#),
     Ptr,
@@ -81,7 +81,7 @@ import GHC.Exts
 import GHC.Prim
 import GHC.ST (ST (ST), runST)
 import GHC.Word (Word8 (W8#))
-import qualified Gren.String as ES
+import Gren.String qualified as ES
 import Prelude hiding (length, maybe, negate)
 
 -- NAME

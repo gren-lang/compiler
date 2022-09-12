@@ -1,6 +1,7 @@
 Cabal-version: 3.6
+
 Name: gren
-Version: 0.1.0
+Version: 0.2.0
 
 Synopsis:
     The `gren` command line interface.
@@ -9,14 +10,16 @@ Description:
     This includes commands like `gren make`, `gren repl`, and many others
     for helping make Gren developers happy and productive.
 
-Homepage: https://github.com/gren/compiler.git
+Author: Robin Heggelund Hansen
+Copyright:
+    Original work Copyright (c) 2011-2021, Evan Czaplicki.
+    Modified work Copyright (c) 2021-present, The Gren CONTRIBUTORS
 
 License: BSD-3-Clause
 License-file: LICENSE
 
-Author:     Robin Heggelund Hansen
-Maintainer: info@gren-lang.org
-Copyright:  Copyright (c) 2011-2021, Evan Czaplicki. Copyright (c) 2021-present, Robin Heggelund Hansen
+Homepage: https://gren-lang.org
+Bug-reports: https://github.com/gren-lang/compiler/issues
 
 Category: Compiler, Language
 
@@ -35,21 +38,17 @@ Flag dev {
 
 Common gren-common
     if flag(dev)
-        ghc-options: -O0 -Wall -Werror
-
-        -- temporary while implementing gren format
-        ghc-options: -Wno-error=unused-do-bind -Wno-error=unused-matches
+        ghc-options: -O0 -Wall
     else
-        ghc-options: -O2 -threaded "-with-rtsopts=-N"
+        ghc-options: -O2 -Wall -Werror -threaded "-with-rtsopts=-N"
+
+    default-language: GHC2021
 
     Hs-Source-Dirs:
         compiler/src
         builder/src
         terminal/impl
         terminal/src
-
-    other-extensions:
-        TemplateHaskell
 
     other-modules:
         Bump
@@ -58,8 +57,10 @@ Common gren-common
         Init
         Install
         Make
-        Publish
+        Docs
+        Validate
         Repl
+        Package
 
         -- terminal args
         Terminal
@@ -86,6 +87,7 @@ Common gren-common
 
         -- Gren things
         Gren.Outline
+        Gren.Platform
         Gren.Details
         --
         Gren.Compiler.Imports
@@ -94,6 +96,8 @@ Common gren-common
         Gren.Constraint
         Gren.Docs
         Gren.Float
+        Gren.Format
+        Gren.Format.Normalize
         Gren.Interface
         Gren.Kernel
         Gren.Licenses
@@ -111,6 +115,8 @@ Common gren-common
         Data.NonEmptyList
         Data.OneOrMore
         Data.Utf8
+        Text.PrettyPrint.Avh4.Block
+        Text.PrettyPrint.Avh4.Indent
 
         -- json
         Json.Decode
@@ -134,6 +140,7 @@ Common gren-common
         Canonicalize.Type
         Compile
         Generate.Html
+        Generate.Node
         Generate.JavaScript
         Generate.JavaScript.Builder
         Generate.JavaScript.Expression
@@ -209,11 +216,14 @@ Common gren-common
         scientific,
         time >= 1.9.1,
         utf8-string,
-        vector
+        vector,
+        text >= 2 && < 3
 
 Executable gren
     Import:
         gren-common
+
+    default-language: GHC2021
 
     Main-Is:
         Main.hs
@@ -221,6 +231,8 @@ Executable gren
 Test-Suite gren-tests
     Import:
         gren-common
+
+    default-language: GHC2021
 
     Type:
         exitcode-stdio-1.0
@@ -230,6 +242,15 @@ Test-Suite gren-tests
 
     Main-Is:
         Spec.hs
+
+    other-modules:
+        Helpers.Instances
+        Helpers.Parse
+
+        -- tests
+        Parse.SpaceSpec
+        Parse.RecordUpdateSpec
+        Parse.UnderscorePatternSpec
 
     Build-Depends:
         hspec >= 2.7.10 && < 3

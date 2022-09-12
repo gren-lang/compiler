@@ -6,21 +6,21 @@ module Canonicalize.Environment.Local
   )
 where
 
-import qualified AST.Canonical as Can
-import qualified AST.Source as Src
-import qualified Canonicalize.Environment as Env
-import qualified Canonicalize.Environment.Dups as Dups
-import qualified Canonicalize.Type as Type
+import AST.Canonical qualified as Can
+import AST.Source qualified as Src
+import Canonicalize.Environment qualified as Env
+import Canonicalize.Environment.Dups qualified as Dups
+import Canonicalize.Type qualified as Type
 import Control.Monad (foldM)
-import qualified Data.Graph as Graph
-import qualified Data.Index as Index
-import qualified Data.List as List
-import qualified Data.Map.Strict as Map
-import qualified Data.Name as Name
-import qualified Gren.ModuleName as ModuleName
-import qualified Reporting.Annotation as A
-import qualified Reporting.Error.Canonicalize as Error
-import qualified Reporting.Result as Result
+import Data.Graph qualified as Graph
+import Data.Index qualified as Index
+import Data.List qualified as List
+import Data.Map.Strict qualified as Map
+import Data.Name qualified as Name
+import Gren.ModuleName qualified as ModuleName
+import Reporting.Annotation qualified as A
+import Reporting.Error.Canonicalize qualified as Error
+import Reporting.Result qualified as Result
 
 -- RESULT
 
@@ -50,7 +50,7 @@ collectVars (Src.Module _ _ _ _ values _ _ _ _ effects) =
   let addDecl dict (A.At _ (Src.Value (A.At region name) _ _ _)) =
         Dups.insert name region (Env.TopLevel region) dict
    in Dups.detect Error.DuplicateDecl $
-        List.foldl' addDecl (toEffectDups effects) values
+        List.foldl' addDecl (toEffectDups effects) (fmap snd values)
 
 toEffectDups :: Src.Effects -> Dups.Dict Env.Var
 toEffectDups effects =
@@ -60,7 +60,7 @@ toEffectDups effects =
     Src.Ports ports ->
       let addPort dict (Src.Port (A.At region name) _) =
             Dups.insert name region (Env.TopLevel region) dict
-       in List.foldl' addPort Dups.none ports
+       in List.foldl' addPort Dups.none (fmap snd ports)
     Src.Manager _ manager ->
       case manager of
         Src.Cmd (A.At region _) ->
@@ -79,11 +79,11 @@ addTypes (Src.Module _ _ _ _ _ unions aliases _ _ _) (Env.Env home vs ts cs bs q
   let addAliasDups dups (A.At _ (Src.Alias (A.At region name) _ _)) = Dups.insert name region () dups
       addUnionDups dups (A.At _ (Src.Union (A.At region name) _ _)) = Dups.insert name region () dups
       typeNameDups =
-        List.foldl' addUnionDups (List.foldl' addAliasDups Dups.none aliases) unions
+        List.foldl' addUnionDups (List.foldl' addAliasDups Dups.none (fmap snd aliases)) (fmap snd unions)
    in do
         _ <- Dups.detect Error.DuplicateType typeNameDups
-        ts1 <- foldM (addUnion home) ts unions
-        addAliases aliases (Env.Env home vs ts1 cs bs qvs qts qcs)
+        ts1 <- foldM (addUnion home) ts (fmap snd unions)
+        addAliases (fmap snd aliases) (Env.Env home vs ts1 cs bs qvs qts qcs)
 
 addUnion :: ModuleName.Canonical -> Env.Exposed Env.Type -> A.Located Src.Union -> Result i w (Env.Exposed Env.Type)
 addUnion home types union@(A.At _ (Src.Union (A.At _ name) _ _)) =
@@ -201,8 +201,8 @@ addFreeVars freeVars (A.At region tipe) =
 addCtors :: Src.Module -> Env.Env -> Result i w (Env.Env, Unions, Aliases)
 addCtors (Src.Module _ _ _ _ _ unions aliases _ _ _) env@(Env.Env home vs ts cs bs qvs qts qcs) =
   do
-    unionInfo <- traverse (canonicalizeUnion env) unions
-    aliasInfo <- traverse (canonicalizeAlias env) aliases
+    unionInfo <- traverse (canonicalizeUnion env) (fmap snd unions)
+    aliasInfo <- traverse (canonicalizeAlias env) (fmap snd aliases)
 
     ctors <-
       Dups.detect Error.DuplicateCtor $

@@ -5,19 +5,18 @@ module Main
   )
 where
 
-import qualified Bump
-import qualified Data.List as List
-import qualified Diff
-import qualified Format
-import qualified Gren.Version as V
-import qualified Init
-import qualified Install
-import qualified Make
-import qualified Publish
-import qualified Repl
+import Data.List qualified as List
+import Docs qualified
+import Format qualified
+import Gren.Platform qualified as Platform
+import Gren.Version qualified as V
+import Init qualified
+import Make qualified
+import Package qualified
+import Repl qualified
 import Terminal
-import Terminal.Helpers
-import qualified Text.PrettyPrint.ANSI.Leijen as P
+import Terminal.Helpers qualified as H
+import Text.PrettyPrint.ANSI.Leijen qualified as P
 import Prelude hiding (init)
 
 -- MAIN
@@ -30,11 +29,9 @@ main =
     [ repl,
       init,
       make,
-      install,
+      docs,
       format,
-      bump,
-      diff,
-      publish
+      package
     ]
 
 intro :: P.Doc
@@ -53,7 +50,7 @@ intro =
         ],
       "",
       P.black "-------------------------------------------------------------------------------",
-      P.black "I highly recommend working through <https://guide.gren-lang.org> to get started.",
+      P.black "I highly recommend working through <https://gren-lang.org/learn> to get started.",
       P.black "It teaches many important concepts, including how to use `gren` in the terminal.",
       P.black "-------------------------------------------------------------------------------"
     ]
@@ -63,7 +60,7 @@ outro =
   P.fillSep $
     map P.text $
       words
-        "Be sure to ask on the Gren slack if you run into trouble! Folks are friendly and\
+        "Be sure to ask on the Gren zulip if you run into trouble! Folks are friendly and\
         \ happy to help out. They hang out there because it is fun, so be kind to get the\
         \ best results!"
 
@@ -72,8 +69,7 @@ outro =
 init :: Terminal.Command
 init =
   let summary =
-        "Start an Gren project. It creates a starter gren.json file and\
-        \ provides a link explaining what to do from there."
+        "Start an Gren project. It creates a starter gren.json file."
 
       details =
         "The `init` command helps start Gren projects:"
@@ -81,8 +77,23 @@ init =
       example =
         reflow
           "It will ask permission to create an gren.json file, the one thing common\
-          \ to all Gren projects. It also provides a link explaining what to do from there."
-   in Terminal.Command "init" (Common summary) details example noArgs noFlags Init.run
+          \ to all Gren projects."
+
+      initFlags =
+        flags Init.Flags
+          |-- onOff "package" "Create a package (as opposed to an application)."
+          |-- flag "platform" initPlatformParser "Which platform to target"
+   in Terminal.Command "init" (Common summary) details example noArgs initFlags Init.run
+
+initPlatformParser :: Parser Platform.Platform
+initPlatformParser =
+  Parser
+    { _singular = "platform",
+      _plural = "platforms",
+      _parser = Platform.fromString,
+      _suggest = \_ -> return ["common", "browser", "node"],
+      _examples = \_ -> return ["common", "browser", "node"]
+    }
 
 -- REPL
 
@@ -97,7 +108,7 @@ repl =
 
       example =
         reflow
-          "Start working through <https://guide.gren-lang.org> to learn how to use this!\
+          "Start working through <https://gren-lang.org/learn> to learn how to use this!\
           \ It has a whole chapter that uses the REPL for everything, so that is probably\
           \ the quickest way to get started."
 
@@ -138,117 +149,59 @@ make =
         flags Make.Flags
           |-- onOff "debug" "Turn on the time-travelling debugger. It allows you to rewind and replay events. The events can be imported/exported into a file, which makes for very precise bug reports!"
           |-- onOff "optimize" "Turn on optimizations to make code smaller and faster. For example, the compiler renames record fields to be as short as possible and unboxes values to reduce allocation."
-          |-- flag "output" Make.output "Specify the name of the resulting JS file. For example --output=assets/gren.js to generate the JS at assets/gren.js or --output=/dev/null to generate no output at all!"
+          |-- flag "output" Make.output "Specify the name of the resulting JS file. For example --output=assets/gren.js to generate the JS at assets/gren.js. You can also use --output=/dev/stdout to output the JS to the terminal, or --output=/dev/null to generate no output at all!"
           |-- flag "report" Make.reportType "You can say --report=json to get error messages as JSON. This is only really useful if you are an editor plugin. Humans should avoid it!"
-          |-- flag "docs" Make.docsFile "Generate a JSON file of documentation for a package. Eventually it will be possible to preview docs with `reactor` because it is quite hard to deal with these JSON files directly."
-   in Terminal.Command "make" Uncommon details example (zeroOrMore grenFile) makeFlags Make.run
+   in Terminal.Command "make" Uncommon details example (zeroOrMore H.grenFile) makeFlags Make.run
 
--- INSTALL
+-- DOCS
 
-install :: Terminal.Command
-install =
+docs :: Terminal.Command
+docs =
   let details =
-        "The `install` command fetches packages from <https://package.gren-lang.org> for\
-        \ use in your project:"
+        "The `docs` command collects all documentation for a package in a JSON file:"
 
       example =
         stack
           [ reflow
-              "For example, if you want to get packages for HTTP and JSON, you would say:",
+              "For example:",
+            P.indent 4 $ P.green "gren docs",
+            reflow
+              "This collects all documentation for the current package and writes it to a\
+              \ docs.json file, if possible"
+          ]
+
+      docsFlags =
+        flags Docs.Flags
+          |-- flag "output" Docs.output "Specify the name of the resulting JSON file. For example --output=assets/docs.json to generate the JSON at assets/docs.json. You can also use --output=/dev/stdout to output the JSON to the terminal, or --output=/dev/null to verify that generating the documentation would work."
+          |-- flag "report" Docs.reportType "You can say --report=json to get error messages as JSON. This is only really useful if you are an editor plugin. Humans should avoid it!"
+   in Terminal.Command "docs" Uncommon details example noArgs docsFlags Docs.run
+
+-- PACKAGE
+
+package :: Terminal.Command
+package =
+  let details =
+        "The `package` command contains sub-commands which help you manage your package,\
+        \ or your dependant packages:"
+
+      example =
+        stack
+          [ reflow
+              "For example, if you want to get access to Web APIs in your project,\
+              \ you would say:",
             P.indent 4 $
               P.green $
                 P.vcat $
-                  [ "gren install gren/http",
-                    "gren install gren/json"
+                  [ "gren package install gren-lang/browser"
                   ],
             reflow
-              "Notice that you must say the AUTHOR name and PROJECT name! After running those\
-              \ commands, you could say `import Http` or `import Json.Decode` in your code.",
-            reflow
-              "What if two projects use different versions of the same package? No problem!\
-              \ Each project is independent, so there cannot be conflicts like that!"
+              "To see a description of all available sub-commands, execute:",
+            P.indent 4 $
+              P.green $
+                P.vcat $
+                  ["gren package --help"]
           ]
-
-      installArgs =
-        oneOf
-          [ require0 Install.NoArgs,
-            require1 Install.Install package
-          ]
-   in Terminal.Command "install" Uncommon details example installArgs noFlags Install.run
-
--- PUBLISH
-
-publish :: Terminal.Command
-publish =
-  let details =
-        "The `publish` command publishes your package on <https://package.gren-lang.org>\
-        \ so that anyone in the Gren community can use it."
-
-      example =
-        stack
-          [ reflow
-              "Think hard if you are ready to publish NEW packages though!",
-            reflow
-              "Part of what makes Gren great is the packages ecosystem. The fact that\
-              \ there is usually one option (usually very well done) makes it way\
-              \ easier to pick packages and become productive. So having a million\
-              \ packages would be a failure in Gren. We do not need twenty of\
-              \ everything, all coded in a single weekend.",
-            reflow
-              "So as community members gain wisdom through experience, we want\
-              \ them to share that through thoughtful API design and excellent\
-              \ documentation. It is more about sharing ideas and insights than\
-              \ just sharing code! The first step may be asking for advice from\
-              \ people you respect, or in community forums. The second step may\
-              \ be using it at work to see if it is as nice as you think. Maybe\
-              \ it ends up as an experiment on GitHub only. Point is, try to be\
-              \ respectful of the community and package ecosystem!",
-            reflow
-              "Check out <https://package.gren-lang.org/help/design-guidelines> for guidance on how to create great packages!"
-          ]
-   in Terminal.Command "publish" Uncommon details example noArgs noFlags Publish.run
-
--- BUMP
-
-bump :: Terminal.Command
-bump =
-  let details =
-        "The `bump` command figures out the next version number based on API changes:"
-
-      example =
-        reflow
-          "Say you just published version 1.0.0, but then decided to remove a function.\
-          \ I will compare the published API to what you have locally, figure out that\
-          \ it is a MAJOR change, and bump your version number to 2.0.0. I do this with\
-          \ all packages, so there cannot be MAJOR changes hiding in PATCH releases in Gren!"
-   in Terminal.Command "bump" Uncommon details example noArgs noFlags Bump.run
-
--- DIFF
-
-diff :: Terminal.Command
-diff =
-  let details =
-        "The `diff` command detects API changes:"
-
-      example =
-        stack
-          [ reflow
-              "For example, to see what changed in the HTML package between\
-              \ versions 1.0.0 and 2.0.0, you can say:",
-            P.indent 4 $ P.green $ "gren diff gren/html 1.0.0 2.0.0",
-            reflow
-              "Sometimes a MAJOR change is not actually very big, so\
-              \ this can help you plan your upgrade timelines."
-          ]
-
-      diffArgs =
-        oneOf
-          [ require0 Diff.CodeVsLatest,
-            require1 Diff.CodeVsExactly version,
-            require2 Diff.LocalInquiry version version,
-            require3 Diff.GlobalInquiry package version version
-          ]
-   in Terminal.Command "diff" Uncommon details example diffArgs noFlags Diff.run
+   in Terminal.Prefix "package" details example Package.run
 
 -- FORMAT
 
@@ -264,13 +217,13 @@ format =
         flags Format.Flags
           |-- onOff "yes" "Assume yes for all interactive prompts."
           |-- onOff "stdin" "Format stdin and write it to stdout."
-   in Terminal.Command "format" Uncommon details example (zeroOrMore grenFileOrDirectory) formatFlags Format.run
+   in Terminal.Command "format" Uncommon details example (zeroOrMore H.grenFileOrDirectory) formatFlags Format.run
 
 -- HELPERS
 
 stack :: [P.Doc] -> P.Doc
-stack docs =
-  P.vcat $ List.intersperse "" docs
+stack docList =
+  P.vcat $ List.intersperse "" docList
 
 reflow :: String -> P.Doc
 reflow string =

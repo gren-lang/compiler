@@ -5,24 +5,24 @@ module Bump
   )
 where
 
-import qualified BackgroundWriter as BW
-import qualified Build
-import qualified Data.List as List
-import qualified Data.NonEmptyList as NE
-import qualified Deps.Diff as Diff
-import qualified Deps.Package as Package
-import qualified Directories as Dirs
-import qualified Gren.Details as Details
-import qualified Gren.Docs as Docs
-import qualified Gren.Magnitude as M
-import qualified Gren.Outline as Outline
-import qualified Gren.Version as V
-import qualified Reporting
+import BackgroundWriter qualified as BW
+import Build qualified
+import Data.List qualified as List
+import Data.NonEmptyList qualified as NE
+import Deps.Diff qualified as Diff
+import Deps.Package qualified as Package
+import Directories qualified as Dirs
+import Gren.Details qualified as Details
+import Gren.Docs qualified as Docs
+import Gren.Magnitude qualified as M
+import Gren.Outline qualified as Outline
+import Gren.Version qualified as V
+import Reporting qualified
 import Reporting.Doc ((<+>))
-import qualified Reporting.Doc as D
-import qualified Reporting.Exit as Exit
-import qualified Reporting.Exit.Help as Help
-import qualified Reporting.Task as Task
+import Reporting.Doc qualified as D
+import Reporting.Exit qualified as Exit
+import Reporting.Exit.Help qualified as Help
+import Reporting.Task qualified as Task
 
 -- RUN
 
@@ -59,10 +59,10 @@ getEnv =
 -- BUMP
 
 bump :: Env -> Task.Task Exit.Bump ()
-bump env@(Env root cache outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _)) =
+bump env@(Env root _ outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _)) =
   Task.eio id $
     do
-      versionResult <- Dirs.withRegistryLock cache $ Package.getVersions cache pkg
+      versionResult <- Package.getVersions pkg
       case versionResult of
         Right knownVersions ->
           let bumpableVersions =
@@ -112,14 +112,20 @@ suggestVersion (Env root cache outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _))
         let old = D.fromVersion vsn
             new = D.fromVersion newVersion
             mag = D.fromChars $ M.toChars (Diff.toMagnitude changes)
-         in "Based on your new API, this should be a" <+> D.green mag <+> "change (" <> old <> " => " <> new <> ")\n"
-              <> "Bail out of this command and run 'gren diff' for a full explanation.\n"
-              <> "\n"
-              <> "Should I perform the update ("
-              <> old
-              <> " => "
-              <> new
-              <> ") in gren.json? [Y/n] "
+         in "Based on your new API, this should be a"
+              <+> D.green mag
+              <+> "change ("
+                <> old
+                <> " => "
+                <> new
+                <> ")\n"
+                <> "Bail out of this command and run 'gren diff' for a full explanation.\n"
+                <> "\n"
+                <> "Should I perform the update ("
+                <> old
+                <> " => "
+                <> new
+                <> ") in gren.json? [Y/n] "
 
 generateDocs :: FilePath -> Outline.PkgOutline -> Task.Task Exit.Bump Docs.Documentation
 generateDocs root (Outline.PkgOutline _ _ _ _ exposed _ _ _) =

@@ -23,14 +23,14 @@ module Json.Encode
 where
 
 import Control.Arrow ((***))
-import qualified Data.ByteString.Builder as B
-import qualified Data.ByteString.Char8 as BSC
-import qualified Data.Map as Map
-import qualified Data.Name as Name
-import qualified Data.Scientific as Sci
-import qualified Data.Utf8 as Utf8
-import qualified File
-import qualified Json.String as Json
+import Data.ByteString.Builder qualified as B
+import Data.ByteString.Char8 qualified as BSC
+import Data.Map qualified as Map
+import Data.Name qualified as Name
+import Data.Scientific qualified as Sci
+import Data.Utf8 qualified as Utf8
+import File qualified
+import Json.String qualified as Json
 import Prelude hiding (null)
 
 -- VALUES

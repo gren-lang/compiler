@@ -4,30 +4,33 @@ on:
   pull_request:
     branches: [ main ]
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   build:
+    name: verify
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v2
 
-    - uses: mrkkrp/ormolu-action@v5
+    - uses: mrkkrp/ormolu-action@v6
+
+    - uses: haskell/actions/setup@v1
+      id: setup-haskell
+      with:
+        ghc-version: '9.2.4'
+        cabal-version: '3.8.1.0'
 
     - name: Cache
       uses: actions/cache@v2
       with:
-        path: |
-          ~/.cabal
-          ~/.ghcup
-        key: ${{ runner.os }}-${{ hashFiles('**/*.cabal') }}
-
-    - uses: haskell/actions/setup@v1
-      with:
-        ghc-version: '9.2.2'
-        cabal-version: '3.6'
+        path: ${{ steps.setup-haskell.outputs.cabal-store }}
+        key: cabal-${{ runner.os }}-${{ hashFiles('*.cabal') }}
 
     - name: Build
-      run: cabal build -f dev
+      run: cabal build --enable-tests
 
     - name: Tests
-      run: cabal test -f dev
+      run: cabal test

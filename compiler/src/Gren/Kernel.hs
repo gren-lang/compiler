@@ -3,6 +3,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE UnboxedTuples #-}
 {-# OPTIONS_GHC -Wall #-}
+-- Temporary while implementing gren format
+{-# OPTIONS_GHC -Wno-error=unused-do-bind #-}
 
 module Gren.Kernel
   ( Content (..),
@@ -12,25 +14,25 @@ module Gren.Kernel
   )
 where
 
-import qualified AST.Source as Src
+import AST.Source qualified as Src
 import Control.Monad (liftM, liftM2)
 import Data.Binary (Binary, get, getWord8, put, putWord8)
-import qualified Data.ByteString.Internal as B
-import qualified Data.List as List
-import qualified Data.Map as Map
-import qualified Data.Name as Name
+import Data.ByteString.Internal qualified as B
+import Data.List qualified as List
+import Data.Map qualified as Map
+import Data.Name qualified as Name
 import Data.Word (Word8)
 import Foreign.ForeignPtr (ForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (Ptr, minusPtr, plusPtr)
-import qualified Gren.ModuleName as ModuleName
-import qualified Gren.Package as Pkg
-import qualified Parse.Module as Module
+import Gren.ModuleName qualified as ModuleName
+import Gren.Package qualified as Pkg
+import Parse.Module qualified as Module
 import Parse.Primitives hiding (fromByteString)
-import qualified Parse.Primitives as P
-import qualified Parse.Space as Space
-import qualified Parse.Variable as Var
-import qualified Reporting.Annotation as A
+import Parse.Primitives qualified as P
+import Parse.Space qualified as Space
+import Parse.Variable qualified as Var
+import Reporting.Annotation qualified as A
 
 -- CHUNK
 

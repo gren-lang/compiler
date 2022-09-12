@@ -12,27 +12,27 @@ module Generate.JavaScript.Expression
   )
 where
 
-import qualified AST.Canonical as Can
-import qualified AST.Optimized as Opt
-import qualified Data.Index as Index
-import qualified Data.IntMap as IntMap
-import qualified Data.List as List
+import AST.Canonical qualified as Can
+import AST.Optimized qualified as Opt
+import Data.Index qualified as Index
+import Data.IntMap qualified as IntMap
+import Data.List qualified as List
 import Data.Map ((!))
-import qualified Data.Map as Map
-import qualified Data.Name as Name
-import qualified Data.Utf8 as Utf8
-import qualified Generate.JavaScript.Builder as JS
-import qualified Generate.JavaScript.Name as JsName
-import qualified Generate.Mode as Mode
-import qualified Gren.Compiler.Type as Type
-import qualified Gren.Compiler.Type.Extract as Extract
-import qualified Gren.ModuleName as ModuleName
-import qualified Gren.Package as Pkg
-import qualified Gren.Version as V
+import Data.Map qualified as Map
+import Data.Name qualified as Name
+import Data.Utf8 qualified as Utf8
+import Generate.JavaScript.Builder qualified as JS
+import Generate.JavaScript.Name qualified as JsName
+import Generate.Mode qualified as Mode
+import Gren.Compiler.Type qualified as Type
+import Gren.Compiler.Type.Extract qualified as Extract
+import Gren.ModuleName qualified as ModuleName
+import Gren.Package qualified as Pkg
+import Gren.Version qualified as V
 import Json.Encode ((==>))
-import qualified Json.Encode as Encode
-import qualified Optimize.DecisionTree as DT
-import qualified Reporting.Annotation as A
+import Json.Encode qualified as Encode
+import Optimize.DecisionTree qualified as DT
+import Reporting.Annotation qualified as A
 
 -- EXPRESSIONS
 
@@ -492,8 +492,8 @@ generateTailCall mode name args =
       toRealVars (argName, _) =
         JS.ExprStmt $
           JS.Assign (JS.LRef (JsName.fromLocal argName)) (JS.Ref (JsName.makeTemp argName))
-   in JS.Vars (map toTempVars args) :
-      map toRealVars args
+   in JS.Vars (map toTempVars args)
+        : map toRealVars args
         ++ [JS.Continue (Just (JsName.fromLocal name))]
 
 -- DEFINITIONS
@@ -512,7 +512,8 @@ generateTailDef mode name argNames body =
     JsBlock $
       [ JS.Labelled (JsName.fromLocal name) $
           JS.While (JS.Bool True) $
-            codeToStmt $ generate mode body
+            codeToStmt $
+              generate mode body
       ]
 
 -- PATHS
@@ -748,7 +749,10 @@ pathToJsExpr mode root path =
 generateMain :: Mode.Mode -> ModuleName.Canonical -> Opt.Main -> JS.Expr
 generateMain mode home main =
   case main of
-    Opt.Static ->
+    Opt.StaticString ->
+      JS.Ref (JsName.fromKernel Name.node "log")
+        # JS.Ref (JsName.fromGlobal home "main")
+    Opt.StaticVDom ->
       JS.Ref (JsName.fromKernel Name.virtualDom "init")
         # JS.Ref (JsName.fromGlobal home "main")
         # JS.Int 0

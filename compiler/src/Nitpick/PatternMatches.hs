@@ -17,17 +17,17 @@ http://moscova.inria.fr/~maranget/papers/warn/warn.pdf
 
 -}
 
-import qualified AST.Canonical as Can
-import qualified Data.List as List
+import AST.Canonical qualified as Can
+import Data.List qualified as List
 import Data.Map (Map)
-import qualified Data.Map as Map
-import qualified Data.Maybe as Maybe
-import qualified Data.Name as Name
-import qualified Data.NonEmptyList as NE
+import Data.Map qualified as Map
+import Data.Maybe qualified as Maybe
+import Data.Name qualified as Name
+import Data.NonEmptyList qualified as NE
 import Data.Set (Set)
-import qualified Data.Set as Set
-import qualified Gren.String as ES
-import qualified Reporting.Annotation as A
+import Data.Set qualified as Set
+import Gren.String qualified as ES
+import Reporting.Annotation qualified as A
 
 -- PATTERN
 
@@ -172,14 +172,15 @@ checkExpr (A.At region expression) errors =
       foldr checkDef (checkExpr body errors) defs
     Can.LetDestruct pattern@(A.At reg _) expr body ->
       checkPatterns reg BadDestruct [pattern] $
-        checkExpr expr $ checkExpr body errors
+        checkExpr expr $
+          checkExpr body errors
     Can.Case expr branches ->
       checkExpr expr $ checkCases region branches errors
     Can.Accessor _ ->
       errors
     Can.Access record _ ->
       checkExpr record errors
-    Can.Update _ record fields ->
+    Can.Update record fields ->
       checkExpr record $ Map.foldr checkField errors fields
     Can.Record fields ->
       Map.foldr checkExpr errors fields

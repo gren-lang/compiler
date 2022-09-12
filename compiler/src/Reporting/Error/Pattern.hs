@@ -7,14 +7,14 @@ module Reporting.Error.Pattern
   )
 where
 
-import qualified Data.List as List
-import qualified Data.Map as Map
-import qualified Data.Name as Name
-import qualified Gren.String as ES
-import qualified Nitpick.PatternMatches as P
-import qualified Reporting.Doc as D
-import qualified Reporting.Render.Code as Code
-import qualified Reporting.Report as Report
+import Data.List qualified as List
+import Data.Map qualified as Map
+import Data.Name qualified as Name
+import Gren.String qualified as ES
+import Nitpick.PatternMatches qualified as P
+import Reporting.Doc qualified as D
+import Reporting.Render.Code qualified as Code
+import Reporting.Report qualified as Report
 
 -- TO REPORT
 
@@ -121,12 +121,14 @@ patternToDoc context pattern =
     P.Ctor _ "#0" [] ->
       "()"
     P.Ctor _ "#2" [a, b] ->
-      "( " <> patternToDoc Unambiguous a
+      "( "
+        <> patternToDoc Unambiguous a
         <> ", "
         <> patternToDoc Unambiguous b
         <> " )"
     P.Ctor _ "#3" [a, b, c] ->
-      "( " <> patternToDoc Unambiguous a
+      "( "
+        <> patternToDoc Unambiguous a
         <> ", "
         <> patternToDoc Unambiguous b
         <> ", "

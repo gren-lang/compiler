@@ -32,19 +32,19 @@ where
 import Control.Concurrent
 import Control.Exception (AsyncException (UserInterrupt), SomeException, catch, fromException, throw)
 import Control.Monad (when)
-import qualified Data.ByteString.Builder as B
-import qualified Data.NonEmptyList as NE
-import qualified Gren.ModuleName as ModuleName
-import qualified Gren.Package as Pkg
-import qualified Gren.Version as V
-import qualified Json.Encode as Encode
+import Data.ByteString.Builder qualified as B
+import Data.NonEmptyList qualified as NE
+import Gren.ModuleName qualified as ModuleName
+import Gren.Package qualified as Pkg
+import Gren.Version qualified as V
+import Json.Encode qualified as Encode
 import Reporting.Doc ((<+>))
-import qualified Reporting.Doc as D
-import qualified Reporting.Exit as Exit
-import qualified Reporting.Exit.Help as Help
-import qualified System.Exit as Exit
+import Reporting.Doc qualified as D
+import Reporting.Exit qualified as Exit
+import Reporting.Exit.Help qualified as Help
+import System.Exit qualified as Exit
 import System.IO (hFlush, hPutStr, hPutStrLn, stderr, stdout)
-import qualified System.Info as Info
+import System.Info qualified as Info
 
 -- STYLE
 
@@ -238,7 +238,7 @@ putDownload mark pkg vsn =
       mark
         <+> D.fromPackage pkg
         <+> D.fromVersion vsn
-        <> "\n"
+          <> "\n"
 
 putTransition :: DState -> IO DState
 putTransition state@(DState total cached _ rcvd failed built broken) =
@@ -253,7 +253,8 @@ putBuilt :: DState -> IO DState
 putBuilt state@(DState total cached _ rcvd failed built broken) =
   do
     when (total == cached + rcvd + failed) $
-      putStrFlush $ '\r' : toBuildProgress (built + broken + failed) total
+      putStrFlush $
+        '\r' : toBuildProgress (built + broken + failed) total
     return state
 
 toBuildProgress :: Int -> Int -> [Char]
@@ -353,8 +354,8 @@ toGenDiagram (NE.List name names) output =
           toGenLine width name ('>' : ' ' : output ++ "\n")
         _ : _ ->
           unlines $
-            toGenLine width name (vtop : hbar : hbar : '>' : ' ' : output) :
-            reverse (zipWith (toGenLine width) (reverse names) ([vbottom] : repeat [vmiddle]))
+            toGenLine width name (vtop : hbar : hbar : '>' : ' ' : output)
+              : reverse (zipWith (toGenLine width) (reverse names) ([vbottom] : repeat [vmiddle]))
 
 toGenLine :: Int -> [Char] -> [Char] -> [Char]
 toGenLine width name end =

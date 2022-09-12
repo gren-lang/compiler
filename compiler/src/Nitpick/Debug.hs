@@ -3,8 +3,8 @@ module Nitpick.Debug
   )
 where
 
-import qualified AST.Optimized as Opt
-import qualified Data.Map.Utils as Map
+import AST.Optimized qualified as Opt
+import Data.Map.Utils qualified as Map
 
 -- HAS DEBUG USES
 

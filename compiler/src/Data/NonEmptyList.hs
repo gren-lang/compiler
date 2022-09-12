@@ -8,7 +8,7 @@ where
 
 import Control.Monad (liftM2)
 import Data.Binary (Binary, get, put)
-import qualified Data.List as List
+import Data.List qualified as List
 
 -- LIST
 

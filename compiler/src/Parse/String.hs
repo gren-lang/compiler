@@ -2,7 +2,6 @@
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE UnboxedTuples #-}
-{-# OPTIONS_GHC -Wall -fno-warn-unused-do-bind #-}
 
 module Parse.String
   ( string,
@@ -10,14 +9,14 @@ module Parse.String
   )
 where
 
-import qualified Data.Utf8 as Utf8
+import Data.Utf8 qualified as Utf8
 import Data.Word (Word16, Word8)
 import Foreign.Ptr (Ptr, minusPtr, plusPtr)
-import qualified Gren.String as ES
-import qualified Parse.Number as Number
+import Gren.String qualified as ES
+import Parse.Number qualified as Number
 import Parse.Primitives (Col, Parser, Row)
-import qualified Parse.Primitives as P
-import qualified Reporting.Error.Syntax as E
+import Parse.Primitives qualified as P
+import Reporting.Error.Syntax qualified as E
 
 -- CHARACTER
 
