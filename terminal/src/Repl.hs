@@ -540,15 +540,13 @@ getRoot =
                     (Outline.ExposedList [])
                     compatibleDeps
                     C.defaultGren
-                    Platform.Browser
+                    Platform.Common
 
               return root
 
 defaultDeps :: [Pkg.Name]
 defaultDeps =
-  [ Pkg.core,
-    Pkg.browser
-  ]
+  [Pkg.core]
 
 -- GET INTERPRETER
 
