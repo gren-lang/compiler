@@ -97,7 +97,7 @@ printWelcomeMessage =
    in D.toAnsi IO.stdout $
         D.vcat
           [ D.black "----" <+> D.dullcyan title <+> D.black (D.fromChars dashes),
-            D.black $ D.fromChars $ "Say :help for help and :exit to exit! More at " <> D.makeLink "repl",
+            D.black $ D.fromChars $ "Say :help for help and :exit to exit!",
             D.black "--------------------------------------------------------------------------------",
             D.empty
           ]
@@ -502,11 +502,7 @@ genericHelpMessage =
   \\n\
   \  :exit    Exit the REPL\n\
   \  :help    Show this information\n\
-  \  :reset   Clear all previous imports and definitions\n\
-  \\n\
-  \More info at "
-    ++ D.makeLink "repl"
-    ++ "\n"
+  \  :reset   Clear all previous imports and definitions\n"
 
 -- GET ROOT
 
@@ -540,15 +536,13 @@ getRoot =
                     (Outline.ExposedList [])
                     compatibleDeps
                     C.defaultGren
-                    Platform.Browser
+                    Platform.Common
 
               return root
 
 defaultDeps :: [Pkg.Name]
 defaultDeps =
-  [ Pkg.core,
-    Pkg.browser
-  ]
+  [Pkg.core]
 
 -- GET INTERPRETER
 
