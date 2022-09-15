@@ -1,6 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE TypeApplications #-}
+{-# OPTIONS_GHC -Werror=incomplete-patterns #-}
 {-# OPTIONS_GHC -Wno-error=unused-matches #-}
 
 module Gren.Format (toByteStringBuilder) where
@@ -131,7 +132,6 @@ extendedGroup open baseSep sep fieldSep close base fields =
 --
 formatModule :: Src.Module -> Block
 formatModule (Src.Module moduleName exports docs imports values unions aliases binops comments effects) =
-  -- TODO: implement actual formating
   Block.stack $
     NonEmpty.fromList $
       catMaybes
@@ -558,6 +558,8 @@ formatExpr = \case
           [ Block.line $ utf8 (A.toValue name) <> Block.space <> Block.char7 '=',
             exprParensNone $ formatExpr (A.toValue expr)
           ]
+  Src.Parens comments1 expr comments2 ->
+    formatExpr $ A.toValue expr
 
 opForcesMultiline :: Name -> Bool
 opForcesMultiline op =
