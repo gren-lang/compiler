@@ -14,6 +14,7 @@ module Parse.Module
 where
 
 import AST.Source qualified as Src
+import AST.SourceComments qualified as SC
 import Data.ByteString qualified as BS
 import Data.Name qualified as Name
 import Gren.Compiler.Imports qualified as Imports
@@ -277,7 +278,7 @@ chompHeader =
           comments4 <- addLocation (Space.chompAndCheckIndent E.ModuleSpace E.Effect)
           Keyword.where_ E.Effect
           comments5 <- addLocation (Space.chompAndCheckIndent E.ModuleSpace E.Effect)
-          manager <- chompManager
+          (manager, commentsAfterManager) <- chompManager
           comments6 <- addLocation (Space.chompAndCheckIndent E.ModuleSpace E.Effect)
           Keyword.exposing_ E.Effect
           comments7 <- addLocation (Space.chompAndCheckIndent E.ModuleSpace E.Effect)
@@ -291,48 +292,56 @@ chompHeader =
       -- default header
       Nothing
 
-chompManager :: Parser E.Module Src.Manager
+chompManager :: Parser E.Module (Src.Manager, [Src.Comment])
 chompManager =
   do
     word1 0x7B {- { -} E.Effect
-    spaces_em
+    commentsAfterOpenBrace <- spaces_em
     oneOf
       E.Effect
       [ do
           cmd <- chompCommand
-          spaces_em
+          commentsAfterCmd <- spaces_em
           oneOf
             E.Effect
             [ do
                 word1 0x7D {-}-} E.Effect
-                spaces_em
-                return (Src.Cmd cmd),
+                commentsAfterCloseBrace <- spaces_em
+                let comments = SC.CmdComments commentsAfterOpenBrace commentsAfterCmd
+                return (Src.Cmd cmd comments, commentsAfterCloseBrace),
               do
                 word1 0x2C {-,-} E.Effect
-                spaces_em
+                commentsAfterComma <- spaces_em
                 sub <- chompSubscription
-                spaces_em
+                commentsAfterSub <- spaces_em
                 word1 0x7D {-}-} E.Effect
-                spaces_em
-                return (Src.Fx cmd sub)
+                commentsAfterCloseBrace <- spaces_em
+                let cmdComments = SC.CmdComments commentsAfterOpenBrace commentsAfterCmd
+                let subComments = SC.SubComments commentsAfterComma commentsAfterSub
+                let comments = SC.FxComments cmdComments subComments
+                return (Src.Fx cmd sub comments, commentsAfterCloseBrace)
             ],
         do
           sub <- chompSubscription
-          spaces_em
+          commentsAfterSub <- spaces_em
           oneOf
             E.Effect
             [ do
                 word1 0x7D {-}-} E.Effect
-                spaces_em
-                return (Src.Sub sub),
+                commentsAfterCloseBrace <- spaces_em
+                let comments = SC.SubComments commentsAfterOpenBrace commentsAfterSub
+                return (Src.Sub sub comments, commentsAfterCloseBrace),
               do
                 word1 0x2C {-,-} E.Effect
-                spaces_em
+                commentsAfterComma <- spaces_em
                 cmd <- chompCommand
-                spaces_em
+                commentsAfterCmd <- spaces_em
                 word1 0x7D {-}-} E.Effect
-                spaces_em
-                return (Src.Fx cmd sub)
+                commentsAfterCloseBrace <- spaces_em
+                let subComments = SC.SubComments commentsAfterOpenBrace commentsAfterSub
+                let cmdComments = SC.CmdComments commentsAfterComma commentsAfterCmd
+                let comments = SC.FxComments cmdComments subComments
+                return (Src.Fx cmd sub comments, commentsAfterCloseBrace)
             ]
       ]
 

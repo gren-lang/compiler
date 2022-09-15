@@ -63,11 +63,11 @@ toEffectDups effects =
        in List.foldl' addPort Dups.none (fmap snd ports)
     Src.Manager _ manager ->
       case manager of
-        Src.Cmd (A.At region _) ->
+        Src.Cmd (A.At region _) _ ->
           Dups.one "command" region (Env.TopLevel region)
-        Src.Sub (A.At region _) ->
+        Src.Sub (A.At region _) _ ->
           Dups.one "subscription" region (Env.TopLevel region)
-        Src.Fx (A.At regionCmd _) (A.At regionSub _) ->
+        Src.Fx (A.At regionCmd _) (A.At regionSub _) _ ->
           Dups.union
             (Dups.one "command" regionCmd (Env.TopLevel regionCmd))
             (Dups.one "subscription" regionSub (Env.TopLevel regionSub))

@@ -34,23 +34,15 @@ module AST.Source
   )
 where
 
+import AST.SourceComments (Comment, GREN_COMMENT)
+import AST.SourceComments qualified as SC
 import AST.Utils.Binop qualified as Binop
 import Data.Name (Name)
 import Data.Name qualified as Name
-import Data.Utf8 qualified as Utf8
 import Gren.Float qualified as EF
 import Gren.String qualified as ES
 import Parse.Primitives qualified as P
 import Reporting.Annotation qualified as A
-
--- COMMENTS
-
-data Comment
-  = BlockComment (Utf8.Utf8 GREN_COMMENT)
-  | LineComment (Utf8.Utf8 GREN_COMMENT)
-  deriving (Show)
-
-data GREN_COMMENT
 
 -- EXPRESSIONS
 
@@ -183,9 +175,9 @@ data Effects
   deriving (Show)
 
 data Manager
-  = Cmd (A.Located Name)
-  | Sub (A.Located Name)
-  | Fx (A.Located Name) (A.Located Name)
+  = Cmd (A.Located Name) SC.CmdComments
+  | Sub (A.Located Name) SC.SubComments
+  | Fx (A.Located Name) (A.Located Name) SC.FxComments
   deriving (Show)
 
 data Docs

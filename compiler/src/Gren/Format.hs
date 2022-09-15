@@ -7,6 +7,7 @@
 module Gren.Format (toByteStringBuilder) where
 
 import AST.Source qualified as Src
+import AST.SourceComments qualified as SC
 import AST.Utils.Binop qualified as Binop
 import Control.Monad (join)
 import Data.Bifunctor (second)
@@ -130,6 +131,14 @@ extendedGroup open baseSep sep fieldSep close base fields =
 --
 -- AST -> Block
 --
+
+formatComment :: Src.Comment -> Block
+formatComment = \case
+  Src.BlockComment text ->
+    Block.line $ Block.string7 "{- " <> utf8 text <> Block.string7 " -}"
+  Src.LineComment text ->
+    Block.mustBreak $ Block.string7 "-- " <> utf8 text
+
 formatModule :: Src.Module -> Block
 formatModule (Src.Module moduleName exports docs imports values unions aliases binops comments effects) =
   Block.stack $
@@ -219,23 +228,28 @@ formatManager manager =
       group '{' ',' '}' False $
         fmap (formatPair . second A.toValue) $
           case manager of
-            Src.Cmd cmd ->
-              [("command", cmd)]
-            Src.Sub sub ->
-              [("subscription", sub)]
-            Src.Fx cmd sub ->
-              [ ("command", cmd),
-                ("subscription", sub)
+            Src.Cmd cmd (SC.CmdComments comments1 comments2) ->
+              [(comments1 ++ comments2, "command", cmd)]
+            Src.Sub sub (SC.SubComments comments1 comments2) ->
+              [(comments1 ++ comments2, "subscription", sub)]
+            Src.Fx cmd sub (SC.FxComments (SC.CmdComments commentsCmd1 commentsCmd2) (SC.SubComments commentsSub1 commentsSub2)) ->
+              [ (commentsCmd1 ++ commentsCmd2, "command", cmd),
+                (commentsSub1 ++ commentsSub2, "subscription", sub)
               ]
     ]
   where
-    formatPair (key, name) =
-      Block.line $
-        sconcat
-          [ Block.string7 key,
-            Block.string7 " = ",
-            utf8 name
-          ]
+    formatPair (comments, key, name) =
+      spaceOrStack $
+        NonEmpty.prependList
+          (fmap formatComment comments)
+          ( NonEmpty.singleton $
+              Block.line $
+                sconcat
+                  [ Block.string7 key,
+                    Block.string7 " = ",
+                    utf8 name
+                  ]
+          )
 
 formatExposing :: Src.Exposing -> Maybe Block
 formatExposing = \case
