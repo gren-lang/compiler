@@ -68,7 +68,11 @@ install =
           [ require0 Install.NoArgs,
             require1 Install.Install package
           ]
-   in Terminal.Command "install" (Common summary) details example installArgs noFlags Install.run
+
+      installFlags =
+        flags Install.Flags
+          |-- onOff "yes" "Assume yes for all interactive prompts."
+   in Terminal.Command "install" (Common summary) details example installArgs installFlags Install.run
 
 -- UNINSTALL
 
@@ -95,8 +99,12 @@ uninstall =
           ]
 
       uninstallArgs =
-        require1 Uninstall.UnInstall package
-   in Terminal.Command "uninstall" Uncommon details example uninstallArgs noFlags Uninstall.run
+        require1 Uninstall.Uninstall package
+
+      uninstallFlags =
+        flags Uninstall.Flags
+          |-- onOff "yes" "Assume yes for all interactive prompts."
+   in Terminal.Command "uninstall" Uncommon details example uninstallArgs uninstallFlags Uninstall.run
 
 -- VALIDATE
 

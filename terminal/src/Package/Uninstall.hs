@@ -2,6 +2,7 @@
 
 module Package.Uninstall
   ( Args (..),
+    Flags (..),
     run,
   )
 where
@@ -24,10 +25,13 @@ import Reporting.Task qualified as Task
 -- RUN
 
 data Args
-  = UnInstall Pkg.Name
+  = Uninstall Pkg.Name
 
-run :: Args -> () -> IO ()
-run args () =
+data Flags = Flags
+  { _skipPrompts :: Bool }
+
+run :: Args -> Flags -> IO ()
+run args (Flags _skipPrompts) =
   Reporting.attempt Exit.installToReport $
     do
       maybeRoot <- Dirs.findRoot
@@ -40,16 +44,16 @@ run args () =
               env <- Task.io Solver.initEnv
               oldOutline <- Task.eio Exit.InstallBadOutline $ Outline.read root
               case args of
-                UnInstall pkg ->
+                Uninstall pkg ->
                   case oldOutline of
                     Outline.App outline ->
                       do
                         changes <- makeAppPlan env pkg outline
-                        attemptChanges root env oldOutline V.toChars changes
+                        attemptChanges root env _skipPrompts oldOutline V.toChars changes
                     Outline.Pkg outline ->
                       do
                         changes <- makePkgPlan env pkg outline
-                        attemptChanges root env oldOutline C.toChars changes
+                        attemptChanges root env _skipPrompts oldOutline C.toChars changes
 
 -- ATTEMPT CHANGES
 
@@ -60,13 +64,13 @@ data Changes vsn
 
 type Task = Task.Task Exit.Install
 
-attemptChanges :: FilePath -> Solver.Env -> Outline.Outline -> (a -> String) -> Changes a -> Task ()
-attemptChanges root env oldOutline toChars changes =
+attemptChanges :: FilePath -> Solver.Env -> Bool -> Outline.Outline -> (a -> String) -> Changes a -> Task ()
+attemptChanges root env skipPrompt oldOutline toChars changes =
   case changes of
     NoSuchPackage ->
       Task.io $ putStrLn "This package doesn't exist in your project."
     MakeIndirect newOutline ->
-      attemptChangesHelp root env oldOutline newOutline $
+      attemptChangesHelp root env skipPrompt oldOutline newOutline $
         D.vcat
           [ D.fillSep
               [ "I",
@@ -100,7 +104,7 @@ attemptChanges root env oldOutline toChars changes =
     Changes changeDict newOutline ->
       let widths = Map.foldrWithKey (widen toChars) (Widths 0 0 0) changeDict
           changeDocs = Map.foldrWithKey (addChange toChars widths) ([]) changeDict
-       in attemptChangesHelp root env oldOutline newOutline $
+       in attemptChangesHelp root env skipPrompt oldOutline newOutline $
             D.vcat $
               [ "Here is my plan:",
                 viewChangeDocs changeDocs,
@@ -108,12 +112,14 @@ attemptChanges root env oldOutline toChars changes =
                 "Would you like me to update your gren.json accordingly? [Y/n]: "
               ]
 
-attemptChangesHelp :: FilePath -> Solver.Env -> Outline.Outline -> Outline.Outline -> D.Doc -> Task ()
-attemptChangesHelp root env oldOutline newOutline question =
+attemptChangesHelp :: FilePath -> Solver.Env -> Bool -> Outline.Outline -> Outline.Outline -> D.Doc -> Task ()
+attemptChangesHelp root env skipPrompt oldOutline newOutline question =
   Task.eio Exit.InstallBadDetails $
     BW.withScope $ \scope ->
       do
-        approved <- Reporting.ask question
+        approved <- if skipPrompt
+                       then return True
+                       else Reporting.ask question
         if approved
           then do
             Outline.write root newOutline
