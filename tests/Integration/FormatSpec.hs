@@ -15,6 +15,29 @@ import Test.Hspec
 
 spec :: Spec
 spec = do
+  describe "module header" $ do
+    let formattedModuleBody = "\n\n\nf =\n    {}"
+    describe "normal module" $ do
+      it "formats already formatted" $
+        assertFormatted $
+          [ "module Normal exposing (..)",
+            formattedModuleBody
+          ]
+      it "formats" $
+        [ "module ",
+          " Normal ",
+          " exposing ",
+          " ( ",
+          " .. ",
+          " )  ",
+          "  ",
+          "",
+          formattedModuleBody
+        ]
+          `shouldFormatAs` [ "module Normal exposing (..)",
+                             formattedModuleBody
+                           ]
+
   describe "top-level definition" $ do
     it "formats" $
       ["f = {}"]
@@ -29,6 +52,21 @@ spec = do
                                        ", b = 2",
                                        "}"
                                      ]
+
+assertFormatted :: [Text] -> IO ()
+assertFormatted lines_ =
+  lines_ `shouldFormatAs` lines_
+
+shouldFormatAs :: [Text] -> [Text] -> IO ()
+shouldFormatAs inputLines expectedOutputLines =
+  let input = TE.encodeUtf8 $ Text.unlines inputLines
+      expectedOutput = LazyText.fromStrict $ Text.unlines expectedOutputLines
+      actualOutput = LTE.decodeUtf8 . Builder.toLazyByteString <$> Format.formatByteString input
+   in case actualOutput of
+        Nothing ->
+          expectationFailure "shouldFormatAs: failed to format"
+        Just actualModuleBody ->
+          actualModuleBody `shouldBe` expectedOutput
 
 shouldFormatModuleBodyAs :: [Text] -> [LazyText.Text] -> IO ()
 shouldFormatModuleBodyAs inputLines expectedOutputLines =
