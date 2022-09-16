@@ -249,8 +249,9 @@ Test-Suite gren-tests
         Helpers.Parse
 
         -- tests
-        Parse.SpaceSpec
+        Integration.FormatSpec
         Parse.RecordUpdateSpec
+        Parse.SpaceSpec
         Parse.UnderscorePatternSpec
 
     Build-Depends:

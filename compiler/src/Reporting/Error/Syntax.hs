@@ -70,6 +70,7 @@ data Error
   | NoPortModulesInPackage A.Region
   | NoEffectsOutsideKernel A.Region
   | ParseError Module
+  deriving (Show)
 
 -- MODULE
 
@@ -104,6 +105,7 @@ data Module
     Infix Row Col
   | --
     Declarations Decl Row Col
+  deriving (Show)
 
 data Exposing
   = ExposingSpace Space Row Col
@@ -117,6 +119,7 @@ data Exposing
   | --
     ExposingIndentEnd Row Col
   | ExposingIndentValue Row Col
+  deriving (Show)
 
 -- DECLARATIONS
 
@@ -129,6 +132,7 @@ data Decl
   | DeclDef Name.Name DeclDef Row Col
   | --
     DeclFreshLineAfterDocComment Row Col
+  deriving (Show)
 
 data DeclDef
   = DeclDefSpace Space Row Col
@@ -142,6 +146,7 @@ data DeclDef
     DeclDefIndentType Row Col
   | DeclDefIndentEquals Row Col
   | DeclDefIndentBody Row Col
+  deriving (Show)
 
 data Port
   = PortSpace Space Row Col
@@ -151,6 +156,7 @@ data Port
   | PortIndentName Row Col
   | PortIndentColon Row Col
   | PortIndentType Row Col
+  deriving (Show)
 
 -- TYPE DECLARATIONS
 
@@ -161,6 +167,7 @@ data DeclType
   | DT_Union CustomType Row Col
   | --
     DT_IndentName Row Col
+  deriving (Show)
 
 data TypeAlias
   = AliasSpace Space Row Col
@@ -170,6 +177,7 @@ data TypeAlias
   | --
     AliasIndentEquals Row Col
   | AliasIndentBody Row Col
+  deriving (Show)
 
 data CustomType
   = CT_Space Space Row Col
@@ -183,6 +191,7 @@ data CustomType
   | CT_IndentBar Row Col
   | CT_IndentAfterBar Row Col
   | CT_IndentAfterEquals Row Col
+  deriving (Show)
 
 -- EXPRESSIONS
 
