@@ -32,7 +32,7 @@ data Args
   | Install Pkg.Name
 
 data Flags = Flags
-  { _skipPrompts :: Bool }
+  {_skipPrompts :: Bool}
 
 run :: Args -> Flags -> IO ()
 run args (Flags _skipPrompts) =
@@ -123,9 +123,10 @@ attemptChangesHelp root env skipPrompt oldOutline newOutline question =
   Task.eio Exit.InstallBadDetails $
     BW.withScope $ \scope ->
       do
-        approved <- if skipPrompt
-                       then return True
-                       else Reporting.ask question
+        approved <-
+          if skipPrompt
+            then return True
+            else Reporting.ask question
         if approved
           then do
             Outline.write root newOutline

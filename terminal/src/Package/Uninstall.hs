@@ -20,6 +20,7 @@ import Reporting qualified
 import Reporting.Doc ((<+>))
 import Reporting.Doc qualified as D
 import Reporting.Exit qualified as Exit
+import Reporting.Exit.Help qualified as Help
 import Reporting.Task qualified as Task
 
 -- RUN
@@ -28,7 +29,7 @@ data Args
   = Uninstall Pkg.Name
 
 data Flags = Flags
-  { _skipPrompts :: Bool }
+  {_skipPrompts :: Bool}
 
 run :: Args -> Flags -> IO ()
 run args (Flags _skipPrompts) =
@@ -59,7 +60,8 @@ run args (Flags _skipPrompts) =
 
 data Changes vsn
   = NoSuchPackage
-  | MakeIndirect Outline.Outline
+  | MakeIndirect [Pkg.Name] Outline.Outline
+  | PackageIsRequired [Pkg.Name]
   | Changes (Map.Map Pkg.Name vsn) Outline.Outline
 
 type Task = Task.Task Exit.Install
@@ -69,38 +71,43 @@ attemptChanges root env skipPrompt oldOutline toChars changes =
   case changes of
     NoSuchPackage ->
       Task.io $ putStrLn "This package doesn't exist in your project."
-    MakeIndirect newOutline ->
+    MakeIndirect requiredBy newOutline ->
       attemptChangesHelp root env skipPrompt oldOutline newOutline $
         D.vcat
-          [ D.fillSep
-              [ "I",
-                "found",
-                "it",
-                "in",
-                "your",
-                "gren.json",
-                "file,",
-                "but",
-                "in",
-                "the",
-                D.dullyellow "\"indirect\"",
-                "dependencies."
-              ],
+          [ D.reflow
+              "I cannot remove this package from your gren.json file because the following\
+              \ packages depend on it:",
+            D.empty,
+            D.indent 4 $
+              D.vcat $
+                map (D.green . D.fromChars . Pkg.toChars) requiredBy,
+            D.empty,
             D.fillSep
               [ "Should",
                 "I",
                 "move",
                 "it",
                 "into",
-                D.green "\"direct\"",
+                D.green "\"indirect\"",
                 "dependencies",
-                "for",
-                "more",
-                "general",
-                "use?",
+                "instead?",
                 "[Y/n]: "
               ]
           ]
+    PackageIsRequired requiredBy ->
+      Task.io $
+        Help.toStdout $
+          D.vcat
+            [ D.reflow
+                "I cannot remove this package from your gren.json file because the following\
+                \ packages depend on it:",
+              D.empty,
+              D.indent 4 $
+                D.vcat $
+                  map (D.green . D.fromChars . Pkg.toChars) requiredBy,
+              D.empty,
+              D.empty
+            ]
     Changes changeDict newOutline ->
       let widths = Map.foldrWithKey (widen toChars) (Widths 0 0 0) changeDict
           changeDocs = Map.foldrWithKey (addChange toChars widths) ([]) changeDict
@@ -117,9 +124,10 @@ attemptChangesHelp root env skipPrompt oldOutline newOutline question =
   Task.eio Exit.InstallBadDetails $
     BW.withScope $ \scope ->
       do
-        approved <- if skipPrompt
-                       then return True
-                       else Reporting.ask question
+        approved <-
+          if skipPrompt
+            then return True
+            else Reporting.ask question
         if approved
           then do
             Outline.write root newOutline
@@ -153,7 +161,7 @@ makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ rootPlatform _ 
            in if Map.member pkg new
                 then
                   return $
-                    MakeIndirect $
+                    MakeIndirect (packagesDependingOn pkg solution) $
                       Outline.App $
                         outline
                           { Outline._app_deps_direct = Map.delete pkg direct,
@@ -182,8 +190,7 @@ makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ rootPlatform _ 
               let old = Map.union direct indirect
                   new = Map.map (\(Solver.Details v _) -> v) solution
                in if Map.member pkg new
-                    then -- TODO: Create better error
-                      Task.throw $ Exit.InstallNoOnlinePkgSolution pkg
+                    then return $ PackageIsRequired (packagesDependingOn pkg solution)
                     else
                       return $
                         Changes (Map.difference old new) $
@@ -202,6 +209,17 @@ makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ rootPlatform _ 
 toConstraints :: Map.Map Pkg.Name V.Version -> Map.Map Pkg.Name V.Version -> Map.Map Pkg.Name C.Constraint
 toConstraints direct indirect =
   Map.map C.exactly $ Map.union direct indirect
+
+packagesDependingOn :: Pkg.Name -> Map.Map Pkg.Name Solver.Details -> [Pkg.Name]
+packagesDependingOn targetPkg solution =
+  Map.foldrWithKey
+    ( \pkg (Solver.Details _ deps) acc ->
+        if Map.member targetPkg deps
+          then pkg : acc
+          else acc
+    )
+    []
+    solution
 
 -- MAKE PACKAGE PLAN
 
