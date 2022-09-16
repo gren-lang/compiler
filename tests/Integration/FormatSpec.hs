@@ -19,7 +19,7 @@ spec = do
     let formattedModuleBody = "\n\n\nf =\n    {}"
     describe "normal module" $ do
       it "formats already formatted" $
-        assertFormatted $
+        assertFormatted
           [ "module Normal exposing (..)",
             formattedModuleBody
           ]
@@ -39,6 +39,11 @@ spec = do
                            ]
 
   describe "top-level definition" $ do
+    it "formats already formatted" $
+      assertFormattedModuleBody
+        [ "f x =",
+          "    {}"
+        ]
     it "formats" $
       ["f = {}"]
         `shouldFormatModuleBodyAs` [ "f =",
@@ -46,6 +51,15 @@ spec = do
                                    ]
   describe "expressions" $ do
     describe "record" $ do
+      describe "empty" $ do
+        it "formats already formatted" $
+          assertFormattedExpression
+            ["{}"]
+        it "formats" $
+          [ "{",
+            " }"
+          ]
+            `shouldFormatExpressionAs` ["{}"]
       it "formats with fields" $
         ["{a=1,   b = 2}"]
           `shouldFormatExpressionAs` [ "{ a = 1",
@@ -60,7 +74,7 @@ assertFormatted lines_ =
 shouldFormatAs :: [Text] -> [Text] -> IO ()
 shouldFormatAs inputLines expectedOutputLines =
   let input = TE.encodeUtf8 $ Text.unlines inputLines
-      expectedOutput = LazyText.fromStrict $ Text.unlines expectedOutputLines
+      expectedOutput = LazyText.unlines $ fmap LazyText.fromStrict expectedOutputLines
       actualOutput = LTE.decodeUtf8 . Builder.toLazyByteString <$> Format.formatByteString input
    in case actualOutput of
         Nothing ->
@@ -68,10 +82,14 @@ shouldFormatAs inputLines expectedOutputLines =
         Just actualModuleBody ->
           actualModuleBody `shouldBe` expectedOutput
 
-shouldFormatModuleBodyAs :: [Text] -> [LazyText.Text] -> IO ()
+assertFormattedModuleBody :: [Text] -> IO ()
+assertFormattedModuleBody lines_ =
+  lines_ `shouldFormatModuleBodyAs` lines_
+
+shouldFormatModuleBodyAs :: [Text] -> [Text] -> IO ()
 shouldFormatModuleBodyAs inputLines expectedOutputLines =
   let input = TE.encodeUtf8 $ Text.unlines inputLines
-      expectedOutput = LazyText.unlines expectedOutputLines
+      expectedOutput = LazyText.unlines $ fmap LazyText.fromStrict expectedOutputLines
       actualOutput = LTE.decodeUtf8 . Builder.toLazyByteString <$> Format.formatByteString input
    in case LazyText.stripPrefix "module Main exposing (..)\n\n\n\n" <$> actualOutput of
         Nothing ->
@@ -81,10 +99,14 @@ shouldFormatModuleBodyAs inputLines expectedOutputLines =
         Just (Just actualModuleBody) ->
           actualModuleBody `shouldBe` expectedOutput
 
-shouldFormatExpressionAs :: [Text] -> [LazyText.Text] -> IO ()
+assertFormattedExpression :: [Text] -> IO ()
+assertFormattedExpression lines_ =
+  lines_ `shouldFormatExpressionAs` lines_
+
+shouldFormatExpressionAs :: [Text] -> [Text] -> IO ()
 shouldFormatExpressionAs inputLines expectedOutputLines =
   let input = TE.encodeUtf8 $ "expr =\n" <> Text.unlines (fmap ("    " <>) inputLines)
-      expectedOutput = LazyText.unlines expectedOutputLines
+      expectedOutput = LazyText.unlines $ fmap LazyText.fromStrict expectedOutputLines
       actualOutput = LTE.decodeUtf8 . Builder.toLazyByteString <$> Format.formatByteString input
       cleanOutput i =
         LazyText.stripPrefix "module Main exposing (..)\n\n\n\nexpr =\n" i
