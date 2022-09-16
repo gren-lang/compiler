@@ -5,14 +5,15 @@ module Package
   )
 where
 
-import Bump qualified
 import Data.List qualified as List
-import Diff qualified
-import Install qualified
+import Package.Bump qualified as Bump
+import Package.Diff qualified as Diff
+import Package.Install qualified as Install
+import Package.Uninstall qualified as Uninstall
+import Package.Validate qualified as Validate
 import Terminal
 import Terminal.Helpers
 import Text.PrettyPrint.ANSI.Leijen qualified as P
-import Validate qualified
 
 -- RUN
 
@@ -22,6 +23,7 @@ run =
     intro
     P.empty
     [ install,
+      uninstall,
       bump,
       diff,
       validate
@@ -66,7 +68,43 @@ install =
           [ require0 Install.NoArgs,
             require1 Install.Install package
           ]
-   in Terminal.Command "install" (Common summary) details example installArgs noFlags Install.run
+
+      installFlags =
+        flags Install.Flags
+          |-- onOff "yes" "Assume yes for all interactive prompts."
+   in Terminal.Command "install" (Common summary) details example installArgs installFlags Install.run
+
+-- UNINSTALL
+
+uninstall :: Terminal.Command
+uninstall =
+  let details =
+        "The `uninstall` command removes packages from your project:"
+
+      example =
+        stack
+          [ reflow
+              "For example, if you want to get rid of the browser package in your project,\
+              \ you would say:",
+            P.indent 4 $
+              P.green $
+                P.vcat $
+                  [ "gren package uninstall gren-lang/browser"
+                  ],
+            reflow
+              "Notice that you must say the AUTHOR name and PROJECT name!",
+            reflow
+              "What if another package depends on what you're trying to remove? No problem!\
+              \ I'll let you know if that's the case, and help you resolve that situation."
+          ]
+
+      uninstallArgs =
+        require1 Uninstall.Uninstall package
+
+      uninstallFlags =
+        flags Uninstall.Flags
+          |-- onOff "yes" "Assume yes for all interactive prompts."
+   in Terminal.Command "uninstall" Uncommon details example uninstallArgs uninstallFlags Uninstall.run
 
 -- VALIDATE
 

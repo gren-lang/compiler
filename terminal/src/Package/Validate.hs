@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Validate
+module Package.Validate
   ( run,
   )
 where

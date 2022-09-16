@@ -93,8 +93,8 @@ package =
     { _singular = "package",
       _plural = "packages",
       _parser = parsePackage,
-      _suggest = (\_ -> return []),
-      _examples = \_ -> return []
+      _suggest = (\_ -> return ["gren-lang/browser"]),
+      _examples = \_ -> return ["gren-lang/browser"]
     }
 
 parsePackage :: String -> Maybe Pkg.Name

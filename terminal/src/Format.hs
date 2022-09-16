@@ -86,7 +86,7 @@ sourceDirsFromGrenJson =
               Task.io $
                 filterM Dir.doesDirectoryExist
                   =<< ( traverse (fmap AbsoluteSrcDir.toFilePath <$> Outline.toAbsoluteSrcDir root) $
-                          (NE.toList (Outline.sourceDirs outline) ++ NE.toList (Outline.testDirs outline))
+                          (NE.toList (Outline.sourceDirs outline))
                       )
 
 resolveFiles :: [FilePath] -> Task.Task Exit.Format [FilePath]
