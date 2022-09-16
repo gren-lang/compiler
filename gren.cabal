@@ -58,6 +58,7 @@ Common gren-common
         Repl
         Package
         Package.Install
+        Package.Uninstall
         Package.Bump
         Package.Diff
         Package.Validate
