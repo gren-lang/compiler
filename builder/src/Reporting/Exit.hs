@@ -15,6 +15,8 @@ module Reporting.Exit
     validateToReport,
     Install (..),
     installToReport,
+    Uninstall (..),
+    uninstallToReport,
     Format (..),
     formatToReport,
     newPackageOverview,
@@ -916,6 +918,40 @@ installToReport exit =
           D.reflow $ "Maybe you want one of these instead?"
         ]
     InstallBadDetails details ->
+      toDetailsReport details
+
+-- UNINSTALL
+
+data Uninstall
+  = UninstallNoOutline
+  | UninstallBadOutline Outline
+  | UninstallHadSolverTrouble Solver
+  | UninstallNoSolverSolution
+  | UninstallBadDetails Details
+
+uninstallToReport :: Uninstall -> Help.Report
+uninstallToReport exit =
+  case exit of
+    UninstallNoOutline ->
+      Help.report
+        "COULD NOT FIND PROJECT"
+        Nothing
+        "I could not locate the gren.json file of your project."
+        []
+    UninstallBadOutline outline ->
+      toOutlineReport outline
+    UninstallHadSolverTrouble solver ->
+      toSolverReport solver
+    UninstallNoSolverSolution ->
+      Help.report
+        "COULD NOT RESOLVE DEPENDENCIES"
+        (Just "gren.json")
+        ( "After removing the package I was unable to resolve your project's dependencies.\
+          \ I'm not sure how this can happen. It might be a good idea to reach out to the Gren\
+          \ core team."
+        )
+        []
+    UninstallBadDetails details ->
       toDetailsReport details
 
 -- SOLVER

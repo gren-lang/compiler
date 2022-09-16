@@ -16,7 +16,6 @@ module Gren.Outline
     flattenExposed,
     toAbsoluteSrcDir,
     sourceDirs,
-    testDirs,
     platform,
     dependencyConstraints,
   )
@@ -256,10 +255,6 @@ sourceDirs outline =
       srcDirs
     Pkg _ ->
       NE.singleton (RelativeSrcDir "src")
-
-testDirs :: Outline -> NE.List SrcDir
-testDirs _ =
-  NE.singleton (RelativeSrcDir "tests")
 
 -- JSON DECODE
 
