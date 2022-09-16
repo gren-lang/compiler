@@ -51,16 +51,16 @@ Common gren-common
         terminal/src
 
     other-modules:
-        Bump
-        Diff
         Format
         Init
-        Install
         Make
         Docs
-        Validate
         Repl
         Package
+        Package.Install
+        Package.Bump
+        Package.Diff
+        Package.Validate
 
         -- terminal args
         Terminal

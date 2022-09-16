@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Install
+module Package.Install
   ( Args (..),
     run,
   )

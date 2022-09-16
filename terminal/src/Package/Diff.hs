@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wall #-}
 
-module Diff
+module Package.Diff
   ( Args (..),
     run,
   )

@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Bump
+module Package.Bump
   ( run,
   )
 where

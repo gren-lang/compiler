@@ -5,14 +5,14 @@ module Package
   )
 where
 
-import Bump qualified
+import Package.Bump qualified as Bump
 import Data.List qualified as List
-import Diff qualified
-import Install qualified
+import Package.Diff qualified as Diff
+import Package.Install qualified as Install
 import Terminal
 import Terminal.Helpers
 import Text.PrettyPrint.ANSI.Leijen qualified as P
-import Validate qualified
+import Package.Validate qualified as Validate
 
 -- RUN
 
