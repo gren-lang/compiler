@@ -61,7 +61,6 @@ run args () =
 
 data Changes vsn
   = AlreadyInstalled
-  | PromoteTest Outline.Outline
   | PromoteIndirect Outline.Outline
   | Changes (Map.Map Pkg.Name (Change vsn)) Outline.Outline
 
@@ -97,37 +96,6 @@ attemptChanges root env oldOutline toChars changes =
                 "into",
                 D.green "\"direct\"",
                 "dependencies",
-                "for",
-                "more",
-                "general",
-                "use?",
-                "[Y/n]: "
-              ]
-          ]
-    PromoteTest newOutline ->
-      attemptChangesHelp root env oldOutline newOutline $
-        D.vcat
-          [ D.fillSep
-              [ "I",
-                "found",
-                "it",
-                "in",
-                "your",
-                "gren.json",
-                "file,",
-                "but",
-                "in",
-                "the",
-                D.dullyellow "\"test-dependencies\"",
-                "field."
-              ],
-            D.fillSep
-              [ "Should",
-                "I",
-                "move",
-                "it",
-                "into",
-                D.green "\"dependencies\"",
                 "for",
                 "more",
                 "general",
