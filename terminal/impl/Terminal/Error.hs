@@ -278,16 +278,7 @@ argErrorToDocs argError =
         examples <- makeExamples
         return
           [ P.fillSep
-              [ "The",
-                "arguments",
-                "you",
-                "have",
-                "are",
-                "fine,",
-                "but",
-                "in",
-                "addition,",
-                "I",
+              [ "I",
                 "was",
                 "expecting",
                 "a",
