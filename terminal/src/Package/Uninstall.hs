@@ -55,7 +55,6 @@ run args () =
 
 data Changes vsn
   = NoSuchPackage
-  | PromoteTest Outline.Outline -- TODO: remove this, along with test dirs
   | MakeIndirect Outline.Outline
   | Changes (Map.Map Pkg.Name vsn) Outline.Outline
 
@@ -91,37 +90,6 @@ attemptChanges root env oldOutline toChars changes =
                 "into",
                 D.green "\"direct\"",
                 "dependencies",
-                "for",
-                "more",
-                "general",
-                "use?",
-                "[Y/n]: "
-              ]
-          ]
-    PromoteTest newOutline ->
-      attemptChangesHelp root env oldOutline newOutline $
-        D.vcat
-          [ D.fillSep
-              [ "I",
-                "found",
-                "it",
-                "in",
-                "your",
-                "gren.json",
-                "file,",
-                "but",
-                "in",
-                "the",
-                D.dullyellow "\"test-dependencies\"",
-                "field."
-              ],
-            D.fillSep
-              [ "Should",
-                "I",
-                "move",
-                "it",
-                "into",
-                D.green "\"dependencies\"",
                 "for",
                 "more",
                 "general",
