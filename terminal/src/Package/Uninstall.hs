@@ -33,17 +33,17 @@ data Flags = Flags
 
 run :: Args -> Flags -> IO ()
 run args (Flags _skipPrompts) =
-  Reporting.attempt Exit.installToReport $
+  Reporting.attempt Exit.uninstallToReport $
     do
       maybeRoot <- Dirs.findRoot
       case maybeRoot of
         Nothing ->
-          return (Left Exit.InstallNoOutline)
+          return (Left Exit.UninstallNoOutline)
         Just root ->
           Task.run $
             do
               env <- Task.io Solver.initEnv
-              oldOutline <- Task.eio Exit.InstallBadOutline $ Outline.read root
+              oldOutline <- Task.eio Exit.UninstallBadOutline $ Outline.read root
               case args of
                 Uninstall pkg ->
                   case oldOutline of
@@ -64,7 +64,7 @@ data Changes vsn
   | PackageIsRequired [Pkg.Name]
   | Changes (Map.Map Pkg.Name vsn) Outline.Outline
 
-type Task = Task.Task Exit.Install
+type Task = Task.Task Exit.Uninstall
 
 attemptChanges :: FilePath -> Solver.Env -> Bool -> Outline.Outline -> (a -> String) -> Changes a -> Task ()
 attemptChanges root env skipPrompt oldOutline toChars changes =
@@ -121,7 +121,7 @@ attemptChanges root env skipPrompt oldOutline toChars changes =
 
 attemptChangesHelp :: FilePath -> Solver.Env -> Bool -> Outline.Outline -> Outline.Outline -> D.Doc -> Task ()
 attemptChangesHelp root env skipPrompt oldOutline newOutline question =
-  Task.eio Exit.InstallBadDetails $
+  Task.eio Exit.UninstallBadDetails $
     BW.withScope $ \scope ->
       do
         approved <-
@@ -176,9 +176,9 @@ makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ rootPlatform _ 
                             Outline._app_deps_indirect = Map.intersection indirect new
                           }
         Solver.NoSolution ->
-          Task.throw $ Exit.InstallNoOnlinePkgSolution pkg
+          Task.throw $ Exit.UninstallNoSolverSolution
         Solver.Err exit ->
-          Task.throw $ Exit.InstallHadSolverTrouble exit
+          Task.throw $ Exit.UninstallHadSolverTrouble exit
     Nothing ->
       case Map.lookup pkg indirect of
         Just _ -> do
@@ -200,9 +200,9 @@ makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ rootPlatform _ 
                                 Outline._app_deps_indirect = Map.intersection indirect new
                               }
             Solver.NoSolution ->
-              Task.throw $ Exit.InstallNoOnlinePkgSolution pkg
+              Task.throw $ Exit.UninstallNoSolverSolution
             Solver.Err exit ->
-              Task.throw $ Exit.InstallHadSolverTrouble exit
+              Task.throw $ Exit.UninstallHadSolverTrouble exit
         Nothing ->
           return NoSuchPackage
 
@@ -240,9 +240,9 @@ makePkgPlan (Solver.Env cache) pkg outline@(Outline.PkgOutline _ _ _ _ _ deps _ 
                       { Outline._pkg_deps = withMissingPkg
                       }
         Solver.NoSolution ->
-          Task.throw $ Exit.InstallNoOnlinePkgSolution pkg
+          Task.throw $ Exit.UninstallNoSolverSolution
         Solver.Err exit ->
-          Task.throw $ Exit.InstallHadSolverTrouble exit
+          Task.throw $ Exit.UninstallHadSolverTrouble exit
 
 -- VIEW CHANGE DOCS
 
