@@ -17,26 +17,38 @@ spec :: Spec
 spec = do
   describe "module header" $ do
     let formattedModuleBody = "\n\n\nf =\n    {}"
-    describe "normal module" $ do
-      it "formats already formatted" $
-        assertFormatted
-          [ "module Normal exposing (..)",
+    describe "normal module" $
+      do
+        it "formats already formatted" $
+          assertFormatted
+            [ "module Normal exposing (..)",
+              formattedModuleBody
+            ]
+        it "formats" $
+          [ "module ",
+            " Normal ",
+            " exposing ",
+            " ( ",
+            " .. ",
+            " )  ",
+            "  ",
+            "",
             formattedModuleBody
           ]
-      it "formats" $
-        [ "module ",
-          " Normal ",
-          " exposing ",
-          " ( ",
-          " .. ",
-          " )  ",
-          "  ",
-          "",
-          formattedModuleBody
-        ]
-          `shouldFormatAs` [ "module Normal exposing (..)",
-                             formattedModuleBody
-                           ]
+            `shouldFormatAs` [ "module Normal exposing (..)",
+                               formattedModuleBody
+                             ]
+        it "formats with comments" $
+          [ "{-A-}",
+            "module{-B-}Normal{-C-}exposing{-D-}({-E-}..{-F-}){-G-}",
+            "{-H-}",
+            formattedModuleBody
+          ]
+            `shouldFormatAs` [ "{- A -}",
+                               "module {- B -} Normal {- C -} exposing {- D -} (..)",
+                               "{- G -} {- H -}",
+                               formattedModuleBody
+                             ]
 
   describe "top-level definition" $ do
     it "formats already formatted" $

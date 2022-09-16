@@ -83,11 +83,12 @@ checkModule projectType (Module maybeHeader imports infixes decls) =
           Src.Module (Just name) exports (toDocs docs decls) imports values unions aliases infixes comments
             <$> checkEffects projectType ports effects
         Nothing ->
-          Right $
-            Src.Module Nothing (A.At A.one Src.Open) (Src.NoDocs A.one) imports values unions aliases infixes [] $
-              case ports of
-                [] -> Src.NoEffects
-                _ : _ -> Src.Ports ports
+          let comments = SC.HeaderComments [] [] [] [] [] []
+           in Right $
+                Src.Module Nothing (A.At A.one Src.Open) (Src.NoDocs A.one) imports values unions aliases infixes comments $
+                  case ports of
+                    [] -> Src.NoEffects
+                    _ : _ -> Src.Ports ports (SC.PortsComments [])
 
 checkEffects :: ProjectType -> [(Src.SourceOrder, Src.Port)] -> Effects -> Either E.Error Src.Effects
 checkEffects projectType ports effects =
@@ -100,18 +101,18 @@ checkEffects projectType ports effects =
           case projectType of
             Package _ -> Left (E.NoPortsInPackage name)
             Application -> Left (E.UnexpectedPort region)
-    Ports region ->
+    Ports region comments ->
       case projectType of
         Package _ ->
           Left (E.NoPortModulesInPackage region)
         Application ->
           case ports of
             [] -> Left (E.NoPorts region)
-            _ : _ -> Right (Src.Ports ports)
-    Manager region manager ->
+            _ : _ -> Right (Src.Ports ports comments)
+    Manager region manager comments ->
       if isKernel projectType
         then case ports of
-          [] -> Right (Src.Manager region manager)
+          [] -> Right (Src.Manager region manager comments)
           _ : _ -> Left (E.UnexpectedPort region)
         else Left (E.NoEffectsOutsideKernel region)
 
@@ -199,22 +200,20 @@ chompInfixes infixes =
 
 -- MODULE DOC COMMENT
 
-chompModuleDocCommentSpace :: Parser E.Module ((Either A.Region Src.DocComment), [LocatedComments])
+chompModuleDocCommentSpace :: Parser E.Module ([Src.Comment], (Either A.Region Src.DocComment), [Src.Comment])
 chompModuleDocCommentSpace =
   do
-    preComments@(A.At region _) <- addLocation (freshLine E.FreshLine)
+    (A.At region preComments) <- addLocation (freshLine E.FreshLine)
     oneOfWithFallback
       [ do
           docComment <- Space.docComment E.ImportStart E.ModuleSpace
-          postComments <- addLocation (Space.chomp E.ModuleSpace)
+          postComments <- Space.chomp E.ModuleSpace
           Space.checkFreshLine E.FreshLine
-          return ((Right docComment), [preComments, postComments])
+          return (preComments, (Right docComment), postComments)
       ]
-      ((Left region), [preComments])
+      (preComments, (Left region), [])
 
 -- HEADER
-
-type LocatedComments = A.Located [Src.Comment]
 
 data Header
   = Header
@@ -222,72 +221,74 @@ data Header
       Effects
       (A.Located Src.Exposing)
       (Either A.Region Src.DocComment)
-      [LocatedComments]
+      SC.HeaderComments
 
 data Effects
   = NoEffects A.Region
-  | Ports A.Region
-  | Manager A.Region Src.Manager
+  | Ports A.Region SC.PortsComments
+  | Manager A.Region Src.Manager SC.ManagerComments
 
 chompHeader :: Parser E.Module (Maybe Header)
 chompHeader =
   do
-    comments1 <- addLocation (freshLine E.FreshLine)
+    commentsBeforeModuleLine <- freshLine E.FreshLine
     start <- getPosition
     oneOfWithFallback
       [ -- module MyThing exposing (..)
         do
           Keyword.module_ E.ModuleProblem
           effectEnd <- getPosition
-          comments2 <- addLocation (Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem)
+          commentsAfterModuleKeyword <- Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem
           name <- addLocation (Var.moduleName E.ModuleName)
-          comments3 <- addLocation (Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem)
+          commentsAfterModuleName <- Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem
           Keyword.exposing_ E.ModuleProblem
-          comments4 <- addLocation (Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem)
+          commentsAfterExposingKeyword <- Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem
           exports <- addLocation (specialize E.ModuleExposing exposing)
-          (docComment, additionalComments) <- chompModuleDocCommentSpace
+          (commentsBeforeDocComment, docComment, commentsAfterDocComment) <- chompModuleDocCommentSpace
+          let comments = SC.HeaderComments commentsBeforeModuleLine commentsAfterModuleKeyword commentsAfterModuleName commentsAfterExposingKeyword commentsBeforeDocComment commentsAfterDocComment
           return $
             Just $
-              Header name (NoEffects (A.Region start effectEnd)) exports docComment $
-                comments1 : comments2 : comments3 : comments4 : additionalComments,
+              Header name (NoEffects (A.Region start effectEnd)) exports docComment comments,
         -- port module MyThing exposing (..)
         do
           Keyword.port_ E.PortModuleProblem
-          comments2 <- addLocation (Space.chompAndCheckIndent E.ModuleSpace E.PortModuleProblem)
+          commentsAfterPortKeyword <- Space.chompAndCheckIndent E.ModuleSpace E.PortModuleProblem
           Keyword.module_ E.PortModuleProblem
           effectEnd <- getPosition
-          comments3 <- addLocation (Space.chompAndCheckIndent E.ModuleSpace E.PortModuleProblem)
+          commentsAfterModuleKeyword <- Space.chompAndCheckIndent E.ModuleSpace E.PortModuleProblem
           name <- addLocation (Var.moduleName E.PortModuleName)
-          comments4 <- addLocation (Space.chompAndCheckIndent E.ModuleSpace E.PortModuleProblem)
+          commentsAfterModuleName <- Space.chompAndCheckIndent E.ModuleSpace E.PortModuleProblem
           Keyword.exposing_ E.PortModuleProblem
-          comments5 <- addLocation (Space.chompAndCheckIndent E.ModuleSpace E.PortModuleProblem)
+          commentsAfterExposingKeyword <- Space.chompAndCheckIndent E.ModuleSpace E.PortModuleProblem
           exports <- addLocation (specialize E.PortModuleExposing exposing)
-          (docComment, additionalComments) <- chompModuleDocCommentSpace
+          (commentsBeforeDocComment, docComment, commentsAfterDocComment) <- chompModuleDocCommentSpace
+          let comments = SC.HeaderComments commentsBeforeModuleLine commentsAfterModuleKeyword commentsAfterModuleName commentsAfterExposingKeyword commentsBeforeDocComment commentsAfterDocComment
+          let portsComments = SC.PortsComments commentsAfterPortKeyword
           return $
             Just $
-              Header name (Ports (A.Region start effectEnd)) exports docComment $
-                comments1 : comments2 : comments3 : comments4 : comments5 : additionalComments,
+              Header name (Ports (A.Region start effectEnd) portsComments) exports docComment comments,
         -- effect module MyThing where { command = MyCmd } exposing (..)
         do
           Keyword.effect_ E.Effect
-          comments2 <- addLocation (Space.chompAndCheckIndent E.ModuleSpace E.Effect)
+          commentsAfterEffectKeyword <- Space.chompAndCheckIndent E.ModuleSpace E.Effect
           Keyword.module_ E.Effect
           effectEnd <- getPosition
-          comments3 <- addLocation (Space.chompAndCheckIndent E.ModuleSpace E.Effect)
+          commentsAfterModuleKeyword <- Space.chompAndCheckIndent E.ModuleSpace E.Effect
           name <- addLocation (Var.moduleName E.ModuleName)
-          comments4 <- addLocation (Space.chompAndCheckIndent E.ModuleSpace E.Effect)
+          commentsAfterModuleName <- Space.chompAndCheckIndent E.ModuleSpace E.Effect
           Keyword.where_ E.Effect
-          comments5 <- addLocation (Space.chompAndCheckIndent E.ModuleSpace E.Effect)
-          (manager, commentsAfterManager) <- chompManager
-          comments6 <- addLocation (Space.chompAndCheckIndent E.ModuleSpace E.Effect)
+          commentsAfterWhereKeyword <- Space.chompAndCheckIndent E.ModuleSpace E.Effect
+          (manager, commentsAfterManager1) <- chompManager
+          commentsAfterManager2 <- Space.chompAndCheckIndent E.ModuleSpace E.Effect
           Keyword.exposing_ E.Effect
-          comments7 <- addLocation (Space.chompAndCheckIndent E.ModuleSpace E.Effect)
+          commentsAfterExposingKeyword <- Space.chompAndCheckIndent E.ModuleSpace E.Effect
           exports <- addLocation (specialize (const E.Effect) exposing)
-          (docComment, additionalComments) <- chompModuleDocCommentSpace
+          (commentsBeforeDocComment, docComment, commentsAfterDocComment) <- chompModuleDocCommentSpace
+          let comments = SC.HeaderComments commentsBeforeModuleLine commentsAfterModuleKeyword commentsAfterModuleName commentsAfterExposingKeyword commentsBeforeDocComment commentsAfterDocComment
+          let managerComments = SC.ManagerComments commentsAfterEffectKeyword commentsAfterWhereKeyword (commentsAfterManager1 <> commentsAfterManager2)
           return $
             Just $
-              Header name (Manager (A.Region start effectEnd) manager) exports docComment $
-                comments1 : comments2 : comments3 : comments4 : comments5 : comments6 : comments7 : additionalComments
+              Header name (Manager (A.Region start effectEnd) manager managerComments) exports docComment comments
       ]
       -- default header
       Nothing

@@ -128,6 +128,14 @@ extendedGroup open baseSep sep fieldSep close base fields =
           value
         ]
 
+withCommentsBefore :: [Src.Comment] -> Block -> Block
+withCommentsBefore [] block = block
+withCommentsBefore (first : rest) block =
+  spaceOrStack
+    [ spaceOrStack $ fmap formatComment (first :| rest),
+      block
+    ]
+
 --
 -- AST -> Block
 --
@@ -139,19 +147,25 @@ formatComment = \case
   Src.LineComment text ->
     Block.mustBreak $ Block.string7 "-- " <> utf8 text
 
+formatCommentBlock :: [Src.Comment] -> Maybe Block
+formatCommentBlock = fmap spaceOrStack . nonEmpty . fmap formatComment
+
 formatModule :: Src.Module -> Block
 formatModule (Src.Module moduleName exports docs imports values unions aliases binops comments effects) =
   Block.stack $
     NonEmpty.fromList $
       catMaybes
-        [ Just $
+        [ formatCommentBlock commentsBeforeLine,
+          Just $
             spaceOrIndent $
               NonEmpty.fromList $
                 catMaybes
                   [ Just $ Block.line $ Block.string7 moduleKeyword,
+                    formatCommentBlock commentsAfterKeyword,
                     Just $ Block.line $ maybe (Block.string7 "Main") (utf8 . A.toValue) moduleName,
+                    formatCommentBlock commentsAfterName,
                     formatEffectsModuleWhereClause effects,
-                    formatExposing $ A.toValue exports
+                    formatExposing commentsAfterExposingKeyword (A.toValue exports)
                   ],
           case docs of
             Src.NoDocs _ -> Nothing
@@ -161,6 +175,7 @@ formatModule (Src.Module moduleName exports docs imports values unions aliases b
                   [ Block.blankLine,
                     formatDocComment moduleDocs
                   ],
+          formatCommentBlock (commentsAfterLine <> commentsAfterDocComment),
           Just $ Block.stack $ Block.blankLine :| fmap formatImport imports,
           infixDefs,
           let defs =
@@ -172,17 +187,19 @@ formatModule (Src.Module moduleName exports docs imports values unions aliases b
                         fmap (formatWithDocComment aliasName formatAlias . A.toValue) <$> aliases,
                         case effects of
                           Src.NoEffects -> []
-                          Src.Ports ports -> fmap (formatWithDocComment portName formatPort) <$> ports
-                          Src.Manager _ _ -> []
+                          Src.Ports ports _ -> fmap (formatWithDocComment portName formatPort) <$> ports
+                          Src.Manager _ _ _ -> []
                       ]
            in fmap Block.stack $ nonEmpty $ fmap (addBlankLines 2) defs
         ]
   where
+    (SC.HeaderComments commentsBeforeLine commentsAfterKeyword commentsAfterName commentsAfterExposingKeyword commentsAfterLine commentsAfterDocComment) = comments
+
     moduleKeyword =
       case effects of
         Src.NoEffects -> "module"
-        Src.Ports _ -> "port module"
-        Src.Manager _ _ -> "effect module"
+        Src.Ports _ (SC.PortsComments afterPortKeyword) -> "port module"
+        Src.Manager _ _ (SC.ManagerComments afterEffectKeyword _ _) -> "effect module"
 
     defDocs :: Map Name Src.DocComment
     defDocs =
@@ -218,8 +235,9 @@ formatModule (Src.Module moduleName exports docs imports values unions aliases b
 formatEffectsModuleWhereClause :: Src.Effects -> Maybe Block
 formatEffectsModuleWhereClause = \case
   Src.NoEffects -> Nothing
-  Src.Ports _ -> Nothing
-  Src.Manager _ manager -> Just $ formatManager manager
+  Src.Ports _ _ -> Nothing
+  Src.Manager _ manager (SC.ManagerComments _ afterWhereKeyword afterManager) ->
+    Just $ formatManager manager
 
 formatManager :: Src.Manager -> Block
 formatManager manager =
@@ -251,15 +269,25 @@ formatManager manager =
                   ]
           )
 
-formatExposing :: Src.Exposing -> Maybe Block
-formatExposing = \case
-  Src.Open -> Just $ Block.line $ Block.string7 "exposing (..)"
-  Src.Explicit [] -> Nothing
+formatExposing :: [Src.Comment] -> Src.Exposing -> Maybe Block
+formatExposing commentsAfterKeyword = \case
+  Src.Open ->
+    Just $
+      spaceOrIndent
+        [ Block.line $ Block.string7 "exposing",
+          withCommentsBefore commentsAfterKeyword $
+            Block.line $
+              Block.string7 "(..)"
+        ]
+  Src.Explicit [] ->
+    formatCommentBlock commentsAfterKeyword
   Src.Explicit exposed ->
     Just $
       spaceOrIndent
         [ Block.line $ Block.string7 "exposing",
-          group '(' ',' ')' False $ fmap formatExposed exposed
+          withCommentsBefore commentsAfterKeyword $
+            group '(' ',' ')' False $
+              fmap formatExposed exposed
         ]
 
 formatExposed :: Src.Exposed -> Block
@@ -276,7 +304,7 @@ formatImport (Src.Import name alias exposing) =
         [ Just $ Block.line $ Block.string7 "import",
           Just $ Block.line $ utf8 $ A.toValue name,
           fmap formatImportAlias alias,
-          formatExposing exposing
+          formatExposing [] exposing
         ]
 
 formatImportAlias :: Name -> Block

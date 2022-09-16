@@ -57,11 +57,11 @@ toEffectDups effects =
   case effects of
     Src.NoEffects ->
       Dups.none
-    Src.Ports ports ->
+    Src.Ports ports _ ->
       let addPort dict (Src.Port (A.At region name) _) =
             Dups.insert name region (Env.TopLevel region) dict
        in List.foldl' addPort Dups.none (fmap snd ports)
-    Src.Manager _ manager ->
+    Src.Manager _ manager _ ->
       case manager of
         Src.Cmd (A.At region _) _ ->
           Dups.one "command" region (Env.TopLevel region)

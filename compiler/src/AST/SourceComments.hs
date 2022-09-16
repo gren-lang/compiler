@@ -9,6 +9,32 @@ data Comment
   | LineComment (Utf8.Utf8 GREN_COMMENT)
   deriving (Show)
 
+-- Module
+
+data HeaderComments = HeaderComments
+  { _beforeModuleLine :: [Comment],
+    _afterModuleKeyword :: [Comment],
+    _afterModuleName :: [Comment],
+    _afterExposingKeyword :: [Comment],
+    _afterModuleLine :: [Comment],
+    _afterModuleDocComment :: [Comment]
+  }
+  deriving (Show)
+
+-- Effects
+
+data PortsComments = PortsComments
+  { _afterPortKeyword :: [Comment]
+  }
+  deriving (Show)
+
+data ManagerComments = ManagerComments
+  { _afterEffectKeyword :: [Comment],
+    _afterWhereKeyword :: [Comment],
+    _afterManager :: [Comment]
+  }
+  deriving (Show)
+
 -- Manager
 
 data CmdComments = CmdComments

@@ -129,7 +129,7 @@ data Module = Module
     _unions :: [(SourceOrder, A.Located Union)],
     _aliases :: [(SourceOrder, A.Located Alias)],
     _binops :: [A.Located Infix],
-    _comments :: [A.Located [Comment]],
+    _headerComments :: SC.HeaderComments,
     _effects :: Effects
   }
   deriving (Show)
@@ -170,8 +170,8 @@ data Port = Port (A.Located Name) Type
 
 data Effects
   = NoEffects
-  | Ports [(SourceOrder, Port)]
-  | Manager A.Region Manager
+  | Ports [(SourceOrder, Port)] SC.PortsComments
+  | Manager A.Region Manager SC.ManagerComments
   deriving (Show)
 
 data Manager
