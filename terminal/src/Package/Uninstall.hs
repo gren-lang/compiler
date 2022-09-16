@@ -167,71 +167,67 @@ attemptChangesHelp root env oldOutline newOutline question =
 
 makeAppPlan :: Solver.Env -> Pkg.Name -> Outline.AppOutline -> Task (Changes V.Version)
 makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ rootPlatform _ direct indirect) =
-    case Map.lookup pkg direct of
-      Just vsn -> do
+  case Map.lookup pkg direct of
+    Just vsn -> do
+      let constraints = toConstraints direct indirect
+      let withMissingPkg = Map.delete pkg constraints
+      result <- Task.io $ Solver.verify cache rootPlatform withMissingPkg
+      case result of
+        Solver.Ok solution ->
+          let old = Map.union direct indirect
+              new = Map.map (\(Solver.Details v _) -> v) solution
+           in if Map.member pkg new
+                then
+                  return $
+                    MakeIndirect $
+                      Outline.App $
+                        outline
+                          { Outline._app_deps_direct = Map.delete pkg direct,
+                            Outline._app_deps_indirect = Map.insert pkg vsn indirect
+                          }
+                else
+                  return $
+                    Changes (Map.difference old new) $
+                      Outline.App $
+                        outline
+                          { Outline._app_deps_direct = Map.intersection direct new,
+                            Outline._app_deps_indirect = Map.intersection indirect new
+                          }
+        Solver.NoSolution ->
+          Task.throw $ Exit.InstallNoOnlinePkgSolution pkg
+        Solver.Err exit ->
+          Task.throw $ Exit.InstallHadSolverTrouble exit
+    Nothing ->
+      case Map.lookup pkg indirect of
+        Just _ -> do
           let constraints = toConstraints direct indirect
           let withMissingPkg = Map.delete pkg constraints
           result <- Task.io $ Solver.verify cache rootPlatform withMissingPkg
           case result of
             Solver.Ok solution ->
-                let old = Map.union direct indirect
-                    new = Map.map (\(Solver.Details v _) -> v) solution
+              let old = Map.union direct indirect
+                  new = Map.map (\(Solver.Details v _) -> v) solution
                in if Map.member pkg new
-                     then return $
-                        MakeIndirect $
-                            Outline.App $
-                              outline
-                                { Outline._app_deps_direct = Map.delete pkg direct,
-                                  Outline._app_deps_indirect = Map.insert pkg vsn indirect
-                                }
-                     else return $
+                    then -- TODO: Create better error
+                      Task.throw $ Exit.InstallNoOnlinePkgSolution pkg
+                    else
+                      return $
                         Changes (Map.difference old new) $
-                            Outline.App $
-                              outline
-                                { Outline._app_deps_direct = Map.intersection direct new,
-                                  Outline._app_deps_indirect = Map.intersection indirect new
-                                }
-
+                          Outline.App $
+                            outline
+                              { Outline._app_deps_direct = Map.intersection direct new,
+                                Outline._app_deps_indirect = Map.intersection indirect new
+                              }
             Solver.NoSolution ->
-                Task.throw $ Exit.InstallNoOnlinePkgSolution pkg
-
+              Task.throw $ Exit.InstallNoOnlinePkgSolution pkg
             Solver.Err exit ->
               Task.throw $ Exit.InstallHadSolverTrouble exit
-
-      Nothing ->
-          case Map.lookup pkg indirect of
-              Just _ -> do
-                  let constraints = toConstraints direct indirect
-                  let withMissingPkg = Map.delete pkg constraints
-                  result <- Task.io $ Solver.verify cache rootPlatform withMissingPkg
-                  case result of
-                    Solver.Ok solution ->
-                        let old = Map.union direct indirect
-                            new = Map.map (\(Solver.Details v _) -> v) solution
-                       in if Map.member pkg new
-                             -- TODO: Create better error
-                             then Task.throw $ Exit.InstallNoOnlinePkgSolution pkg
-                             else return $
-                                Changes (Map.difference old new) $
-                                    Outline.App $
-                                      outline
-                                        { Outline._app_deps_direct = Map.intersection direct new,
-                                          Outline._app_deps_indirect = Map.intersection indirect new
-                                        }
-
-                    Solver.NoSolution ->
-                      Task.throw $ Exit.InstallNoOnlinePkgSolution pkg
-
-                    Solver.Err exit ->
-                      Task.throw $ Exit.InstallHadSolverTrouble exit
-
-              Nothing ->
-                return NoSuchPackage
+        Nothing ->
+          return NoSuchPackage
 
 toConstraints :: Map.Map Pkg.Name V.Version -> Map.Map Pkg.Name V.Version -> Map.Map Pkg.Name C.Constraint
 toConstraints direct indirect =
   Map.map C.exactly $ Map.union direct indirect
-
 
 -- MAKE PACKAGE PLAN
 
@@ -265,7 +261,6 @@ viewChangeDocs removes =
   D.indent 2 $
     D.vcat $
       viewNonZero "Remove:" removes
-
 
 viewNonZero :: String -> [D.Doc] -> [D.Doc]
 viewNonZero title entries =
