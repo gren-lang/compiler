@@ -45,7 +45,7 @@ shouldFormatModuleBodyAs inputLines expectedOutputLines =
 
 shouldFormatExpressionAs :: [Text] -> [LazyText.Text] -> IO ()
 shouldFormatExpressionAs inputLines expectedOutputLines =
-  let input = TE.encodeUtf8 $ "expr = " <> Text.unlines inputLines
+  let input = TE.encodeUtf8 $ "expr =\n" <> Text.unlines (fmap ("    " <>) inputLines)
       expectedOutput = LazyText.unlines expectedOutputLines
       actualOutput = LTE.decodeUtf8 . Builder.toLazyByteString <$> Format.formatByteString input
       cleanOutput i =
