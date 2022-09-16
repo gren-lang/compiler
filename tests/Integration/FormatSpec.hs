@@ -78,6 +78,17 @@ spec = do
                                        ", b = 2",
                                        "}"
                                      ]
+  describe "parentheses" $ do
+    it "removes unnecessary parentheses" $
+      ["(a)"]
+        `shouldFormatExpressionAs` ["a"]
+    describe "retains necessary parentheses" $ do
+      it "protects nested function application" $
+        assertFormattedExpression
+          ["f (g x)"]
+      it "retains parentheses used to group comments" $
+        assertFormattedExpression
+          ["({- A -} x)"]
 
 assertFormatted :: [Text] -> IO ()
 assertFormatted lines_ =

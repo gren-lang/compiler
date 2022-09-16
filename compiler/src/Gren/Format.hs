@@ -143,9 +143,12 @@ withCommentsBefore (first : rest) block =
 formatComment :: Src.Comment -> Block
 formatComment = \case
   Src.BlockComment text ->
-    Block.line $ Block.string7 "{- " <> utf8 text <> Block.string7 " -}"
+    let open = if Utf8.startsWithChar (== ' ') text then "{-" else "{- "
+        close = if Utf8.endsWithWord8 0x20 {- space -} text then "-}" else " -}"
+     in Block.line $ Block.string7 open <> utf8 text <> Block.string7 close
   Src.LineComment text ->
-    Block.mustBreak $ Block.string7 "-- " <> utf8 text
+    let open = if Utf8.startsWithChar (== ' ') text then "--" else "-- "
+     in Block.mustBreak $ Block.string7 open <> utf8 text
 
 formatCommentBlock :: [Src.Comment] -> Maybe Block
 formatCommentBlock = fmap spaceOrStack . nonEmpty . fmap formatComment
@@ -600,8 +603,18 @@ formatExpr = \case
           [ Block.line $ utf8 (A.toValue name) <> Block.space <> Block.char7 '=',
             exprParensNone $ formatExpr (A.toValue expr)
           ]
-  Src.Parens comments1 expr comments2 ->
+  Src.Parens [] expr [] ->
     formatExpr $ A.toValue expr
+  Src.Parens commentsBefore expr commentsAfter ->
+    NoExpressionParens $
+      parens $
+        spaceOrStack $
+          NonEmpty.fromList $
+            catMaybes
+              [ formatCommentBlock commentsBefore,
+                Just $ exprParensNone $ formatExpr (A.toValue expr),
+                formatCommentBlock commentsAfter
+              ]
 
 opForcesMultiline :: Name -> Bool
 opForcesMultiline op =
