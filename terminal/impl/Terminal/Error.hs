@@ -166,8 +166,8 @@ flagsToDocs flags docs =
 
 -- OVERVIEW
 
-exitWithOverview :: P.Doc -> P.Doc -> [Command] -> IO a
-exitWithOverview intro outro commands =
+exitWithOverview :: P.Doc -> P.Doc -> Maybe String -> [Command] -> IO a
+exitWithOverview intro outro maybePrefix commands =
   do
     exeName <- getExeName
     exitSuccess
@@ -175,7 +175,7 @@ exitWithOverview intro outro commands =
         "The most common commands are:",
         P.indent 4 $ stack $ Maybe.mapMaybe (toSummary exeName) commands,
         "There are a bunch of other commands as well though. Here is a full list:",
-        P.indent 4 $ P.dullcyan $ toCommandList exeName commands,
+        P.indent 4 $ P.dullcyan $ toCommandList exeName maybePrefix commands,
         "Adding the --help flag gives a bunch of additional details about each one.",
         outro
       ]
@@ -196,13 +196,17 @@ toSummary exeName cmd =
                 P.indent 4 $ reflow summaryString
               ]
 
-toCommandList :: String -> [Command] -> P.Doc
-toCommandList exeName commands =
+toCommandList :: String -> Maybe String -> [Command] -> P.Doc
+toCommandList exeName maybePrefix commands =
   let names = map toName commands
       width = maximum (map length names)
 
+      prefix = case maybePrefix of
+                 Just str -> " " ++ str ++ " "
+                 Nothing -> " "
+
       toExample name =
-        P.text $ exeName ++ " " ++ name ++ replicate (width - length name) ' ' ++ " --help"
+        P.text $ exeName ++ prefix ++ name ++ replicate (width - length name) ' ' ++ " --help"
    in P.vcat (map toExample names)
 
 -- UNKNOWN
