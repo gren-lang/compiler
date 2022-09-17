@@ -20,6 +20,7 @@ import Text.PrettyPrint.ANSI.Leijen qualified as P
 run :: [String] -> IO ()
 run =
   Terminal.prefix
+    (Just "package")
     intro
     P.empty
     [ install,
