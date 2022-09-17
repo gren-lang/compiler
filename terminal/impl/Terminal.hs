@@ -83,17 +83,17 @@ app intro outro commands =
           hPutStrLn stdout (V.toChars V.compiler)
           Exit.exitSuccess
       _ ->
-        prefix intro outro commands argStrings
+        prefix Nothing intro outro commands argStrings
 
 -- PREFIX
 
-prefix :: P.Doc -> P.Doc -> [Command] -> [String] -> IO ()
-prefix intro outro commands argStrings =
+prefix :: Maybe String -> P.Doc -> P.Doc -> [Command] -> [String] -> IO ()
+prefix maybePrefix intro outro commands argStrings =
   case argStrings of
     [] ->
-      Error.exitWithOverview intro outro commands
+      Error.exitWithOverview intro outro maybePrefix commands
     ["--help"] ->
-      Error.exitWithOverview intro outro commands
+      Error.exitWithOverview intro outro maybePrefix commands
     command : chunks ->
       do
         case List.find (\cmd -> toName cmd == command) commands of
