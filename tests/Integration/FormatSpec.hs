@@ -50,6 +50,37 @@ spec = do
                                formattedModuleBody
                              ]
 
+  describe "imports" $ do
+    let formattedModuleHeader = "module M exposing (..)\n"
+    let formattedModuleBody = "\n\nf =\n    {}"
+
+    it "formats already formatted" $
+      assertFormatted
+        [ formattedModuleHeader,
+          "import APlainImport",
+          "import BNamespace.QualifiedImport",
+          "import CAliasImport as C",
+          "import DExposingImport exposing (..)",
+          "import EAliasAndExposing as E exposing (..)",
+          formattedModuleBody
+        ]
+
+    it "sorts imports by name" $
+      [ formattedModuleHeader,
+        "import A.B",
+        "import A",
+        "import C as Z",
+        "import B",
+        formattedModuleBody
+      ]
+        `shouldFormatAs` [ formattedModuleHeader,
+                           "import A",
+                           "import A.B",
+                           "import B",
+                           "import C as Z",
+                           formattedModuleBody
+                         ]
+
   describe "top-level definition" $ do
     it "formats already formatted" $
       assertFormattedModuleBody

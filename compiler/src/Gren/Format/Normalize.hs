@@ -8,6 +8,7 @@
 module Gren.Format.Normalize (normalize) where
 
 import AST.Source qualified as Src
+import Data.List qualified as List
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Maybe (mapMaybe)
@@ -18,8 +19,12 @@ import Reporting.Annotation qualified as A
 normalize :: Src.Module -> Src.Module
 normalize module_ =
   module_
-    { Src._imports = mapMaybe removeDefaultImports $ Src._imports module_
+    { Src._imports = List.sortOn importSortKey $ mapMaybe removeDefaultImports $ Src._imports module_
     }
+
+importSortKey :: Src.Import -> Name
+importSortKey (Src.Import name _ _) =
+  A.toValue name
 
 removeDefaultImports :: Src.Import -> Maybe Src.Import
 removeDefaultImports import_@(Src.Import name alias exposing) =
