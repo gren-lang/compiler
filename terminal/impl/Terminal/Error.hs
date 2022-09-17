@@ -202,8 +202,8 @@ toCommandList exeName maybePrefix commands =
       width = maximum (map length names)
 
       prefix = case maybePrefix of
-                 Just str -> " " ++ str ++ " "
-                 Nothing -> " "
+        Just str -> " " ++ str ++ " "
+        Nothing -> " "
 
       toExample name =
         P.text $ exeName ++ prefix ++ name ++ replicate (width - length name) ' ' ++ " --help"
