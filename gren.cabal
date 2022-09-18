@@ -128,6 +128,7 @@ Common gren-common
         AST.Canonical
         AST.Optimized
         AST.Source
+        AST.SourceComments
         AST.Utils.Binop
         AST.Utils.Type
         Canonicalize.Effects
@@ -249,8 +250,9 @@ Test-Suite gren-tests
         Helpers.Parse
 
         -- tests
-        Parse.SpaceSpec
+        Integration.FormatSpec
         Parse.RecordUpdateSpec
+        Parse.SpaceSpec
         Parse.UnderscorePatternSpec
 
     Build-Depends:

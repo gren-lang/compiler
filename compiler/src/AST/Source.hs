@@ -34,23 +34,15 @@ module AST.Source
   )
 where
 
+import AST.SourceComments (Comment, GREN_COMMENT)
+import AST.SourceComments qualified as SC
 import AST.Utils.Binop qualified as Binop
 import Data.Name (Name)
 import Data.Name qualified as Name
-import Data.Utf8 qualified as Utf8
 import Gren.Float qualified as EF
 import Gren.String qualified as ES
 import Parse.Primitives qualified as P
 import Reporting.Annotation qualified as A
-
--- COMMENTS
-
-data Comment
-  = BlockComment (Utf8.Utf8 GREN_COMMENT)
-  | LineComment (Utf8.Utf8 GREN_COMMENT)
-  deriving (Show)
-
-data GREN_COMMENT
 
 -- EXPRESSIONS
 
@@ -76,6 +68,7 @@ data Expr_
   | Access Expr (A.Located Name)
   | Update Expr [(A.Located Name, Expr)]
   | Record [(A.Located Name, Expr)]
+  | Parens [Comment] Expr [Comment]
   deriving (Show)
 
 data VarType = LowVar | CapVar
@@ -136,12 +129,13 @@ data Module = Module
     _unions :: [(SourceOrder, A.Located Union)],
     _aliases :: [(SourceOrder, A.Located Alias)],
     _binops :: [A.Located Infix],
+    _headerComments :: SC.HeaderComments,
     _effects :: Effects
   }
   deriving (Show)
 
 getName :: Module -> Name
-getName (Module maybeName _ _ _ _ _ _ _ _) =
+getName (Module maybeName _ _ _ _ _ _ _ _ _) =
   case maybeName of
     Just (A.At _ name) ->
       name
@@ -176,14 +170,14 @@ data Port = Port (A.Located Name) Type
 
 data Effects
   = NoEffects
-  | Ports [(SourceOrder, Port)]
-  | Manager A.Region Manager
+  | Ports [(SourceOrder, Port)] SC.PortsComments
+  | Manager A.Region Manager SC.ManagerComments
   deriving (Show)
 
 data Manager
-  = Cmd (A.Located Name)
-  | Sub (A.Located Name)
-  | Fx (A.Located Name) (A.Located Name)
+  = Cmd (A.Located Name) SC.CmdComments
+  | Sub (A.Located Name) SC.SubComments
+  | Fx (A.Located Name) (A.Located Name) SC.FxComments
   deriving (Show)
 
 data Docs

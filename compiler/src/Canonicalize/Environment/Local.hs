@@ -46,7 +46,7 @@ addVars module_ (Env.Env home vs ts cs bs qvs qts qcs) =
     Result.ok $ Env.Env home vs2 ts cs bs qvs qts qcs
 
 collectVars :: Src.Module -> Result i w (Map.Map Name.Name Env.Var)
-collectVars (Src.Module _ _ _ _ values _ _ _ effects) =
+collectVars (Src.Module _ _ _ _ values _ _ _ _ effects) =
   let addDecl dict (A.At _ (Src.Value (A.At region name) _ _ _)) =
         Dups.insert name region (Env.TopLevel region) dict
    in Dups.detect Error.DuplicateDecl $
@@ -57,17 +57,17 @@ toEffectDups effects =
   case effects of
     Src.NoEffects ->
       Dups.none
-    Src.Ports ports ->
+    Src.Ports ports _ ->
       let addPort dict (Src.Port (A.At region name) _) =
             Dups.insert name region (Env.TopLevel region) dict
        in List.foldl' addPort Dups.none (fmap snd ports)
-    Src.Manager _ manager ->
+    Src.Manager _ manager _ ->
       case manager of
-        Src.Cmd (A.At region _) ->
+        Src.Cmd (A.At region _) _ ->
           Dups.one "command" region (Env.TopLevel region)
-        Src.Sub (A.At region _) ->
+        Src.Sub (A.At region _) _ ->
           Dups.one "subscription" region (Env.TopLevel region)
-        Src.Fx (A.At regionCmd _) (A.At regionSub _) ->
+        Src.Fx (A.At regionCmd _) (A.At regionSub _) _ ->
           Dups.union
             (Dups.one "command" regionCmd (Env.TopLevel regionCmd))
             (Dups.one "subscription" regionSub (Env.TopLevel regionSub))
@@ -75,7 +75,7 @@ toEffectDups effects =
 -- ADD TYPES
 
 addTypes :: Src.Module -> Env.Env -> Result i w Env.Env
-addTypes (Src.Module _ _ _ _ _ unions aliases _ _) (Env.Env home vs ts cs bs qvs qts qcs) =
+addTypes (Src.Module _ _ _ _ _ unions aliases _ _ _) (Env.Env home vs ts cs bs qvs qts qcs) =
   let addAliasDups dups (A.At _ (Src.Alias (A.At region name) _ _)) = Dups.insert name region () dups
       addUnionDups dups (A.At _ (Src.Union (A.At region name) _ _)) = Dups.insert name region () dups
       typeNameDups =
@@ -199,7 +199,7 @@ addFreeVars freeVars (A.At region tipe) =
 -- ADD CTORS
 
 addCtors :: Src.Module -> Env.Env -> Result i w (Env.Env, Unions, Aliases)
-addCtors (Src.Module _ _ _ _ _ unions aliases _ _) env@(Env.Env home vs ts cs bs qvs qts qcs) =
+addCtors (Src.Module _ _ _ _ _ unions aliases _ _ _) env@(Env.Env home vs ts cs bs qvs qts qcs) =
   do
     unionInfo <- traverse (canonicalizeUnion env) (fmap snd unions)
     aliasInfo <- traverse (canonicalizeAlias env) (fmap snd aliases)

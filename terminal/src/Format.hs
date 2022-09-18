@@ -3,6 +3,7 @@
 module Format
   ( Flags (..),
     run,
+    formatByteString,
   )
 where
 

@@ -37,26 +37,26 @@ canonicalize env values unions effects =
   case effects of
     Src.NoEffects ->
       Result.ok Can.NoEffects
-    Src.Ports ports ->
+    Src.Ports ports _ ->
       do
         pairs <- traverse (canonicalizePort env) (fmap snd ports)
         return $ Can.Ports (Map.fromList pairs)
-    Src.Manager region manager ->
+    Src.Manager region manager _ ->
       let dict = Map.fromList (map toNameRegion values)
        in Can.Manager
             <$> verifyManager region dict "init"
             <*> verifyManager region dict "onEffects"
             <*> verifyManager region dict "onSelfMsg"
             <*> case manager of
-              Src.Cmd cmdType ->
+              Src.Cmd cmdType _ ->
                 Can.Cmd
                   <$> verifyEffectType cmdType unions
                   <* verifyManager region dict "cmdMap"
-              Src.Sub subType ->
+              Src.Sub subType _ ->
                 Can.Sub
                   <$> verifyEffectType subType unions
                   <* verifyManager region dict "subMap"
-              Src.Fx cmdType subType ->
+              Src.Fx cmdType subType _ ->
                 Can.Fx
                   <$> verifyEffectType cmdType unions
                   <*> verifyEffectType subType unions
