@@ -34,12 +34,12 @@ import Parse.Primitives qualified as P
 
 data Constraint
   = Range V.Version Op Op V.Version
-  deriving (Eq)
+  deriving (Eq, Show)
 
 data Op
   = Less
   | LessOrEqual
-  deriving (Eq)
+  deriving (Eq, Show)
 
 -- COMMON CONSTRAINTS
 
