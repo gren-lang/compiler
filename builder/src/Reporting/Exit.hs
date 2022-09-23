@@ -984,6 +984,8 @@ data Solver
   = SolverBadCacheData Pkg.Name V.Version
   | SolverBadGitOperationUnversionedPkg Pkg.Name Git.Error
   | SolverBadGitOperationVersionedPkg Pkg.Name V.Version Git.Error
+  | SolverIncompatibleSolvedVersion Pkg.Name Pkg.Name C.Constraint V.Version
+  | SolverIncompatibleVersionRanges Pkg.Name Pkg.Name C.Constraint C.Constraint
 
 toSolverReport :: Solver -> Help.Report
 toSolverReport problem =
@@ -1017,6 +1019,72 @@ toSolverReport problem =
           ++ " "
           ++ V.toChars vsn
           ++ " to help me search for a set of compatible packages"
+    SolverIncompatibleSolvedVersion project dependency constraint solvedVsn ->
+      Help.report
+        "PROBLEM SOLVING PACKAGE CONSTRAINTS"
+        Nothing
+        ( Pkg.toChars project
+            ++ " requires "
+            ++ Pkg.toChars dependency
+            ++ " with a version within "
+            ++ C.toChars constraint
+            ++ ", however your project or another dependency is only compatible with version "
+            ++ V.toChars solvedVsn
+            ++ "!"
+        )
+        [ D.fillSep $
+            [ "I",
+              "generally",
+              "recommend",
+              "installing",
+              "packages",
+              "with",
+              "the",
+              D.green "gren package install",
+              "command,",
+              "as",
+              "it",
+              "helps",
+              "with",
+              "finding",
+              "compatible",
+              "transient",
+              "dependencies."
+            ]
+        ]
+    SolverIncompatibleVersionRanges project dependency requestedConstraint otherConstraint ->
+      Help.report
+        "PROBLEM SOLVING PACKAGE CONSTRAINTS"
+        Nothing
+        ( Pkg.toChars project
+            ++ " requires "
+            ++ Pkg.toChars dependency
+            ++ " with a version within "
+            ++ C.toChars requestedConstraint
+            ++ ", however your project or another one of your dependencies requires a version within "
+            ++ C.toChars otherConstraint
+            ++ "!"
+        )
+        [ D.fillSep $
+            [ "I",
+              "generally",
+              "recommend",
+              "installing",
+              "packages",
+              "with",
+              "the",
+              D.green "gren package install",
+              "command,",
+              "as",
+              "it",
+              "helps",
+              "with",
+              "finding",
+              "compatible",
+              "transient",
+              "dependencies."
+            ]
+        ]
 
 -- OUTLINE
 
@@ -1439,20 +1507,11 @@ toOutlineProblemReport path source _ region problem =
                       "generally",
                       "recommend",
                       "finding",
-                      "the",
-                      "package",
-                      "you",
-                      "want",
-                      "on",
-                      "the",
-                      "package",
-                      "website,",
-                      "and",
                       "installing",
-                      "it",
+                      "packages",
                       "with",
                       "the",
-                      D.green "gren install",
+                      D.green "gren package install",
                       "command!"
                     ]
                 ]
@@ -1577,9 +1636,10 @@ data Details
   | DetailsSolverProblem Solver
   | DetailsBadGrenInPkg C.Constraint
   | DetailsBadGrenInAppOutline V.Version
-  | DetailsHandEditedDependencies
   | DetailsBadOutline Outline
   | DetailsBadDeps FilePath [DetailsBadDep]
+  | DetailsDuplicatedDep Pkg.Name
+  | DetailsMissingDeps [(Pkg.Name, V.Version)]
 
 data DetailsBadDep
   = BD_BadBuild Pkg.Name V.Version (Map.Map Pkg.Name V.Version)
@@ -1613,7 +1673,7 @@ toDetailsReport details =
               "add",
               "dependencies",
               "with",
-              D.green "gren install" <> "."
+              D.green "gren package install" <> "."
             ],
           D.reflow $
             "Please ask for help on the community forums if you try those paths and are still\
@@ -1655,38 +1715,6 @@ toDetailsReport details =
               "right",
               "now."
             ]
-        ]
-    DetailsHandEditedDependencies ->
-      Help.report
-        "ERROR IN DEPENDENCIES"
-        (Just "gren.json")
-        "It looks like the dependencies gren.json in were edited by hand (or by a 3rd\
-        \ party tool) leaving them in an invalid state."
-        [ D.fillSep
-            [ "Try",
-              "to",
-              "change",
-              "them",
-              "back",
-              "to",
-              "what",
-              "they",
-              "were",
-              "before!",
-              "It",
-              "is",
-              "much",
-              "more",
-              "reliable",
-              "to",
-              "add",
-              "dependencies",
-              "with",
-              D.green "gren install" <> "."
-            ],
-          D.reflow $
-            "Please ask for help on the community forums if you try those paths and are still\
-            \ having problems!"
         ]
     DetailsBadOutline outline ->
       toOutlineReport outline
@@ -1732,6 +1760,28 @@ toDetailsReport details =
                     \ give you much more specific information about why this package is failing to\
                     \ build, which will in turn make it easier for the package author to fix it!"
                 ]
+    DetailsDuplicatedDep pkg ->
+      Help.report
+        "DUPLICATED DEPENDENCY"
+        (Just "gren.json")
+        (Pkg.toChars pkg ++ " is listed more than once as a dependency in the gren.json file.")
+        [ D.reflow
+            "A package can only listed once as a dependency. Remove the duplicated entry and try again."
+        ]
+    DetailsMissingDeps missing ->
+      Help.report
+        "MISSING INDIRECT DEPENDENCIES"
+        (Just "gren.json")
+        "I expected to find the following packages as indirect dependencies\
+        \ in your gren.json file:"
+        [ D.indent 4 $
+            D.green $
+              D.vcat $
+                map (\(pkg, vsn) -> D.fromChars $ Pkg.toChars pkg ++ " " ++ V.toChars vsn) missing,
+          D.reflow
+            "Try adding them to your gren.json file in the \"indirect\" dependencies object\
+            \ then try this operation again."
+        ]
 
 --
 

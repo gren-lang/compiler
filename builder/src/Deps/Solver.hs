@@ -175,17 +175,19 @@ addVersion (Goals rootPlatform pending solved) name version =
     (Constraints gren platform deps) <- getConstraints name version
     if C.goodGren gren && Platform.compatible rootPlatform platform
       then do
-        newPending <- foldM (addConstraint solved) pending (Map.toList deps)
+        newPending <- foldM (addConstraint name solved) pending (Map.toList deps)
         return (Goals rootPlatform newPending (Map.insert name version solved))
       else backtrack
 
-addConstraint :: Map.Map Pkg.Name V.Version -> Map.Map Pkg.Name C.Constraint -> (Pkg.Name, C.Constraint) -> Solver (Map.Map Pkg.Name C.Constraint)
-addConstraint solved unsolved (name, newConstraint) =
+addConstraint :: Pkg.Name -> Map.Map Pkg.Name V.Version -> Map.Map Pkg.Name C.Constraint -> (Pkg.Name, C.Constraint) -> Solver (Map.Map Pkg.Name C.Constraint)
+addConstraint sourcePkg solved unsolved (name, newConstraint) =
   case Map.lookup name solved of
     Just version ->
       if C.satisfies newConstraint version
         then return unsolved
-        else backtrack
+        else
+          solverError $
+            Exit.SolverIncompatibleSolvedVersion sourcePkg name newConstraint version
     Nothing ->
       case Map.lookup name unsolved of
         Nothing ->
@@ -193,7 +195,8 @@ addConstraint solved unsolved (name, newConstraint) =
         Just oldConstraint ->
           case C.intersect oldConstraint newConstraint of
             Nothing ->
-              backtrack
+              solverError $
+                Exit.SolverIncompatibleVersionRanges sourcePkg name oldConstraint newConstraint
             Just mergedConstraint ->
               if oldConstraint == mergedConstraint
                 then return unsolved
@@ -293,3 +296,7 @@ oneOf solver@(Solver solverHead) solvers =
 backtrack :: Solver a
 backtrack =
   Solver $ \state _ back _ -> back state
+
+solverError :: Exit.Solver -> Solver a
+solverError errorState =
+  Solver $ \_ _ _ err -> err errorState
