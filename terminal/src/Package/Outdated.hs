@@ -16,7 +16,9 @@ import Gren.Package qualified as Pkg
 import Gren.Version qualified as V
 import Reporting qualified
 import Reporting.Exit qualified as Exit
+import Reporting.Exit.Help qualified as RHelp
 import Reporting.Task qualified as Task
+import Text.PrettyPrint.ANSI.Leijen qualified as P
 
 -- RUN
 
@@ -68,8 +70,10 @@ listOutdatedDeps :: Map.Map Pkg.Name C.Constraint -> Task ()
 listOutdatedDeps cons = do
   allHigherVersions <- Map.traverseWithKey higherVersions cons
   let interestingVersions = Map.mapMaybe toDisplayStrings allHigherVersions
-  Task.io $ print $ show interestingVersions
-  return ()
+  let report = finalizeReport $ Map.foldrWithKey buildReport [] interestingVersions
+  if Map.size interestingVersions == 0
+    then Task.io $ putStrLn "All dependencies are up to date!"
+    else Task.io $ RHelp.toStdout report
 
 data AvailableVersions
   = NoAvailableVersion
@@ -97,3 +101,68 @@ toDisplayStrings vsns =
       Just ("up to date", V.toChars major)
     MajorAndCompatibleAvailable major compatible ->
       Just (V.toChars compatible, V.toChars major)
+
+-- REPORTING
+
+type InProgressReport = [(String, String, String)]
+
+buildReport :: Pkg.Name -> (String, String) -> InProgressReport -> InProgressReport
+buildReport pkg (compatible, latest) report =
+  ( Pkg.toChars pkg,
+    compatible,
+    latest
+  )
+    : report
+
+finalizeReport :: InProgressReport -> P.Doc
+finalizeReport report =
+  let packageWidth =
+        calculateHeaderWidth
+          (packageHeader : map (\(pkgNames, _, _) -> pkgNames) report)
+
+      latestCompatibleWidth =
+        calculateHeaderWidth
+          (latestCompatibleHeader : map (\(_, compatibles, _) -> compatibles) report)
+
+      latestWidth =
+        calculateHeaderWidth
+          (latestHeader : map (\(_, _, latests) -> latests) report)
+
+      headerRow =
+        map
+          renderHeader
+          [ (packageWidth, packageHeader),
+            (latestCompatibleWidth, latestCompatibleHeader),
+            (latestWidth, latestHeader)
+          ]
+   in P.vcat $
+        [ P.empty,
+          P.hcat headerRow,
+          P.vcat $ map (renderLine packageWidth latestCompatibleWidth latestWidth) report,
+          P.line
+        ]
+
+calculateHeaderWidth :: [String] -> Int
+calculateHeaderWidth values =
+  3 + (foldr max 0 $ map length values)
+
+renderHeader :: (Int, String) -> P.Doc
+renderHeader (width, text) =
+  P.fill width $ P.underline $ P.text text
+
+renderLine :: Int -> Int -> Int -> (String, String, String) -> P.Doc
+renderLine pkgW lcompW latestW (pkgName, lcomp, latest) =
+  P.hcat $
+    [ P.fill pkgW $ P.green $ P.text pkgName,
+      P.fill lcompW $ P.text lcomp,
+      P.fill latestW $ P.text latest
+    ]
+
+packageHeader :: String
+packageHeader = "Package"
+
+latestCompatibleHeader :: String
+latestCompatibleHeader = "Latest Compatible"
+
+latestHeader :: String
+latestHeader = "Latest"
