@@ -66,9 +66,21 @@ exitWith code docs =
       P.renderPretty 1 80 $
         adjust $
           P.vcat $
-            concatMap (\d -> [d, ""]) docs
+            concatMap (\d -> [d, ""]) $
+              trimDocs docs
     hPutStrLn stderr ""
     Exit.exitWith code
+
+trimDocs :: [P.Doc] -> [P.Doc]
+trimDocs docs =
+  let reversed =
+        case reverse docs of
+          [] -> []
+          first : rest ->
+            case P.renderCompact first of
+              P.SEmpty -> rest
+              _ -> first : rest
+   in reverse reversed
 
 getExeName :: IO String
 getExeName =
@@ -173,15 +185,15 @@ exitWithOverview intro outro maybePrefix commands =
     exitSuccess
       [ intro,
         "The most common commands are:",
-        P.indent 4 $ stack $ Maybe.mapMaybe (toSummary exeName) commands,
+        P.indent 4 $ stack $ Maybe.mapMaybe (toSummary exeName maybePrefix) commands,
         "There are a bunch of other commands as well though. Here is a full list:",
         P.indent 4 $ P.dullcyan $ toCommandList exeName maybePrefix commands,
         "Adding the --help flag gives a bunch of additional details about each one.",
         outro
       ]
 
-toSummary :: String -> Command -> Maybe P.Doc
-toSummary exeName cmd =
+toSummary :: String -> Maybe String -> Command -> Maybe P.Doc
+toSummary exeName maybePrefix cmd =
   case cmd of
     Prefix _ _ _ _ ->
       Nothing
@@ -190,11 +202,17 @@ toSummary exeName cmd =
         Uncommon ->
           Nothing
         Common summaryString ->
-          Just $
-            P.vcat
-              [ P.cyan $ argsToDoc (exeName ++ " " ++ name) (head args),
-                P.indent 4 $ reflow summaryString
-              ]
+          let prefixSep =
+                case maybePrefix of
+                  Just prefix ->
+                    " " ++ prefix ++ " "
+                  Nothing ->
+                    " "
+           in Just $
+                P.vcat
+                  [ P.cyan $ argsToDoc (exeName ++ prefixSep ++ name) (head args),
+                    P.indent 4 $ reflow summaryString
+                  ]
 
 toCommandList :: String -> Maybe String -> [Command] -> P.Doc
 toCommandList exeName maybePrefix commands =
