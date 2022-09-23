@@ -25,13 +25,10 @@ import Text.PrettyPrint.ANSI.Leijen qualified as P
 data Args
   = NoArgs
 
-data Flags = Flags
-  { _skipPrompts :: Bool,
-    _unsafe :: Bool
-  }
+data Flags = NoFlags
 
 run :: Args -> Flags -> IO ()
-run _ (Flags _skipPrompts _unafe) =
+run _ _ =
   Reporting.attempt Exit.outdatedToReport $
     do
       maybeRoot <- Dirs.findRoot

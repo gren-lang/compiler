@@ -133,9 +133,7 @@ outdated =
         require0 Outdated.NoArgs
 
       outdatedFlags =
-        flags Outdated.Flags
-          |-- onOff "yes" "Assume yes for all interactive prompts."
-          |-- onOff "unsafe" "Show latest version, even if it contains breaking changes."
+        flags Outdated.NoFlags
    in Terminal.Command "outdated" Uncommon details example outdatedArgs outdatedFlags Outdated.run
 
 -- VALIDATE
