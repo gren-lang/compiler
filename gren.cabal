@@ -59,6 +59,7 @@ Common gren-common
         Package
         Package.Install
         Package.Uninstall
+        Package.Outdated
         Package.Bump
         Package.Diff
         Package.Validate

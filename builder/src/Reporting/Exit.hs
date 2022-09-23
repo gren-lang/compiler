@@ -17,6 +17,8 @@ module Reporting.Exit
     installToReport,
     Uninstall (..),
     uninstallToReport,
+    Outdated (..),
+    outdatedToReport,
     Format (..),
     formatToReport,
     newPackageOverview,
@@ -953,6 +955,28 @@ uninstallToReport exit =
         []
     UninstallBadDetails details ->
       toDetailsReport details
+
+-- OUTDATED
+
+data Outdated
+  = OutdatedNoOutline
+  | OutdatedBadOutline Outline
+  | OutdatedGitTrouble Git.Error
+
+outdatedToReport :: Outdated -> Help.Report
+outdatedToReport exit =
+  case exit of
+    OutdatedNoOutline ->
+      Help.report
+        "COULD NOT FIND PROJECT"
+        Nothing
+        "I could not locate the gren.json file of your project."
+        []
+    OutdatedBadOutline outline ->
+      toOutlineReport outline
+    OutdatedGitTrouble gitError ->
+      toGitErrorReport "PROBLEM FINDING OUTDATED PACKAGE VERSIONS" gitError $
+        "I tried to find newer versions of the dependencies specified in your gren.json file."
 
 -- SOLVER
 
