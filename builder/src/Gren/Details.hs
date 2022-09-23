@@ -202,7 +202,12 @@ verifyApp env time outline@(Outline.AppOutline grenVersion rootPlatform srcDirs 
       actual <- verifyConstraints env rootPlatform (Map.map Con.exactly stated)
       if Map.size stated == Map.size actual
         then verifyDependencies env time (ValidApp rootPlatform srcDirs) actual direct
-        else Task.throw Exit.DetailsHandEditedDependencies
+        else
+          let actualVersions = Map.map (\(Solver.Details vsn _) -> vsn) actual
+           in Task.throw $
+                Exit.DetailsMissingDeps $
+                  Map.toList $
+                    Map.difference actualVersions stated
     else Task.throw $ Exit.DetailsBadGrenInAppOutline grenVersion
 
 checkAppDeps :: Outline.AppOutline -> Task (Map.Map Pkg.Name V.Version)
@@ -230,9 +235,9 @@ union :: (Ord k) => (k -> v -> v -> Task v) -> Map.Map k v -> Map.Map k v -> Tas
 union tieBreaker deps1 deps2 =
   Map.mergeA Map.preserveMissing Map.preserveMissing (Map.zipWithAMatched tieBreaker) deps1 deps2
 
-noDups :: k -> v -> v -> Task v
-noDups _ _ _ =
-  Task.throw Exit.DetailsHandEditedDependencies
+noDups :: Pkg.Name -> v -> v -> Task v
+noDups depName _ _ =
+  Task.throw $ Exit.DetailsDuplicatedDep depName
 
 -- FORK
 
