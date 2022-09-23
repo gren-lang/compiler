@@ -984,6 +984,8 @@ data Solver
   = SolverBadCacheData Pkg.Name V.Version
   | SolverBadGitOperationUnversionedPkg Pkg.Name Git.Error
   | SolverBadGitOperationVersionedPkg Pkg.Name V.Version Git.Error
+  | SolverIncompatibleSolvedVersion Pkg.Name Pkg.Name C.Constraint V.Version
+  | SolverIncompatibleVersionRanges Pkg.Name Pkg.Name C.Constraint C.Constraint
 
 toSolverReport :: Solver -> Help.Report
 toSolverReport problem =
@@ -1017,6 +1019,72 @@ toSolverReport problem =
           ++ " "
           ++ V.toChars vsn
           ++ " to help me search for a set of compatible packages"
+    SolverIncompatibleSolvedVersion project dependency constraint solvedVsn ->
+      Help.report
+        "PROBLEM SOLVING PACKAGE CONSTRAINTS"
+        Nothing
+        ( Pkg.toChars project
+            ++ " requires "
+            ++ Pkg.toChars dependency
+            ++ " with a version within "
+            ++ C.toChars constraint
+            ++ ", however your project or another dependency is only compatible with version "
+            ++ V.toChars solvedVsn
+            ++ "!"
+        )
+        [ D.fillSep $
+            [ "I",
+              "generally",
+              "recommend",
+              "installing",
+              "packages",
+              "with",
+              "the",
+              D.green "gren package install",
+              "command,",
+              "as",
+              "it",
+              "helps",
+              "with",
+              "finding",
+              "compatible",
+              "transient",
+              "dependencies."
+            ]
+        ]
+    SolverIncompatibleVersionRanges project dependency requestedConstraint otherConstraint ->
+      Help.report
+        "PROBLEM SOLVING PACKAGE CONSTRAINTS"
+        Nothing
+        ( Pkg.toChars project
+            ++ " requires "
+            ++ Pkg.toChars dependency
+            ++ " with a version within "
+            ++ C.toChars requestedConstraint
+            ++ ", however your project or another one of your dependencies requires a version within "
+            ++ C.toChars otherConstraint
+            ++ "!"
+        )
+        [ D.fillSep $
+            [ "I",
+              "generally",
+              "recommend",
+              "installing",
+              "packages",
+              "with",
+              "the",
+              D.green "gren package install",
+              "command,",
+              "as",
+              "it",
+              "helps",
+              "with",
+              "finding",
+              "compatible",
+              "transient",
+              "dependencies."
+            ]
+        ]
 
 -- OUTLINE
 
@@ -1452,7 +1520,7 @@ toOutlineProblemReport path source _ region problem =
                       "it",
                       "with",
                       "the",
-                      D.green "gren install",
+                      D.green "gren package install",
                       "command!"
                     ]
                 ]
@@ -1613,7 +1681,7 @@ toDetailsReport details =
               "add",
               "dependencies",
               "with",
-              D.green "gren install" <> "."
+              D.green "gren package install" <> "."
             ],
           D.reflow $
             "Please ask for help on the community forums if you try those paths and are still\
@@ -1682,7 +1750,7 @@ toDetailsReport details =
               "add",
               "dependencies",
               "with",
-              D.green "gren install" <> "."
+              D.green "gren package install" <> "."
             ],
           D.reflow $
             "Please ask for help on the community forums if you try those paths and are still\
