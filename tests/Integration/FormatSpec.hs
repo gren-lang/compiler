@@ -9,6 +9,7 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as TE
 import Data.Text.Lazy qualified as LazyText
+import Parse.Module qualified as Parse
 import Data.Text.Lazy.Encoding qualified as LTE
 import Format qualified
 import Test.Hspec
@@ -98,7 +99,7 @@ shouldFormatAs :: [Text] -> [Text] -> IO ()
 shouldFormatAs inputLines expectedOutputLines =
   let input = TE.encodeUtf8 $ Text.unlines inputLines
       expectedOutput = LazyText.unlines $ fmap LazyText.fromStrict expectedOutputLines
-      actualOutput = LTE.decodeUtf8 . Builder.toLazyByteString <$> Format.formatByteString input
+      actualOutput = LTE.decodeUtf8 . Builder.toLazyByteString <$> Format.formatByteString Parse.Application input
    in case actualOutput of
         Nothing ->
           expectationFailure "shouldFormatAs: failed to format"
@@ -113,7 +114,7 @@ shouldFormatModuleBodyAs :: [Text] -> [Text] -> IO ()
 shouldFormatModuleBodyAs inputLines expectedOutputLines =
   let input = TE.encodeUtf8 $ Text.unlines inputLines
       expectedOutput = LazyText.unlines $ fmap LazyText.fromStrict expectedOutputLines
-      actualOutput = LTE.decodeUtf8 . Builder.toLazyByteString <$> Format.formatByteString input
+      actualOutput = LTE.decodeUtf8 . Builder.toLazyByteString <$> Format.formatByteString Parse.Application input
    in case LazyText.stripPrefix "module Main exposing (..)\n\n\n\n" <$> actualOutput of
         Nothing ->
           expectationFailure "shouldFormatModuleBodyAs: failed to format"
@@ -130,7 +131,7 @@ shouldFormatExpressionAs :: [Text] -> [Text] -> IO ()
 shouldFormatExpressionAs inputLines expectedOutputLines =
   let input = TE.encodeUtf8 $ "expr =\n" <> Text.unlines (fmap ("    " <>) inputLines)
       expectedOutput = LazyText.unlines $ fmap LazyText.fromStrict expectedOutputLines
-      actualOutput = LTE.decodeUtf8 . Builder.toLazyByteString <$> Format.formatByteString input
+      actualOutput = LTE.decodeUtf8 . Builder.toLazyByteString <$> Format.formatByteString Parse.Application input
       cleanOutput i =
         LazyText.stripPrefix "module Main exposing (..)\n\n\n\nexpr =\n" i
           >>= (return . LazyText.lines)
