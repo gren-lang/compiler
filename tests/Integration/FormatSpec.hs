@@ -9,9 +9,9 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as TE
 import Data.Text.Lazy qualified as LazyText
-import Parse.Module qualified as Parse
 import Data.Text.Lazy.Encoding qualified as LTE
 import Format qualified
+import Parse.Module qualified as Parse
 import Test.Hspec
 
 spec :: Spec
