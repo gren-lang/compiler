@@ -52,6 +52,7 @@ data Env = Env
 data Inputs
   = Stdin
   | Files [FilePath]
+  | Project Parse.ProjectType [FilePath]
 
 getEnv :: [FilePath] -> Flags -> Task.Task Exit.Format Env
 getEnv paths flags =
@@ -65,29 +66,34 @@ resolveInputPaths paths flags =
     (True, _ : _) ->
       Task.throw Exit.FormatStdinWithFiles
     (False, []) ->
-      Files <$> (resolveFiles =<< sourceDirsFromGrenJson)
+      do
+        (projectType, files) <- sourceDirsFromGrenJson
+        resolvedFiles <- resolveFiles files
+        return $ Project projectType resolvedFiles
     (False, somePaths) ->
       Files <$> (resolveFiles somePaths)
 
-sourceDirsFromGrenJson :: Task.Task Exit.Format [FilePath]
+sourceDirsFromGrenJson :: Task.Task Exit.Format (Parse.ProjectType, [FilePath])
 sourceDirsFromGrenJson =
   do
-    maybeRoot <- Task.io Dirs.findRoot
-    case maybeRoot of
-      Nothing ->
-        Task.throw Exit.FormatNoOutline
-      Just root ->
-        do
-          result <- Task.io $ Outline.read root
-          case result of
-            Left err ->
-              Task.throw $ Exit.FormatBadOutline err
-            Right outline ->
-              Task.io $
-                filterM Dir.doesDirectoryExist
-                  =<< ( traverse (fmap AbsoluteSrcDir.toFilePath <$> Outline.toAbsoluteSrcDir root) $
-                          (NE.toList (Outline.sourceDirs outline))
-                      )
+    root <- Task.mio Exit.FormatNoOutline Dirs.findRoot
+    outline <- Task.eio Exit.FormatBadOutline $ Outline.read root
+    Task.io $
+      do
+        paths <-
+          filterM Dir.doesDirectoryExist
+            =<< ( traverse (fmap AbsoluteSrcDir.toFilePath <$> Outline.toAbsoluteSrcDir root) $
+                    (NE.toList (Outline.sourceDirs outline))
+                )
+        return $ case outline of
+          Outline.App _ ->
+            ( Parse.Application,
+              paths
+            )
+          Outline.Pkg pkgOutline ->
+            ( Parse.Package $ Outline._pkg_name pkgOutline,
+              paths
+            )
 
 resolveFiles :: [FilePath] -> Task.Task Exit.Format [FilePath]
 resolveFiles paths =
@@ -117,22 +123,28 @@ format flags (Env inputs) =
     Stdin ->
       do
         original <- Task.io BS.getContents
-        case formatByteString original of
+        case formatByteString Parse.Application original of
           Nothing ->
             error "TODO: report error"
           Just formatted ->
             Task.io $ B.hPutBuilder System.IO.stdout formatted
     Files paths ->
-      do
-        approved <-
-          if not (_skipPrompts flags)
-            then Task.io $ Reporting.ask (confirmFormat paths)
-            else return True
-        if approved
-          then mapM_ formatFile paths
-          else do
-            Task.io $ putStrLn "Okay, I did not change anything!"
-            return ()
+      formatFilesOnDisk flags Parse.Application paths
+    Project projectType paths ->
+      formatFilesOnDisk flags projectType paths
+
+formatFilesOnDisk :: Flags -> Parse.ProjectType -> [FilePath] -> Task.Task Exit.Format ()
+formatFilesOnDisk flags projectType paths =
+  do
+    approved <-
+      if not (_skipPrompts flags)
+        then Task.io $ Reporting.ask (confirmFormat paths)
+        else return True
+    if approved
+      then mapM_ (formatFile projectType) paths
+      else do
+        Task.io $ putStrLn "Okay, I did not change anything!"
+        return ()
 
 confirmFormat :: [FilePath] -> D.Doc
 confirmFormat paths =
@@ -144,21 +156,21 @@ confirmFormat paths =
         "Are you sure you want to overwrite these files with formatted versions? [Y/n]: "
     ]
 
-formatFile :: FilePath -> Task.Task Exit.Format ()
-formatFile path =
+formatFile :: Parse.ProjectType -> FilePath -> Task.Task Exit.Format ()
+formatFile projectType path =
   do
     exists <- Task.io (Dir.doesFileExist path)
     if exists
       then do
-        Task.io (formatExistingFile path)
+        Task.io (formatExistingFile projectType path)
       else Task.throw (Exit.FormatPathUnknown path)
 
-formatExistingFile :: FilePath -> IO ()
-formatExistingFile path =
+formatExistingFile :: Parse.ProjectType -> FilePath -> IO ()
+formatExistingFile projectType path =
   do
     putStr ("Formatting " ++ path)
     original <- File.readUtf8 path
-    case formatByteString original of
+    case formatByteString projectType original of
       Nothing ->
         -- TODO: report error
         Help.toStdout (" " <> D.red "ERROR: could not parse file" <> "\n")
@@ -171,9 +183,9 @@ formatExistingFile path =
                 B.writeFile path builder
                 Help.toStdout (" " <> D.green "CHANGED" <> "\n")
 
-formatByteString :: BS.ByteString -> Maybe B.Builder
-formatByteString original =
-  case Parse.fromByteString Parse.Application original of
+formatByteString :: Parse.ProjectType -> BS.ByteString -> Maybe B.Builder
+formatByteString projectType original =
+  case Parse.fromByteString projectType original of
     Left _ ->
       -- TODO: report error
       Nothing
