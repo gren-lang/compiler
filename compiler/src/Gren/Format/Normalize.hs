@@ -14,9 +14,10 @@ import Data.Maybe (mapMaybe)
 import Data.Name (Name)
 import Gren.Compiler.Imports qualified
 import Reporting.Annotation qualified as A
+import Parse.Module qualified as Parse
 
-normalize :: Src.Module -> Src.Module
-normalize module_ =
+normalize :: Parse.ProjectType -> Src.Module -> Src.Module
+normalize projectType module_ =
   module_
     { Src._imports = mapMaybe removeDefaultImports $ Src._imports module_
     }
