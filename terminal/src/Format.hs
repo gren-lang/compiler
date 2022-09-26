@@ -190,4 +190,4 @@ formatByteString projectType original =
       -- TODO: report error
       Nothing
     Right ast ->
-      Just (Format.toByteStringBuilder $ Normalize.normalize ast)
+      Just (Format.toByteStringBuilder $ Normalize.normalize projectType ast)
