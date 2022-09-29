@@ -143,13 +143,14 @@ getName (Module maybeName _ _ _ _ _ _ _ _ _) =
       Name._Main
 
 getImportName :: Import -> Name
-getImportName (Import (A.At _ name) _ _) =
+getImportName (Import (A.At _ name) _ _ _) =
   name
 
 data Import = Import
   { _import :: A.Located Name,
     _alias :: Maybe Name,
-    _exposing :: Exposing
+    _exposing :: Exposing,
+    _importComments :: SC.ImportComments
   }
   deriving (Show)
 

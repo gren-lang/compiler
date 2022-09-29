@@ -81,6 +81,19 @@ spec = do
                            formattedModuleBody
                          ]
 
+    it "formats comments" $
+      [ formattedModuleHeader,
+        "import{-A-}Module1{-B-}",
+        "{-C-}",
+        "import{-D-}Module2{-E-}as{-F-}M2{-G-}",
+        formattedModuleBody
+      ]
+        `shouldFormatAs` [ formattedModuleHeader,
+                           "import {- A -} Module1 {- B -} {- C -}",
+                           "import {- D -} Module2 {- E -} as M2", -- TODO: retain F, G
+                           formattedModuleBody
+                         ]
+
   describe "top-level definition" $ do
     it "formats already formatted" $
       assertFormattedModuleBody

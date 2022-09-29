@@ -443,7 +443,7 @@ toImportErrors (Env _ _ _ _ _ _ locals foreigns) results imports problems =
         Set.difference knownModules (Set.fromList (map Src.getImportName imports))
 
       regionDict =
-        Map.fromList (map (\(Src.Import (A.At region name) _ _) -> (name, region)) imports)
+        Map.fromList (map (\(Src.Import (A.At region name) _ _ _) -> (name, region)) imports)
 
       toError (name, problem) =
         Import.Error (regionDict ! name) name unimportedModules problem

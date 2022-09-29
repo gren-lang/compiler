@@ -23,13 +23,13 @@ normalize module_ =
     }
 
 importSortKey :: Src.Import -> Name
-importSortKey (Src.Import name _ _) =
+importSortKey (Src.Import name _ _ _) =
   A.toValue name
 
 removeDefaultImports :: Src.Import -> Maybe Src.Import
-removeDefaultImports import_@(Src.Import name alias exposing) =
+removeDefaultImports import_@(Src.Import name alias exposing _) =
   case Map.lookup (A.toValue name) defaultImports of
-    Just (Src.Import _ defAlias defExposing) ->
+    Just (Src.Import _ defAlias defExposing _) ->
       if alias == defAlias && exposingEq exposing defExposing
         then Nothing
         else Just import_

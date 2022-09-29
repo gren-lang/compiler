@@ -54,3 +54,11 @@ data FxComments = FxComments
     _subComments :: SubComments
   }
   deriving (Show)
+
+-- Import
+
+data ImportComments = ImportComments
+  { _afterImportKeyword :: [Comment],
+    _afterImportName :: [Comment]
+  }
+  deriving (Show)

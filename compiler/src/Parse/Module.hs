@@ -383,25 +383,26 @@ chompImport :: Parser E.Module Src.Import
 chompImport =
   do
     Keyword.import_ E.ImportStart
-    Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentName
+    commentsAfterImportKeyword <- Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentName
     name@(A.At (A.Region _ end) _) <- addLocation (Var.moduleName E.ImportName)
-    Space.chomp E.ModuleSpace
+    commentsAfterName <- Space.chomp E.ModuleSpace
+    let comments = SC.ImportComments commentsAfterImportKeyword commentsAfterName
     oneOf
       E.ImportEnd
       [ do
           Space.checkFreshLine E.ImportEnd
-          return $ Src.Import name Nothing (Src.Explicit []),
+          return $ Src.Import name Nothing (Src.Explicit []) comments,
         do
           Space.checkIndent end E.ImportEnd
           oneOf
             E.ImportAs
-            [ chompAs name,
-              chompExposing name Nothing
+            [ chompAs name comments,
+              chompExposing name Nothing comments
             ]
       ]
 
-chompAs :: A.Located Name.Name -> Parser E.Module Src.Import
-chompAs name =
+chompAs :: A.Located Name.Name -> SC.ImportComments -> Parser E.Module Src.Import
+chompAs name comments =
   do
     Keyword.as_ E.ImportAs
     Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentAlias
@@ -412,20 +413,20 @@ chompAs name =
       E.ImportEnd
       [ do
           Space.checkFreshLine E.ImportEnd
-          return $ Src.Import name (Just alias) (Src.Explicit []),
+          return $ Src.Import name (Just alias) (Src.Explicit []) comments,
         do
           Space.checkIndent end E.ImportEnd
-          chompExposing name (Just alias)
+          chompExposing name (Just alias) comments
       ]
 
-chompExposing :: A.Located Name.Name -> Maybe Name.Name -> Parser E.Module Src.Import
-chompExposing name maybeAlias =
+chompExposing :: A.Located Name.Name -> Maybe Name.Name -> SC.ImportComments -> Parser E.Module Src.Import
+chompExposing name maybeAlias comments =
   do
     Keyword.exposing_ E.ImportExposing
     Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentExposingArray
     exposed <- specialize E.ImportExposingArray exposing
     freshLine E.ImportEnd
-    return $ Src.Import name maybeAlias exposed
+    return $ Src.Import name maybeAlias exposed comments
 
 -- LISTING
 

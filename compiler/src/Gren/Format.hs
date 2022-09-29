@@ -300,15 +300,17 @@ formatExposed = \case
   Src.Operator _ name -> Block.line $ Block.char7 '(' <> utf8 name <> Block.char7 ')'
 
 formatImport :: Src.Import -> Block
-formatImport (Src.Import name alias exposing) =
-  spaceOrIndent $
-    NonEmpty.fromList $
-      catMaybes
-        [ Just $ Block.line $ Block.string7 "import",
-          Just $ Block.line $ utf8 $ A.toValue name,
-          fmap formatImportAlias alias,
-          formatExposing [] exposing
-        ]
+formatImport (Src.Import name alias exposing comments) =
+  let (SC.ImportComments commentsAfterKeyword commentsAfterName) = comments
+   in spaceOrIndent $
+        NonEmpty.fromList $
+          catMaybes
+            [ Just $ Block.line $ Block.string7 "import",
+              Just $ withCommentsBefore commentsAfterKeyword $ Block.line $ utf8 $ A.toValue name,
+              (spaceOrStack . fmap formatComment) <$> NonEmpty.nonEmpty commentsAfterName,
+              fmap formatImportAlias alias,
+              formatExposing [] exposing
+            ]
 
 formatImportAlias :: Name -> Block
 formatImportAlias name = Block.line $ Block.string7 "as" <> Block.space <> utf8 name
