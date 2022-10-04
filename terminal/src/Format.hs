@@ -8,7 +8,7 @@ module Format
 where
 
 import AbsoluteSrcDir qualified
-import Control.Monad (filterM)
+import Control.Monad (filterM, when)
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder qualified as B
 import Data.ByteString.Lazy qualified as BSL
@@ -33,15 +33,17 @@ import System.IO qualified
 
 data Flags = Flags
   { _skipPrompts :: Bool,
-    _stdin :: Bool
+    _stdin :: Bool,
+    _validate :: Bool
   }
 
 -- RUN
 
 run :: [FilePath] -> Flags -> IO ()
-run paths flags =
+run paths flags = do
+  let action = if _validate flags then validate else format flags
   Reporting.attempt Exit.formatToReport $
-    Task.run (format flags =<< getEnv paths flags)
+    Task.run (action =<< getEnv paths flags)
 
 -- ENV
 
@@ -132,6 +134,52 @@ format flags (Env inputs) =
       formatFilesOnDisk flags Parse.Application paths
     Project projectType paths ->
       formatFilesOnDisk flags projectType paths
+
+validate :: Env -> Task.Task Exit.Format ()
+validate (Env inputs) = do
+  case inputs of
+    Stdin ->
+      do
+        original <- Task.io BS.getContents
+        case formatByteString Parse.Application original of
+          Nothing ->
+            error "TODO: report error"
+          Just formatted ->
+            when (BSL.fromStrict original /= B.toLazyByteString formatted) $
+              Task.throw Exit.FormatValidateNotCorrectlyFormatted
+    Files paths ->
+      validateFiles paths
+    Project _ paths ->
+      validateFiles paths
+
+validateFiles :: [FilePath] -> Task.Task Exit.Format ()
+validateFiles paths = do
+  validationResults <- mapM validateFile paths
+  when (any (== False) validationResults) $
+    Task.throw Exit.FormatValidateNotCorrectlyFormatted
+
+validateFile :: FilePath -> Task.Task Exit.Format Bool
+validateFile path =
+  do
+    exists <- Task.io (Dir.doesFileExist path)
+    if exists
+      then Task.io (validateExistingFile path)
+      else Task.throw (Exit.FormatPathUnknown path)
+
+validateExistingFile :: FilePath -> IO Bool
+validateExistingFile path = do
+  putStr ("Validating " ++ path)
+  original <- File.readUtf8 path
+  case formatByteString Parse.Application original of
+    Nothing -> do
+      -- TODO: report error
+      _ <- Help.toStdout (" " <> D.red "ERROR: could not parse file" <> "\n")
+      pure False
+    Just formatted -> do
+      let isFormatted = B.toLazyByteString formatted == BSL.fromStrict original
+          status = if isFormatted then D.green "VALID" else D.red "INVALID"
+      Help.toStdout (" " <> status <> "\n")
+      pure isFormatted
 
 formatFilesOnDisk :: Flags -> Parse.ProjectType -> [FilePath] -> Task.Task Exit.Format ()
 formatFilesOnDisk flags projectType paths =
