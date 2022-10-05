@@ -43,7 +43,7 @@ term =
         -- parenthesis
         inContext E.TParenthesis (word1 0x28 {-(-} E.TStart) $
           do
-            Space.chompAndCheckIndent E.TParenthesisSpace E.TParenthesisIndentOpen
+            _ <- Space.chompAndCheckIndent E.TParenthesisSpace E.TParenthesisIndentOpen
             (tipe, end) <- specialize E.TParenthesisType expression
             Space.checkIndent end E.TParenthesisIndentEnd
             word1 0x29 {-)-} E.TParenthesisEnd
@@ -51,7 +51,7 @@ term =
         -- records
         inContext E.TRecord (word1 0x7B {- { -} E.TStart) $
           do
-            Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentOpen
+            _ <- Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentOpen
             oneOf
               E.TRecordOpen
               [ do
@@ -59,18 +59,18 @@ term =
                   addEnd start (Src.TRecord [] Nothing),
                 do
                   name <- addLocation (Var.lower E.TRecordField)
-                  Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentColon
+                  _ <- Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentColon
                   oneOf
                     E.TRecordColon
                     [ do
                         word1 0x7C E.TRecordColon
-                        Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentField
+                        _ <- Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentField
                         field <- chompField
                         fields <- chompRecordEnd [field]
                         addEnd start (Src.TRecord fields (Just name)),
                       do
                         word1 0x3A {-:-} E.TRecordColon
-                        Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentType
+                        _ <- Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentType
                         (tipe, end) <- specialize E.TRecordType expression
                         Space.checkIndent end E.TRecordIndentEnd
                         fields <- chompRecordEnd [(name, tipe)]
@@ -92,14 +92,14 @@ expression =
           do
             eterm <- term
             end <- getPosition
-            Space.chomp E.TSpace
+            _ <- Space.chomp E.TSpace
             return (eterm, end)
         ]
     oneOfWithFallback
       [ do
           Space.checkIndent end1 E.TIndentStart -- should never trigger
           word2 0x2D 0x3E {-->-} E.TStart -- could just be another type instead
-          Space.chompAndCheckIndent E.TSpace E.TIndentStart
+          _ <- Space.chompAndCheckIndent E.TSpace E.TIndentStart
           (tipe2, end2) <- expression
           let tipe = A.at start end2 (Src.TLambda tipe1 tipe2)
           return (tipe, end2)
@@ -113,7 +113,7 @@ app start =
   do
     upper <- Var.foreignUpper E.TStart
     upperEnd <- getPosition
-    Space.chomp E.TSpace
+    _ <- Space.chomp E.TSpace
     (args, end) <- chompArgs [] upperEnd
 
     let region = A.Region start upperEnd
@@ -133,7 +133,7 @@ chompArgs args end =
         Space.checkIndent end E.TIndentStart
         arg <- term
         newEnd <- getPosition
-        Space.chomp E.TSpace
+        _ <- Space.chomp E.TSpace
         chompArgs (arg : args) newEnd
     ]
     (reverse args, end)
@@ -148,7 +148,7 @@ chompRecordEnd fields =
     E.TRecordEnd
     [ do
         word1 0x2C {-,-} E.TRecordEnd
-        Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentField
+        _ <- Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentField
         field <- chompField
         chompRecordEnd (field : fields),
       do
@@ -160,9 +160,9 @@ chompField :: Parser E.TRecord Field
 chompField =
   do
     name <- addLocation (Var.lower E.TRecordField)
-    Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentColon
+    _ <- Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentColon
     word1 0x3A {-:-} E.TRecordColon
-    Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentType
+    _ <- Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentType
     (tipe, end) <- specialize E.TRecordType expression
     Space.checkIndent end E.TRecordIndentEnd
     return (name, tipe)
@@ -173,6 +173,6 @@ variant :: Space.Parser E.CustomType (A.Located Name.Name, [Src.Type])
 variant =
   do
     name@(A.At (A.Region _ nameEnd) _) <- addLocation (Var.upper E.CT_Variant)
-    Space.chomp E.CT_Space
+    _ <- Space.chomp E.CT_Space
     (args, end) <- specialize E.CT_VariantArg (chompArgs [] nameEnd)
     return ((name, args), end)

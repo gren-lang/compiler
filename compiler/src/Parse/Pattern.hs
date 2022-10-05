@@ -106,7 +106,7 @@ parenthesized :: Parser E.Pattern Src.Pattern
 parenthesized =
   inContext E.PParenthesized (word1 0x28 {-(-} E.PStart) $
     do
-      Space.chompAndCheckIndent E.PParenthesizedSpace E.PParenthesizedIndentPattern
+      _ <- Space.chompAndCheckIndent E.PParenthesizedSpace E.PParenthesizedIndentPattern
       (pattern, end) <- P.specialize E.PParenthesizedPattern expression
       Space.checkIndent end E.PParenthesizedIndentEnd
       word1 0x29 {-)-} E.PParenthesizedEnd
@@ -118,7 +118,7 @@ record :: A.Position -> Parser E.Pattern Src.Pattern
 record start =
   inContext E.PRecord (word1 0x7B {- { -} E.PStart) $
     do
-      Space.chompAndCheckIndent E.PRecordSpace E.PRecordIndentOpen
+      _ <- Space.chompAndCheckIndent E.PRecordSpace E.PRecordIndentOpen
       oneOf
         E.PRecordOpen
         [ do
@@ -133,14 +133,14 @@ recordPatternHelp start revPatterns =
     fieldStart <- getPosition
     var <- Var.lower E.PRecordField
     varEnd <- getPosition
-    Space.chompAndCheckIndent E.PRecordSpace E.PRecordIndentEnd
+    _ <- Space.chompAndCheckIndent E.PRecordSpace E.PRecordIndentEnd
     oneOf
       E.PRecordEnd
       [ do
           word1 0x3D {-=-} E.PRecordEquals
-          Space.chompAndCheckIndent E.PRecordSpace E.PRecordIndentField
+          _ <- Space.chompAndCheckIndent E.PRecordSpace E.PRecordIndentField
           (pattern, fieldEnd) <- P.specialize E.PRecordExpr expression
-          Space.chompAndCheckIndent E.PRecordSpace E.PRecordIndentEnd
+          _ <- Space.chompAndCheckIndent E.PRecordSpace E.PRecordIndentEnd
           let namedPattern =
                 A.at fieldStart fieldEnd $
                   Src.RFPattern (A.at fieldStart varEnd var) pattern
@@ -160,7 +160,7 @@ recordContinuationHelp start revPatterns =
     E.PRecordEnd
     [ do
         word1 0x2C {-,-} E.PRecordEnd
-        Space.chompAndCheckIndent E.PRecordSpace E.PRecordIndentField
+        _ <- Space.chompAndCheckIndent E.PRecordSpace E.PRecordIndentField
         recordPatternHelp start revPatterns,
       do
         word1 0x7D {-}-} E.PRecordEnd
@@ -173,7 +173,7 @@ array :: A.Position -> Parser E.Pattern Src.Pattern
 array start =
   inContext E.PArray (word1 0x5B {-[-} E.PStart) $
     do
-      Space.chompAndCheckIndent E.PArraySpace E.PArrayIndentOpen
+      _ <- Space.chompAndCheckIndent E.PArraySpace E.PArrayIndentOpen
       oneOf
         E.PArrayOpen
         [ do
@@ -191,7 +191,7 @@ arrayHelp start patterns =
     E.PArrayEnd
     [ do
         word1 0x2C {-,-} E.PArrayEnd
-        Space.chompAndCheckIndent E.PArraySpace E.PArrayIndentExpr
+        _ <- Space.chompAndCheckIndent E.PArraySpace E.PArrayIndentExpr
         (pattern, end) <- P.specialize E.PArrayExpr expression
         Space.checkIndent end E.PArrayIndentEnd
         arrayHelp start (pattern : patterns),
@@ -214,11 +214,11 @@ exprHelp start (pattern, end) =
     [ do
         Space.checkIndent end E.PIndentStart
         Keyword.as_ E.PStart
-        Space.chompAndCheckIndent E.PSpace E.PIndentAlias
+        _ <- Space.chompAndCheckIndent E.PSpace E.PIndentAlias
         nameStart <- getPosition
         name <- Var.lower E.PAlias
         newEnd <- getPosition
-        Space.chomp E.PSpace
+        _ <- Space.chomp E.PSpace
         let alias = A.at nameStart newEnd name
         return
           ( A.at start newEnd (Src.PAlias pattern alias),
@@ -240,7 +240,7 @@ exprPart =
         exprTermHelp (A.Region start end) upper start [],
       do
         eterm@(A.At (A.Region _ end) _) <- term
-        Space.chomp E.PSpace
+        _ <- Space.chomp E.PSpace
         return (eterm, end)
     ]
 
@@ -248,7 +248,7 @@ exprTermHelp :: A.Region -> Var.Upper -> A.Position -> [Src.Pattern] -> Space.Pa
 exprTermHelp region upper start revArgs =
   do
     end <- getPosition
-    Space.chomp E.PSpace
+    _ <- Space.chomp E.PSpace
     oneOfWithFallback
       [ do
           Space.checkIndent end E.PIndentStart

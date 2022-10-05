@@ -201,8 +201,8 @@ formatModule (Src.Module moduleName exports docs imports values unions aliases b
     moduleKeyword =
       case effects of
         Src.NoEffects -> "module"
-        Src.Ports _ (SC.PortsComments afterPortKeyword) -> "port module"
-        Src.Manager _ _ (SC.ManagerComments afterEffectKeyword _ _) -> "effect module"
+        Src.Ports _ (SC.PortsComments _afterPortKeyword) -> "port module"
+        Src.Manager _ _ (SC.ManagerComments _afterEffectKeyword  _ _) -> "effect module"
 
     defDocs :: Map Name Src.DocComment
     defDocs =
@@ -239,7 +239,7 @@ formatEffectsModuleWhereClause :: Src.Effects -> Maybe Block
 formatEffectsModuleWhereClause = \case
   Src.NoEffects -> Nothing
   Src.Ports _ _ -> Nothing
-  Src.Manager _ manager (SC.ManagerComments _ afterWhereKeyword afterManager) ->
+  Src.Manager _ manager (SC.ManagerComments _ _afterWhereKeyword _afterManager) ->
     Just $ formatManager manager
 
 formatManager :: Src.Manager -> Block
@@ -296,7 +296,7 @@ formatExposing commentsAfterKeyword = \case
 formatExposed :: Src.Exposed -> Block
 formatExposed = \case
   Src.Lower name -> Block.line $ utf8 $ A.toValue name
-  Src.Upper name privacy -> Block.line $ utf8 $ A.toValue name
+  Src.Upper name _privacy -> Block.line $ utf8 $ A.toValue name
   Src.Operator _ name -> Block.line $ Block.char7 '(' <> utf8 name <> Block.char7 ')'
 
 formatImport :: Src.Import -> Block

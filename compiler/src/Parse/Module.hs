@@ -350,18 +350,18 @@ chompCommand :: Parser E.Module (A.Located Name.Name)
 chompCommand =
   do
     Keyword.command_ E.Effect
-    spaces_em
+    _ <- spaces_em
     word1 0x3D {-=-} E.Effect
-    spaces_em
+    _ <- spaces_em
     addLocation (Var.upper E.Effect)
 
 chompSubscription :: Parser E.Module (A.Located Name.Name)
 chompSubscription =
   do
     Keyword.subscription_ E.Effect
-    spaces_em
+    _ <- spaces_em
     word1 0x3D {-=-} E.Effect
-    spaces_em
+    _ <- spaces_em
     addLocation (Var.upper E.Effect)
 
 spaces_em :: Parser E.Module [Src.Comment]
@@ -383,9 +383,9 @@ chompImport :: Parser E.Module Src.Import
 chompImport =
   do
     Keyword.import_ E.ImportStart
-    Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentName
+    _ <- Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentName
     name@(A.At (A.Region _ end) _) <- addLocation (Var.moduleName E.ImportName)
-    Space.chomp E.ModuleSpace
+    _ <- Space.chomp E.ModuleSpace
     oneOf
       E.ImportEnd
       [ do
@@ -404,10 +404,10 @@ chompAs :: A.Located Name.Name -> Parser E.Module Src.Import
 chompAs name =
   do
     Keyword.as_ E.ImportAs
-    Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentAlias
+    _ <- Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentAlias
     alias <- Var.upper E.ImportAlias
     end <- getPosition
-    Space.chomp E.ModuleSpace
+    _ <- Space.chomp E.ModuleSpace
     oneOf
       E.ImportEnd
       [ do
@@ -422,9 +422,9 @@ chompExposing :: A.Located Name.Name -> Maybe Name.Name -> Parser E.Module Src.I
 chompExposing name maybeAlias =
   do
     Keyword.exposing_ E.ImportExposing
-    Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentExposingArray
+    _ <- Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentExposingArray
     exposed <- specialize E.ImportExposingArray exposing
-    freshLine E.ImportEnd
+    _ <- freshLine E.ImportEnd
     return $ Src.Import name maybeAlias exposed
 
 -- LISTING
@@ -433,17 +433,17 @@ exposing :: Parser E.Exposing Src.Exposing
 exposing =
   do
     word1 0x28 {-(-} E.ExposingStart
-    Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentValue
+    _ <- Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentValue
     oneOf
       E.ExposingValue
       [ do
           word2 0x2E 0x2E {-..-} E.ExposingValue
-          Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentEnd
+          _ <- Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentEnd
           word1 0x29 {-)-} E.ExposingEnd
           return Src.Open,
         do
           exposed <- chompExposed
-          Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentEnd
+          _ <- Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentEnd
           exposingHelp [exposed]
       ]
 
@@ -453,9 +453,9 @@ exposingHelp revExposed =
     E.ExposingEnd
     [ do
         word1 0x2C {-,-} E.ExposingEnd
-        Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentValue
+        _ <- Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentValue
         exposed <- chompExposed
-        Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentEnd
+        _ <- Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentEnd
         exposingHelp (exposed : revExposed),
       do
         word1 0x29 {-)-} E.ExposingEnd
@@ -481,7 +481,7 @@ chompExposed =
         do
           name <- Var.upper E.ExposingValue
           end <- getPosition
-          Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentEnd
+          _ <- Space.chompAndCheckIndent E.ExposingSpace E.ExposingIndentEnd
           Src.Upper (A.at start end name) <$> privacy
       ]
 
@@ -490,11 +490,11 @@ privacy =
   oneOfWithFallback
     [ do
         word1 0x28 {-(-} E.ExposingTypePrivacy
-        Space.chompAndCheckIndent E.ExposingSpace E.ExposingTypePrivacy
+        _ <- Space.chompAndCheckIndent E.ExposingSpace E.ExposingTypePrivacy
         start <- getPosition
         word2 0x2E 0x2E {-..-} E.ExposingTypePrivacy
         end <- getPosition
-        Space.chompAndCheckIndent E.ExposingSpace E.ExposingTypePrivacy
+        _ <- Space.chompAndCheckIndent E.ExposingSpace E.ExposingTypePrivacy
         word1 0x29 {-)-} E.ExposingTypePrivacy
         return $ Src.Public (A.Region start end)
     ]

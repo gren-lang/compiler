@@ -289,7 +289,7 @@ chompOverview names =
     isDocs <- chompUntilDocs
     if isDocs
       then do
-        Space.chomp E.Space
+        _ <- Space.chomp E.Space
         chompOverview =<< chompDocs names
       else return names
 
@@ -305,14 +305,14 @@ chompDocs names =
             chompOperator
           ]
 
-    Space.chomp E.Space
+    _ <- Space.chomp E.Space
 
     P.oneOfWithFallback
       [ do
           pos <- P.getPosition
           Space.checkIndent pos E.Comma
           word1 0x2C {-,-} E.Comma
-          Space.chomp E.Space
+          _ <- Space.chomp E.Space
           chompDocs (name : names)
       ]
       (name : names)
