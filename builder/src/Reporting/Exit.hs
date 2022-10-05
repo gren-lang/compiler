@@ -61,8 +61,10 @@ import Reporting.Doc qualified as D
 import Reporting.Error qualified as Error
 import Reporting.Error.Import qualified as Import
 import Reporting.Error.Json qualified as Json
+import Reporting.Error.Syntax qualified as Error.Syntax
 import Reporting.Exit.Help qualified as Help
 import Reporting.Render.Code qualified as Code
+import Reporting.Report qualified as Report
 import System.FilePath ((<.>), (</>))
 import System.FilePath qualified as FP
 
@@ -2392,6 +2394,7 @@ data Format
   | FormatNoOutline
   | FormatBadOutline Outline
   | FormatValidateNotCorrectlyFormatted
+  | FormatParseError BS.ByteString Error.Syntax.Error
 
 formatToReport :: Format -> Help.Report
 formatToReport problem =
@@ -2432,3 +2435,7 @@ formatToReport problem =
         Nothing
         "The input files were not correctly formatted according to Gren's preferred style."
         []
+    FormatParseError source err ->
+      Help.jsonReport (Report._title report) Nothing (Report._message report)
+      where
+        report = Error.Syntax.toReport (Code.toSource source) err
