@@ -148,25 +148,25 @@ validate (Env inputs) = do
             when (BSL.fromStrict original /= B.toLazyByteString formatted) $
               Task.throw Exit.FormatValidateNotCorrectlyFormatted
     Files paths ->
-      validateFiles paths
-    Project _ paths ->
-      validateFiles paths
+      validateFiles Parse.Application paths
+    Project projectType paths ->
+      validateFiles projectType paths
 
-validateFiles :: [FilePath] -> Task.Task Exit.Format ()
-validateFiles paths = do
-  validationResults <- mapM validateFile paths
+validateFiles :: Parse.ProjectType -> [FilePath] -> Task.Task Exit.Format ()
+validateFiles projectType paths = do
+  validationResults <- mapM (validateFile projectType) paths
   when (any (== False) validationResults) $
     Task.throw Exit.FormatValidateNotCorrectlyFormatted
 
-validateFile :: FilePath -> Task.Task Exit.Format Bool
-validateFile path =
-  assertFileExists path >> Task.io (validateExistingFile path)
+validateFile :: Parse.ProjectType -> FilePath -> Task.Task Exit.Format Bool
+validateFile projectType path =
+  assertFileExists path >> Task.io (validateExistingFile projectType path)
 
-validateExistingFile :: FilePath -> IO Bool
-validateExistingFile path = do
+validateExistingFile :: Parse.ProjectType -> FilePath -> IO Bool
+validateExistingFile projectType path = do
   putStr ("Validating " ++ path)
   original <- File.readUtf8 path
-  case formatByteString Parse.Application original of
+  case formatByteString projectType original of
     Nothing -> do
       -- TODO: report error
       _ <- Help.toStdout (" " <> D.red "ERROR: could not parse file" <> "\n")
@@ -202,7 +202,7 @@ confirmFormat paths =
 
 formatFile :: Parse.ProjectType -> FilePath -> Task.Task Exit.Format ()
 formatFile projectType path =
-    assertFileExists path >> Task.io (formatExistingFile projectType path)
+  assertFileExists path >> Task.io (formatExistingFile projectType path)
 
 formatExistingFile :: Parse.ProjectType -> FilePath -> IO ()
 formatExistingFile projectType path =
@@ -233,6 +233,6 @@ formatByteString projectType original =
 
 assertFileExists :: FilePath -> Task.Task Exit.Format ()
 assertFileExists path = do
-    exists <- Task.io (Dir.doesFileExist path)
-    when (not exists) $
-      Task.throw (Exit.FormatPathUnknown path)
+  exists <- Task.io (Dir.doesFileExist path)
+  when (not exists) $
+    Task.throw (Exit.FormatPathUnknown path)
