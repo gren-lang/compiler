@@ -2391,6 +2391,7 @@ data Format
   | FormatStdinWithFiles
   | FormatNoOutline
   | FormatBadOutline Outline
+  | FormatValidateNotCorrectlyFormatted
 
 formatToReport :: Format -> Help.Report
 formatToReport problem =
@@ -2425,3 +2426,9 @@ formatToReport problem =
         ]
     FormatBadOutline outline ->
       toOutlineReport outline
+    FormatValidateNotCorrectlyFormatted ->
+      Help.report
+        "FILES NOT PROPERLY FORMATTED"
+        Nothing
+        "The input files were not correctly formatted according to Gren's preferred style."
+        []
