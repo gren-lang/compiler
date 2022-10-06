@@ -144,7 +144,7 @@ format flags (Env inputs) =
 validate :: Env -> Task.Task Exit.Format ()
 validate (Env inputs) = do
   case inputs of
-    Stdin -> 
+    Stdin ->
       throwWhenResultInvalid =<< formatByteString Parse.Application <$> Task.io BS.getContents
     Files paths ->
       validateFiles Parse.Application paths
