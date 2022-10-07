@@ -7,14 +7,14 @@ module Format
   )
 where
 
-import Data.NonEmptyList qualified as NonEmptyList
 import AbsoluteSrcDir qualified
-import Data.Maybe (mapMaybe)
 import Control.Monad (filterM, when)
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder qualified as B
 import Data.ByteString.Lazy qualified as BSL
+import Data.Maybe (mapMaybe)
 import Data.NonEmptyList qualified as NE
+import Data.NonEmptyList qualified as NonEmptyList
 import Directories qualified as Dirs
 import File qualified
 import Gren.Format qualified as Format
@@ -135,7 +135,7 @@ format flags (Env inputs) =
     Stdin -> do
       formattingResult <- formatByteString Parse.Application Nothing <$> Task.io BS.getContents
       case formattingResult of
-        FormattingFailure path source e -> 
+        FormattingFailure path source e ->
           Task.throw $ Exit.FormatErrors (NonEmptyList.singleton $ Exit.FormattingFailureParseError path source e)
         FormattingSuccess _ formatted ->
           Task.io $ BSL.putStr formatted
@@ -163,7 +163,6 @@ validateFiles projectType paths = do
 throwIfHasValidateErrors :: [FormattingResult] -> Task.Task Exit.Format ()
 throwIfHasValidateErrors results =
   sequence_ $ (Task.throw . Exit.FormatValidateErrors) <$> NonEmptyList.fromList (mapMaybe validateFailure results)
-
 
 validateFailure :: FormattingResult -> Maybe Exit.ValidateFailure
 validateFailure formattingResult =
@@ -207,7 +206,6 @@ formatFilesOnDisk flags projectType paths = do
 throwIfHasFormattingErrors :: [FormattingResult] -> Task.Task Exit.Format ()
 throwIfHasFormattingErrors results =
   sequence_ $ (Task.throw . Exit.FormatErrors) <$> NonEmptyList.fromList (mapMaybe formattingError results)
-
 
 formattingError :: FormattingResult -> Maybe Exit.FormattingFailure
 formattingError (FormattingFailure path source err) = Just (Exit.FormattingFailureParseError path source err)

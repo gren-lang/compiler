@@ -20,8 +20,8 @@ module Reporting.Exit
     Outdated (..),
     outdatedToReport,
     Format (..),
-    FormattingFailure(..),
-    ValidateFailure(..),
+    FormattingFailure (..),
+    ValidateFailure (..),
     formatToReport,
     newPackageOverview,
     --
@@ -41,14 +41,14 @@ module Reporting.Exit
   )
 where
 
-import Data.NonEmptyList qualified as NonEmptyList
 import Data.ByteString qualified as BS
-import Data.Maybe (mapMaybe)
 import Data.ByteString.UTF8 qualified as BS_UTF8
 import Data.List qualified as List
 import Data.Map qualified as Map
+import Data.Maybe (mapMaybe)
 import Data.Name qualified as N
 import Data.NonEmptyList qualified as NE
+import Data.NonEmptyList qualified as NonEmptyList
 import File qualified
 import Git qualified
 import Gren.Constraint qualified as C
@@ -2399,7 +2399,7 @@ data Format
   | FormatValidateErrors (NonEmptyList.List ValidateFailure)
   | FormatErrors (NonEmptyList.List FormattingFailure)
 
-data FormattingFailure 
+data FormattingFailure
   = FormattingFailureParseError (Maybe FilePath) BS.ByteString Error.Syntax.Error
 
 data ValidateFailure
@@ -2453,7 +2453,7 @@ formatToReport problem =
         (formattingErrorToDoc <$> NonEmptyList.toList errors)
 
 formattingErrorToDoc :: FormattingFailure -> D.Doc
-formattingErrorToDoc formattingError = 
+formattingErrorToDoc formattingError =
   case formattingError of
     FormattingFailureParseError path source err ->
       Help.syntaxErrorToDoc (Code.toSource source) path err

@@ -26,7 +26,7 @@ toList (List x xs) =
 
 fromList :: [a] -> Maybe (List a)
 fromList [] = Nothing
-fromList (x:xs) = Just (List x xs)
+fromList (x : xs) = Just (List x xs)
 
 -- INSTANCES
 
