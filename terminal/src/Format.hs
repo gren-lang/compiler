@@ -7,7 +7,9 @@ module Format
   )
 where
 
+import Data.NonEmptyList qualified as NonEmptyList
 import AbsoluteSrcDir qualified
+import Data.Maybe (mapMaybe)
 import Control.Monad (filterM, when)
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder qualified as B
@@ -49,7 +51,7 @@ run paths flags = do
 
 data FormattingResult
   = FormattingSuccess FormattingChange BSL.ByteString
-  | FormattingFailure BS.ByteString Syntax.Error
+  | FormattingFailure (Maybe FilePath) BS.ByteString Syntax.Error
 
 data FormattingChange = Changed | NotChanged
 
@@ -131,9 +133,10 @@ format :: Flags -> Env -> Task.Task Exit.Format ()
 format flags (Env inputs) =
   case inputs of
     Stdin -> do
-      formattingResult <- formatByteString Parse.Application <$> Task.io BS.getContents
+      formattingResult <- formatByteString Parse.Application Nothing <$> Task.io BS.getContents
       case formattingResult of
-        FormattingFailure original e -> Task.throw (Exit.FormatParseError original e)
+        FormattingFailure path source e -> 
+          Task.throw $ Exit.FormatErrors (NonEmptyList.singleton $ Exit.FormattingFailureParseError path source e)
         FormattingSuccess _ formatted ->
           Task.io $ BSL.putStr formatted
     Files paths ->
@@ -144,8 +147,9 @@ format flags (Env inputs) =
 validate :: Env -> Task.Task Exit.Format ()
 validate (Env inputs) = do
   case inputs of
-    Stdin ->
-      throwWhenResultInvalid =<< formatByteString Parse.Application <$> Task.io BS.getContents
+    Stdin -> do
+      result <- formatByteString Parse.Application Nothing <$> Task.io BS.getContents
+      throwIfHasValidateErrors [result]
     Files paths ->
       validateFiles Parse.Application paths
     Project projectType paths ->
@@ -154,17 +158,22 @@ validate (Env inputs) = do
 validateFiles :: Parse.ProjectType -> [FilePath] -> Task.Task Exit.Format ()
 validateFiles projectType paths = do
   results <- mapM (validateFile projectType) paths
-  mapM_ throwWhenResultInvalid results
+  throwIfHasValidateErrors results
 
-throwWhenResultInvalid :: FormattingResult -> Task.Task Exit.Format ()
-throwWhenResultInvalid formattingResult =
+throwIfHasValidateErrors :: [FormattingResult] -> Task.Task Exit.Format ()
+throwIfHasValidateErrors results =
+  sequence_ $ (Task.throw . Exit.FormatValidateErrors) <$> NonEmptyList.fromList (mapMaybe validateFailure results)
+
+
+validateFailure :: FormattingResult -> Maybe Exit.ValidateFailure
+validateFailure formattingResult =
   case formattingResult of
-    FormattingFailure original e ->
-      Task.throw (Exit.FormatParseError original e)
+    (FormattingFailure path source err) ->
+      Just (Exit.VaildateFormattingFailure $ Exit.FormattingFailureParseError path source err)
     FormattingSuccess Changed _ ->
-      Task.throw Exit.FormatValidateNotCorrectlyFormatted
+      Just Exit.ValidateNotCorrectlyFormatted
     FormattingSuccess NotChanged _ ->
-      pure ()
+      Nothing
 
 validateFile :: Parse.ProjectType -> FilePath -> Task.Task Exit.Format FormattingResult
 validateFile projectType path =
@@ -173,9 +182,9 @@ validateFile projectType path =
 validateExistingFile :: Parse.ProjectType -> FilePath -> IO FormattingResult
 validateExistingFile projectType path = do
   putStr ("Validating " ++ path)
-  formattingResult <- formatByteString projectType <$> File.readUtf8 path
+  formattingResult <- formatByteString projectType (Just path) <$> File.readUtf8 path
   case formattingResult of
-    FormattingFailure _ _ ->
+    FormattingFailure _ _ _ ->
       Help.toStdout (" " <> D.red "(parse error)" <> "\n")
     FormattingSuccess NotChanged _ ->
       Help.toStdout (" " <> D.green "VALID" <> "\n")
@@ -192,10 +201,17 @@ formatFilesOnDisk flags projectType paths = do
   if not approved
     then Task.io $ putStrLn "Okay, I did not change anything!"
     else do
-      formattingResults <- mapM (formatFile projectType) paths
-      case formattingResults of
-        [FormattingFailure source e] -> Task.throw (Exit.FormatParseError source e)
-        _ -> pure ()
+      results <- mapM (formatFile projectType) paths
+      throwIfHasFormattingErrors results
+
+throwIfHasFormattingErrors :: [FormattingResult] -> Task.Task Exit.Format ()
+throwIfHasFormattingErrors results =
+  sequence_ $ (Task.throw . Exit.FormatErrors) <$> NonEmptyList.fromList (mapMaybe formattingError results)
+
+
+formattingError :: FormattingResult -> Maybe Exit.FormattingFailure
+formattingError (FormattingFailure path source err) = Just (Exit.FormattingFailureParseError path source err)
+formattingError _ = Nothing
 
 confirmFormat :: [FilePath] -> D.Doc
 confirmFormat paths =
@@ -214,9 +230,9 @@ formatFile projectType path =
 formatExistingFile :: Parse.ProjectType -> FilePath -> IO FormattingResult
 formatExistingFile projectType path = do
   putStr ("Formatting " ++ path)
-  formattingResult <- formatByteString projectType <$> File.readUtf8 path
+  formattingResult <- formatByteString projectType (Just path) <$> File.readUtf8 path
   case formattingResult of
-    FormattingFailure _ _ ->
+    FormattingFailure _ _ _ ->
       Help.toStdout (" " <> D.red "(parse error)" <> "\n")
     FormattingSuccess NotChanged _ ->
       Help.toStdout (" " <> D.dullwhite "(no changes)" <> "\n")
@@ -225,11 +241,11 @@ formatExistingFile projectType path = do
       Help.toStdout (" " <> D.green "CHANGED" <> "\n")
   pure formattingResult
 
-formatByteString :: Parse.ProjectType -> BS.ByteString -> FormattingResult
-formatByteString projectType original =
+formatByteString :: Parse.ProjectType -> Maybe FilePath -> BS.ByteString -> FormattingResult
+formatByteString projectType maybePath original =
   let formattedResult = B.toLazyByteString . Format.toByteStringBuilder . Normalize.normalize projectType <$> Parse.fromByteString projectType original
    in case formattedResult of
-        Left e -> FormattingFailure original e
+        Left e -> FormattingFailure maybePath original e
         Right formatted
           | formatted == BSL.fromStrict original -> FormattingSuccess NotChanged formatted
           | otherwise -> FormattingSuccess Changed formatted

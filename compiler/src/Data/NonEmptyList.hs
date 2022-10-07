@@ -2,6 +2,7 @@ module Data.NonEmptyList
   ( List (..),
     singleton,
     toList,
+    fromList,
     sortBy,
   )
 where
@@ -22,6 +23,10 @@ singleton a =
 toList :: List a -> [a]
 toList (List x xs) =
   x : xs
+
+fromList :: [a] -> Maybe (List a)
+fromList [] = Nothing
+fromList (x:xs) = Just (List x xs)
 
 -- INSTANCES
 

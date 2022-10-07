@@ -20,6 +20,8 @@ module Reporting.Exit
     Outdated (..),
     outdatedToReport,
     Format (..),
+    FormattingFailure(..),
+    ValidateFailure(..),
     formatToReport,
     newPackageOverview,
     --
@@ -39,7 +41,9 @@ module Reporting.Exit
   )
 where
 
+import Data.NonEmptyList qualified as NonEmptyList
 import Data.ByteString qualified as BS
+import Data.Maybe (mapMaybe)
 import Data.ByteString.UTF8 qualified as BS_UTF8
 import Data.List qualified as List
 import Data.Map qualified as Map
@@ -2393,8 +2397,15 @@ data Format
   | FormatStdinWithFiles
   | FormatNoOutline
   | FormatBadOutline Outline
-  | FormatValidateNotCorrectlyFormatted
-  | FormatParseError BS.ByteString Error.Syntax.Error
+  | FormatValidateErrors (NonEmptyList.List ValidateFailure)
+  | FormatErrors (NonEmptyList.List FormattingFailure)
+
+data FormattingFailure 
+  = FormattingFailureParseError (Maybe FilePath) BS.ByteString Error.Syntax.Error
+
+data ValidateFailure
+  = VaildateFormattingFailure FormattingFailure
+  | ValidateNotCorrectlyFormatted -- Diff
 
 formatToReport :: Format -> Help.Report
 formatToReport problem =
@@ -2429,13 +2440,28 @@ formatToReport problem =
         ]
     FormatBadOutline outline ->
       toOutlineReport outline
-    FormatValidateNotCorrectlyFormatted ->
+    FormatValidateErrors errors ->
       Help.report
         "FILES NOT PROPERLY FORMATTED"
         Nothing
         "The input files were not correctly formatted according to Gren's preferred style."
-        []
-    FormatParseError source err ->
-      Help.jsonReport (Report._title report) Nothing (Report._message report)
-      where
-        report = Error.Syntax.toReport (Code.toSource source) err
+        (mapMaybe validateErrorToDoc $ NonEmptyList.toList errors)
+    FormatErrors errors ->
+      Help.report
+        (show (length errors) <> " FILES CONTAINED ERRORS")
+        Nothing
+        "Some files contained errors and could not be formatted:"
+        (formattingErrorToDoc <$> NonEmptyList.toList errors)
+
+formattingErrorToDoc :: FormattingFailure -> D.Doc
+formattingErrorToDoc formattingError = 
+  case formattingError of
+    FormattingFailureParseError path source err ->
+      let report = Error.Syntax.toReport (Code.toSource source) err
+       in Help.reportToDoc $ Help.jsonReport (Report._title report) path (Report._message report)
+
+validateErrorToDoc :: ValidateFailure -> Maybe D.Doc
+validateErrorToDoc validateError =
+  case validateError of
+    VaildateFormattingFailure formattingFailure -> Just $ formattingErrorToDoc formattingFailure
+    ValidateNotCorrectlyFormatted -> Nothing
