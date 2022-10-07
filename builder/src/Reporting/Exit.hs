@@ -68,7 +68,6 @@ import Reporting.Error.Json qualified as Json
 import Reporting.Error.Syntax qualified as Error.Syntax
 import Reporting.Exit.Help qualified as Help
 import Reporting.Render.Code qualified as Code
-import Reporting.Report qualified as Report
 import System.FilePath ((<.>), (</>))
 import System.FilePath qualified as FP
 
@@ -2457,8 +2456,7 @@ formattingErrorToDoc :: FormattingFailure -> D.Doc
 formattingErrorToDoc formattingError = 
   case formattingError of
     FormattingFailureParseError path source err ->
-      let report = Error.Syntax.toReport (Code.toSource source) err
-       in Help.reportToDoc $ Help.jsonReport (Report._title report) path (Report._message report)
+      Help.syntaxErrorToDoc (Code.toSource source) path err
 
 validateErrorToDoc :: ValidateFailure -> Maybe D.Doc
 validateErrorToDoc validateError =
