@@ -7,7 +7,6 @@ module Format
   )
 where
 
-import AbsoluteSrcDir qualified
 import Control.Monad (filterM, when)
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder qualified as B
@@ -91,11 +90,7 @@ sourceDirsFromGrenJson =
     outline <- Task.eio Exit.FormatBadOutline $ Outline.read root
     Task.io $
       do
-        paths <-
-          filterM Dir.doesDirectoryExist
-            =<< ( traverse (fmap AbsoluteSrcDir.toFilePath <$> Outline.toAbsoluteSrcDir root) $
-                    (NE.toList (Outline.sourceDirs outline))
-                )
+        paths <- filterM Dir.doesDirectoryExist $ Outline.toGiven <$> (NE.toList $ Outline.sourceDirs outline)
         return $ case outline of
           Outline.App _ ->
             ( Parse.Application,

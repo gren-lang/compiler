@@ -15,6 +15,7 @@ module Gren.Outline
     defaultSummary,
     flattenExposed,
     toAbsoluteSrcDir,
+    toGiven,
     sourceDirs,
     platform,
     dependencyConstraints,
