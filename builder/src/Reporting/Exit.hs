@@ -48,7 +48,6 @@ import Data.Map qualified as Map
 import Data.Maybe (mapMaybe)
 import Data.Name qualified as N
 import Data.NonEmptyList qualified as NE
-import Data.NonEmptyList qualified as NonEmptyList
 import File qualified
 import Git qualified
 import Gren.Constraint qualified as C
@@ -2396,8 +2395,8 @@ data Format
   | FormatStdinWithFiles
   | FormatNoOutline
   | FormatBadOutline Outline
-  | FormatValidateErrors (NonEmptyList.List ValidateFailure)
-  | FormatErrors (NonEmptyList.List FormattingFailure)
+  | FormatValidateErrors (NE.List ValidateFailure)
+  | FormatErrors (NE.List FormattingFailure)
 
 data FormattingFailure
   = FormattingFailureParseError (Maybe FilePath) BS.ByteString Error.Syntax.Error
@@ -2444,13 +2443,13 @@ formatToReport problem =
         "FILES NOT PROPERLY FORMATTED"
         Nothing
         "The input files were not correctly formatted according to Gren's preferred style."
-        (mapMaybe validateErrorToDoc $ NonEmptyList.toList errors)
+        (mapMaybe validateErrorToDoc $ NE.toList errors)
     FormatErrors errors ->
       Help.report
         (show (length errors) <> " FILES CONTAINED ERRORS")
         Nothing
         "Some files contained errors and could not be formatted:"
-        (formattingErrorToDoc <$> NonEmptyList.toList errors)
+        (formattingErrorToDoc <$> NE.toList errors)
 
 formattingErrorToDoc :: FormattingFailure -> D.Doc
 formattingErrorToDoc formattingError =
