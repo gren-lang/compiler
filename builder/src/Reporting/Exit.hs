@@ -2403,7 +2403,7 @@ data FormattingFailure
 
 data ValidateFailure
   = VaildateFormattingFailure FormattingFailure
-  | ValidateNotCorrectlyFormatted -- Diff
+  | ValidateNotCorrectlyFormatted
 
 formatToReport :: Format -> Help.Report
 formatToReport problem =
