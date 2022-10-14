@@ -27,7 +27,15 @@ jobs:
       uses: actions/cache@v2
       with:
         path: ${{ steps.setup-haskell.outputs.cabal-store }}
-        key: cabal-${{ runner.os }}-${{ hashFiles('*.cabal') }}
+        key: deps-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('cabal.project.freeze') }}
+        restore-keys: deps-${{ runner.os }}-${{ matrix.ghc }}-
+
+    - name: Cache
+      uses: actions/cache@v2
+      with:
+        path: dist-newstyle
+        key: dist-${{ runner.os }}-${{ matrix.ghc }}-${{ github.sha }}
+        restore-keys: dist-${{ runner.os }}-${{ matrix.ghc }}-
 
     - name: Build
       run: cabal build --enable-tests
