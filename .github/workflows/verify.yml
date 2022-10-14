@@ -16,6 +16,7 @@ jobs:
       matrix:
         cabal: ["3.8.1.0"]
         ghc: ["9.4.2"]
+
     steps:
     - uses: actions/checkout@v2
 
