@@ -8,6 +8,7 @@ module Reporting.Exit.Help
     compilerReport,
     reportToDoc,
     reportToJson,
+    syntaxErrorToDoc,
     toString,
     toStdout,
     toStderr,
@@ -20,6 +21,9 @@ import Json.Encode qualified as E
 import Reporting.Doc ((<+>))
 import Reporting.Doc qualified as D
 import Reporting.Error qualified as Error
+import Reporting.Error.Syntax qualified as Error.Syntax
+import Reporting.Render.Code qualified as Code
+import Reporting.Report qualified as Report
 import System.IO (Handle, hPutStr, stderr, stdout)
 
 -- REPORT
@@ -47,6 +51,11 @@ jsonReport =
 compilerReport :: FilePath -> Error.Module -> [Error.Module] -> Report
 compilerReport =
   CompilerReport
+
+syntaxErrorToDoc :: Code.Source -> Maybe FilePath -> Error.Syntax.Error -> D.Doc
+syntaxErrorToDoc source path moduleError =
+  let syntaxReport = Error.Syntax.toReport source moduleError
+   in reportToDoc $ Report (Report._title syntaxReport) path (Report._message syntaxReport)
 
 -- TO DOC
 

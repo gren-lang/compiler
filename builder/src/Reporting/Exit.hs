@@ -20,6 +20,8 @@ module Reporting.Exit
     Outdated (..),
     outdatedToReport,
     Format (..),
+    FormattingFailure (..),
+    ValidateFailure (..),
     formatToReport,
     newPackageOverview,
     --
@@ -43,6 +45,7 @@ import Data.ByteString qualified as BS
 import Data.ByteString.UTF8 qualified as BS_UTF8
 import Data.List qualified as List
 import Data.Map qualified as Map
+import Data.Maybe (mapMaybe)
 import Data.Name qualified as N
 import Data.NonEmptyList qualified as NE
 import File qualified
@@ -61,6 +64,7 @@ import Reporting.Doc qualified as D
 import Reporting.Error qualified as Error
 import Reporting.Error.Import qualified as Import
 import Reporting.Error.Json qualified as Json
+import Reporting.Error.Syntax qualified as Error.Syntax
 import Reporting.Exit.Help qualified as Help
 import Reporting.Render.Code qualified as Code
 import System.FilePath ((<.>), (</>))
@@ -2391,7 +2395,15 @@ data Format
   | FormatStdinWithFiles
   | FormatNoOutline
   | FormatBadOutline Outline
-  | FormatValidateNotCorrectlyFormatted
+  | FormatValidateErrors (NE.List ValidateFailure)
+  | FormatErrors (NE.List FormattingFailure)
+
+data FormattingFailure
+  = FormattingFailureParseError (Maybe FilePath) BS.ByteString Error.Syntax.Error
+
+data ValidateFailure
+  = VaildateFormattingFailure FormattingFailure
+  | ValidateNotCorrectlyFormatted
 
 formatToReport :: Format -> Help.Report
 formatToReport problem =
@@ -2426,9 +2438,27 @@ formatToReport problem =
         ]
     FormatBadOutline outline ->
       toOutlineReport outline
-    FormatValidateNotCorrectlyFormatted ->
+    FormatValidateErrors errors ->
       Help.report
         "FILES NOT PROPERLY FORMATTED"
         Nothing
         "The input files were not correctly formatted according to Gren's preferred style."
-        []
+        (mapMaybe validateErrorToDoc $ NE.toList errors)
+    FormatErrors errors ->
+      Help.report
+        (show (length errors) <> " FILES CONTAINED ERRORS")
+        Nothing
+        "Some files contained errors and could not be formatted:"
+        (formattingErrorToDoc <$> NE.toList errors)
+
+formattingErrorToDoc :: FormattingFailure -> D.Doc
+formattingErrorToDoc formattingError =
+  case formattingError of
+    FormattingFailureParseError path source err ->
+      Help.syntaxErrorToDoc (Code.toSource source) path err
+
+validateErrorToDoc :: ValidateFailure -> Maybe D.Doc
+validateErrorToDoc validateError =
+  case validateError of
+    VaildateFormattingFailure formattingFailure -> Just $ formattingErrorToDoc formattingFailure
+    ValidateNotCorrectlyFormatted -> Nothing

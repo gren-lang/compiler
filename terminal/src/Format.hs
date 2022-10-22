@@ -7,11 +7,11 @@ module Format
   )
 where
 
-import AbsoluteSrcDir qualified
 import Control.Monad (filterM, when)
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder qualified as B
 import Data.ByteString.Lazy qualified as BSL
+import Data.Maybe (mapMaybe)
 import Data.NonEmptyList qualified as NE
 import Directories qualified as Dirs
 import File qualified
@@ -21,13 +21,13 @@ import Gren.Outline qualified as Outline
 import Parse.Module qualified as Parse
 import Reporting qualified
 import Reporting.Doc qualified as D
+import Reporting.Error.Syntax qualified as Syntax
 import Reporting.Exit qualified as Exit
 import Reporting.Exit.Help qualified as Help
 import Reporting.Task qualified as Task
 import System.Directory qualified as Dir
 import System.FilePath ((</>))
 import System.FilePath qualified as FilePath
-import System.IO qualified
 
 -- FLAGS
 
@@ -44,6 +44,14 @@ run paths flags = do
   let action = if _validate flags then validate else format flags
   Reporting.attempt Exit.formatToReport $
     Task.run (action =<< getEnv paths flags)
+
+-- FORMATTING RESULT
+
+data FormattingResult
+  = FormattingSuccess FormattingChange BSL.ByteString
+  | FormattingFailure (Maybe FilePath) BS.ByteString Syntax.Error
+
+data FormattingChange = Changed | NotChanged
 
 -- ENV
 
@@ -82,11 +90,7 @@ sourceDirsFromGrenJson =
     outline <- Task.eio Exit.FormatBadOutline $ Outline.read root
     Task.io $
       do
-        paths <-
-          filterM Dir.doesDirectoryExist
-            =<< ( traverse (fmap AbsoluteSrcDir.toFilePath <$> Outline.toAbsoluteSrcDir root) $
-                    (NE.toList (Outline.sourceDirs outline))
-                )
+        paths <- filterM Dir.doesDirectoryExist $ Outline.toGiven <$> (NE.toList $ Outline.sourceDirs outline)
         return $ case outline of
           Outline.App _ ->
             ( Parse.Application,
@@ -122,14 +126,13 @@ resolveFile path =
 format :: Flags -> Env -> Task.Task Exit.Format ()
 format flags (Env inputs) =
   case inputs of
-    Stdin ->
-      do
-        original <- Task.io BS.getContents
-        case formatByteString Parse.Application original of
-          Nothing ->
-            error "TODO: report error"
-          Just formatted ->
-            Task.io $ B.hPutBuilder System.IO.stdout formatted
+    Stdin -> do
+      formattingResult <- formatByteStringWithPath Parse.Application Nothing <$> Task.io BS.getContents
+      case formattingResult of
+        FormattingFailure path source e ->
+          Task.throw $ Exit.FormatErrors (NE.singleton $ Exit.FormattingFailureParseError path source e)
+        FormattingSuccess _ formatted ->
+          Task.io $ BSL.putStr formatted
     Files paths ->
       formatFilesOnDisk flags Parse.Application paths
     Project projectType paths ->
@@ -138,15 +141,9 @@ format flags (Env inputs) =
 validate :: Env -> Task.Task Exit.Format ()
 validate (Env inputs) = do
   case inputs of
-    Stdin ->
-      do
-        original <- Task.io BS.getContents
-        case formatByteString Parse.Application original of
-          Nothing ->
-            error "TODO: report error"
-          Just formatted ->
-            when (BSL.fromStrict original /= B.toLazyByteString formatted) $
-              Task.throw Exit.FormatValidateNotCorrectlyFormatted
+    Stdin -> do
+      result <- formatByteStringWithPath Parse.Application Nothing <$> Task.io BS.getContents
+      throwIfHasValidateErrors [result]
     Files paths ->
       validateFiles Parse.Application paths
     Project projectType paths ->
@@ -154,41 +151,63 @@ validate (Env inputs) = do
 
 validateFiles :: Parse.ProjectType -> [FilePath] -> Task.Task Exit.Format ()
 validateFiles projectType paths = do
-  validationResults <- mapM (validateFile projectType) paths
-  when (any (== False) validationResults) $
-    Task.throw Exit.FormatValidateNotCorrectlyFormatted
+  Task.io $ putStrLn ""
+  results <- mapM (validateFile projectType) paths
+  Task.io $ putStrLn ""
+  throwIfHasValidateErrors results
 
-validateFile :: Parse.ProjectType -> FilePath -> Task.Task Exit.Format Bool
+throwIfHasValidateErrors :: [FormattingResult] -> Task.Task Exit.Format ()
+throwIfHasValidateErrors results =
+  sequence_ $ (Task.throw . Exit.FormatValidateErrors) <$> NE.fromList (mapMaybe validateFailure results)
+
+validateFailure :: FormattingResult -> Maybe Exit.ValidateFailure
+validateFailure formattingResult =
+  case formattingResult of
+    (FormattingFailure path source err) ->
+      Just (Exit.VaildateFormattingFailure $ Exit.FormattingFailureParseError path source err)
+    FormattingSuccess Changed _ ->
+      Just Exit.ValidateNotCorrectlyFormatted
+    FormattingSuccess NotChanged _ ->
+      Nothing
+
+validateFile :: Parse.ProjectType -> FilePath -> Task.Task Exit.Format FormattingResult
 validateFile projectType path =
   assertFileExists path >> Task.io (validateExistingFile projectType path)
 
-validateExistingFile :: Parse.ProjectType -> FilePath -> IO Bool
+validateExistingFile :: Parse.ProjectType -> FilePath -> IO FormattingResult
 validateExistingFile projectType path = do
   putStr ("Validating " ++ path)
-  original <- File.readUtf8 path
-  case formatByteString projectType original of
-    Nothing -> do
-      -- TODO: report error
-      _ <- Help.toStdout (" " <> D.red "ERROR: could not parse file" <> "\n")
-      pure False
-    Just formatted -> do
-      let isFormatted = B.toLazyByteString formatted == BSL.fromStrict original
-          status = if isFormatted then D.green "VALID" else D.red "INVALID"
-      Help.toStdout (" " <> status <> "\n")
-      pure isFormatted
+  formattingResult <- formatByteStringWithPath projectType (Just path) <$> File.readUtf8 path
+  case formattingResult of
+    FormattingFailure _ _ _ ->
+      Help.toStdout (" " <> D.red "(parse error)" <> "\n")
+    FormattingSuccess NotChanged _ ->
+      Help.toStdout (" " <> D.green "VALID" <> "\n")
+    FormattingSuccess Changed _ -> do
+      Help.toStdout (" " <> D.red "INVALID" <> "\n")
+  pure formattingResult
 
 formatFilesOnDisk :: Flags -> Parse.ProjectType -> [FilePath] -> Task.Task Exit.Format ()
-formatFilesOnDisk flags projectType paths =
-  do
-    approved <-
-      if not (_skipPrompts flags)
-        then Task.io $ Reporting.ask (confirmFormat paths)
-        else return True
-    if approved
-      then mapM_ (formatFile projectType) paths
-      else do
-        Task.io $ putStrLn "Okay, I did not change anything!"
-        return ()
+formatFilesOnDisk flags projectType paths = do
+  approved <-
+    if not (_skipPrompts flags)
+      then Task.io $ Reporting.ask (confirmFormat paths)
+      else return True
+  if not approved
+    then Task.io $ putStrLn "Okay, I did not change anything!"
+    else do
+      Task.io $ putStrLn ""
+      results <- mapM (formatFile projectType) paths
+      Task.io $ putStrLn ""
+      throwIfHasFormattingErrors results
+
+throwIfHasFormattingErrors :: [FormattingResult] -> Task.Task Exit.Format ()
+throwIfHasFormattingErrors results =
+  sequence_ $ (Task.throw . Exit.FormatErrors) <$> NE.fromList (mapMaybe formattingError results)
+
+formattingError :: FormattingResult -> Maybe Exit.FormattingFailure
+formattingError (FormattingFailure path source err) = Just (Exit.FormattingFailureParseError path source err)
+formattingError _ = Nothing
 
 confirmFormat :: [FilePath] -> D.Doc
 confirmFormat paths =
@@ -200,36 +219,36 @@ confirmFormat paths =
         "Are you sure you want to overwrite these files with formatted versions? [Y/n]: "
     ]
 
-formatFile :: Parse.ProjectType -> FilePath -> Task.Task Exit.Format ()
+formatFile :: Parse.ProjectType -> FilePath -> Task.Task Exit.Format FormattingResult
 formatFile projectType path =
   assertFileExists path >> Task.io (formatExistingFile projectType path)
 
-formatExistingFile :: Parse.ProjectType -> FilePath -> IO ()
-formatExistingFile projectType path =
-  do
-    putStr ("Formatting " ++ path)
-    original <- File.readUtf8 path
-    case formatByteString projectType original of
-      Nothing ->
-        -- TODO: report error
-        Help.toStdout (" " <> D.red "ERROR: could not parse file" <> "\n")
-      Just builder ->
-        let formatted = B.toLazyByteString builder
-         in if formatted == BSL.fromStrict original
-              then do
-                Help.toStdout (" " <> D.dullwhite "(no changes)" <> "\n")
-              else do
-                B.writeFile path builder
-                Help.toStdout (" " <> D.green "CHANGED" <> "\n")
+formatExistingFile :: Parse.ProjectType -> FilePath -> IO FormattingResult
+formatExistingFile projectType path = do
+  putStr ("Formatting " ++ path)
+  formattingResult <- formatByteStringWithPath projectType (Just path) <$> File.readUtf8 path
+  case formattingResult of
+    FormattingFailure _ _ _ ->
+      Help.toStdout (" " <> D.red "(parse error)" <> "\n")
+    FormattingSuccess NotChanged _ ->
+      Help.toStdout (" " <> D.dullwhite "(no changes)" <> "\n")
+    FormattingSuccess Changed formatted -> do
+      BSL.writeFile path formatted
+      Help.toStdout (" " <> D.green "CHANGED" <> "\n")
+  pure formattingResult
 
-formatByteString :: Parse.ProjectType -> BS.ByteString -> Maybe B.Builder
+formatByteStringWithPath :: Parse.ProjectType -> Maybe FilePath -> BS.ByteString -> FormattingResult
+formatByteStringWithPath projectType maybePath original =
+  let formattedResult = B.toLazyByteString <$> formatByteString projectType original
+   in case formattedResult of
+        Left e -> FormattingFailure maybePath original e
+        Right formatted
+          | formatted == BSL.fromStrict original -> FormattingSuccess NotChanged formatted
+          | otherwise -> FormattingSuccess Changed formatted
+
+formatByteString :: Parse.ProjectType -> BS.ByteString -> Either Syntax.Error B.Builder
 formatByteString projectType original =
-  case Parse.fromByteString projectType original of
-    Left _ ->
-      -- TODO: report error
-      Nothing
-    Right ast ->
-      Just (Format.toByteStringBuilder $ Normalize.normalize projectType ast)
+  Format.toByteStringBuilder . Normalize.normalize projectType <$> Parse.fromByteString projectType original
 
 assertFileExists :: FilePath -> Task.Task Exit.Format ()
 assertFileExists path = do
