@@ -127,7 +127,7 @@ format :: Flags -> Env -> Task.Task Exit.Format ()
 format flags (Env inputs) =
   case inputs of
     Stdin -> do
-      formattingResult <- formatByteString' Parse.Application Nothing <$> Task.io BS.getContents
+      formattingResult <- formatByteStringWithPath Parse.Application Nothing <$> Task.io BS.getContents
       case formattingResult of
         FormattingFailure path source e ->
           Task.throw $ Exit.FormatErrors (NE.singleton $ Exit.FormattingFailureParseError path source e)
@@ -142,7 +142,7 @@ validate :: Env -> Task.Task Exit.Format ()
 validate (Env inputs) = do
   case inputs of
     Stdin -> do
-      result <- formatByteString' Parse.Application Nothing <$> Task.io BS.getContents
+      result <- formatByteStringWithPath Parse.Application Nothing <$> Task.io BS.getContents
       throwIfHasValidateErrors [result]
     Files paths ->
       validateFiles Parse.Application paths
@@ -151,7 +151,9 @@ validate (Env inputs) = do
 
 validateFiles :: Parse.ProjectType -> [FilePath] -> Task.Task Exit.Format ()
 validateFiles projectType paths = do
+  Task.io $ putStrLn ""
   results <- mapM (validateFile projectType) paths
+  Task.io $ putStrLn ""
   throwIfHasValidateErrors results
 
 throwIfHasValidateErrors :: [FormattingResult] -> Task.Task Exit.Format ()
@@ -175,7 +177,7 @@ validateFile projectType path =
 validateExistingFile :: Parse.ProjectType -> FilePath -> IO FormattingResult
 validateExistingFile projectType path = do
   putStr ("Validating " ++ path)
-  formattingResult <- formatByteString' projectType (Just path) <$> File.readUtf8 path
+  formattingResult <- formatByteStringWithPath projectType (Just path) <$> File.readUtf8 path
   case formattingResult of
     FormattingFailure _ _ _ ->
       Help.toStdout (" " <> D.red "(parse error)" <> "\n")
@@ -194,7 +196,9 @@ formatFilesOnDisk flags projectType paths = do
   if not approved
     then Task.io $ putStrLn "Okay, I did not change anything!"
     else do
+      Task.io $ putStrLn ""
       results <- mapM (formatFile projectType) paths
+      Task.io $ putStrLn ""
       throwIfHasFormattingErrors results
 
 throwIfHasFormattingErrors :: [FormattingResult] -> Task.Task Exit.Format ()
@@ -222,7 +226,7 @@ formatFile projectType path =
 formatExistingFile :: Parse.ProjectType -> FilePath -> IO FormattingResult
 formatExistingFile projectType path = do
   putStr ("Formatting " ++ path)
-  formattingResult <- formatByteString' projectType (Just path) <$> File.readUtf8 path
+  formattingResult <- formatByteStringWithPath projectType (Just path) <$> File.readUtf8 path
   case formattingResult of
     FormattingFailure _ _ _ ->
       Help.toStdout (" " <> D.red "(parse error)" <> "\n")
@@ -233,9 +237,8 @@ formatExistingFile projectType path = do
       Help.toStdout (" " <> D.green "CHANGED" <> "\n")
   pure formattingResult
 
--- TODO: find better name
-formatByteString' :: Parse.ProjectType -> Maybe FilePath -> BS.ByteString -> FormattingResult
-formatByteString' projectType maybePath original =
+formatByteStringWithPath :: Parse.ProjectType -> Maybe FilePath -> BS.ByteString -> FormattingResult
+formatByteStringWithPath projectType maybePath original =
   let formattedResult = B.toLazyByteString <$> formatByteString projectType original
    in case formattedResult of
         Left e -> FormattingFailure maybePath original e
