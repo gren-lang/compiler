@@ -11,6 +11,7 @@ where
 
 import Data.Utf8 qualified as Utf8
 import Data.Word (Word16, Word8)
+import Data.List qualified as List
 import Foreign.Ptr (Ptr, minusPtr, plusPtr)
 import Gren.String qualified as ES
 import Parse.Number qualified as Number
@@ -115,6 +116,41 @@ finalize start end revChunks =
         then revChunks
         else ES.Slice start (minusPtr end start) : revChunks
 
+multiStringPostFinalization :: ES.String -> ES.String
+multiStringPostFinalization initStr =
+    let
+        dropFirstLineIfEmpty :: [[Char]] -> [[Char]]
+        dropFirstLineIfEmpty list =
+            case list of
+                "" : rest ->
+                    rest
+                _ ->
+                    list
+
+        countLeadingWhitespace :: [[Char]] -> (Int, [[Char]])
+        countLeadingWhitespace list =
+            case list of
+              [] -> (0, [])
+              first : _ ->
+                  let cnt = length $ takeWhile ((==) ' ') first
+                   in (cnt, list)
+
+        dropLeadingWhitespace :: (Int, [[Char]]) -> [[Char]]
+        dropLeadingWhitespace (cnt, list) =
+          map
+            (\str -> drop cnt str)
+            list
+    in
+    ES.fromChars $
+        concat $
+            List.intersperse "\n" $
+                dropLeadingWhitespace $
+                    countLeadingWhitespace $
+                        dropFirstLineIfEmpty $
+                                error $ show $
+                            lines $
+                                ES.toChars initStr
+
 addEscape :: ES.Chunk -> Ptr Word8 -> Ptr Word8 -> [ES.Chunk] -> [ES.Chunk]
 addEscape chunk start end revChunks =
   if start == end
@@ -170,7 +206,7 @@ multiString pos end row col initialPos sr sc revChunks =
        in if word == 0x22 {- " -} && isDoubleQuote (plusPtr pos 1) end && isDoubleQuote (plusPtr pos 2) end
             then
               Ok (plusPtr pos 3) row (col + 3) $
-                finalize initialPos pos revChunks
+                multiStringPostFinalization $ finalize initialPos pos revChunks
             else
               if word == 0x27 {- ' -}
                 then
