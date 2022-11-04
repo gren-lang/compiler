@@ -255,6 +255,7 @@ Test-Suite gren-tests
         Parse.RecordUpdateSpec
         Parse.SpaceSpec
         Parse.UnderscorePatternSpec
+        Parse.MultilineStringSpec
 
     Build-Depends:
         hspec >= 2.7.10 && < 3
