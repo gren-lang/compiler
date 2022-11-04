@@ -15,7 +15,19 @@ spec :: Spec
 spec = do
   describe "Multiline String" $ do
     it "regression test" $
-      parse "normal string" "\"normal string\""
+      parse
+        "normal string"
+        "\"\"\"normal string\"\"\""
+
+    it "mixing quotes work" $ do
+      parse
+        "string with \" in it"
+        "\"\"\"string with \" in it\"\"\""
+
+    it "first newline, and leading whitespace, is dropped" $ do
+      parse
+        "this is\na test"
+        "\"\"\"\n   this is\n   a test\n\"\"\""
 
 parse :: String -> BS.ByteString -> IO ()
 parse expectedStr =
