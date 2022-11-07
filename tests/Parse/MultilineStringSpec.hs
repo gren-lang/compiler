@@ -26,8 +26,18 @@ spec = do
 
     it "first newline, and leading whitespace, is dropped" $ do
       parse
-        "this is\\na test\\n"
+        "this is\\na test"
         "\"\"\"\n   this is\n   a test\n\"\"\""
+
+    it "First proper line decides how many spaces to drop" $ do
+      parse
+        "this is\\n a test"
+        "\"\"\"\n   this is\n    a test\n\"\"\""
+
+    it "Only leading spaces are dropped" $ do
+      parse
+        "this is\\na test"
+        "\"\"\"\n   this is\n a test\n\"\"\""
 
 parse :: String -> BS.ByteString -> IO ()
 parse expectedStr =
