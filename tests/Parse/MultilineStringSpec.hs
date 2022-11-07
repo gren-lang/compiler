@@ -26,7 +26,7 @@ spec = do
 
     it "first newline, and leading whitespace, is dropped" $ do
       parse
-        "this is\na test"
+        "this is\\na test\\n"
         "\"\"\"\n   this is\n   a test\n\"\"\""
 
 parse :: String -> BS.ByteString -> IO ()

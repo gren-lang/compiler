@@ -116,9 +116,20 @@ finalize start end revChunks =
         then revChunks
         else ES.Slice start (minusPtr end start) : revChunks
 
+-- TODO: This is less efficient than it needs to be
 multiStringPostFinalization :: ES.String -> ES.String
 multiStringPostFinalization initStr =
     let
+        escapedLines :: [Char] -> [[Char]] -> [Char] -> [[Char]]
+        escapedLines tmpStr acc  str =
+            case str of
+              [] ->
+                  reverse (reverse tmpStr : acc)
+              '\\' : 'n' : rest ->
+                  escapedLines [] (reverse tmpStr : acc) rest
+              first : rest ->
+                  escapedLines (first : tmpStr) acc rest
+
         dropFirstLineIfEmpty :: [[Char]] -> [[Char]]
         dropFirstLineIfEmpty list =
             case list of
@@ -142,14 +153,12 @@ multiStringPostFinalization initStr =
             list
     in
     ES.fromChars $
-        concat $
-            List.intersperse "\n" $
-                dropLeadingWhitespace $
-                    countLeadingWhitespace $
-                        dropFirstLineIfEmpty $
-                                error $ show $
-                            lines $
-                                ES.toChars initStr
+        List.intercalate "\\n" $
+            dropLeadingWhitespace $
+                countLeadingWhitespace $
+                    dropFirstLineIfEmpty $
+                        escapedLines [] [] $
+                            ES.toChars initStr
 
 addEscape :: ES.Chunk -> Ptr Word8 -> Ptr Word8 -> [ES.Chunk] -> [ES.Chunk]
 addEscape chunk start end revChunks =
