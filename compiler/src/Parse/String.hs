@@ -143,22 +143,31 @@ multiStringPostFinalization initStr =
             case list of
               [] -> (0, [])
               first : _ ->
-                  let cnt = length $ takeWhile ((==) ' ') first
+                  let cnt = countLeadingWhitespaceOfLine first
                    in (cnt, list)
+
+        countLeadingWhitespaceOfLine :: [Char] -> Int
+        countLeadingWhitespaceOfLine str =
+            length $ takeWhile ((==) ' ') str
 
         dropLeadingWhitespace :: (Int, [[Char]]) -> [[Char]]
         dropLeadingWhitespace (cnt, list) =
           map
-            (\str -> drop cnt str)
+            (\str -> drop (min cnt (countLeadingWhitespaceOfLine str)) str)
             list
+
+        dropLastLineIfEmpty :: [[Char]] -> [[Char]]
+        dropLastLineIfEmpty list =
+            reverse (dropFirstLineIfEmpty (reverse list))
     in
     ES.fromChars $
         List.intercalate "\\n" $
-            dropLeadingWhitespace $
-                countLeadingWhitespace $
-                    dropFirstLineIfEmpty $
-                        escapedLines [] [] $
-                            ES.toChars initStr
+            dropLastLineIfEmpty $
+                dropLeadingWhitespace $
+                    countLeadingWhitespace $
+                        dropFirstLineIfEmpty $
+                            escapedLines [] [] $
+                                ES.toChars initStr
 
 addEscape :: ES.Chunk -> Ptr Word8 -> Ptr Word8 -> [ES.Chunk] -> [ES.Chunk]
 addEscape chunk start end revChunks =
