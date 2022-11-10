@@ -11,7 +11,6 @@ where
 
 import Data.Utf8 qualified as Utf8
 import Data.Word (Word16, Word8)
-import Data.List qualified as List
 import Foreign.Ptr (Ptr, minusPtr, plusPtr)
 import Gren.String qualified as ES
 import Parse.Number qualified as Number
@@ -89,7 +88,7 @@ string toExpectation toError =
                       then
                         let !pos3 = plusPtr pos 3
                             !col3 = col + 3
-                         in multiString pos3 end row col3 pos3 row col mempty
+                         in multiString pos3 end row col3 pos3 row col
                       else Ok pos2 row (col + 2) Utf8.empty
               else singleString pos1 end row (col + 1) pos1 mempty of
               Ok newPos newRow newCol utf8 ->
@@ -116,58 +115,13 @@ finalize start end revChunks =
         then revChunks
         else ES.Slice start (minusPtr end start) : revChunks
 
--- TODO: This is less efficient than it needs to be
-multiStringPostFinalization :: ES.String -> ES.String
-multiStringPostFinalization initStr =
-    let
-        escapedLines :: [Char] -> [[Char]] -> [Char] -> [[Char]]
-        escapedLines tmpStr acc  str =
-            case str of
-              [] ->
-                  reverse (reverse tmpStr : acc)
-              '\\' : 'n' : rest ->
-                  escapedLines [] (reverse tmpStr : acc) rest
-              first : rest ->
-                  escapedLines (first : tmpStr) acc rest
-
-        dropFirstLineIfEmpty :: [[Char]] -> [[Char]]
-        dropFirstLineIfEmpty list =
-            case list of
-                "" : rest ->
-                    rest
-                _ ->
-                    list
-
-        countLeadingWhitespace :: [[Char]] -> (Int, [[Char]])
-        countLeadingWhitespace list =
-            case list of
-              [] -> (0, [])
-              first : _ ->
-                  let cnt = countLeadingWhitespaceOfLine first
-                   in (cnt, list)
-
-        countLeadingWhitespaceOfLine :: [Char] -> Int
-        countLeadingWhitespaceOfLine str =
-            length $ takeWhile ((==) ' ') str
-
-        dropLeadingWhitespace :: (Int, [[Char]]) -> [[Char]]
-        dropLeadingWhitespace (cnt, list) =
-          map
-            (\str -> drop (min cnt (countLeadingWhitespaceOfLine str)) str)
-            list
-
-        dropLastLineIfEmpty :: [[Char]] -> [[Char]]
-        dropLastLineIfEmpty list =
-            reverse (dropFirstLineIfEmpty (reverse list))
-    in
-    ES.fromChars $
-        List.intercalate "\\n" $
-            dropLastLineIfEmpty $
-                dropLeadingWhitespace $
-                    countLeadingWhitespace $
-                        dropFirstLineIfEmpty $
-                            escapedLines [] [] $
-                                ES.toChars initStr
+dropMultiStringEndingNewline :: [ES.Chunk] -> [ES.Chunk]
+dropMultiStringEndingNewline revChunks =
+  case revChunks of
+    (ES.Escape 110) : rest ->
+      rest
+    _ ->
+      revChunks
 
 addEscape :: ES.Chunk -> Ptr Word8 -> Ptr Word8 -> [ES.Chunk] -> [ES.Chunk]
 addEscape chunk start end revChunks =
@@ -215,8 +169,44 @@ singleString pos end row col initialPos revChunks =
 
 -- MULTI STRINGS
 
-multiString :: Ptr Word8 -> Ptr Word8 -> Row -> Col -> Ptr Word8 -> Row -> Col -> [ES.Chunk] -> StringResult
-multiString pos end row col initialPos sr sc revChunks =
+multiString :: Ptr Word8 -> Ptr Word8 -> Row -> Col -> Ptr Word8 -> Row -> Col -> StringResult
+multiString pos end row col initialPos sr sc =
+  if pos >= end
+    then Err sr sc E.StringEndless_Multi
+    else
+      let !word = P.unsafeIndex pos
+       in if word == 0x0A {- \n -}
+            then
+              let !pos1 = plusPtr pos 1
+               in countLeadingWhiteSpaceThenMultiString 0 pos1 end (row + 1) 1 pos1 sr sc
+            else countLeadingWhiteSpaceThenMultiString 0 pos end row col initialPos sr sc
+
+countLeadingWhiteSpaceThenMultiString :: Int -> Ptr Word8 -> Ptr Word8 -> Row -> Col -> Ptr Word8 -> Row -> Col -> StringResult
+countLeadingWhiteSpaceThenMultiString count pos end row col initialPos sr sc =
+  if pos >= end
+    then Err sr sc E.StringEndless_Multi
+    else
+      let !word = P.unsafeIndex pos
+       in if word == 0x20 {- -}
+            then
+              let !pos1 = plusPtr pos 1
+               in countLeadingWhiteSpaceThenMultiString (count + 1) pos1 end row (col + 1) pos1 sr sc
+            else multiStringBody count pos end row col initialPos sr sc mempty
+
+dropLeadingWhiteSpaceThenMultiString :: Int -> Int -> Ptr Word8 -> Ptr Word8 -> Row -> Col -> Ptr Word8 -> Row -> Col -> [ES.Chunk] -> StringResult
+dropLeadingWhiteSpaceThenMultiString count maxCount pos end row col initialPos sr sc revChunks =
+  if pos >= end
+    then Err sr sc E.StringEndless_Multi
+    else
+      let !word = P.unsafeIndex pos
+       in if count < maxCount && word == 0x20 {- -}
+            then
+              let !pos1 = plusPtr pos 1
+               in dropLeadingWhiteSpaceThenMultiString (count + 1) maxCount pos1 end row (col + 1) pos1 sr sc revChunks
+            else multiStringBody maxCount pos end row col initialPos sr sc revChunks
+
+multiStringBody :: Int -> Ptr Word8 -> Ptr Word8 -> Row -> Col -> Ptr Word8 -> Row -> Col -> [ES.Chunk] -> StringResult
+multiStringBody leadingWhitespace pos end row col initialPos sr sc revChunks =
   if pos >= end
     then Err sr sc E.StringEndless_Multi
     else
@@ -224,33 +214,34 @@ multiString pos end row col initialPos sr sc revChunks =
        in if word == 0x22 {- " -} && isDoubleQuote (plusPtr pos 1) end && isDoubleQuote (plusPtr pos 2) end
             then
               Ok (plusPtr pos 3) row (col + 3) $
-                multiStringPostFinalization $ finalize initialPos pos revChunks
+                finalize initialPos pos $
+                  dropMultiStringEndingNewline revChunks
             else
               if word == 0x27 {- ' -}
                 then
                   let !pos1 = plusPtr pos 1
-                   in multiString pos1 end row (col + 1) pos1 sr sc $
+                   in dropLeadingWhiteSpaceThenMultiString 0 leadingWhitespace pos1 end row (col + 1) pos1 sr sc $
                         addEscape singleQuote initialPos pos revChunks
                 else
                   if word == 0x0A {- \n -}
                     then
                       let !pos1 = plusPtr pos 1
-                       in multiString pos1 end (row + 1) 1 pos1 sr sc $
+                       in dropLeadingWhiteSpaceThenMultiString 0 leadingWhitespace pos1 end (row + 1) 1 pos1 sr sc $
                             addEscape newline initialPos pos revChunks
                     else
                       if word == 0x0D {- \r -}
                         then
                           let !pos1 = plusPtr pos 1
-                           in multiString pos1 end row col pos1 sr sc $
+                           in dropLeadingWhiteSpaceThenMultiString 0 leadingWhitespace pos1 end row col pos1 sr sc $
                                 addEscape carriageReturn initialPos pos revChunks
                         else
                           if word == 0x5C {- \ -}
                             then case eatEscape (plusPtr pos 1) end row col of
                               EscapeNormal ->
-                                multiString (plusPtr pos 2) end row (col + 2) initialPos sr sc revChunks
+                                dropLeadingWhiteSpaceThenMultiString 0 leadingWhitespace (plusPtr pos 2) end row (col + 2) initialPos sr sc revChunks
                               EscapeUnicode delta code ->
                                 let !newPos = plusPtr pos delta
-                                 in multiString newPos end row (col + fromIntegral delta) newPos sr sc $
+                                 in dropLeadingWhiteSpaceThenMultiString 0 leadingWhitespace newPos end row (col + fromIntegral delta) newPos sr sc $
                                       addEscape (ES.CodePoint code) initialPos pos revChunks
                               EscapeProblem r c x ->
                                 Err r c (E.StringEscape x)
@@ -258,7 +249,7 @@ multiString pos end row col initialPos sr sc revChunks =
                                 Err sr sc E.StringEndless_Multi
                             else
                               let !newPos = plusPtr pos (P.getCharWidth word)
-                               in multiString newPos end row (col + 1) initialPos sr sc revChunks
+                               in multiStringBody leadingWhitespace newPos end row (col + 1) initialPos sr sc revChunks
 
 -- ESCAPE CHARACTERS
 

@@ -49,4 +49,3 @@ parse expectedStr =
           _ ->
             False
    in Helpers.checkSuccessfulParse Pattern.expression Error.Syntax.PStart isExpectedString
-
