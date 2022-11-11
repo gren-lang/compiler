@@ -79,10 +79,10 @@ data Binop = Binop Comment Type.Type Binop.Associativity Binop.Precedence
 
 encode :: Documentation -> E.Value
 encode docs =
-    let moduleFolder :: Name.Name -> Module -> [(Json.String, E.Value)] -> [(Json.String, E.Value)]
-        moduleFolder name modInfo acc =
-            (Name.toChars name ==> encodeModule modInfo) : acc
-     in E.object $ Map.foldrWithKey moduleFolder [] docs
+  let moduleFolder :: Name.Name -> Module -> [(Json.String, E.Value)] -> [(Json.String, E.Value)]
+      moduleFolder name modInfo acc =
+        (Name.toChars name ==> encodeModule modInfo) : acc
+   in E.object $ Map.foldrWithKey moduleFolder [] docs
 
 encodeModule :: Module -> E.Value
 encodeModule (Module name comment unions aliases values binops) =
