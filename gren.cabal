@@ -252,6 +252,7 @@ Test-Suite gren-tests
 
         -- tests
         Integration.FormatSpec
+        Parse.AliasSpec
         Parse.RecordUpdateSpec
         Parse.SpaceSpec
         Parse.UnderscorePatternSpec
