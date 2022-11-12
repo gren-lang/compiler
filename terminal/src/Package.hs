@@ -9,6 +9,7 @@ import Data.List qualified as List
 import Package.Bump qualified as Bump
 import Package.Diff qualified as Diff
 import Package.Install qualified as Install
+import Package.Outdated qualified as Outdated
 import Package.Uninstall qualified as Uninstall
 import Package.Validate qualified as Validate
 import Terminal
@@ -25,6 +26,7 @@ run =
     P.empty
     [ install,
       uninstall,
+      outdated,
       bump,
       diff,
       validate
@@ -106,6 +108,33 @@ uninstall =
         flags Uninstall.Flags
           |-- onOff "yes" "Assume yes for all interactive prompts."
    in Terminal.Command "uninstall" Uncommon details example uninstallArgs uninstallFlags Uninstall.run
+
+-- OUTDATED
+
+outdated :: Terminal.Command
+outdated =
+  let details =
+        "The `outdated` command lists the latest version of your dependencies, if you're\
+        \ not already using them:"
+
+      example =
+        stack
+          [ reflow
+              "For example, if you want to list any outdated dependencies in your project,\
+              \ you would say:",
+            P.indent 4 $
+              P.green $
+                P.vcat $
+                  [ "gren package outdated"
+                  ]
+          ]
+
+      outdatedArgs =
+        require0 Outdated.NoArgs
+
+      outdatedFlags =
+        flags Outdated.NoFlags
+   in Terminal.Command "outdated" Uncommon details example outdatedArgs outdatedFlags Outdated.run
 
 -- VALIDATE
 

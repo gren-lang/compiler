@@ -217,6 +217,7 @@ format =
         flags Format.Flags
           |-- onOff "yes" "Assume yes for all interactive prompts."
           |-- onOff "stdin" "Format stdin and write it to stdout."
+          |-- onOff "validate" "Check if input is correctly formatted."
    in Terminal.Command "format" Uncommon details example (zeroOrMore H.grenFileOrDirectory) formatFlags Format.run
 
 -- HELPERS

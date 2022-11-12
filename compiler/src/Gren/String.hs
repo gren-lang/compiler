@@ -6,6 +6,7 @@
 module Gren.String
   ( String,
     toChars,
+    fromChars,
     toBuilder,
     Chunk (..),
     fromChunks,
@@ -35,6 +36,10 @@ data GREN_STRING
 toChars :: String -> [Char]
 toChars =
   Utf8.toChars
+
+fromChars :: [Char] -> String
+fromChars =
+  Utf8.fromChars
 
 toBuilder :: String -> B.Builder
 toBuilder =

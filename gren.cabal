@@ -59,6 +59,7 @@ Common gren-common
         Package
         Package.Install
         Package.Uninstall
+        Package.Outdated
         Package.Bump
         Package.Diff
         Package.Validate
@@ -251,9 +252,11 @@ Test-Suite gren-tests
 
         -- tests
         Integration.FormatSpec
+        Parse.AliasSpec
         Parse.RecordUpdateSpec
         Parse.SpaceSpec
         Parse.UnderscorePatternSpec
+        Parse.MultilineStringSpec
 
     Build-Depends:
         hspec >= 2.7.10 && < 3

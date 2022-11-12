@@ -406,7 +406,7 @@ chompAs name comments =
   do
     Keyword.as_ E.ImportAs
     Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentAlias
-    alias <- Var.upper E.ImportAlias
+    alias <- Var.moduleName E.ImportAlias
     end <- getPosition
     Space.chomp E.ModuleSpace
     oneOf

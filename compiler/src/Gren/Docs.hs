@@ -79,7 +79,10 @@ data Binop = Binop Comment Type.Type Binop.Associativity Binop.Precedence
 
 encode :: Documentation -> E.Value
 encode docs =
-  E.list encodeModule (Map.elems docs)
+  let moduleFolder :: Name.Name -> Module -> [(Json.String, E.Value)] -> [(Json.String, E.Value)]
+      moduleFolder name modInfo acc =
+        (Name.toChars name ==> encodeModule modInfo) : acc
+   in E.object $ Map.foldrWithKey moduleFolder [] docs
 
 encodeModule :: Module -> E.Value
 encodeModule (Module name comment unions aliases values binops) =
@@ -99,15 +102,13 @@ data Error
 
 decoder :: D.Decoder Error Documentation
 decoder =
-  toDict <$> D.list moduleDecoder
+  D.dict moduleNameKeyDecoder moduleDecoder
 
-toDict :: [Module] -> Documentation
-toDict modules =
-  Map.fromList (map toDictHelp modules)
-
-toDictHelp :: Module -> (Name.Name, Module)
-toDictHelp modul@(Module name _ _ _ _ _) =
-  (name, modul)
+moduleNameKeyDecoder :: D.KeyDecoder Error ModuleName.Raw
+moduleNameKeyDecoder =
+  let keyParser =
+        P.specialize (\_ _ _ -> BadModuleName) ModuleName.parser
+   in D.KeyDecoder keyParser (\_ _ -> BadModuleName)
 
 moduleDecoder :: D.Decoder Error Module
 moduleDecoder =

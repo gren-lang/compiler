@@ -11,6 +11,7 @@ import Data.Text.Encoding qualified as TE
 import Data.Text.Lazy qualified as LazyText
 import Data.Text.Lazy.Encoding qualified as LTE
 import Format qualified
+import Parse.Module qualified as Parse
 import Test.Hspec
 
 spec :: Spec
@@ -142,11 +143,11 @@ shouldFormatAs :: [Text] -> [Text] -> IO ()
 shouldFormatAs inputLines expectedOutputLines =
   let input = TE.encodeUtf8 $ Text.unlines inputLines
       expectedOutput = LazyText.unlines $ fmap LazyText.fromStrict expectedOutputLines
-      actualOutput = LTE.decodeUtf8 . Builder.toLazyByteString <$> Format.formatByteString input
+      actualOutput = LTE.decodeUtf8 . Builder.toLazyByteString <$> Format.formatByteString Parse.Application input
    in case actualOutput of
-        Nothing ->
+        Left _ ->
           expectationFailure "shouldFormatAs: failed to format"
-        Just actualModuleBody ->
+        Right actualModuleBody ->
           actualModuleBody `shouldBe` expectedOutput
 
 assertFormattedModuleBody :: [Text] -> IO ()
@@ -157,13 +158,13 @@ shouldFormatModuleBodyAs :: [Text] -> [Text] -> IO ()
 shouldFormatModuleBodyAs inputLines expectedOutputLines =
   let input = TE.encodeUtf8 $ Text.unlines inputLines
       expectedOutput = LazyText.unlines $ fmap LazyText.fromStrict expectedOutputLines
-      actualOutput = LTE.decodeUtf8 . Builder.toLazyByteString <$> Format.formatByteString input
+      actualOutput = LTE.decodeUtf8 . Builder.toLazyByteString <$> Format.formatByteString Parse.Application input
    in case LazyText.stripPrefix "module Main exposing (..)\n\n\n\n" <$> actualOutput of
-        Nothing ->
+        Left _ ->
           expectationFailure "shouldFormatModuleBodyAs: failed to format"
-        Just Nothing ->
+        Right Nothing ->
           expectationFailure "shouldFormatModuleBodyAs: internal error: could not strip module header"
-        Just (Just actualModuleBody) ->
+        Right (Just actualModuleBody) ->
           actualModuleBody `shouldBe` expectedOutput
 
 assertFormattedExpression :: [Text] -> IO ()
@@ -174,16 +175,16 @@ shouldFormatExpressionAs :: [Text] -> [Text] -> IO ()
 shouldFormatExpressionAs inputLines expectedOutputLines =
   let input = TE.encodeUtf8 $ "expr =\n" <> Text.unlines (fmap ("    " <>) inputLines)
       expectedOutput = LazyText.unlines $ fmap LazyText.fromStrict expectedOutputLines
-      actualOutput = LTE.decodeUtf8 . Builder.toLazyByteString <$> Format.formatByteString input
+      actualOutput = LTE.decodeUtf8 . Builder.toLazyByteString <$> Format.formatByteString Parse.Application input
       cleanOutput i =
         LazyText.stripPrefix "module Main exposing (..)\n\n\n\nexpr =\n" i
           >>= (return . LazyText.lines)
           >>= traverse (LazyText.stripPrefix "    ")
           >>= (return . LazyText.unlines)
    in case fmap cleanOutput actualOutput of
-        Nothing ->
+        Left _ ->
           expectationFailure "shouldFormatExpressionAs: failed to format"
-        Just Nothing ->
+        Right Nothing ->
           expectationFailure "shouldFormatExpressionAs: internal error: could clean output"
-        Just (Just actualExpression) ->
+        Right (Just actualExpression) ->
           actualExpression `shouldBe` expectedOutput
