@@ -165,8 +165,8 @@ shouldFormatAs inputLines expectedOutputLines =
       expectedOutput = LazyText.unlines $ fmap LazyText.fromStrict expectedOutputLines
       actualOutput = LTE.decodeUtf8 . Builder.toLazyByteString <$> Format.formatByteString Parse.Application input
    in case actualOutput of
-        Left _ ->
-          expectationFailure "shouldFormatAs: failed to format"
+        Left err ->
+          expectationFailure ("shouldFormatAs: failed to format: " <> show err)
         Right actualModuleBody ->
           actualModuleBody `shouldBe` expectedOutput
 
