@@ -85,15 +85,35 @@ spec = do
     it "formats comments" $
       [ formattedModuleHeader,
         "import{-A-}Module1{-B-}",
-        "{-C-}",
         "import{-D-}Module2{-E-}as{-F-}M2{-G-}",
         formattedModuleBody
       ]
         `shouldFormatAs` [ formattedModuleHeader,
-                           "import {- A -} Module1 {- B -} {- C -}",
+                           "import {- A -} Module1 {- B -}",
                            "import {- D -} Module2 {- E -} as {- F -} M2 {- G -}",
                            formattedModuleBody
                          ]
+    it "does not attach unindented comments to the import line" $
+      -- TODO: eventually all these comments should be retained instead of dropped
+      [ formattedModuleHeader,
+        "import Module1",
+        "{-A-}",
+        "import Module2WithAs as M2",
+        "{-B-}",
+        "import Module3WithExposing exposing (..)",
+        "{-C-}",
+        "import Module4WithAsAndExposing as M4 exposing (..)",
+        "{-D-}",
+        formattedModuleBody
+      ]
+        `shouldFormatAs` [ formattedModuleHeader,
+                           "import Module1",
+                           "import Module2WithAs as M2",
+                           "import Module3WithExposing exposing (..)",
+                           "import Module4WithAsAndExposing as M4 exposing (..)",
+                           formattedModuleBody
+                         ]
+
     it "allows indented comments after module name" $
       [ formattedModuleHeader,
         "import Module1",

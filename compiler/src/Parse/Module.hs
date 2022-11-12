@@ -385,7 +385,8 @@ chompImport =
     Keyword.import_ E.ImportStart
     commentsAfterImportKeyword <- Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentName
     name@(A.At (A.Region _ end) _) <- addLocation (Var.moduleName E.ImportName)
-    commentsAfterName <- Space.chomp E.ModuleSpace
+    commentsAfterName <- Space.chompIndentedAtLeast 1 E.ModuleSpace
+    commentsAfterImportLine <- Space.chomp E.ModuleSpace
     let comments = SC.ImportComments commentsAfterImportKeyword commentsAfterName
     oneOf
       E.ImportEnd
@@ -408,7 +409,8 @@ chompAs name comments =
     commentsAfterAs <- Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentAlias
     alias <- Var.moduleName E.ImportAlias
     end <- getPosition
-    commentsAfterAliasName <- Space.chomp E.ModuleSpace
+    commentsAfterAliasName <- Space.chompIndentedAtLeast 1 E.ModuleSpace
+    commentsAfterImportLine <- Space.chomp E.ModuleSpace
     let aliasComments = SC.ImportAliasComments commentsAfterAs commentsAfterAliasName
     let aliasWithComments = Just (alias, aliasComments)
     oneOf
