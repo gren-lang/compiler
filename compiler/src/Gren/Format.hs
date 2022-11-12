@@ -129,12 +129,19 @@ extendedGroup open baseSep sep fieldSep close base fields =
         ]
 
 withCommentsBefore :: [Src.Comment] -> Block -> Block
-withCommentsBefore [] block = block
-withCommentsBefore (first : rest) block =
-  spaceOrStack
-    [ spaceOrStack $ fmap formatComment (first :| rest),
-      block
-    ]
+withCommentsBefore before = withCommentsAround before []
+
+withCommentsAround :: [Src.Comment] -> [Src.Comment] -> Block -> Block
+withCommentsAround [] [] block = block
+withCommentsAround before after block =
+  case (formatCommentBlock before, formatCommentBlock after) of
+    (Nothing, Nothing) -> block
+    (Just beforeBlock, Nothing) ->
+      spaceOrStack [beforeBlock, block]
+    (Nothing, Just afterBlock) ->
+      spaceOrIndent [block, afterBlock]
+    (Just beforeBlock, Just afterBlock) ->
+      spaceOrStack [beforeBlock, spaceOrIndent [block, afterBlock]]
 
 --
 -- AST -> Block
@@ -312,8 +319,12 @@ formatImport (Src.Import name alias exposing comments) =
               formatExposing [] exposing
             ]
 
-formatImportAlias :: Name -> Block
-formatImportAlias name = Block.line $ Block.string7 "as" <> Block.space <> utf8 name
+formatImportAlias :: (Name, SC.ImportAliasComments) -> Block
+formatImportAlias (name, SC.ImportAliasComments afterAs afterAliasName) =
+  spaceOrIndent
+    [ Block.line $ Block.string7 "as",
+      withCommentsAround afterAs afterAliasName (Block.line $ utf8 name)
+    ]
 
 formatDocComment :: Src.DocComment -> Block
 formatDocComment (Src.DocComment doc) =

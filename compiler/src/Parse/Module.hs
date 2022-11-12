@@ -405,21 +405,23 @@ chompAs :: A.Located Name.Name -> SC.ImportComments -> Parser E.Module Src.Impor
 chompAs name comments =
   do
     Keyword.as_ E.ImportAs
-    Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentAlias
+    commentsAfterAs <- Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentAlias
     alias <- Var.moduleName E.ImportAlias
     end <- getPosition
-    Space.chomp E.ModuleSpace
+    commentsAfterAliasName <- Space.chomp E.ModuleSpace
+    let aliasComments = SC.ImportAliasComments commentsAfterAs commentsAfterAliasName
+    let aliasWithComments = Just (alias, aliasComments)
     oneOf
       E.ImportEnd
       [ do
           Space.checkFreshLine E.ImportEnd
-          return $ Src.Import name (Just alias) (Src.Explicit []) comments,
+          return $ Src.Import name aliasWithComments (Src.Explicit []) comments,
         do
           Space.checkIndent end E.ImportEnd
-          chompExposing name (Just alias) comments
+          chompExposing name aliasWithComments comments
       ]
 
-chompExposing :: A.Located Name.Name -> Maybe Name.Name -> SC.ImportComments -> Parser E.Module Src.Import
+chompExposing :: A.Located Name.Name -> Maybe (Name.Name, SC.ImportAliasComments) -> SC.ImportComments -> Parser E.Module Src.Import
 chompExposing name maybeAlias comments =
   do
     Keyword.exposing_ E.ImportExposing

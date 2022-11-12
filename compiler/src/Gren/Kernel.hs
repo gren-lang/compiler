@@ -15,6 +15,7 @@ module Gren.Kernel
 where
 
 import AST.Source qualified as Src
+import AST.SourceComments qualified as SC
 import Control.Monad (liftM, liftM2)
 import Data.Binary (Binary, get, getWord8, put, putWord8)
 import Data.ByteString.Internal qualified as B
@@ -235,10 +236,10 @@ addImport pkg foreigns vtable (Src.Import (A.At _ importName) maybeAlias exposin
             Map.insert (Name.sepBy 0x5F {-_-} prefix name) (GrenVar home name) table
        in List.foldl' add vtable (toNames exposing)
 
-toPrefix :: Name.Name -> Maybe Name.Name -> Name.Name
+toPrefix :: Name.Name -> Maybe (Name.Name, SC.ImportAliasComments) -> Name.Name
 toPrefix home maybeAlias =
   case maybeAlias of
-    Just alias ->
+    Just (alias, _) ->
       alias
     Nothing ->
       if Name.hasDot home

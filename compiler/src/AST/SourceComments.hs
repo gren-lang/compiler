@@ -7,7 +7,7 @@ data GREN_COMMENT
 data Comment
   = BlockComment (Utf8.Utf8 GREN_COMMENT)
   | LineComment (Utf8.Utf8 GREN_COMMENT)
-  deriving (Show)
+  deriving (Eq, Show)
 
 -- Module
 
@@ -62,3 +62,9 @@ data ImportComments = ImportComments
     _afterImportName :: [Comment]
   }
   deriving (Show)
+
+data ImportAliasComments = ImportAliasComments
+  { _afterAs :: [Comment],
+    _afterAliasName :: [Comment]
+  }
+  deriving (Eq, Show)

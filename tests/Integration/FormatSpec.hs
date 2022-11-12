@@ -91,7 +91,27 @@ spec = do
       ]
         `shouldFormatAs` [ formattedModuleHeader,
                            "import {- A -} Module1 {- B -} {- C -}",
-                           "import {- D -} Module2 {- E -} as M2", -- TODO: retain F, G
+                           "import {- D -} Module2 {- E -} as {- F -} M2 {- G -}",
+                           formattedModuleBody
+                         ]
+    it "allows indented comments after module name" $
+      [ formattedModuleHeader,
+        "import Module1",
+        " {-A-}",
+        formattedModuleBody
+      ]
+        `shouldFormatAs` [ formattedModuleHeader,
+                           "import Module1 {- A -}",
+                           formattedModuleBody
+                         ]
+    it "allows indented comments after 'as' clause" $
+      [ formattedModuleHeader,
+        "import Module1 as M1",
+        " {-A-}",
+        formattedModuleBody
+      ]
+        `shouldFormatAs` [ formattedModuleHeader,
+                           "import Module1 as M1 {- A -}",
                            formattedModuleBody
                          ]
 

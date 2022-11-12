@@ -74,7 +74,7 @@ fromModule modul@(Src.Module _ _ _ imports _ _ _ _ _ _) =
 toPair :: Src.Import -> (Name.Name, Import)
 toPair (Src.Import (A.At _ name) alias exposing _) =
   ( name,
-    Import alias (toExposing exposing)
+    Import (fmap fst alias) (toExposing exposing)
   )
 
 toExposing :: Src.Exposing -> Exposing

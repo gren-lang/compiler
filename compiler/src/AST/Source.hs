@@ -148,7 +148,7 @@ getImportName (Import (A.At _ name) _ _ _) =
 
 data Import = Import
   { _import :: A.Located Name,
-    _alias :: Maybe Name,
+    _alias :: Maybe (Name, SC.ImportAliasComments),
     _exposing :: Exposing,
     _importComments :: SC.ImportComments
   }

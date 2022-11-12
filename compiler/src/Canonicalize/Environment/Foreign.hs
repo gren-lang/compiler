@@ -80,7 +80,7 @@ isNormal (Src.Import (A.At _ name) maybeAlias _ _) =
 addImport :: Map.Map ModuleName.Raw I.Interface -> State -> Src.Import -> Result i w State
 addImport ifaces (State vs ts cs bs qvs qts qcs) (Src.Import (A.At _ name) maybeAlias exposing _) =
   let (I.Interface pkg defs unions aliases binops) = ifaces ! name
-      !prefix = maybe name id maybeAlias
+      !prefix = maybe name id (fmap fst maybeAlias)
       !home = ModuleName.Canonical pkg name
 
       !rawTypeInfo =
