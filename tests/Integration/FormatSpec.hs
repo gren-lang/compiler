@@ -122,27 +122,6 @@ spec = do
                            formattedModuleBody
                          ]
 
-    it "allows indented comments after module name" $
-      [ formattedModuleHeader,
-        "import Module1",
-        " {-A-}",
-        formattedModuleBody
-      ]
-        `shouldFormatAs` [ formattedModuleHeader,
-                           "import Module1 {- A -}",
-                           formattedModuleBody
-                         ]
-    it "allows indented comments after 'as' clause" $
-      [ formattedModuleHeader,
-        "import Module1 as M1",
-        " {-A-}",
-        formattedModuleBody
-      ]
-        `shouldFormatAs` [ formattedModuleHeader,
-                           "import Module1 as M1 {- A -}",
-                           formattedModuleBody
-                         ]
-
   describe "top-level definition" $ do
     it "formats already formatted" $
       assertFormattedModuleBody
