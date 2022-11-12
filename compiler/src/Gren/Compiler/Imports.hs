@@ -31,7 +31,7 @@ defaults =
 import_ :: ModuleName.Canonical -> Maybe Name.Name -> Src.Exposing -> Src.Import
 import_ (ModuleName.Canonical _ name) maybeAlias exposing =
   let maybeAliasWithComments = fmap (,(SC.ImportAliasComments [] [])) maybeAlias
-   in Src.Import (A.At A.zero name) maybeAliasWithComments exposing (SC.ImportComments [] [])
+   in Src.Import (A.At A.zero name) maybeAliasWithComments exposing Nothing (SC.ImportComments [] [])
 
 -- EXPOSING
 

@@ -68,3 +68,9 @@ data ImportAliasComments = ImportAliasComments
     _afterAliasName :: [Comment]
   }
   deriving (Eq, Show)
+
+data ImportExposingComments = ImportExposingComments
+  { _afterExposing :: [Comment],
+    _afterExposingListing :: [Comment]
+  }
+  deriving (Show)

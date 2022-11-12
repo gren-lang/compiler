@@ -392,7 +392,7 @@ chompImport =
       E.ImportEnd
       [ do
           Space.checkFreshLine E.ImportEnd
-          return $ Src.Import name Nothing (Src.Explicit []) comments,
+          return $ Src.Import name Nothing (Src.Explicit []) Nothing comments,
         do
           Space.checkIndent end E.ImportEnd
           oneOf
@@ -417,7 +417,7 @@ chompAs name comments =
       E.ImportEnd
       [ do
           Space.checkFreshLine E.ImportEnd
-          return $ Src.Import name aliasWithComments (Src.Explicit []) comments,
+          return $ Src.Import name aliasWithComments (Src.Explicit []) Nothing comments,
         do
           Space.checkIndent end E.ImportEnd
           chompExposing name aliasWithComments comments
@@ -427,10 +427,12 @@ chompExposing :: A.Located Name.Name -> Maybe (Name.Name, SC.ImportAliasComments
 chompExposing name maybeAlias comments =
   do
     Keyword.exposing_ E.ImportExposing
-    Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentExposingArray
+    commentsAfterExposing <- Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentExposingArray
     exposed <- specialize E.ImportExposingArray exposing
-    freshLine E.ImportEnd
-    return $ Src.Import name maybeAlias exposed comments
+    commentsAfterListing <- Space.chompIndentedAtLeast 1 E.ModuleSpace
+    commentsAfterImportLine <- freshLine E.ImportEnd
+    let exposingComments = SC.ImportExposingComments commentsAfterExposing commentsAfterListing
+    return $ Src.Import name maybeAlias exposed (Just exposingComments) comments
 
 -- LISTING
 

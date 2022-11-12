@@ -85,12 +85,20 @@ spec = do
     it "formats comments" $
       [ formattedModuleHeader,
         "import{-A-}Module1{-B-}",
+        " {-C-}",
         "import{-D-}Module2{-E-}as{-F-}M2{-G-}",
+        " {-H-}",
+        "import{-I-}Module3{-J-}exposing{-K-}(..){-L-}",
+        " {-M-}",
+        "import{-N-}Module4{-O-}as{-P-}M4{-Q-}exposing{-R-}(..){-S-}",
+        " {-T-}",
         formattedModuleBody
       ]
         `shouldFormatAs` [ formattedModuleHeader,
-                           "import {- A -} Module1 {- B -}",
-                           "import {- D -} Module2 {- E -} as {- F -} M2 {- G -}",
+                           "import {- A -} Module1 {- B -} {- C -}",
+                           "import {- D -} Module2 {- E -} as {- F -} M2 {- G -} {- H -}",
+                           "import {- I -} Module3 {- J -} exposing {- K -} (..) {- L -} {- M -}",
+                           "import {- N -} Module4 {- O -} as {- P -} M4 {- Q -} exposing {- R -} (..) {- S -} {- T -}",
                            formattedModuleBody
                          ]
     it "does not attach unindented comments to the import line" $

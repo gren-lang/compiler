@@ -25,13 +25,13 @@ normalize projectType module_ =
     }
 
 importSortKey :: Src.Import -> Name
-importSortKey (Src.Import name _ _ _) =
+importSortKey (Src.Import name _ _ _ _) =
   A.toValue name
 
 removeDefaultImports :: Parse.ProjectType -> Src.Import -> Maybe Src.Import
-removeDefaultImports projectType import_@(Src.Import name alias exposing _) =
+removeDefaultImports projectType import_@(Src.Import name alias exposing _ _) =
   case Map.lookup (A.toValue name) (defaultImports projectType) of
-    Just (Src.Import _ defAlias defExposing _) ->
+    Just (Src.Import _ defAlias defExposing _ _) ->
       if alias == defAlias && exposingEq exposing defExposing
         then Nothing
         else Just import_

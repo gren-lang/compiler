@@ -175,7 +175,7 @@ formatModule (Src.Module moduleName exports docs imports values unions aliases b
                     Just $ Block.line $ maybe (Block.string7 "Main") (utf8 . A.toValue) moduleName,
                     formatCommentBlock commentsAfterName,
                     formatEffectsModuleWhereClause effects,
-                    formatExposing commentsAfterExposingKeyword (A.toValue exports)
+                    formatExposing commentsAfterExposingKeyword [] (A.toValue exports)
                   ],
           case docs of
             Src.NoDocs _ -> Nothing
@@ -279,23 +279,23 @@ formatManager manager =
                   ]
           )
 
-formatExposing :: [Src.Comment] -> Src.Exposing -> Maybe Block
-formatExposing commentsAfterKeyword = \case
+formatExposing :: [Src.Comment] -> [Src.Comment] -> Src.Exposing -> Maybe Block
+formatExposing commentsAfterKeyword commentsAfterListing = \case
   Src.Open ->
     Just $
       spaceOrIndent
         [ Block.line $ Block.string7 "exposing",
-          withCommentsBefore commentsAfterKeyword $
+          withCommentsAround commentsAfterKeyword commentsAfterListing $
             Block.line $
               Block.string7 "(..)"
         ]
   Src.Explicit [] ->
-    formatCommentBlock commentsAfterKeyword
+    formatCommentBlock (commentsAfterKeyword <> commentsAfterListing)
   Src.Explicit exposed ->
     Just $
       spaceOrIndent
         [ Block.line $ Block.string7 "exposing",
-          withCommentsBefore commentsAfterKeyword $
+          withCommentsAround commentsAfterKeyword commentsAfterListing $
             group '(' ',' ')' False $
               fmap formatExposed exposed
         ]
@@ -307,7 +307,7 @@ formatExposed = \case
   Src.Operator _ name -> Block.line $ Block.char7 '(' <> utf8 name <> Block.char7 ')'
 
 formatImport :: Src.Import -> Block
-formatImport (Src.Import name alias exposing comments) =
+formatImport (Src.Import name alias exposing exposingComments comments) =
   let (SC.ImportComments commentsAfterKeyword commentsAfterName) = comments
    in spaceOrIndent $
         NonEmpty.fromList $
@@ -316,7 +316,10 @@ formatImport (Src.Import name alias exposing comments) =
               Just $ withCommentsBefore commentsAfterKeyword $ Block.line $ utf8 $ A.toValue name,
               (spaceOrStack . fmap formatComment) <$> NonEmpty.nonEmpty commentsAfterName,
               fmap formatImportAlias alias,
-              formatExposing [] exposing
+              formatExposing
+                (maybe [] SC._afterExposing exposingComments)
+                (maybe [] SC._afterExposingListing exposingComments)
+                exposing
             ]
 
 formatImportAlias :: (Name, SC.ImportAliasComments) -> Block
