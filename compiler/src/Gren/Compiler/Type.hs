@@ -87,7 +87,7 @@ encode tipe =
 decoder :: D.Decoder () Type
 decoder =
   let parser =
-        P.specialize (\_ _ _ -> ()) (fromRawType . fst <$> Type.expression)
+        P.specialize (\_ _ _ -> ()) (fromRawType . fst . fst <$> Type.expression)
    in D.customString parser (\_ _ -> ())
 
 fromRawType :: Src.Type -> Type

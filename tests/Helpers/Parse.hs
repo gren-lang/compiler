@@ -13,7 +13,7 @@ import Parse.Space qualified as Space
 import Reporting.Annotation qualified as A
 import Test.Hspec qualified as Hspec
 
-checkParse :: (Show error, Show target) => Space.Parser error (A.Located target) -> (P.Row -> P.Col -> error) -> (Either error (A.Located target, A.Position) -> Bool) -> BS.ByteString -> IO ()
+checkParse :: (Show error, Show target) => Space.Parser error target -> (P.Row -> P.Col -> error) -> (Either error (target, A.Position) -> Bool) -> BS.ByteString -> IO ()
 checkParse parser toBadEnd checkResult str =
   Hspec.shouldSatisfy
     (P.fromByteString parser toBadEnd str)
@@ -29,7 +29,7 @@ checkSuccessfulParse parser toBadEnd checkTarget =
             False
    in checkParse parser toBadEnd checkResult
 
-checkParseError :: (Show error, Show target) => Space.Parser error (A.Located target) -> (P.Row -> P.Col -> error) -> (error -> Bool) -> BS.ByteString -> IO ()
+checkParseError :: (Show error, Show target) => Space.Parser error target -> (P.Row -> P.Col -> error) -> (error -> Bool) -> BS.ByteString -> IO ()
 checkParseError parser toBadEnd checkError =
   let checkResult result =
         case result of

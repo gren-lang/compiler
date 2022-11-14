@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 -- Temporary while implementing gren format
 {-# OPTIONS_GHC -Wno-error=unused-do-bind #-}
+{-# OPTIONS_GHC -Wno-error=unused-matches #-}
 
 module Parse.Declaration
   ( Decl (..),
@@ -11,6 +12,7 @@ where
 
 import AST.Source qualified as Src
 import AST.Utils.Binop qualified as Binop
+import Data.List.NonEmpty (NonEmpty)
 import Data.Name qualified as Name
 import Parse.Expression qualified as Expr
 import Parse.Keyword qualified as Keyword
@@ -32,8 +34,9 @@ data Decl
   | Union (Maybe Src.DocComment) (A.Located Src.Union)
   | Alias (Maybe Src.DocComment) (A.Located Src.Alias)
   | Port (Maybe Src.DocComment) Src.Port
+  | TopLevelComments (NonEmpty Src.Comment)
 
-declaration :: Space.Parser E.Decl Decl
+declaration :: Space.Parser E.Decl (Decl, [Src.Comment])
 declaration =
   do
     maybeDocs <- chompDocComment
@@ -60,7 +63,7 @@ chompDocComment =
 
 -- DEFINITION and ANNOTATION
 
-valueDecl :: Maybe Src.DocComment -> A.Position -> Space.Parser E.Decl Decl
+valueDecl :: Maybe Src.DocComment -> A.Position -> Space.Parser E.Decl (Decl, [Src.Comment])
 valueDecl maybeDocs start =
   do
     name <- Var.lower E.DeclStart
@@ -73,7 +76,7 @@ valueDecl maybeDocs start =
           [ do
               word1 0x3A {-:-} E.DeclDefEquals
               Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentType
-              (tipe, _) <- specialize E.DeclDefType Type.expression
+              ((tipe, commentsAfterTipe), _) <- specialize E.DeclDefType Type.expression
               Space.checkFreshLine E.DeclDefNameRepeat
               defName <- chompMatchingName name
               Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentEquals
@@ -81,7 +84,7 @@ valueDecl maybeDocs start =
             chompDefArgsAndBody maybeDocs start (A.at start end name) Nothing []
           ]
 
-chompDefArgsAndBody :: Maybe Src.DocComment -> A.Position -> A.Located Name.Name -> Maybe Src.Type -> [Src.Pattern] -> Space.Parser E.DeclDef Decl
+chompDefArgsAndBody :: Maybe Src.DocComment -> A.Position -> A.Located Name.Name -> Maybe Src.Type -> [Src.Pattern] -> Space.Parser E.DeclDef (Decl, [Src.Comment])
 chompDefArgsAndBody maybeDocs start name tipe revArgs =
   oneOf
     E.DeclDefEquals
@@ -92,10 +95,10 @@ chompDefArgsAndBody maybeDocs start name tipe revArgs =
       do
         word1 0x3D {-=-} E.DeclDefEquals
         Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentBody
-        (body, end) <- specialize E.DeclDefBody Expr.expression
+        ((body, commentsAfter), end) <- specialize E.DeclDefBody Expr.expression
         let value = Src.Value name (reverse revArgs) body tipe
         let avalue = A.at start end value
-        return (Value maybeDocs avalue, end)
+        return ((Value maybeDocs avalue, commentsAfter), end)
     ]
 
 chompMatchingName :: Name.Name -> Parser E.DeclDef (A.Located Name.Name)
@@ -115,7 +118,7 @@ chompMatchingName expectedName =
 
 -- TYPE DECLARATIONS
 
-typeDecl :: Maybe Src.DocComment -> A.Position -> Space.Parser E.Decl Decl
+typeDecl :: Maybe Src.DocComment -> A.Position -> Space.Parser E.Decl (Decl, [Src.Comment])
 typeDecl maybeDocs start =
   inContext E.DeclType (Keyword.type_ E.DeclStart) $
     do
@@ -126,16 +129,17 @@ typeDecl maybeDocs start =
             do
               Space.chompAndCheckIndent E.AliasSpace E.AliasIndentEquals
               (name, args) <- chompAliasNameToEquals
-              (tipe, end) <- specialize E.AliasBody Type.expression
+              ((tipe, commentsAfterTipe), end) <- specialize E.AliasBody Type.expression
               let alias = A.at start end (Src.Alias name args tipe)
-              return (Alias maybeDocs alias, end),
+              return ((Alias maybeDocs alias, commentsAfterTipe), end),
           specialize E.DT_Union $
             do
               (name, args) <- chompCustomNameToEquals
               (firstVariant, firstEnd) <- Type.variant
               (variants, end) <- chompVariants [firstVariant] firstEnd
               let union = A.at start end (Src.Union name args variants)
-              return (Union maybeDocs union, end)
+              let commentsAfter = [] -- TODO: implement this throughout chompVariants and Type.variant
+              return ((Union maybeDocs union, commentsAfter), end)
         ]
 
 -- TYPE ALIASES
@@ -198,7 +202,7 @@ chompVariants variants end =
 
 -- PORT
 
-portDecl :: Maybe Src.DocComment -> Space.Parser E.Decl Decl
+portDecl :: Maybe Src.DocComment -> Space.Parser E.Decl (Decl, [Src.Comment])
 portDecl maybeDocs =
   inContext E.Port (Keyword.port_ E.DeclStart) $
     do
@@ -207,9 +211,9 @@ portDecl maybeDocs =
       Space.chompAndCheckIndent E.PortSpace E.PortIndentColon
       word1 0x3A {-:-} E.PortColon
       Space.chompAndCheckIndent E.PortSpace E.PortIndentType
-      (tipe, end) <- specialize E.PortType Type.expression
+      ((tipe, commentsAfterTipe), end) <- specialize E.PortType Type.expression
       return
-        ( Port maybeDocs (Src.Port name tipe),
+        ( (Port maybeDocs (Src.Port name tipe), commentsAfterTipe),
           end
         )
 

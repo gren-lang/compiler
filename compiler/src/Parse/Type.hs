@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 -- Temporary while implementing gren format
 {-# OPTIONS_GHC -Wno-error=unused-do-bind #-}
+{-# OPTIONS_GHC -Wno-error=unused-matches #-}
 
 module Parse.Type
   ( expression,
@@ -43,8 +44,8 @@ term =
         -- parenthesis
         inContext E.TParenthesis (word1 0x28 {-(-} E.TStart) $
           do
-            Space.chompAndCheckIndent E.TParenthesisSpace E.TParenthesisIndentOpen
-            (tipe, end) <- specialize E.TParenthesisType expression
+            commentsBeforeOpeningParen <- Space.chompAndCheckIndent E.TParenthesisSpace E.TParenthesisIndentOpen
+            ((tipe, commentsBeforeClosingParen), end) <- specialize E.TParenthesisType expression
             Space.checkIndent end E.TParenthesisIndentEnd
             word1 0x29 {-)-} E.TParenthesisEnd
             return tipe,
@@ -71,7 +72,7 @@ term =
                       do
                         word1 0x3A {-:-} E.TRecordColon
                         Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentType
-                        (tipe, end) <- specialize E.TRecordType expression
+                        ((tipe, commentsAfterTipe), end) <- specialize E.TRecordType expression
                         Space.checkIndent end E.TRecordIndentEnd
                         fields <- chompRecordEnd [(name, tipe)]
                         addEnd start (Src.TRecord fields Nothing)
@@ -81,39 +82,39 @@ term =
 
 -- TYPE EXPRESSIONS
 
-expression :: Space.Parser E.Type Src.Type
+expression :: Space.Parser E.Type (Src.Type, [Src.Comment])
 expression =
   do
     start <- getPosition
-    term1@(tipe1, end1) <-
+    term1@((tipe1, commentsBeforeArrow), end1) <-
       oneOf
         E.TStart
         [ app start,
           do
             eterm <- term
             end <- getPosition
-            Space.chomp E.TSpace
-            return (eterm, end)
+            commentsAfter <- Space.chomp E.TSpace
+            return ((eterm, commentsAfter), end)
         ]
     oneOfWithFallback
       [ do
           Space.checkIndent end1 E.TIndentStart -- should never trigger
           word2 0x2D 0x3E {-->-} E.TStart -- could just be another type instead
-          Space.chompAndCheckIndent E.TSpace E.TIndentStart
-          (tipe2, end2) <- expression
+          commentsAfterArrow <- Space.chompAndCheckIndent E.TSpace E.TIndentStart
+          ((tipe2, commentsAfter), end2) <- expression
           let tipe = A.at start end2 (Src.TLambda tipe1 tipe2)
-          return (tipe, end2)
+          return ((tipe, commentsAfter), end2)
       ]
       term1
 
 -- TYPE CONSTRUCTORS
 
-app :: A.Position -> Space.Parser E.Type Src.Type
+app :: A.Position -> Space.Parser E.Type (Src.Type, [Src.Comment])
 app start =
   do
     upper <- Var.foreignUpper E.TStart
     upperEnd <- getPosition
-    Space.chomp E.TSpace
+    commentsAfter <- Space.chomp E.TSpace
     (args, end) <- chompArgs [] upperEnd
 
     let region = A.Region start upperEnd
@@ -124,7 +125,7 @@ app start =
             Var.Qualified home name ->
               Src.TTypeQual region home name args
 
-    return (A.at start end tipe, end)
+    return ((A.at start end tipe, commentsAfter), end)
 
 chompArgs :: [Src.Type] -> A.Position -> Space.Parser E.Type [Src.Type]
 chompArgs args end =
@@ -163,7 +164,7 @@ chompField =
     Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentColon
     word1 0x3A {-:-} E.TRecordColon
     Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentType
-    (tipe, end) <- specialize E.TRecordType expression
+    ((tipe, commentsAfterTipe), end) <- specialize E.TRecordType expression
     Space.checkIndent end E.TRecordIndentEnd
     return (name, tipe)
 

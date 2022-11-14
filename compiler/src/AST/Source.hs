@@ -37,6 +37,7 @@ where
 import AST.SourceComments (Comment, GREN_COMMENT)
 import AST.SourceComments qualified as SC
 import AST.Utils.Binop qualified as Binop
+import Data.List.NonEmpty (NonEmpty)
 import Data.Name (Name)
 import Data.Name qualified as Name
 import Gren.Float qualified as EF
@@ -58,9 +59,9 @@ data Expr_
   | Array [Expr]
   | Op Name
   | Negate Expr
-  | Binops [(Expr, A.Located Name)] Expr
+  | Binops [(Expr, [Comment], A.Located Name)] Expr
   | Lambda [Pattern] Expr
-  | Call Expr [Expr]
+  | Call Expr [([Comment], Expr)]
   | If [(Expr, Expr)] Expr
   | Let [A.Located Def] Expr
   | Case Expr [(Pattern, Expr)]
@@ -129,13 +130,14 @@ data Module = Module
     _unions :: [(SourceOrder, A.Located Union)],
     _aliases :: [(SourceOrder, A.Located Alias)],
     _binops :: [A.Located Infix],
+    _topLevelComments :: [(SourceOrder, NonEmpty Comment)],
     _headerComments :: SC.HeaderComments,
     _effects :: Effects
   }
   deriving (Show)
 
 getName :: Module -> Name
-getName (Module maybeName _ _ _ _ _ _ _ _ _) =
+getName (Module maybeName _ _ _ _ _ _ _ _ _ _) =
   case maybeName of
     Just (A.At _ name) ->
       name

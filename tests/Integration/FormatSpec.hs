@@ -133,6 +133,40 @@ spec = do
         `shouldFormatModuleBodyAs` [ "f =",
                                      "    {}"
                                    ]
+    it "formats comments between top-level definitions" $
+      [ "module Main exposing (..)",
+        "import Html",
+        "f = {}",
+        "-- B",
+        "g = {}",
+        "-- C",
+        "h = {}"
+      ]
+        `shouldFormatAs` [ "module Main exposing (..)",
+                           "",
+                           "import Html",
+                           "",
+                           "",
+                           "f =",
+                           "    {}",
+                           "",
+                           "",
+                           "",
+                           "-- B",
+                           "",
+                           "",
+                           "g =",
+                           "    {}",
+                           "",
+                           "",
+                           "",
+                           "-- C",
+                           "",
+                           "",
+                           "h =",
+                           "    {}"
+                         ]
+
   describe "expressions" $ do
     describe "record" $ do
       describe "empty" $ do

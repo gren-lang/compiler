@@ -34,15 +34,15 @@ toByteStringBuilder module_ =
 -- Data structure extras
 --
 
-repair :: [(a, b)] -> a -> (a, [(b, a)])
-repair [] single = (single, [])
-repair ((first, b) : rest) final =
-  (first, repairHelp b rest final)
+repair3 :: [(a, b, c)] -> a -> (a, [(b, c, a)])
+repair3 [] single = (single, [])
+repair3 ((first, b, c) : rest) final =
+  (first, repair3Help b c rest final)
 
-repairHelp :: b -> [(a, b)] -> a -> [(b, a)]
-repairHelp b [] a = [(b, a)]
-repairHelp b1 ((a1, b2) : rest) a2 =
-  (b1, a1) : repairHelp b2 rest a2
+repair3Help :: b -> c -> [(a, b, c)] -> a -> [(b, c, a)]
+repair3Help b c [] a = [(b, c, a)]
+repair3Help b1 c1 ((a1, b2, c2) : rest) a2 =
+  (b1, c1, a1) : repair3Help b2 c2 rest a2
 
 --
 -- Helper functions
@@ -158,10 +158,15 @@ formatComment = \case
      in Block.mustBreak $ Block.string7 open <> utf8 text
 
 formatCommentBlock :: [Src.Comment] -> Maybe Block
-formatCommentBlock = fmap spaceOrStack . nonEmpty . fmap formatComment
+formatCommentBlock =
+  fmap formatCommentBlockNonEmpty . nonEmpty
+
+formatCommentBlockNonEmpty :: NonEmpty Src.Comment -> Block
+formatCommentBlockNonEmpty =
+  spaceOrStack . fmap formatComment
 
 formatModule :: Src.Module -> Block
-formatModule (Src.Module moduleName exports docs imports values unions aliases binops comments effects) =
+formatModule (Src.Module moduleName exports docs imports values unions aliases binops topLevelComments comments effects) =
   Block.stack $
     NonEmpty.fromList $
       catMaybes
@@ -195,6 +200,7 @@ formatModule (Src.Module moduleName exports docs imports values unions aliases b
                       [ fmap (formatWithDocComment valueName formatValue . A.toValue) <$> values,
                         fmap (formatWithDocComment unionName formatUnion . A.toValue) <$> unions,
                         fmap (formatWithDocComment aliasName formatAlias . A.toValue) <$> aliases,
+                        fmap formatTopLevelCommentBlock <$> topLevelComments,
                         case effects of
                           Src.NoEffects -> []
                           Src.Ports ports _ -> fmap (formatWithDocComment portName formatPort) <$> ports
@@ -241,6 +247,13 @@ formatModule (Src.Module moduleName exports docs imports values unions aliases b
               [ Block.blankLine,
                 Block.stack $ fmap (formatInfix . A.toValue) some
               ]
+
+formatTopLevelCommentBlock :: NonEmpty Src.Comment -> Block
+formatTopLevelCommentBlock comments =
+  Block.stack
+    [ Block.blankLine,
+      formatCommentBlockNonEmpty comments
+    ]
 
 formatEffectsModuleWhereClause :: Src.Effects -> Maybe Block
 formatEffectsModuleWhereClause = \case
@@ -493,7 +506,7 @@ formatExpr = \case
           formatExpr $
             A.toValue expr
   Src.Binops postfixOps final ->
-    let (first, rest) = repair postfixOps final
+    let (first, rest) = repair3 postfixOps final
      in ExpressionContainsInfixOps $
           spaceOrIndentForce forceMultiline $
             exprParensProtectInfixOps (formatExpr $ A.toValue first)
@@ -501,8 +514,9 @@ formatExpr = \case
     where
       -- for now we just use multiline formatting for specific operators,
       -- since we don't yet track where the linebreaks are in the source
-      forceMultiline = any (opForcesMultiline . A.toValue . snd) postfixOps
-      formatPair (op, expr) =
+      forceMultiline = any (opForcesMultiline . opFromPair) postfixOps
+      opFromPair (_, _, name) = A.toValue name
+      formatPair (commentsBeforeOp, op, expr) =
         Block.prefix
           4
           (utf8 (A.toValue op) <> Block.space)
@@ -526,7 +540,10 @@ formatExpr = \case
     ExpressionContainsSpaces $
       spaceOrIndent $
         exprParensProtectInfixOps (formatExpr $ A.toValue fn)
-          :| fmap (exprParensProtectSpaces . formatExpr . A.toValue) args
+          :| fmap formatArg args
+    where
+      formatArg (commentsBefore, arg) =
+        exprParensProtectSpaces (formatExpr $ A.toValue arg)
   Src.If [] else_ ->
     formatExpr $ A.toValue else_
   Src.If (if_ : elseifs) else_ ->

@@ -93,7 +93,7 @@ canonicalize env (A.At region expression) =
       Src.Call func args ->
         Can.Call
           <$> canonicalize env func
-          <*> traverse (canonicalize env) args
+          <*> traverse (canonicalize env) (fmap snd args)
       Src.If branches finally ->
         Can.If
           <$> traverse (canonicalizeIfBranch env) branches
@@ -149,9 +149,9 @@ canonicalizeCaseBranch env (pattern, expr) =
 
 -- CANONICALIZE BINOPS
 
-canonicalizeBinops :: A.Region -> Env.Env -> [(Src.Expr, A.Located Name.Name)] -> Src.Expr -> Result FreeLocals [W.Warning] Can.Expr
+canonicalizeBinops :: A.Region -> Env.Env -> [(Src.Expr, [Src.Comment], A.Located Name.Name)] -> Src.Expr -> Result FreeLocals [W.Warning] Can.Expr
 canonicalizeBinops overallRegion env ops final =
-  let canonicalizeHelp (expr, A.At region op) =
+  let canonicalizeHelp (expr, _, A.At region op) =
         (,)
           <$> canonicalize env expr
           <*> Env.findBinop region env op
