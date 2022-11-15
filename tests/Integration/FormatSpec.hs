@@ -159,6 +159,26 @@ spec = do
                                      "h =",
                                      "    {}"
                                    ]
+    it "formats comments after value declarations ending in a case expression" $
+      [ "f =",
+        "    case x of",
+        "        _ -> {}",
+        "-- A",
+        "g = {}"
+      ]
+        `shouldFormatModuleBodyAs` [ "f =",
+                                     "    case x of",
+                                     "        _ ->",
+                                     "            {}",
+                                     "",
+                                     "",
+                                     "",
+                                     "-- A",
+                                     "",
+                                     "",
+                                     "g =",
+                                     "    {}"
+                                   ]
 
   describe "expressions" $ do
     describe "record" $ do

@@ -133,8 +133,8 @@ canonicalizeIfBranch env (condition, branch) =
 
 -- CANONICALIZE CASE BRANCH
 
-canonicalizeCaseBranch :: Env.Env -> (Src.Pattern, Src.Expr) -> Result FreeLocals [W.Warning] Can.CaseBranch
-canonicalizeCaseBranch env (pattern, expr) =
+canonicalizeCaseBranch :: Env.Env -> ([Src.Comment], Src.Pattern, Src.Expr) -> Result FreeLocals [W.Warning] Can.CaseBranch
+canonicalizeCaseBranch env (_, pattern, expr) =
   directUsage $
     do
       (cpattern, bindings) <-

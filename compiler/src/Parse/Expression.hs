@@ -413,18 +413,18 @@ case_ start =
       ((expr, commentsAfterExpr), exprEnd) <- specialize E.CaseExpr expression
       Space.checkIndent exprEnd E.CaseIndentOf
       Keyword.of_ E.CaseOf
-      Space.chompAndCheckIndent E.CaseSpace E.CaseIndentPattern
+      commentsAfterOf <- Space.chompAndCheckIndent E.CaseSpace E.CaseIndentPattern
       withIndent $
         do
-          (firstBranch, firstEnd) <- chompBranch
-          (branches, end) <- chompCaseEnd [firstBranch] firstEnd
-          let commentsAfter = [] -- TODO: once indentation sensitivity for expression and case branch comments is implemented, then there will be additional comments to capture here
+          ((branchPat, branchExpr, commentsAfterFirstBranch), firstEnd) <- chompBranch
+          let firstBranch = (commentsAfterOf, branchPat, branchExpr)
+          ((branches, commentsAfterLastBranch), end) <- chompCaseEnd [firstBranch] commentsAfterFirstBranch firstEnd
           return
-            ( (A.at start end (Src.Case expr branches), commentsAfter),
+            ( (A.at start end (Src.Case expr branches), commentsAfterLastBranch),
               end
             )
 
-chompBranch :: Space.Parser E.Case (Src.Pattern, Src.Expr)
+chompBranch :: Space.Parser E.Case (Src.Pattern, Src.Expr, [Src.Comment])
 chompBranch =
   do
     (pattern, patternEnd) <- specialize E.CasePattern Pattern.expression
@@ -432,17 +432,18 @@ chompBranch =
     word2 0x2D 0x3E {-->-} E.CaseArrow
     Space.chompAndCheckIndent E.CaseSpace E.CaseIndentBranch
     ((branchExpr, commentsAfterBranch), end) <- specialize E.CaseBranch expression
-    return ((pattern, branchExpr), end)
+    return ((pattern, branchExpr, commentsAfterBranch), end)
 
-chompCaseEnd :: [(Src.Pattern, Src.Expr)] -> A.Position -> Space.Parser E.Case [(Src.Pattern, Src.Expr)]
-chompCaseEnd branches end =
+chompCaseEnd :: [([Src.Comment], Src.Pattern, Src.Expr)] -> [Src.Comment] -> A.Position -> Space.Parser E.Case ([([Src.Comment], Src.Pattern, Src.Expr)], [Src.Comment])
+chompCaseEnd branches commentsBetween end =
   oneOfWithFallback
     [ do
         Space.checkAligned E.CasePatternAlignment
-        (branch, newEnd) <- chompBranch
-        chompCaseEnd (branch : branches) newEnd
+        ((pat, expr, commentsAfter), newEnd) <- chompBranch
+        let branch = (commentsBetween, pat, expr)
+        chompCaseEnd (branch : branches) commentsAfter newEnd
     ]
-    (reverse branches, end)
+    ((reverse branches, commentsBetween), end)
 
 -- LET EXPRESSION
 

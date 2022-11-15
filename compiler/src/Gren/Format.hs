@@ -594,7 +594,7 @@ formatExpr = \case
           ]
           :| List.intersperse Block.blankLine (fmap (Block.indent . formatCaseBranch) branches)
     where
-      formatCaseBranch (pat, expr) =
+      formatCaseBranch (commentsBefore, pat, expr) =
         Block.stack
           [ spaceOrStack
               [ patternParensNone $ formatPattern (A.toValue pat),

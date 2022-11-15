@@ -64,7 +64,7 @@ data Expr_
   | Call Expr [([Comment], Expr)]
   | If [(Expr, Expr)] Expr
   | Let [A.Located Def] Expr
-  | Case Expr [(Pattern, Expr)]
+  | Case Expr [([Comment], Pattern, Expr)]
   | Accessor Name
   | Access Expr (A.Located Name)
   | Update Expr [(A.Located Name, Expr)]
