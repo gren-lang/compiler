@@ -43,7 +43,7 @@ canonicalize pkg ifaces modul@(Src.Module _ exports docs imports valuesWithSourc
 
     (env, cunions, caliases) <-
       Local.add modul
-        =<< Foreign.createInitialEnv home ifaces imports
+        =<< Foreign.createInitialEnv home ifaces (fmap snd imports)
 
     cvalues <- canonicalizeValues env values
     ceffects <- Effects.canonicalize env values cunions effects

@@ -493,7 +493,7 @@ crawlFile foreignDeps mvar pkg src docsStatus expectedName path =
     case Parse.fromByteString (Parse.Package pkg) bytes of
       Right modul@(Src.Module (Just (A.At _ actualName)) _ _ imports _ _ _ _ _ _ _) | expectedName == actualName ->
         do
-          deps <- crawlImports foreignDeps mvar pkg src imports
+          deps <- crawlImports foreignDeps mvar pkg src (fmap snd imports)
           return (Just (SLocal docsStatus deps modul))
       _ ->
         return Nothing

@@ -125,7 +125,7 @@ data Module = Module
   { _name :: Maybe (A.Located Name),
     _exports :: A.Located Exposing,
     _docs :: Docs,
-    _imports :: [Import],
+    _imports :: [([Comment], Import)],
     _values :: [(SourceOrder, A.Located Value)],
     _unions :: [(SourceOrder, A.Located Union)],
     _aliases :: [(SourceOrder, A.Located Alias)],

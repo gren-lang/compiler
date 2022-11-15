@@ -276,7 +276,7 @@ crawlFile env@(Env _ root projectType _ _ buildID _ _) mvar docsNeed expectedNam
           Just name@(A.At _ actualName) ->
             if expectedName == actualName
               then
-                let deps = map Src.getImportName imports
+                let deps = map (Src.getImportName . snd) imports
                     local = Details.Local path time deps (any (isMain . snd) values) lastChange buildID
                  in crawlDeps env mvar deps (SChanged local source modul docsNeed)
               else return $ SBadSyntax path time source (Syntax.ModuleNameMismatch expectedName name)
@@ -430,7 +430,7 @@ checkDepsHelp root results deps new same cached importProblems isBlocked lastDep
 
 -- TO IMPORT ERROR
 
-toImportErrors :: Env -> ResultDict -> [Src.Import] -> NE.List (ModuleName.Raw, Import.Problem) -> NE.List Import.Error
+toImportErrors :: Env -> ResultDict -> [([Src.Comment], Src.Import)] -> NE.List (ModuleName.Raw, Import.Problem) -> NE.List Import.Error
 toImportErrors (Env _ _ _ _ _ _ locals foreigns) results imports problems =
   let knownModules =
         Set.unions
@@ -440,10 +440,10 @@ toImportErrors (Env _ _ _ _ _ _ locals foreigns) results imports problems =
           ]
 
       unimportedModules =
-        Set.difference knownModules (Set.fromList (map Src.getImportName imports))
+        Set.difference knownModules (Set.fromList (map (Src.getImportName . snd) imports))
 
       regionDict =
-        Map.fromList (map (\(Src.Import (A.At region name) _ _ _ _) -> (name, region)) imports)
+        Map.fromList (map (\(_, Src.Import (A.At region name) _ _ _ _) -> (name, region)) imports)
 
       toError (name, problem) =
         Import.Error (regionDict ! name) name unimportedModules problem
@@ -764,7 +764,7 @@ fromRepl root details source =
         do
           dmvar <- Details.loadInterfaces root details
 
-          let deps = map Src.getImportName imports
+          let deps = map (Src.getImportName . snd) imports
           mvar <- newMVar Map.empty
           crawlDeps env mvar deps ()
 
@@ -953,7 +953,7 @@ crawlRoot env@(Env _ _ projectType _ _ buildID _ _) mvar root =
         case Parse.fromByteString projectType source of
           Right modul@(Src.Module _ _ _ imports values _ _ _ _ _ _) ->
             do
-              let deps = map Src.getImportName imports
+              let deps = map (Src.getImportName . snd) imports
               let local = Details.Local path time deps (any (isMain . snd) values) buildID buildID
               crawlDeps env mvar deps (SOutsideOk local source modul)
           Left syntaxError ->

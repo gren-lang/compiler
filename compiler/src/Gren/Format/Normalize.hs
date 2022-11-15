@@ -24,12 +24,12 @@ normalize projectType module_ =
     { Src._imports = List.sortOn importSortKey $ mapMaybe (removeDefaultImports projectType) $ Src._imports module_
     }
 
-importSortKey :: Src.Import -> Name
-importSortKey (Src.Import name _ _ _ _) =
+importSortKey :: ([Src.Comment], Src.Import) -> Name
+importSortKey (_, Src.Import name _ _ _ _) =
   A.toValue name
 
-removeDefaultImports :: Parse.ProjectType -> Src.Import -> Maybe Src.Import
-removeDefaultImports projectType import_@(Src.Import name alias exposing _ _) =
+removeDefaultImports :: Parse.ProjectType -> ([Src.Comment], Src.Import) -> Maybe ([Src.Comment], Src.Import)
+removeDefaultImports projectType import_@(_, Src.Import name alias exposing _ _) =
   case Map.lookup (A.toValue name) (defaultImports projectType) of
     Just (Src.Import _ defAlias defExposing _ _) ->
       if alias == defAlias && exposingEq exposing defExposing

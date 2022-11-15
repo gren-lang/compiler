@@ -60,7 +60,7 @@ isKernel projectType =
 
 data Module = Module
   { _header :: Maybe Header,
-    _imports :: [Src.Import],
+    _imports :: [([Src.Comment], Src.Import)],
     _infixes :: [A.Located Src.Infix],
     _decls :: [Decl.Decl]
   }
@@ -69,9 +69,14 @@ chompModule :: ProjectType -> Parser E.Module Module
 chompModule projectType =
   do
     header <- chompHeader
-    imports <- chompImports (if isCore projectType then [] else Imports.defaults)
+    let defaultImports = (if isCore projectType then [] else Imports.defaults)
+    (imports, commentsAfterImports) <- chompImports (fmap ([],) defaultImports) []
     infixes <- if isKernel projectType then chompInfixes [] else return []
-    decls <- specialize E.Declarations $ chompDecls []
+    let initialDecls =
+          case nonEmpty commentsAfterImports of
+            Nothing -> []
+            Just comments -> [Decl.TopLevelComments comments]
+    decls <- specialize E.Declarations $ chompDecls initialDecls
     return (Module header imports infixes decls)
 
 -- CHECK MODULE
@@ -379,31 +384,32 @@ spaces_em =
 
 -- IMPORTS
 
-chompImports :: [Src.Import] -> Parser E.Module [Src.Import]
-chompImports is =
+chompImports :: [([Src.Comment], Src.Import)] -> [Src.Comment] -> Parser E.Module ([([Src.Comment], Src.Import)], [Src.Comment])
+chompImports is trailingComments =
   oneOfWithFallback
     [ do
-        i <- chompImport
-        chompImports (i : is)
+        (i, commentsAfterI) <- chompImport
+        chompImports ((trailingComments, i) : is) commentsAfterI
     ]
-    (reverse is)
+    (reverse is, trailingComments)
 
-chompImport :: Parser E.Module Src.Import
+chompImport :: Parser E.Module (Src.Import, [Src.Comment])
 chompImport =
   do
     Keyword.import_ E.ImportStart
     commentsAfterImportKeyword <- Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentName
     name@(A.At (A.Region _ end) _) <- addLocation (Var.moduleName E.ImportName)
     commentsAfterName <- Space.chompIndentedAtLeast 1 E.ModuleSpace
-    commentsAfterImportLine <- Space.chomp E.ModuleSpace
-    let comments = SC.ImportComments commentsAfterImportKeyword commentsAfterName
+    outdentedComments <- Space.chomp E.ModuleSpace
     oneOf
       E.ImportEnd
       [ do
           Space.checkFreshLine E.ImportEnd
-          return $ Src.Import name Nothing (Src.Explicit []) Nothing comments,
+          let comments = SC.ImportComments commentsAfterImportKeyword commentsAfterName
+          return $ (Src.Import name Nothing (Src.Explicit []) Nothing comments, outdentedComments),
         do
           Space.checkIndent end E.ImportEnd
+          let comments = SC.ImportComments commentsAfterImportKeyword (commentsAfterName ++ outdentedComments)
           oneOf
             E.ImportAs
             [ chompAs name comments,
@@ -411,7 +417,7 @@ chompImport =
             ]
       ]
 
-chompAs :: A.Located Name.Name -> SC.ImportComments -> Parser E.Module Src.Import
+chompAs :: A.Located Name.Name -> SC.ImportComments -> Parser E.Module (Src.Import, [Src.Comment])
 chompAs name comments =
   do
     Keyword.as_ E.ImportAs
@@ -419,29 +425,29 @@ chompAs name comments =
     alias <- Var.moduleName E.ImportAlias
     end <- getPosition
     commentsAfterAliasName <- Space.chompIndentedAtLeast 1 E.ModuleSpace
-    commentsAfterImportLine <- Space.chomp E.ModuleSpace
-    let aliasComments = SC.ImportAliasComments commentsAfterAs commentsAfterAliasName
-    let aliasWithComments = Just (alias, aliasComments)
+    outdentedComments <- Space.chomp E.ModuleSpace
     oneOf
       E.ImportEnd
       [ do
           Space.checkFreshLine E.ImportEnd
-          return $ Src.Import name aliasWithComments (Src.Explicit []) Nothing comments,
+          let aliasComments = SC.ImportAliasComments commentsAfterAs commentsAfterAliasName
+          return (Src.Import name (Just (alias, aliasComments)) (Src.Explicit []) Nothing comments, outdentedComments),
         do
           Space.checkIndent end E.ImportEnd
-          chompExposing name aliasWithComments comments
+          let aliasComments = SC.ImportAliasComments commentsAfterAs (commentsAfterAliasName <> outdentedComments)
+          chompExposing name (Just (alias, aliasComments)) comments
       ]
 
-chompExposing :: A.Located Name.Name -> Maybe (Name.Name, SC.ImportAliasComments) -> SC.ImportComments -> Parser E.Module Src.Import
+chompExposing :: A.Located Name.Name -> Maybe (Name.Name, SC.ImportAliasComments) -> SC.ImportComments -> Parser E.Module (Src.Import, [Src.Comment])
 chompExposing name maybeAlias comments =
   do
     Keyword.exposing_ E.ImportExposing
     commentsAfterExposing <- Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentExposingArray
     exposed <- specialize E.ImportExposingArray exposing
     commentsAfterListing <- Space.chompIndentedAtLeast 1 E.ModuleSpace
-    commentsAfterImportLine <- freshLine E.ImportEnd
+    outdentedComments <- freshLine E.ImportEnd
     let exposingComments = SC.ImportExposingComments commentsAfterExposing commentsAfterListing
-    return $ Src.Import name maybeAlias exposed (Just exposingComments) comments
+    return (Src.Import name maybeAlias exposed (Just exposingComments) comments, outdentedComments)
 
 -- LISTING
 

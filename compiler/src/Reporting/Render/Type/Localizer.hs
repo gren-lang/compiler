@@ -69,7 +69,7 @@ fromModule :: Src.Module -> Localizer
 fromModule modul@(Src.Module _ _ _ imports _ _ _ _ _ _ _) =
   Localizer $
     Map.fromList $
-      (Src.getName modul, Import Nothing All) : map toPair imports
+      (Src.getName modul, Import Nothing All) : map (toPair . snd) imports
 
 toPair :: Src.Import -> (Name.Name, Import)
 toPair (Src.Import (A.At _ name) alias exposing _ _) =
