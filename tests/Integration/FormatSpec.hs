@@ -134,38 +134,31 @@ spec = do
                                      "    {}"
                                    ]
     it "formats comments between top-level definitions" $
-      [ "module Main exposing (..)",
-        "import Html",
-        "f = {}",
+      [ "f = {}",
         "-- B",
         "g = {}",
         "-- C",
         "h = {}"
       ]
-        `shouldFormatAs` [ "module Main exposing (..)",
-                           "",
-                           "import Html",
-                           "",
-                           "",
-                           "f =",
-                           "    {}",
-                           "",
-                           "",
-                           "",
-                           "-- B",
-                           "",
-                           "",
-                           "g =",
-                           "    {}",
-                           "",
-                           "",
-                           "",
-                           "-- C",
-                           "",
-                           "",
-                           "h =",
-                           "    {}"
-                         ]
+        `shouldFormatModuleBodyAs` [ "f =",
+                                     "    {}",
+                                     "",
+                                     "",
+                                     "",
+                                     "-- B",
+                                     "",
+                                     "",
+                                     "g =",
+                                     "    {}",
+                                     "",
+                                     "",
+                                     "",
+                                     "-- C",
+                                     "",
+                                     "",
+                                     "h =",
+                                     "    {}"
+                                   ]
 
   describe "expressions" $ do
     describe "record" $ do
