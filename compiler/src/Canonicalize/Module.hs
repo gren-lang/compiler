@@ -121,13 +121,13 @@ type NodeTwo =
   (Can.Def, Name.Name, [Name.Name])
 
 toNodeOne :: Env.Env -> A.Located Src.Value -> Result i [W.Warning] NodeOne
-toNodeOne env (A.At _ (Src.Value aname@(A.At _ name) srcArgs body maybeType)) =
+toNodeOne env (A.At _ (Src.Value aname@(A.At _ name) srcArgs body maybeType _)) =
   case maybeType of
     Nothing ->
       do
         (args, argBindings) <-
           Pattern.verify (Error.DPFuncArgs name) $
-            traverse (Pattern.canonicalize env) srcArgs
+            traverse (Pattern.canonicalize env . snd) srcArgs
 
         newEnv <-
           Env.addLocals argBindings env
@@ -147,7 +147,7 @@ toNodeOne env (A.At _ (Src.Value aname@(A.At _ name) srcArgs body maybeType)) =
 
         ((args, resultType), argBindings) <-
           Pattern.verify (Error.DPFuncArgs name) $
-            Expr.gatherTypedArgs env name srcArgs tipe Index.first []
+            Expr.gatherTypedArgs env name (fmap snd srcArgs) tipe Index.first []
 
         newEnv <-
           Env.addLocals argBindings env
@@ -197,7 +197,7 @@ canonicalizeExports values unions aliases binops effects (A.At region exposing) 
         Can.Export <$> Dups.detect Error.ExportDuplicate (Dups.unions infos)
 
 valueToName :: A.Located Src.Value -> (Name.Name, ())
-valueToName (A.At _ (Src.Value (A.At _ name) _ _ _)) =
+valueToName (A.At _ (Src.Value (A.At _ name) _ _ _ _)) =
   (name, ())
 
 checkExposed ::

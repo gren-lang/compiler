@@ -113,7 +113,7 @@ verifyEffectType (A.At region name) unions =
     else Result.throw (Error.EffectNotFound region name)
 
 toNameRegion :: A.Located Src.Value -> (Name.Name, A.Region)
-toNameRegion (A.At _ (Src.Value (A.At region name) _ _ _)) =
+toNameRegion (A.At _ (Src.Value (A.At region name) _ _ _ _)) =
   (name, region)
 
 verifyManager :: A.Region -> Map.Map Name.Name A.Region -> Name.Name -> Result i w A.Region

@@ -143,6 +143,13 @@ withCommentsAround before after block =
     (Just beforeBlock, Just afterBlock) ->
       spaceOrStack [beforeBlock, spaceOrIndent [block, afterBlock]]
 
+withCommentsStackBefore :: [Src.Comment] -> Block -> Block
+withCommentsStackBefore before block =
+  case formatCommentBlock before of
+    Nothing -> block
+    Just comments ->
+      Block.stack [comments, block]
+
 --
 -- AST -> Block
 --
@@ -223,7 +230,7 @@ formatModule (Src.Module moduleName exports docs imports values unions aliases b
         Src.NoDocs _ -> Map.empty
         Src.YesDocs _ defs -> Map.fromList defs
 
-    valueName (Src.Value name _ _ _) = A.toValue name
+    valueName (Src.Value name _ _ _ _) = A.toValue name
     unionName (Src.Union name _ _) = A.toValue name
     aliasName (Src.Alias name _ _) = A.toValue name
     portName (Src.Port name _) = A.toValue name
@@ -368,11 +375,11 @@ formatAssociativity = \case
   Binop.Right -> Block.string7 "right"
 
 formatValue :: Src.Value -> Block
-formatValue (Src.Value name args body type_) =
-  formatBasicDef (A.toValue name) (fmap A.toValue args) (A.toValue body) (fmap A.toValue type_)
+formatValue (Src.Value name args body type_ comments) =
+  formatBasicDef (A.toValue name) args (A.toValue body) (fmap A.toValue type_) comments
 
-formatBasicDef :: Name -> [Src.Pattern_] -> Src.Expr_ -> Maybe Src.Type_ -> Block
-formatBasicDef name args body type_ =
+formatBasicDef :: Name -> [([Src.Comment], Src.Pattern)] -> Src.Expr_ -> Maybe Src.Type_ -> SC.ValueComments -> Block
+formatBasicDef name args body type_ (SC.ValueComments commentsBeforeEquals commentsBeforeBody) =
   Block.stack $
     NonEmpty.fromList $
       catMaybes
@@ -380,11 +387,21 @@ formatBasicDef name args body type_ =
           Just $
             spaceOrIndent $
               Block.line (utf8 name)
-                :| fmap (patternParensProtectSpaces . formatPattern) args
-                ++ [ Block.line $ Block.char7 '='
+                :| fmap formatPat args
+                ++ [ withCommentsBefore commentsBeforeEquals $
+                       Block.line (Block.char7 '=')
                    ],
-          Just $ Block.indent $ exprParensNone $ formatExpr body
+          Just $
+            Block.indent $
+              withCommentsStackBefore commentsBeforeBody $
+                exprParensNone $
+                  formatExpr body
         ]
+  where
+    formatPat (comments, pat) =
+      withCommentsBefore comments $
+        patternParensProtectSpaces $
+          formatPattern (A.toValue pat)
 
 formatTypeAnnotation :: Maybe String -> Name -> Src.Type_ -> Block
 formatTypeAnnotation prefix name t =
@@ -660,7 +677,7 @@ opForcesMultiline op =
 formatDef :: Src.Def -> Block
 formatDef = \case
   Src.Define name args body ann ->
-    formatBasicDef (A.toValue name) (fmap A.toValue args) (A.toValue body) (fmap A.toValue ann)
+    formatBasicDef (A.toValue name) args (A.toValue body) (fmap A.toValue ann) (SC.ValueComments [] [])
   Src.Destruct pat body ->
     Block.stack
       [ spaceOrIndent

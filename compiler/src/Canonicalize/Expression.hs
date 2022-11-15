@@ -280,7 +280,7 @@ addDefNodes env nodes (A.At _ def) =
           do
             (args, argBindings) <-
               Pattern.verify (Error.DPFuncArgs name) $
-                traverse (Pattern.canonicalize env) srcArgs
+                traverse (Pattern.canonicalize env . snd) srcArgs
 
             newEnv <-
               Env.addLocals argBindings env
@@ -296,7 +296,7 @@ addDefNodes env nodes (A.At _ def) =
             (Can.Forall freeVars ctipe) <- Type.toAnnotation env tipe
             ((args, resultType), argBindings) <-
               Pattern.verify (Error.DPFuncArgs name) $
-                gatherTypedArgs env name srcArgs ctipe Index.first []
+                gatherTypedArgs env name (fmap snd srcArgs) ctipe Index.first []
 
             newEnv <-
               Env.addLocals argBindings env

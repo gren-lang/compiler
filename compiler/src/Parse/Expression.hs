@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 -- Temporary while implementing gren format
 {-# OPTIONS_GHC -Wno-error=unused-do-bind #-}
+{-# OPTIONS_GHC -Wno-error=unused-local-binds #-}
 {-# OPTIONS_GHC -Wno-error=unused-matches #-}
 
 module Parse.Expression
@@ -497,31 +498,32 @@ definition =
     aname@(A.At (A.Region start _) name) <- addLocation (Var.lower E.LetDefName)
     specialize (E.LetDef name) $
       do
-        Space.chompAndCheckIndent E.DefSpace E.DefIndentEquals
+        commentsAfterName <- Space.chompAndCheckIndent E.DefSpace E.DefIndentEquals
         oneOf
           E.DefEquals
           [ do
               word1 0x3A {-:-} E.DefEquals
+              let commentsBeforeColon = commentsAfterName
               Space.chompAndCheckIndent E.DefSpace E.DefIndentType
               ((tipe, commentsAfterTipe), _) <- specialize E.DefType Type.expression
               Space.checkAligned E.DefAlignment
               defName <- chompMatchingName name
-              Space.chompAndCheckIndent E.DefSpace E.DefIndentEquals
-              chompDefArgsAndBody start defName (Just tipe) [],
-            chompDefArgsAndBody start aname Nothing []
+              commentsAfterMatchingName <- Space.chompAndCheckIndent E.DefSpace E.DefIndentEquals
+              chompDefArgsAndBody start defName (Just tipe) [] commentsAfterMatchingName,
+            chompDefArgsAndBody start aname Nothing [] commentsAfterName
           ]
 
-chompDefArgsAndBody :: A.Position -> A.Located Name.Name -> Maybe Src.Type -> [Src.Pattern] -> Space.Parser E.Def (A.Located Src.Def)
-chompDefArgsAndBody start name tipe revArgs =
+chompDefArgsAndBody :: A.Position -> A.Located Name.Name -> Maybe Src.Type -> [([Src.Comment], Src.Pattern)] -> [Src.Comment] -> Space.Parser E.Def (A.Located Src.Def)
+chompDefArgsAndBody start name tipe revArgs commentsBefore =
   oneOf
     E.DefEquals
     [ do
         arg <- specialize E.DefArg Pattern.term
-        Space.chompAndCheckIndent E.DefSpace E.DefIndentEquals
-        chompDefArgsAndBody start name tipe (arg : revArgs),
+        commentsAfterArg <- Space.chompAndCheckIndent E.DefSpace E.DefIndentEquals
+        chompDefArgsAndBody start name tipe ((commentsBefore, arg) : revArgs) commentsAfterArg,
       do
         word1 0x3D {-=-} E.DefEquals
-        Space.chompAndCheckIndent E.DefSpace E.DefIndentBody
+        commentsAfterEquals <- Space.chompAndCheckIndent E.DefSpace E.DefIndentBody
         ((body, commentsAfterBody), end) <- specialize E.DefBody expression
         return
           ( A.at start end (Src.Define name (reverse revArgs) body tipe),

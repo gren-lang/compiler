@@ -274,6 +274,14 @@ spec = do
                                      "    {}"
                                    ]
 
+    describe "value declarations" $ do
+      it "formats comments" $
+        ["f{-A-}x{-B-}y{-C-}={-D-}[]"]
+          `shouldFormatModuleBodyAs` [ "f {- A -} x {- B -} y {- C -} =",
+                                       "    {- D -}",
+                                       "    []"
+                                     ]
+
   describe "expressions" $ do
     describe "record" $ do
       describe "empty" $ do

@@ -47,7 +47,7 @@ addVars module_ (Env.Env home vs ts cs bs qvs qts qcs) =
 
 collectVars :: Src.Module -> Result i w (Map.Map Name.Name Env.Var)
 collectVars (Src.Module _ _ _ _ values _ _ _ _ _ effects) =
-  let addDecl dict (A.At _ (Src.Value (A.At region name) _ _ _)) =
+  let addDecl dict (A.At _ (Src.Value (A.At region name) _ _ _ _)) =
         Dups.insert name region (Env.TopLevel region) dict
    in Dups.detect Error.DuplicateDecl $
         List.foldl' addDecl (toEffectDups effects) (fmap snd values)

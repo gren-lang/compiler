@@ -165,7 +165,7 @@ getDocComments decls comments =
       comments
     decl : otherDecls ->
       case decl of
-        Decl.Value c (A.At _ (Src.Value n _ _ _)) -> getDocComments otherDecls (addComment c n comments)
+        Decl.Value c (A.At _ (Src.Value n _ _ _ _)) -> getDocComments otherDecls (addComment c n comments)
         Decl.Union c (A.At _ (Src.Union n _ _)) -> getDocComments otherDecls (addComment c n comments)
         Decl.Alias c (A.At _ (Src.Alias n _ _)) -> getDocComments otherDecls (addComment c n comments)
         Decl.Port c (Src.Port n _) -> getDocComments otherDecls (addComment c n comments)

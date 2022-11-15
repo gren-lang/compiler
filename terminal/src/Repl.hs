@@ -282,7 +282,7 @@ attemptDeclOrExpr lines =
    in case P.fromByteString declParser (,) src of
         Right ((decl, _), _) ->
           case decl of
-            PD.Value _ (A.At _ (Src.Value (A.At _ name) _ _ _)) -> ifDone lines (Decl name src)
+            PD.Value _ (A.At _ (Src.Value (A.At _ name) _ _ _ _)) -> ifDone lines (Decl name src)
             PD.Union _ (A.At _ (Src.Union (A.At _ name) _ _)) -> ifDone lines (Type name src)
             PD.Alias _ (A.At _ (Src.Alias (A.At _ name) _ _)) -> ifDone lines (Type name src)
             PD.Port _ _ -> Done Port
