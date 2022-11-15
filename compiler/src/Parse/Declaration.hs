@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 -- Temporary while implementing gren format
 {-# OPTIONS_GHC -Wno-error=unused-do-bind #-}
+{-# OPTIONS_GHC -Wno-error=unused-local-binds #-}
 {-# OPTIONS_GHC -Wno-error=unused-matches #-}
 
 module Parse.Declaration
@@ -135,10 +136,10 @@ typeDecl maybeDocs start =
           specialize E.DT_Union $
             do
               (name, args) <- chompCustomNameToEquals
-              (firstVariant, firstEnd) <- Type.variant
-              (variants, end) <- chompVariants [firstVariant] firstEnd
+              ((firstName, firstArgs, commentsAfterFirst), firstEnd) <- Type.variant
+              let firstVariant = (firstName, firstArgs)
+              ((variants, commentsAfter), end) <- chompVariants [firstVariant] commentsAfterFirst firstEnd
               let union = A.at start end (Src.Union name args variants)
-              let commentsAfter = [] -- TODO: implement this throughout chompVariants and Type.variant
               return ((Union maybeDocs union, commentsAfter), end)
         ]
 
@@ -188,17 +189,19 @@ chompCustomNameToEqualsHelp name args =
         return (name, reverse args)
     ]
 
-chompVariants :: [(A.Located Name.Name, [Src.Type])] -> A.Position -> Space.Parser E.CustomType [(A.Located Name.Name, [Src.Type])]
-chompVariants variants end =
+chompVariants :: [(A.Located Name.Name, [([Src.Comment], Src.Type)])] -> [Src.Comment] -> A.Position -> Space.Parser E.CustomType ([(A.Located Name.Name, [([Src.Comment], Src.Type)])], [Src.Comment])
+chompVariants variants commentsBetween end =
   oneOfWithFallback
     [ do
         Space.checkIndent end E.CT_IndentBar
+        let commentsBeforeBar = commentsBetween
         word1 0x7C E.CT_Bar
-        Space.chompAndCheckIndent E.CT_Space E.CT_IndentAfterBar
-        (variant, newEnd) <- Type.variant
-        chompVariants (variant : variants) newEnd
+        commentsAfterBar <- Space.chompAndCheckIndent E.CT_Space E.CT_IndentAfterBar
+        ((name, args, commentsAfter), newEnd) <- Type.variant
+        let variant = (name, args)
+        chompVariants (variant : variants) commentsAfter newEnd
     ]
-    (reverse variants, end)
+    ((reverse variants, commentsBetween), end)
 
 -- PORT
 

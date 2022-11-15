@@ -39,10 +39,10 @@ canonicalize env (A.At typeRegion tipe) =
     Src.TVar x ->
       Result.ok (Can.TVar x)
     Src.TType region name args ->
-      canonicalizeType env typeRegion name args
+      canonicalizeType env typeRegion name (fmap snd args)
         =<< Env.findType region env name
     Src.TTypeQual region home name args ->
-      canonicalizeType env typeRegion name args
+      canonicalizeType env typeRegion name (fmap snd args)
         =<< Env.findTypeQual region env home name
     Src.TLambda a b ->
       Can.TLambda

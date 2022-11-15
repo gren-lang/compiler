@@ -415,11 +415,14 @@ formatUnion (Src.Union name args ctors) =
         [] -> []
         (first : rest) -> formatCtor '=' first : fmap (formatCtor '|') rest
 
-formatCtor :: Char -> (A.Located Name, [Src.Type]) -> Block
+formatCtor :: Char -> (A.Located Name, [([Src.Comment], Src.Type)]) -> Block
 formatCtor open (name, args) =
   spaceOrIndent $
     Block.line (Block.char7 open <> Block.space <> utf8 (A.toValue name))
-      :| fmap (typeParensProtectSpaces . formatType . A.toValue) args
+      :| fmap (typeParensProtectSpaces . formatArg) args
+  where
+    formatArg (comments, arg) =
+      formatType (A.toValue arg)
 
 formatAlias :: Src.Alias -> Block
 formatAlias (Src.Alias name args type_) =
@@ -716,7 +719,10 @@ formatType = \case
     TypeContainsSpaces $
       spaceOrIndent $
         Block.line (utf8 name)
-          :| fmap (typeParensProtectSpaces . formatType . A.toValue) args
+          :| fmap (typeParensProtectSpaces . formatArg) args
+    where
+      formatArg (comments, arg) =
+        formatType (A.toValue arg)
   Src.TTypeQual _ ns name [] ->
     NoTypeParens $
       Block.line (utf8 ns <> Block.char7 '.' <> utf8 name)
@@ -724,7 +730,10 @@ formatType = \case
     TypeContainsSpaces $
       spaceOrIndent $
         Block.line (utf8 ns <> Block.char7 '.' <> utf8 name)
-          :| fmap (typeParensProtectSpaces . formatType . A.toValue) args
+          :| fmap (typeParensProtectSpaces . formatArg) args
+    where
+      formatArg (comments, arg) =
+        formatType (A.toValue arg)
   Src.TRecord fields Nothing ->
     NoTypeParens $
       group '{' ',' '}' True $

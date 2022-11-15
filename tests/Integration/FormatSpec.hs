@@ -159,6 +159,23 @@ spec = do
                                      "h =",
                                      "    {}"
                                    ]
+    it "formats comments after custom type declarations" $
+      [ "type T1 = T1a | T1b",
+        "-- A",
+        "f = {}"
+      ]
+        `shouldFormatModuleBodyAs` [ "type T1",
+                                     "    = T1a",
+                                     "    | T1b",
+                                     "",
+                                     "",
+                                     "",
+                                     "-- A",
+                                     "",
+                                     "",
+                                     "f =",
+                                     "    {}"
+                                   ]
     it "formats comments after value declarations ending in a case expression" $
       [ "f =",
         "    case x of",

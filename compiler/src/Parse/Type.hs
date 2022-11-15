@@ -114,8 +114,8 @@ app start =
   do
     upper <- Var.foreignUpper E.TStart
     upperEnd <- getPosition
-    commentsAfter <- Space.chomp E.TSpace
-    (args, end) <- chompArgs [] upperEnd
+    commentsAfterUpper <- Space.chomp E.TSpace
+    ((args, commentsAfterArgs), end) <- chompArgs [] commentsAfterUpper upperEnd
 
     let region = A.Region start upperEnd
     let tipe =
@@ -125,19 +125,19 @@ app start =
             Var.Qualified home name ->
               Src.TTypeQual region home name args
 
-    return ((A.at start end tipe, commentsAfter), end)
+    return ((A.at start end tipe, commentsAfterArgs), end)
 
-chompArgs :: [Src.Type] -> A.Position -> Space.Parser E.Type [Src.Type]
-chompArgs args end =
+chompArgs :: [([Src.Comment], Src.Type)] -> [Src.Comment] -> A.Position -> Space.Parser E.Type ([([Src.Comment], Src.Type)], [Src.Comment])
+chompArgs args commentsBetween end =
   oneOfWithFallback
     [ do
         Space.checkIndent end E.TIndentStart
         arg <- term
         newEnd <- getPosition
-        Space.chomp E.TSpace
-        chompArgs (arg : args) newEnd
+        commentsAfter <- Space.chomp E.TSpace
+        chompArgs ((commentsBetween, arg) : args) commentsAfter newEnd
     ]
-    (reverse args, end)
+    ((reverse args, commentsBetween), end)
 
 -- RECORD
 
@@ -170,10 +170,10 @@ chompField =
 
 -- VARIANT
 
-variant :: Space.Parser E.CustomType (A.Located Name.Name, [Src.Type])
+variant :: Space.Parser E.CustomType (A.Located Name.Name, [([Src.Comment], Src.Type)], [Src.Comment])
 variant =
   do
     name@(A.At (A.Region _ nameEnd) _) <- addLocation (Var.upper E.CT_Variant)
-    Space.chomp E.CT_Space
-    (args, end) <- specialize E.CT_VariantArg (chompArgs [] nameEnd)
-    return ((name, args), end)
+    commentsBefore <- Space.chomp E.CT_Space
+    ((args, commentsAfter), end) <- specialize E.CT_VariantArg (chompArgs [] commentsBefore nameEnd)
+    return ((name, args, commentsAfter), end)

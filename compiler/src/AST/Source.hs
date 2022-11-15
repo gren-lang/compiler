@@ -112,8 +112,8 @@ type Type =
 data Type_
   = TLambda Type Type
   | TVar Name
-  | TType A.Region Name [Type]
-  | TTypeQual A.Region Name Name [Type]
+  | TType A.Region Name [([Comment], Type)]
+  | TTypeQual A.Region Name Name [([Comment], Type)]
   | TRecord [(A.Located Name, Type)] (Maybe (A.Located Name))
   deriving (Show)
 
@@ -160,7 +160,7 @@ data Import = Import
 data Value = Value (A.Located Name) [Pattern] Expr (Maybe Type)
   deriving (Show)
 
-data Union = Union (A.Located Name) [A.Located Name] [(A.Located Name, [Type])]
+data Union = Union (A.Located Name) [A.Located Name] [(A.Located Name, [([Comment], Type)])]
   deriving (Show)
 
 data Alias = Alias (A.Located Name) [A.Located Name] Type
