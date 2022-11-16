@@ -363,12 +363,17 @@ shouldFormatExpressionAs inputLines expectedOutputLines =
       cleanOutput i =
         LazyText.stripPrefix "module Main exposing (..)\n\n\n\nexpr =\n" i
           >>= (return . LazyText.lines)
-          >>= traverse (LazyText.stripPrefix "    ")
+          >>= traverse stripIndent
           >>= (return . LazyText.unlines)
    in case fmap cleanOutput actualOutput of
-        Left _ ->
-          expectationFailure "shouldFormatExpressionAs: failed to format"
+        Left err ->
+          expectationFailure ("shouldFormatExpressionAs: failed to format: " <> show err)
         Right Nothing ->
-          expectationFailure "shouldFormatExpressionAs: internal error: could clean output"
+          expectationFailure ("shouldFormatExpressionAs: internal error: couldn't clean output: " <> show actualOutput)
         Right (Just actualExpression) ->
           actualExpression `shouldBe` expectedOutput
+  where
+    stripIndent text =
+      if text == ""
+        then Just text
+        else LazyText.stripPrefix "    " text
