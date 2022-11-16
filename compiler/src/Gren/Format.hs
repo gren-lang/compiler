@@ -143,12 +143,14 @@ withCommentsAround before after block =
     (Just beforeBlock, Just afterBlock) ->
       spaceOrStack [beforeBlock, spaceOrIndent [block, afterBlock]]
 
-withCommentsStackBefore :: [Src.Comment] -> Block -> Block
-withCommentsStackBefore before block =
-  case formatCommentBlock before of
-    Nothing -> block
-    Just comments ->
-      Block.stack [comments, block]
+withCommentsStackAround :: [Src.Comment] -> [Src.Comment] -> Block -> Block
+withCommentsStackAround [] [] block = block
+withCommentsStackAround before after block =
+  case (formatCommentBlock before, formatCommentBlock after) of
+    (Nothing, Nothing) -> block
+    (Just beforeBlock, Nothing) -> Block.stack [beforeBlock, block]
+    (Nothing, Just afterBlock) -> Block.stack [block, afterBlock]
+    (Just beforeBlock, Just afterBlock) -> Block.stack [beforeBlock, block, afterBlock]
 
 --
 -- AST -> Block
@@ -379,7 +381,7 @@ formatValue (Src.Value name args body type_ comments) =
   formatBasicDef (A.toValue name) args (A.toValue body) (fmap A.toValue type_) comments
 
 formatBasicDef :: Name -> [([Src.Comment], Src.Pattern)] -> Src.Expr_ -> Maybe Src.Type_ -> SC.ValueComments -> Block
-formatBasicDef name args body type_ (SC.ValueComments commentsBeforeEquals commentsBeforeBody) =
+formatBasicDef name args body type_ (SC.ValueComments commentsBeforeEquals commentsBeforeBody commentsAfterBody) =
   Block.stack $
     NonEmpty.fromList $
       catMaybes
@@ -393,7 +395,7 @@ formatBasicDef name args body type_ (SC.ValueComments commentsBeforeEquals comme
                    ],
           Just $
             Block.indent $
-              withCommentsStackBefore commentsBeforeBody $
+              withCommentsStackAround commentsBeforeBody commentsAfterBody $
                 exprParensNone $
                   formatExpr body
         ]
@@ -677,7 +679,7 @@ opForcesMultiline op =
 formatDef :: Src.Def -> Block
 formatDef = \case
   Src.Define name args body ann ->
-    formatBasicDef (A.toValue name) args (A.toValue body) (fmap A.toValue ann) (SC.ValueComments [] [])
+    formatBasicDef (A.toValue name) args (A.toValue body) (fmap A.toValue ann) (SC.ValueComments [] [] [])
   Src.Destruct pat body ->
     Block.stack
       [ spaceOrIndent

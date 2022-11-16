@@ -82,6 +82,7 @@ data ImportExposingComments = ImportExposingComments
 
 data ValueComments = ValueComments
   { _beforeValueEquals :: [Comment],
-    _beforeValueBody :: [Comment]
+    _beforeValueBody :: [Comment],
+    _afterValueBody :: [Comment]
   }
   deriving (Show)

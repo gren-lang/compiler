@@ -281,6 +281,14 @@ spec = do
                                        "    {- D -}",
                                        "    []"
                                      ]
+      it "formats indented comments after the body" $ do
+        [ "f = []",
+          " {-B-}"
+          ]
+          `shouldFormatModuleBodyAs` [ "f =",
+                                       "    []",
+                                       "    {- B -}"
+                                     ]
 
   describe "expressions" $ do
     describe "record" $ do

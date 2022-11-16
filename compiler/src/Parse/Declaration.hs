@@ -14,6 +14,7 @@ where
 import AST.Source qualified as Src
 import AST.SourceComments qualified as SC
 import AST.Utils.Binop qualified as Binop
+import Data.List qualified as List
 import Data.List.NonEmpty (NonEmpty)
 import Data.Name qualified as Name
 import Parse.Expression qualified as Expr
@@ -99,10 +100,11 @@ chompDefArgsAndBody maybeDocs start name tipe revArgs commentsBefore =
         word1 0x3D {-=-} E.DeclDefEquals
         commentsAfterEquals <- Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentBody
         ((body, commentsAfter), end) <- specialize E.DeclDefBody Expr.expression
-        let comments = SC.ValueComments commentsBefore commentsAfterEquals
+        let (commentsAfterBody, commentsAfterDef) = List.span (A.isIndentedAtLeast 2) commentsAfter
+        let comments = SC.ValueComments commentsBefore commentsAfterEquals commentsAfterBody
         let value = Src.Value name (reverse revArgs) body tipe comments
         let avalue = A.at start end value
-        return ((Value maybeDocs avalue, commentsAfter), end)
+        return ((Value maybeDocs avalue, commentsAfterDef), end)
     ]
 
 chompMatchingName :: Name.Name -> Parser E.DeclDef (A.Located Name.Name)
