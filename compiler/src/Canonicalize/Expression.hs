@@ -231,7 +231,7 @@ canonicalizeLet letRegion env defs body =
 addBindings :: Dups.Dict A.Region -> A.Located Src.Def -> Dups.Dict A.Region
 addBindings bindings (A.At _ def) =
   case def of
-    Src.Define (A.At region name) _ _ _ ->
+    Src.Define (A.At region name) _ _ _ _ ->
       Dups.insert name region region bindings
     Src.Destruct pattern _ ->
       addBindingsHelp bindings pattern
@@ -274,7 +274,7 @@ data Binding
 addDefNodes :: Env.Env -> [Node] -> A.Located Src.Def -> Result FreeLocals [W.Warning] [Node]
 addDefNodes env nodes (A.At _ def) =
   case def of
-    Src.Define aname@(A.At _ name) srcArgs body maybeType ->
+    Src.Define aname@(A.At _ name) srcArgs body maybeType _ ->
       case maybeType of
         Nothing ->
           do

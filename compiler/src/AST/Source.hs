@@ -79,7 +79,7 @@ data VarType = LowVar | CapVar
 -- DEFINITIONS
 
 data Def
-  = Define (A.Located Name) [([Comment], Pattern)] Expr (Maybe Type)
+  = Define (A.Located Name) [([Comment], Pattern)] Expr (Maybe Type) SC.ValueComments
   | Destruct Pattern Expr
   deriving (Show)
 

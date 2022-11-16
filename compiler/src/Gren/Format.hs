@@ -700,8 +700,8 @@ formatDef :: ([Src.Comment], A.Located Src.Def) -> Block
 formatDef (commentsBefore, def) =
   withCommentsStackBefore commentsBefore $
     case A.toValue def of
-      Src.Define name args body ann ->
-        formatBasicDef (A.toValue name) args (A.toValue body) (fmap A.toValue ann) (SC.ValueComments [] [] [])
+      Src.Define name args body ann comments ->
+        formatBasicDef (A.toValue name) args (A.toValue body) (fmap A.toValue ann) comments
       Src.Destruct pat body ->
         Block.stack
           [ spaceOrIndent

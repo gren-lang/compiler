@@ -11,6 +11,7 @@ where
 
 import AST.Source qualified as Src
 import AST.SourceComments qualified as SC
+import Data.List qualified as List
 import Data.Name qualified as Name
 import Parse.Keyword qualified as Keyword
 import Parse.Number qualified as Number
@@ -517,7 +518,7 @@ definition =
           ]
 
 chompDefArgsAndBody :: A.Position -> A.Located Name.Name -> Maybe Src.Type -> [([Src.Comment], Src.Pattern)] -> [Src.Comment] -> Space.Parser E.Def (A.Located Src.Def, [Src.Comment])
-chompDefArgsAndBody start name tipe revArgs commentsBefore =
+chompDefArgsAndBody start@(A.Position _ startCol) name tipe revArgs commentsBefore =
   oneOf
     E.DefEquals
     [ do
@@ -527,9 +528,11 @@ chompDefArgsAndBody start name tipe revArgs commentsBefore =
       do
         word1 0x3D {-=-} E.DefEquals
         commentsAfterEquals <- Space.chompAndCheckIndent E.DefSpace E.DefIndentBody
-        ((body, commentsAfterBody), end) <- specialize E.DefBody expression
+        ((body, commentsAfter), end) <- specialize E.DefBody expression
+        let (commentsAfterBody, commentsAfterDef) = List.span (A.isIndentedAtLeast (startCol + 1)) commentsAfter
+        let comments = SC.ValueComments commentsBefore commentsAfterEquals commentsAfterBody
         return
-          ( (A.at start end (Src.Define name (reverse revArgs) body tipe), commentsAfterBody),
+          ( (A.at start end (Src.Define name (reverse revArgs) body tipe comments), commentsAfterDef),
             end
           )
     ]

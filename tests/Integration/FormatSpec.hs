@@ -298,23 +298,25 @@ spec = do
 
     describe "let" $ do
       it "formats comments" $
-        ["let{-A-}x=1{-B-}in{-C-}x"]
+        ["let{-A-}x{-D-}={-E-}1{-B-}in{-C-}x"]
           `shouldFormatExpressionAs` [ "let",
                                        "    {- A -}",
-                                       "    x =",
+                                       "    x {- D -} =",
+                                       "        {- E -}",
                                        "        1",
-                                       "",
-                                       "    {- B -}",
+                                       "        {- B -}",
                                        "in",
                                        "{- C -}",
                                        "x"
                                      ]
-      it "formats comments between declarations" $
+      it "formats comments between and after declarations" $
         [ "let",
           "    x = 1",
           "    {-A-}",
           "{-B-}",
           "    y = 2",
+          "    {-C-}",
+          "{-D-}",
           "in x"
         ]
           `shouldFormatExpressionAs` [ "let",
@@ -324,6 +326,21 @@ spec = do
                                        "    {- A -} {- B -}",
                                        "    y =",
                                        "        2",
+                                       "",
+                                       "    {- C -} {- D -}",
+                                       "in",
+                                       "x"
+                                     ]
+      it "formats indented comments after declarations" $
+        [ "let",
+          "    x = 1",
+          "     {-A-}",
+          "in x"
+        ]
+          `shouldFormatExpressionAs` [ "let",
+                                       "    x =",
+                                       "        1",
+                                       "        {- A -}",
                                        "in",
                                        "x"
                                      ]
