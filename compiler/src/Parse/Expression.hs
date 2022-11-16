@@ -10,6 +10,7 @@ module Parse.Expression
 where
 
 import AST.Source qualified as Src
+import AST.SourceComments qualified as SC
 import Data.Name qualified as Name
 import Parse.Keyword qualified as Keyword
 import Parse.Number qualified as Number
@@ -452,37 +453,38 @@ let_ :: A.Position -> Space.Parser E.Expr (Src.Expr, [Src.Comment])
 let_ start =
   inContext E.Let (Keyword.let_ E.Start) $
     do
-      (defs, defsEnd) <-
+      ((defs, commentsBeforeIn), defsEnd) <-
         withBacksetIndent 3 $
           do
-            Space.chompAndCheckIndent E.LetSpace E.LetIndentDef
+            commentsBeforeDef <- Space.chompAndCheckIndent E.LetSpace E.LetIndentDef
             withIndent $
               do
-                (def, end) <- chompLetDef
-                chompLetDefs [def] end
+                ((def, commentsAfterDef), end) <- chompLetDef
+                chompLetDefs [(commentsBeforeDef, def)] commentsAfterDef end
 
       Space.checkIndent defsEnd E.LetIndentIn
       Keyword.in_ E.LetIn
-      Space.chompAndCheckIndent E.LetSpace E.LetIndentBody
+      commentsAfterIn <- Space.chompAndCheckIndent E.LetSpace E.LetIndentBody
       ((body, commentsAfter), end) <- specialize E.LetBody expression
+      let comments = SC.LetComments commentsBeforeIn commentsAfterIn
       return
-        ( (A.at start end (Src.Let defs body), commentsAfter),
+        ( (A.at start end (Src.Let defs body comments), commentsAfter),
           end
         )
 
-chompLetDefs :: [A.Located Src.Def] -> A.Position -> Space.Parser E.Let [A.Located Src.Def]
-chompLetDefs revDefs end =
+chompLetDefs :: [([Src.Comment], A.Located Src.Def)] -> [Src.Comment] -> A.Position -> Space.Parser E.Let ([([Src.Comment], A.Located Src.Def)], [Src.Comment])
+chompLetDefs revDefs commentsBefore end =
   oneOfWithFallback
     [ do
         Space.checkAligned E.LetDefAlignment
-        (def, newEnd) <- chompLetDef
-        chompLetDefs (def : revDefs) newEnd
+        ((def, commentsAfter), newEnd) <- chompLetDef
+        chompLetDefs ((commentsBefore, def) : revDefs) commentsAfter newEnd
     ]
-    (reverse revDefs, end)
+    ((reverse revDefs, commentsBefore), end)
 
 -- LET DEFINITIONS
 
-chompLetDef :: Space.Parser E.Let (A.Located Src.Def)
+chompLetDef :: Space.Parser E.Let (A.Located Src.Def, [Src.Comment])
 chompLetDef =
   oneOf
     E.LetDefName
@@ -492,7 +494,7 @@ chompLetDef =
 
 -- DEFINITION
 
-definition :: Space.Parser E.Let (A.Located Src.Def)
+definition :: Space.Parser E.Let (A.Located Src.Def, [Src.Comment])
 definition =
   do
     aname@(A.At (A.Region start _) name) <- addLocation (Var.lower E.LetDefName)
@@ -513,7 +515,7 @@ definition =
             chompDefArgsAndBody start aname Nothing [] commentsAfterName
           ]
 
-chompDefArgsAndBody :: A.Position -> A.Located Name.Name -> Maybe Src.Type -> [([Src.Comment], Src.Pattern)] -> [Src.Comment] -> Space.Parser E.Def (A.Located Src.Def)
+chompDefArgsAndBody :: A.Position -> A.Located Name.Name -> Maybe Src.Type -> [([Src.Comment], Src.Pattern)] -> [Src.Comment] -> Space.Parser E.Def (A.Located Src.Def, [Src.Comment])
 chompDefArgsAndBody start name tipe revArgs commentsBefore =
   oneOf
     E.DefEquals
@@ -526,7 +528,7 @@ chompDefArgsAndBody start name tipe revArgs commentsBefore =
         commentsAfterEquals <- Space.chompAndCheckIndent E.DefSpace E.DefIndentBody
         ((body, commentsAfterBody), end) <- specialize E.DefBody expression
         return
-          ( A.at start end (Src.Define name (reverse revArgs) body tipe),
+          ( (A.at start end (Src.Define name (reverse revArgs) body tipe), commentsAfterBody),
             end
           )
     ]
@@ -548,7 +550,7 @@ chompMatchingName expectedName =
 
 -- DESTRUCTURE
 
-destructure :: Space.Parser E.Let (A.Located Src.Def)
+destructure :: Space.Parser E.Let (A.Located Src.Def, [Src.Comment])
 destructure =
   specialize E.LetDestruct $
     do
@@ -558,4 +560,4 @@ destructure =
       word1 0x3D {-=-} E.DestructEquals
       Space.chompAndCheckIndent E.DestructSpace E.DestructIndentBody
       ((expr, commentsAfter), end) <- specialize E.DestructBody expression
-      return (A.at start end (Src.Destruct pattern expr), end)
+      return ((A.at start end (Src.Destruct pattern expr), commentsAfter), end)

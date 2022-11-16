@@ -64,7 +64,7 @@ data Expr_
   | Lambda [Pattern] Expr
   | Call Expr [([Comment], Expr)]
   | If [(Expr, Expr)] Expr
-  | Let [A.Located Def] Expr
+  | Let [([Comment], A.Located Def)] Expr SC.LetComments
   | Case Expr [([Comment], Pattern, Expr)]
   | Accessor Name
   | Access Expr (A.Located Name)

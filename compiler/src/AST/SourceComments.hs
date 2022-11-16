@@ -86,3 +86,11 @@ data ValueComments = ValueComments
     _afterValueBody :: [Comment]
   }
   deriving (Show)
+
+-- Expressions
+
+data LetComments = LetComments
+  { _afterLetDecls :: [Comment],
+    _afterIn :: [Comment]
+  }
+  deriving (Show)

@@ -98,8 +98,8 @@ canonicalize env (A.At region expression) =
         Can.If
           <$> traverse (canonicalizeIfBranch env) branches
           <*> canonicalize env finally
-      Src.Let defs expr ->
-        A.toValue <$> canonicalizeLet region env defs expr
+      Src.Let defs expr _ ->
+        A.toValue <$> canonicalizeLet region env (fmap snd defs) expr
       Src.Case expr branches ->
         Can.Case
           <$> canonicalize env expr

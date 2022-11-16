@@ -291,6 +291,20 @@ spec = do
                                      ]
 
   describe "expressions" $ do
+    describe "let" $ do
+      it "formats comments" $
+        ["let{-A-}x=1{-B-}in{-C-}x"]
+          `shouldFormatExpressionAs` [ "let",
+                                       "    {- A -}",
+                                       "    x =",
+                                       "        1",
+                                       "",
+                                       "    {- B -}",
+                                       "in",
+                                       "{- C -}",
+                                       "x"
+                                     ]
+
     describe "record" $ do
       describe "empty" $ do
         it "formats already formatted" $
@@ -307,6 +321,7 @@ spec = do
                                        ", b = 2",
                                        "}"
                                      ]
+
   describe "parentheses" $ do
     it "removes unnecessary parentheses" $
       ["(a)"]

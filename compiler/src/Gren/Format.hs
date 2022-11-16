@@ -143,6 +143,9 @@ withCommentsAround before after block =
     (Just beforeBlock, Just afterBlock) ->
       spaceOrStack [beforeBlock, spaceOrIndent [block, afterBlock]]
 
+withCommentsStackBefore :: [Src.Comment] -> Block -> Block
+withCommentsStackBefore before = withCommentsStackAround before []
+
 withCommentsStackAround :: [Src.Comment] -> [Src.Comment] -> Block -> Block
 withCommentsStackAround [] [] block = block
 withCommentsStackAround before after block =
@@ -594,15 +597,22 @@ formatExpr = \case
               ],
             Block.indent $ exprParensNone $ formatExpr $ A.toValue body
           ]
-  Src.Let [] body ->
+  Src.Let [] body _ ->
     formatExpr $ A.toValue body
-  Src.Let (def1 : defs) body ->
+  Src.Let (def1 : defs) body (SC.LetComments commentsBeforeIn commentsAfterIn) ->
     ExpressionHasAmbiguousEnd $
       Block.stack
         [ Block.line (Block.string7 "let"),
-          Block.indent $ Block.stack $ NonEmpty.intersperse Block.blankLine $ fmap (formatDef . A.toValue) (def1 :| defs),
-          Block.line (Block.string7 "in"),
-          exprParensNone $ formatExpr (A.toValue body)
+          Block.indent $ Block.stack $ NonEmpty.intersperse Block.blankLine $ fmap formatDef (def1 :| defs),
+          case formatCommentBlock commentsBeforeIn of
+            Nothing -> Block.line (Block.string7 "in")
+            Just comments ->
+              Block.stack
+                [ Block.blankLine,
+                  Block.indent comments,
+                  Block.line (Block.string7 "in")
+                ],
+          withCommentsStackBefore commentsAfterIn $ exprParensNone $ formatExpr (A.toValue body)
         ]
   Src.Case subject branches ->
     ExpressionHasAmbiguousEnd $
@@ -676,18 +686,20 @@ opForcesMultiline op =
   op == Utf8.fromChars "|>"
     || op == Utf8.fromChars "<|"
 
-formatDef :: Src.Def -> Block
-formatDef = \case
-  Src.Define name args body ann ->
-    formatBasicDef (A.toValue name) args (A.toValue body) (fmap A.toValue ann) (SC.ValueComments [] [] [])
-  Src.Destruct pat body ->
-    Block.stack
-      [ spaceOrIndent
-          [ patternParensProtectSpaces $ formatPattern $ A.toValue pat,
-            Block.line $ Block.char7 '='
-          ],
-        Block.indent $ exprParensNone $ formatExpr $ A.toValue body
-      ]
+formatDef :: ([Src.Comment], A.Located Src.Def) -> Block
+formatDef (commentsBefore, def) =
+  withCommentsStackBefore commentsBefore $
+    case A.toValue def of
+      Src.Define name args body ann ->
+        formatBasicDef (A.toValue name) args (A.toValue body) (fmap A.toValue ann) (SC.ValueComments [] [] [])
+      Src.Destruct pat body ->
+        Block.stack
+          [ spaceOrIndent
+              [ patternParensProtectSpaces $ formatPattern $ A.toValue pat,
+                Block.line $ Block.char7 '='
+              ],
+            Block.indent $ exprParensNone $ formatExpr $ A.toValue body
+          ]
 
 data TypeBlock
   = NoTypeParens Block
