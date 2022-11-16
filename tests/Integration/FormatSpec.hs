@@ -309,6 +309,24 @@ spec = do
                                        "{- C -}",
                                        "x"
                                      ]
+      it "formats comments between declarations" $
+        [ "let",
+          "    x = 1",
+          "    {-A-}",
+          "{-B-}",
+          "    y = 2",
+          "in x"
+        ]
+          `shouldFormatExpressionAs` [ "let",
+                                       "    x =",
+                                       "        1",
+                                       "",
+                                       "    {- A -} {- B -}",
+                                       "    y =",
+                                       "        2",
+                                       "in",
+                                       "x"
+                                     ]
 
     describe "record" $ do
       describe "empty" $ do
