@@ -156,11 +156,11 @@ withCommentsStackBefore before block =
 
 formatComment :: Src.Comment -> Block
 formatComment = \case
-  Src.BlockComment text ->
+  A.At _ (Src.BlockComment text) ->
     let open = if Utf8.startsWithChar (== ' ') text then "{-" else "{- "
         close = if Utf8.endsWithWord8 0x20 {- space -} text then "-}" else " -}"
      in Block.line $ Block.string7 open <> utf8 text <> Block.string7 close
-  Src.LineComment text ->
+  A.At _ (Src.LineComment text) ->
     let open = if Utf8.startsWithChar (== ' ') text then "--" else "-- "
      in Block.mustBreak $ Block.string7 open <> utf8 text
 

@@ -2,7 +2,8 @@
 {-# OPTIONS_GHC -Wall #-}
 
 module AST.Source
-  ( Comment (..),
+  ( Comment,
+    Comment_ (..),
     GREN_COMMENT,
     Expr,
     Expr_ (..),
@@ -34,7 +35,7 @@ module AST.Source
   )
 where
 
-import AST.SourceComments (Comment, GREN_COMMENT)
+import AST.SourceComments (Comment, Comment_, GREN_COMMENT)
 import AST.SourceComments qualified as SC
 import AST.Utils.Binop qualified as Binop
 import Data.List.NonEmpty (NonEmpty)

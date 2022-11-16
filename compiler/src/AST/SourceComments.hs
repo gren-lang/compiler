@@ -1,10 +1,13 @@
 module AST.SourceComments where
 
 import Data.Utf8 qualified as Utf8
+import Reporting.Annotation qualified as A
 
 data GREN_COMMENT
 
-data Comment
+type Comment = A.Located Comment_
+
+data Comment_
   = BlockComment (Utf8.Utf8 GREN_COMMENT)
   | LineComment (Utf8.Utf8 GREN_COMMENT)
   deriving (Eq, Show)
@@ -67,7 +70,7 @@ data ImportAliasComments = ImportAliasComments
   { _afterAs :: [Comment],
     _afterAliasName :: [Comment]
   }
-  deriving (Eq, Show)
+  deriving (Show)
 
 data ImportExposingComments = ImportExposingComments
   { _afterExposing :: [Comment],
