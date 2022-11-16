@@ -61,7 +61,7 @@ data Expr_
   | Op Name
   | Negate Expr
   | Binops [(Expr, [Comment], A.Located Name)] Expr
-  | Lambda [Pattern] Expr
+  | Lambda [([Comment], Pattern)] Expr SC.LambdaComments
   | Call Expr [([Comment], Expr)]
   | If [(Expr, Expr)] Expr
   | Let [([Comment], A.Located Def)] Expr SC.LetComments

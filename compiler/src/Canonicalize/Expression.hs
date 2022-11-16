@@ -76,12 +76,12 @@ canonicalize env (A.At region expression) =
         Can.Negate <$> canonicalize env expr
       Src.Binops ops final ->
         A.toValue <$> canonicalizeBinops region env ops final
-      Src.Lambda srcArgs body ->
+      Src.Lambda srcArgs body _ ->
         delayedUsage $
           do
             (args, bindings) <-
               Pattern.verify Error.DPLambdaArgs $
-                traverse (Pattern.canonicalize env) srcArgs
+                traverse (Pattern.canonicalize env) (fmap snd srcArgs)
 
             newEnv <-
               Env.addLocals bindings env

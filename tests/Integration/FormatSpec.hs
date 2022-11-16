@@ -291,6 +291,11 @@ spec = do
                                      ]
 
   describe "expressions" $ do
+    describe "lambda" $ do
+      it "formats comments" $
+        ["\\{-A-}x{-B-}y{-C-}->{-D-}[]"]
+          `shouldFormatExpressionAs` ["\\{- A -} x {- B -} y {- C -} -> {- D -} []"]
+
     describe "let" $ do
       it "formats comments" $
         ["let{-A-}x=1{-B-}in{-C-}x"]

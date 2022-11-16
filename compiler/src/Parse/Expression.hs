@@ -383,26 +383,27 @@ function :: A.Position -> Space.Parser E.Expr (Src.Expr, [Src.Comment])
 function start =
   inContext E.Func (word1 0x5C {-\-} E.Start) $
     do
-      Space.chompAndCheckIndent E.FuncSpace E.FuncIndentArg
+      commentsBeforeFirstArg <- Space.chompAndCheckIndent E.FuncSpace E.FuncIndentArg
       arg <- specialize E.FuncArg Pattern.term
-      Space.chompAndCheckIndent E.FuncSpace E.FuncIndentArrow
-      revArgs <- chompArgs [arg]
-      Space.chompAndCheckIndent E.FuncSpace E.FuncIndentBody
+      commentsAfterFirstArg <- Space.chompAndCheckIndent E.FuncSpace E.FuncIndentArrow
+      (revArgs, commentsAfterArgs) <- chompArgs [(commentsBeforeFirstArg, arg)] commentsAfterFirstArg
+      commentsAfterArrow <- Space.chompAndCheckIndent E.FuncSpace E.FuncIndentBody
       ((body, commentsAfterBody), end) <- specialize E.FuncBody expression
-      let funcExpr = Src.Lambda (reverse revArgs) body
+      let comments = SC.LambdaComments commentsAfterArgs commentsAfterArrow
+      let funcExpr = Src.Lambda (reverse revArgs) body comments
       return ((A.at start end funcExpr, commentsAfterBody), end)
 
-chompArgs :: [Src.Pattern] -> Parser E.Func [Src.Pattern]
-chompArgs revArgs =
+chompArgs :: [([Src.Comment], Src.Pattern)] -> [Src.Comment] -> Parser E.Func ([([Src.Comment], Src.Pattern)], [Src.Comment])
+chompArgs revArgs commentsBefore =
   oneOf
     E.FuncArrow
     [ do
         arg <- specialize E.FuncArg Pattern.term
-        Space.chompAndCheckIndent E.FuncSpace E.FuncIndentArrow
-        chompArgs (arg : revArgs),
+        commentsAfterArg <- Space.chompAndCheckIndent E.FuncSpace E.FuncIndentArrow
+        chompArgs ((commentsBefore, arg) : revArgs) commentsAfterArg,
       do
         word2 0x2D 0x3E {-->-} E.FuncArrow
-        return revArgs
+        return (revArgs, commentsBefore)
     ]
 
 -- CASE EXPRESSIONS

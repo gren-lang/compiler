@@ -546,19 +546,29 @@ formatExpr = \case
           4
           (utf8 (A.toValue op) <> Block.space)
           (exprParensProtectInfixOps $ formatExpr $ A.toValue expr)
-  Src.Lambda [] body ->
+  Src.Lambda [] body _ ->
     formatExpr $ A.toValue body
-  Src.Lambda (arg1 : args) body ->
+  Src.Lambda (arg1 : args) body (SC.LambdaComments commentsBeforeArrow commentsAfterArrow) ->
     ExpressionHasAmbiguousEnd $
       spaceOrIndent
         [ Block.prefix 1 (Block.char7 '\\') $
             spaceOrStack $
               join
-                [ fmap (patternParensProtectSpaces . formatPattern . A.toValue) (arg1 :| args),
-                  pure $ Block.line $ Block.string7 "->"
+                [ fmap formatArg (arg1 :| args),
+                  pure $
+                    withCommentsBefore commentsBeforeArrow $
+                      Block.line $
+                        Block.string7 "->"
                 ],
-          exprParensNone $ formatExpr $ A.toValue body
+          withCommentsBefore commentsAfterArrow $
+            exprParensNone $
+              formatExpr $
+                A.toValue body
         ]
+    where
+      formatArg (commentsBefore, arg) =
+        withCommentsBefore commentsBefore $
+          patternParensProtectSpaces (formatPattern $ A.toValue arg)
   Src.Call fn [] ->
     formatExpr $ A.toValue fn
   Src.Call fn args ->

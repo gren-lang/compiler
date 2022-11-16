@@ -89,6 +89,12 @@ data ValueComments = ValueComments
 
 -- Expressions
 
+data LambdaComments = LambdaComments
+  { _beforeArrow :: [Comment],
+    _afterArrow :: [Comment]
+  }
+  deriving (Show)
+
 data LetComments = LetComments
   { _afterLetDecls :: [Comment],
     _afterIn :: [Comment]
