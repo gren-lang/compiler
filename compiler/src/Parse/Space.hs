@@ -36,7 +36,7 @@ type Parser x a =
 
 chomp :: (E.Space -> Row -> Col -> x) -> P.Parser x [Src.Comment]
 chomp =
-  chompIndentedAtLeast 0
+  chompIndentedAtLeast 1
 
 chompIndentedAtLeast :: Col -> (E.Space -> Row -> Col -> x) -> P.Parser x [Src.Comment]
 chompIndentedAtLeast requiredIndent toError =
@@ -105,12 +105,12 @@ eatSpacesIndentedAtLeast indent pos end row col comments =
       0x0A {- \n -} ->
         eatSpacesIndentedAtLeast indent (plusPtr pos 1) end (row + 1) 1 comments
       0x7B {- { -} ->
-        if col > indent
+        if col >= indent
           then eatMultiComment indent pos end row col comments
           else (# Good (reverse comments), pos, row, col #)
       0x2D {- - -} ->
         let !pos1 = plusPtr pos 1
-         in if pos1 < end && col > indent && P.unsafeIndex pos1 == 0x2D {- - -}
+         in if pos1 < end && col >= indent && P.unsafeIndex pos1 == 0x2D {- - -}
               then
                 let !start = plusPtr pos 2
                  in eatLineComment indent start start end row col (col + 2) comments
