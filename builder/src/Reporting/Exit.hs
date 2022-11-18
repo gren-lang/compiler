@@ -54,6 +54,7 @@ import Gren.Constraint qualified as C
 import Gren.Magnitude qualified as M
 import Gren.ModuleName qualified as ModuleName
 import Gren.Package qualified as Pkg
+import Gren.Platform qualified as Platform
 import Gren.Version qualified as V
 import Json.Decode qualified as Decode
 import Json.Encode qualified as Encode
@@ -990,6 +991,7 @@ data Solver
   | SolverBadGitOperationVersionedPkg Pkg.Name V.Version Git.Error
   | SolverIncompatibleSolvedVersion Pkg.Name Pkg.Name C.Constraint V.Version
   | SolverIncompatibleVersionRanges Pkg.Name Pkg.Name C.Constraint C.Constraint
+  | SolverIncompatiblePlatforms Pkg.Name Platform.Platform Platform.Platform
 
 toSolverReport :: Solver -> Help.Report
 toSolverReport problem =
@@ -1087,6 +1089,35 @@ toSolverReport problem =
               "compatible",
               "transient",
               "dependencies."
+            ]
+        ]
+    SolverIncompatiblePlatforms project rootPlatform projectPlatform ->
+      Help.report
+        "PROBLEM SOLVING PACKAGE CONSTRAINTS"
+        Nothing
+        ( Pkg.toChars project
+            ++ " targets the "
+            ++ Platform.toChars projectPlatform
+            ++ " platform, however your project targets the "
+            ++ Platform.toChars rootPlatform
+            ++ " platform"
+            ++ "!"
+        )
+        [ D.fillSep $
+            [ "Hint: ",
+              D.green "browser",
+              "and",
+              D.green "node",
+              "packages",
+              "doesn't",
+              "mix.",
+              "Only",
+              D.green "common",
+              "packages",
+              "can",
+              "be",
+              "used",
+              "everywhere."
             ]
         ]
 

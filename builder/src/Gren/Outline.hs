@@ -277,7 +277,7 @@ appDecoder :: Decoder AppOutline
 appDecoder =
   AppOutline
     <$> D.field "gren-version" versionDecoder
-    <*> D.field "platform" Platform.decoder
+    <*> D.field "platform" (Platform.decoder Exit.OP_BadPlatform)
     <*> D.field "source-directories" dirsDecoder
     <*> D.field "dependencies" (D.field "direct" (depsDecoder versionDecoder))
     <*> D.field "dependencies" (D.field "indirect" (depsDecoder versionDecoder))
@@ -292,7 +292,7 @@ pkgDecoder =
     <*> D.field "exposed-modules" exposedDecoder
     <*> D.field "dependencies" (depsDecoder constraintDecoder)
     <*> D.field "gren-version" constraintDecoder
-    <*> D.field "platform" Platform.decoder
+    <*> D.field "platform" (Platform.decoder Exit.OP_BadPlatform)
 
 -- JSON DECODE HELPERS
 
