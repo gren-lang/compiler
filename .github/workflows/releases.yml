@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ghc: ['9.4.2']
+        ghc: ['9.4.3']
         cabal: ['3.8.1.0']
         os:
         - ubuntu-latest
