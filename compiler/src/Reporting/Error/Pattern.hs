@@ -118,22 +118,6 @@ patternToDoc context pattern =
           "\"" <> D.fromChars (ES.toChars str) <> "\""
         P.Int int ->
           D.fromInt int
-    P.Ctor _ "#0" [] ->
-      "()"
-    P.Ctor _ "#2" [a, b] ->
-      "( "
-        <> patternToDoc Unambiguous a
-        <> ", "
-        <> patternToDoc Unambiguous b
-        <> " )"
-    P.Ctor _ "#3" [a, b, c] ->
-      "( "
-        <> patternToDoc Unambiguous a
-        <> ", "
-        <> patternToDoc Unambiguous b
-        <> ", "
-        <> patternToDoc Unambiguous c
-        <> " )"
     P.Ctor _ name args ->
       let ctorDoc =
             D.hsep (D.fromName name : map (patternToDoc Arg) args)
