@@ -331,10 +331,11 @@ isUseful matrix vector =
                 (Maybe.mapMaybe (specializeRowByArray (length arrayPatterns)) matrix)
                 (arrayPatterns ++ patterns)
             Record recordNamedPatterns ->
-              let recordBaseMap = collectRecordFieldsWithAnyPattern matrix
+              let recordBaseMap = collectRecordFieldsWithAnyPattern ([firstPattern] : matrix)
+                  recordPatternMap = Map.union recordNamedPatterns recordBaseMap
                in isUseful
                     (Maybe.mapMaybe (specializeRowByRecord recordBaseMap) matrix)
-                    (Map.elems recordNamedPatterns ++ patterns)
+                    (Map.elems recordPatternMap ++ patterns)
             Anything ->
               -- check if all alts appear in matrix
               case isComplete matrix of
@@ -516,6 +517,7 @@ collectCtorsHelp ctors row =
       ctors
 
 -- COLLECT RECORD FIELDS
+
 extractRecordPatterns :: [[Pattern]] -> Maybe (Map Name.Name Pattern)
 extractRecordPatterns matrix =
   if containsRecord matrix
