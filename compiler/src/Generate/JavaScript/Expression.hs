@@ -310,7 +310,10 @@ generateCoreCall mode (Opt.Global home@(ModuleName.Canonical _ moduleName) name)
     else
       if moduleName == Name.bitwise
         then generateBitwiseCall home name (map (generateJsExpr mode) args)
-        else generateGlobalCall home name (map (generateJsExpr mode) args)
+        else
+          if moduleName == Name.math
+            then generateMathCall home name (map (generateJsExpr mode) args)
+            else generateGlobalCall home name (map (generateJsExpr mode) args)
 
 generateBitwiseCall :: ModuleName.Canonical -> Name.Name -> [JS.Expr] -> JS.Expr
 generateBitwiseCall home name args =
@@ -340,7 +343,6 @@ generateBasicsCall mode home name args =
             "not" -> JS.Prefix JS.PrefixNot arg
             "negate" -> JS.Prefix JS.PrefixNegate arg
             "toFloat" -> arg
-            "truncate" -> JS.Infix JS.OpBitwiseOr arg (JS.Int 0)
             _ -> generateGlobalCall home name [arg]
     [grenLeft, grenRight] ->
       case name of
@@ -367,10 +369,23 @@ generateBasicsCall mode home name args =
                 "or" -> JS.Infix JS.OpOr left right
                 "and" -> JS.Infix JS.OpAnd left right
                 "xor" -> JS.Infix JS.OpNe left right
-                "remainderBy" -> JS.Infix JS.OpMod right left
                 _ -> generateGlobalCall home name [left, right]
     _ ->
       generateGlobalCall home name (map (generateJsExpr mode) args)
+
+generateMathCall :: ModuleName.Canonical -> Name.Name -> [JS.Expr] -> JS.Expr
+generateMathCall home name args =
+  case args of
+    [arg] ->
+      case name of
+        "truncate" -> JS.Infix JS.OpBitwiseOr arg (JS.Int 0)
+        _ -> generateGlobalCall home name [arg]
+    [left, right] ->
+      case name of
+        "remainderBy" -> JS.Infix JS.OpMod right left
+        _ -> generateGlobalCall home name [left, right]
+    _ ->
+      generateGlobalCall home name args
 
 equal :: JS.Expr -> JS.Expr -> JS.Expr
 equal left right =

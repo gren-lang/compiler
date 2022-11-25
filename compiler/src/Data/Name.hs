@@ -50,6 +50,7 @@ module Data.Name
     debugger,
     bitwise,
     basics,
+    math,
     utils,
     negate,
     true,
@@ -435,6 +436,9 @@ bitwise = fromChars "Bitwise"
 
 basics :: Name
 basics = fromChars "Basics"
+
+math :: Name
+math = fromChars "Math"
 
 utils :: Name
 utils = fromChars "Utils"
