@@ -118,22 +118,6 @@ patternToDoc context pattern =
           "\"" <> D.fromChars (ES.toChars str) <> "\""
         P.Int int ->
           D.fromInt int
-    P.Ctor _ "#0" [] ->
-      "()"
-    P.Ctor _ "#2" [a, b] ->
-      "( "
-        <> patternToDoc Unambiguous a
-        <> ", "
-        <> patternToDoc Unambiguous b
-        <> " )"
-    P.Ctor _ "#3" [a, b, c] ->
-      "( "
-        <> patternToDoc Unambiguous a
-        <> ", "
-        <> patternToDoc Unambiguous b
-        <> ", "
-        <> patternToDoc Unambiguous c
-        <> " )"
     P.Ctor _ name args ->
       let ctorDoc =
             D.hsep (D.fromName name : map (patternToDoc Arg) args)
@@ -144,14 +128,14 @@ patternToDoc context pattern =
       "[]"
     P.Array entries ->
       let entryDocs = map (patternToDoc Unambiguous) entries
-       in "[" <> D.hcat (List.intersperse "," entryDocs) <> "]"
+       in "[ " <> D.hcat (List.intersperse ", " entryDocs) <> " ]"
     P.Record fields
       | Map.size fields == 0 ->
           "{}"
     P.Record fields ->
       let fieldDocs = map recordFieldToDoc (Map.toList fields)
-       in "{" <> D.hcat (List.intersperse "," fieldDocs) <> "}"
+       in "{ " <> D.hcat (List.intersperse ", " fieldDocs) <> " }"
 
 recordFieldToDoc :: (Name.Name, P.Pattern) -> D.Doc
 recordFieldToDoc (name, pattern) =
-  D.fromName name <> ": " <> patternToDoc Unambiguous pattern
+  D.fromName name <> " = " <> patternToDoc Unambiguous pattern

@@ -255,9 +255,17 @@ isExhaustive matrix n =
                           let fieldNames = Map.keys baseRecord
 
                               isAltExhaustive fieldName =
-                                isExhaustive
-                                  (Maybe.mapMaybe (specializeRowByRecordField fieldName) matrix)
-                                  n
+                                map (asRecordPattern fieldName) $
+                                  isExhaustive
+                                    (Maybe.mapMaybe (specializeRowByRecordField fieldName) matrix)
+                                    n
+
+                              asRecordPattern fieldName ptn =
+                                case ptn of
+                                  firstValue : _ ->
+                                    [Record $ Map.singleton fieldName firstValue]
+                                  _ ->
+                                    ptn
                            in concatMap isAltExhaustive fieldNames
                 else
                   let alts@(Can.Union _ altList numAlts _) = snd (Map.findMin ctors)
@@ -331,10 +339,11 @@ isUseful matrix vector =
                 (Maybe.mapMaybe (specializeRowByArray (length arrayPatterns)) matrix)
                 (arrayPatterns ++ patterns)
             Record recordNamedPatterns ->
-              let recordBaseMap = collectRecordFieldsWithAnyPattern matrix
+              let recordBaseMap = collectRecordFieldsWithAnyPattern ([firstPattern] : matrix)
+                  recordPatternMap = Map.union recordNamedPatterns recordBaseMap
                in isUseful
                     (Maybe.mapMaybe (specializeRowByRecord recordBaseMap) matrix)
-                    (Map.elems recordNamedPatterns ++ patterns)
+                    (Map.elems recordPatternMap ++ patterns)
             Anything ->
               -- check if all alts appear in matrix
               case isComplete matrix of
@@ -516,6 +525,7 @@ collectCtorsHelp ctors row =
       ctors
 
 -- COLLECT RECORD FIELDS
+
 extractRecordPatterns :: [[Pattern]] -> Maybe (Map Name.Name Pattern)
 extractRecordPatterns matrix =
   if containsRecord matrix
