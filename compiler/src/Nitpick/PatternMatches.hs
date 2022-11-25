@@ -256,18 +256,16 @@ isExhaustive matrix n =
 
                               isAltExhaustive fieldName =
                                 map (asRecordPattern fieldName) $
-                                    isExhaustive
-                                      (Maybe.mapMaybe (specializeRowByRecordField fieldName) matrix)
-                                      n
+                                  isExhaustive
+                                    (Maybe.mapMaybe (specializeRowByRecordField fieldName) matrix)
+                                    n
 
                               asRecordPattern fieldName ptn =
-                                  case ptn of
-                                    firstValue : _ ->
-                                        [Record $ Map.singleton fieldName firstValue]
-
-                                    _ ->
-                                        ptn
-
+                                case ptn of
+                                  firstValue : _ ->
+                                    [Record $ Map.singleton fieldName firstValue]
+                                  _ ->
+                                    ptn
                            in concatMap isAltExhaustive fieldNames
                 else
                   let alts@(Can.Union _ altList numAlts _) = snd (Map.findMin ctors)
