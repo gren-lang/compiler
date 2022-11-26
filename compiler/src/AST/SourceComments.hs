@@ -7,7 +7,7 @@ data GREN_COMMENT
 data Comment
   = BlockComment (Utf8.Utf8 GREN_COMMENT)
   | LineComment (Utf8.Utf8 GREN_COMMENT)
-  deriving (Show)
+  deriving (Eq, Show)
 
 -- Module
 
@@ -52,5 +52,25 @@ data SubComments = SubComments
 data FxComments = FxComments
   { _cmdComments :: CmdComments,
     _subComments :: SubComments
+  }
+  deriving (Show)
+
+-- Import
+
+data ImportComments = ImportComments
+  { _afterImportKeyword :: [Comment],
+    _afterImportName :: [Comment]
+  }
+  deriving (Show)
+
+data ImportAliasComments = ImportAliasComments
+  { _afterAs :: [Comment],
+    _afterAliasName :: [Comment]
+  }
+  deriving (Eq, Show)
+
+data ImportExposingComments = ImportExposingComments
+  { _afterExposing :: [Comment],
+    _afterExposingListing :: [Comment]
   }
   deriving (Show)

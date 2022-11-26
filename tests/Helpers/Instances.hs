@@ -3,12 +3,9 @@
 
 module Helpers.Instances where
 
-import AST.Source qualified as Src
 import Data.String (IsString (..))
 import Data.Utf8 qualified as Utf8
 import Reporting.Error.Syntax qualified as E
-
-deriving instance Eq Src.Comment
 
 deriving instance Eq E.Space
 

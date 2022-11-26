@@ -257,7 +257,7 @@ attemptImport lines =
   let src = linesToByteString lines
       parser = P.specialize (\_ _ _ -> ()) PM.chompImport
    in case P.fromByteString parser (\_ _ -> ()) src of
-        Right (Src.Import (A.At _ name) _ _) ->
+        Right (Src.Import (A.At _ name) _ _ _ _) ->
           Done (Import name src)
         Left () ->
           ifFail lines (Import "ERR" src)

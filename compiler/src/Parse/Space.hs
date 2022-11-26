@@ -6,6 +6,7 @@ module Parse.Space
   ( Parser,
     --
     chomp,
+    chompIndentedAtLeast,
     chompAndCheckIndent,
     --
     checkIndent,
@@ -34,9 +35,13 @@ type Parser x a =
 -- CHOMP
 
 chomp :: (E.Space -> Row -> Col -> x) -> P.Parser x [Src.Comment]
-chomp toError =
+chomp =
+  chompIndentedAtLeast 0
+
+chompIndentedAtLeast :: Col -> (E.Space -> Row -> Col -> x) -> P.Parser x [Src.Comment]
+chompIndentedAtLeast requiredIndent toError =
   P.Parser $ \(P.State src pos end indent row col) cok _ cerr _ ->
-    let (# status, newPos, newRow, newCol #) = eatSpaces pos end row col []
+    let (# status, newPos, newRow, newCol #) = eatSpacesIndentedAtLeast requiredIndent pos end row col []
      in case status of
           Good comments ->
             let !newState = P.State src newPos end indent newRow newCol
@@ -72,7 +77,7 @@ checkFreshLine toError =
 chompAndCheckIndent :: (E.Space -> Row -> Col -> x) -> (Row -> Col -> x) -> P.Parser x [Src.Comment]
 chompAndCheckIndent toSpaceError toIndentError =
   P.Parser $ \(P.State src pos end indent row col) cok _ cerr _ ->
-    let (# status, newPos, newRow, newCol #) = eatSpaces pos end row col []
+    let (# status, newPos, newRow, newCol #) = eatSpacesIndentedAtLeast 0 pos end row col []
      in case status of
           Good comments ->
             if newCol > indent && newCol > 1
@@ -90,26 +95,28 @@ data Status
   | HasTab
   | EndlessMultiComment
 
-eatSpaces :: Ptr Word8 -> Ptr Word8 -> Row -> Col -> [Src.Comment] -> (# Status, Ptr Word8, Row, Col #)
-eatSpaces pos end row col comments =
+eatSpacesIndentedAtLeast :: Col -> Ptr Word8 -> Ptr Word8 -> Row -> Col -> [Src.Comment] -> (# Status, Ptr Word8, Row, Col #)
+eatSpacesIndentedAtLeast indent pos end row col comments =
   if pos >= end
     then (# Good (reverse comments), pos, row, col #)
     else case P.unsafeIndex pos of
       0x20 {-   -} ->
-        eatSpaces (plusPtr pos 1) end row (col + 1) comments
+        eatSpacesIndentedAtLeast indent (plusPtr pos 1) end row (col + 1) comments
       0x0A {- \n -} ->
-        eatSpaces (plusPtr pos 1) end (row + 1) 1 comments
+        eatSpacesIndentedAtLeast indent (plusPtr pos 1) end (row + 1) 1 comments
       0x7B {- { -} ->
-        eatMultiComment pos end row col comments
+        if col > indent
+          then eatMultiComment indent pos end row col comments
+          else (# Good (reverse comments), pos, row, col #)
       0x2D {- - -} ->
         let !pos1 = plusPtr pos 1
-         in if pos1 < end && P.unsafeIndex pos1 == 0x2D {- - -}
+         in if pos1 < end && col > indent && P.unsafeIndex pos1 == 0x2D {- - -}
               then
                 let !start = plusPtr pos 2
-                 in eatLineComment start start end row (col + 2) comments
+                 in eatLineComment indent start start end row (col + 2) comments
               else (# Good (reverse comments), pos, row, col #)
       0x0D {- \r -} ->
-        eatSpaces (plusPtr pos 1) end row col comments
+        eatSpacesIndentedAtLeast indent (plusPtr pos 1) end row col comments
       0x09 {- \t -} ->
         (# HasTab, pos, row, col #)
       _ ->
@@ -117,8 +124,8 @@ eatSpaces pos end row col comments =
 
 -- LINE COMMENTS
 
-eatLineComment :: Ptr Word8 -> Ptr Word8 -> Ptr Word8 -> Row -> Col -> [Src.Comment] -> (# Status, Ptr Word8, Row, Col #)
-eatLineComment start pos end row col comments =
+eatLineComment :: Col -> Ptr Word8 -> Ptr Word8 -> Ptr Word8 -> Row -> Col -> [Src.Comment] -> (# Status, Ptr Word8, Row, Col #)
+eatLineComment indent start pos end row col comments =
   if pos >= end
     then
       let !comment = Utf8.fromPtr start end
@@ -130,15 +137,15 @@ eatLineComment start pos end row col comments =
             then
               let !comment = Utf8.fromPtr start pos
                   !newComments = Src.LineComment comment : comments
-               in eatSpaces (plusPtr pos 1) end (row + 1) 1 newComments
+               in eatSpacesIndentedAtLeast indent (plusPtr pos 1) end (row + 1) 1 newComments
             else
               let !newPos = plusPtr pos (P.getCharWidth word)
-               in eatLineComment start newPos end row (col + 1) comments
+               in eatLineComment indent start newPos end row (col + 1) comments
 
 -- MULTI COMMENTS
 
-eatMultiComment :: Ptr Word8 -> Ptr Word8 -> Row -> Col -> [Src.Comment] -> (# Status, Ptr Word8, Row, Col #)
-eatMultiComment pos end row col comments =
+eatMultiComment :: Col -> Ptr Word8 -> Ptr Word8 -> Row -> Col -> [Src.Comment] -> (# Status, Ptr Word8, Row, Col #)
+eatMultiComment indent pos end row col comments =
   let !pos1 = plusPtr pos 1
       !pos2 = plusPtr pos 2
    in if pos2 >= end
@@ -152,7 +159,7 @@ eatMultiComment pos end row col comments =
                   let (# status, newPos, newRow, newCol #) =
                         eatMultiCommentHelp pos2 pos2 end row (col + 2) 1
                    in case status of
-                        MultiGood comment -> eatSpaces newPos end newRow newCol (Src.BlockComment comment : comments)
+                        MultiGood comment -> eatSpacesIndentedAtLeast indent newPos end newRow newCol (Src.BlockComment comment : comments)
                         MultiTab -> (# HasTab, newPos, newRow, newCol #)
                         MultiEndless -> (# EndlessMultiComment, pos, row, col #)
             else (# Good (reverse comments), pos, row, col #)

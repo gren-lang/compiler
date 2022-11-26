@@ -7,6 +7,7 @@ module Gren.Compiler.Imports
 where
 
 import AST.Source qualified as Src
+import AST.SourceComments qualified as SC
 import Data.Name qualified as Name
 import Gren.ModuleName qualified as ModuleName
 import Reporting.Annotation qualified as A
@@ -29,7 +30,8 @@ defaults =
 
 import_ :: ModuleName.Canonical -> Maybe Name.Name -> Src.Exposing -> Src.Import
 import_ (ModuleName.Canonical _ name) maybeAlias exposing =
-  Src.Import (A.At A.zero name) maybeAlias exposing
+  let maybeAliasWithComments = fmap (,(SC.ImportAliasComments [] [])) maybeAlias
+   in Src.Import (A.At A.zero name) maybeAliasWithComments exposing Nothing (SC.ImportComments [] [])
 
 -- EXPOSING
 

@@ -8,6 +8,7 @@
 module Gren.Format.Normalize (normalize) where
 
 import AST.Source qualified as Src
+import Data.List qualified as List
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Maybe (mapMaybe)
@@ -20,13 +21,17 @@ import Reporting.Annotation qualified as A
 normalize :: Parse.ProjectType -> Src.Module -> Src.Module
 normalize projectType module_ =
   module_
-    { Src._imports = mapMaybe (removeDefaultImports projectType) $ Src._imports module_
+    { Src._imports = List.sortOn importSortKey $ mapMaybe (removeDefaultImports projectType) $ Src._imports module_
     }
 
+importSortKey :: Src.Import -> Name
+importSortKey (Src.Import name _ _ _ _) =
+  A.toValue name
+
 removeDefaultImports :: Parse.ProjectType -> Src.Import -> Maybe Src.Import
-removeDefaultImports projectType import_@(Src.Import name alias exposing) =
+removeDefaultImports projectType import_@(Src.Import name alias exposing _ _) =
   case Map.lookup (A.toValue name) (defaultImports projectType) of
-    Just (Src.Import _ defAlias defExposing) ->
+    Just (Src.Import _ defAlias defExposing _ _) ->
       if alias == defAlias && exposingEq exposing defExposing
         then Nothing
         else Just import_

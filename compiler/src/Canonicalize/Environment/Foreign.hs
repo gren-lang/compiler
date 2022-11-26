@@ -68,7 +68,7 @@ toSafeImports (ModuleName.Canonical pkg _) imports =
     else imports
 
 isNormal :: Src.Import -> Bool
-isNormal (Src.Import (A.At _ name) maybeAlias _) =
+isNormal (Src.Import (A.At _ name) maybeAlias _ _ _) =
   if Name.isKernel name
     then case maybeAlias of
       Nothing -> False
@@ -78,9 +78,9 @@ isNormal (Src.Import (A.At _ name) maybeAlias _) =
 -- ADD IMPORTS
 
 addImport :: Map.Map ModuleName.Raw I.Interface -> State -> Src.Import -> Result i w State
-addImport ifaces (State vs ts cs bs qvs qts qcs) (Src.Import (A.At _ name) maybeAlias exposing) =
+addImport ifaces (State vs ts cs bs qvs qts qcs) (Src.Import (A.At _ name) maybeAlias exposing _ _) =
   let (I.Interface pkg defs unions aliases binops) = ifaces ! name
-      !prefix = maybe name id maybeAlias
+      !prefix = maybe name id (fmap fst maybeAlias)
       !home = ModuleName.Canonical pkg name
 
       !rawTypeInfo =

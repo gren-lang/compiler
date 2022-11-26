@@ -51,6 +51,77 @@ spec = do
                                formattedModuleBody
                              ]
 
+  describe "imports" $ do
+    let formattedModuleHeader = "module M exposing (..)\n"
+    let formattedModuleBody = "\n\nf =\n    {}"
+
+    it "formats already formatted" $
+      assertFormatted
+        [ formattedModuleHeader,
+          "import APlainImport",
+          "import BNamespace.QualifiedImport",
+          "import CAliasImport as C",
+          "import DExposingImport exposing (..)",
+          "import EAliasAndExposing as E exposing (..)",
+          formattedModuleBody
+        ]
+
+    it "sorts imports by name" $
+      [ formattedModuleHeader,
+        "import A.B",
+        "import A",
+        "import C as Z",
+        "import B",
+        formattedModuleBody
+      ]
+        `shouldFormatAs` [ formattedModuleHeader,
+                           "import A",
+                           "import A.B",
+                           "import B",
+                           "import C as Z",
+                           formattedModuleBody
+                         ]
+
+    it "formats comments" $
+      [ formattedModuleHeader,
+        "import{-A-}Module1{-B-}",
+        " {-C-}",
+        "import{-D-}Module2{-E-}as{-F-}M2{-G-}",
+        " {-H-}",
+        "import{-I-}Module3{-J-}exposing{-K-}(..){-L-}",
+        " {-M-}",
+        "import{-N-}Module4{-O-}as{-P-}M4{-Q-}exposing{-R-}(..){-S-}",
+        " {-T-}",
+        formattedModuleBody
+      ]
+        `shouldFormatAs` [ formattedModuleHeader,
+                           "import {- A -} Module1 {- B -} {- C -}",
+                           "import {- D -} Module2 {- E -} as {- F -} M2 {- G -} {- H -}",
+                           "import {- I -} Module3 {- J -} exposing {- K -} (..) {- L -} {- M -}",
+                           "import {- N -} Module4 {- O -} as {- P -} M4 {- Q -} exposing {- R -} (..) {- S -} {- T -}",
+                           formattedModuleBody
+                         ]
+    it "does not attach unindented comments to the import line" $
+      -- TODO: eventually all these comments should be retained instead of dropped
+      [ formattedModuleHeader,
+        "import Module1",
+        "{-A-}",
+        "import Module2WithAs as M2",
+        "{-B-}",
+        "import Module3WithExposing exposing (..)",
+        "{-C-}",
+        "import Module4WithAsAndExposing as M4 exposing (..)",
+        "{-D-}",
+        formattedModuleBody
+      ]
+        `shouldFormatAs` [ formattedModuleHeader,
+                           "import Module1",
+                           "import Module2WithAs as M2",
+                           "import Module3WithExposing exposing (..)",
+                           "import Module4WithAsAndExposing as M4 exposing (..)",
+                           formattedModuleBody
+                         ]
+
   describe "top-level definition" $ do
     it "formats already formatted" $
       assertFormattedModuleBody
@@ -101,8 +172,8 @@ shouldFormatAs inputLines expectedOutputLines =
       expectedOutput = LazyText.unlines $ fmap LazyText.fromStrict expectedOutputLines
       actualOutput = LTE.decodeUtf8 . Builder.toLazyByteString <$> Format.formatByteString Parse.Application input
    in case actualOutput of
-        Left _ ->
-          expectationFailure "shouldFormatAs: failed to format"
+        Left err ->
+          expectationFailure ("shouldFormatAs: failed to format: " <> show err)
         Right actualModuleBody ->
           actualModuleBody `shouldBe` expectedOutput
 

@@ -15,6 +15,7 @@ module Gren.Kernel
 where
 
 import AST.Source qualified as Src
+import AST.SourceComments qualified as SC
 import Control.Monad (liftM, liftM2)
 import Data.Binary (Binary, get, getWord8, put, putWord8)
 import Data.ByteString.Internal qualified as B
@@ -84,7 +85,7 @@ parser :: Pkg.Name -> Foreigns -> Parser () Content
 parser pkg foreigns =
   do
     word2 0x2F 0x2A {-/*-} toError
-    Space.chomp ignoreError
+    _ <- Space.chomp ignoreError
     Space.checkFreshLine toError
     imports <- specialize ignoreError (Module.chompImports [])
     word2 0x2A 0x2F toError -- /
@@ -218,7 +219,7 @@ toVarTable pkg foreigns imports =
   List.foldl' (addImport pkg foreigns) Map.empty imports
 
 addImport :: Pkg.Name -> Foreigns -> VarTable -> Src.Import -> VarTable
-addImport pkg foreigns vtable (Src.Import (A.At _ importName) maybeAlias exposing) =
+addImport pkg foreigns vtable (Src.Import (A.At _ importName) maybeAlias exposing _ _) =
   if Name.isKernel importName
     then case maybeAlias of
       Just _ ->
@@ -235,10 +236,10 @@ addImport pkg foreigns vtable (Src.Import (A.At _ importName) maybeAlias exposin
             Map.insert (Name.sepBy 0x5F {-_-} prefix name) (GrenVar home name) table
        in List.foldl' add vtable (toNames exposing)
 
-toPrefix :: Name.Name -> Maybe Name.Name -> Name.Name
+toPrefix :: Name.Name -> Maybe (Name.Name, SC.ImportAliasComments) -> Name.Name
 toPrefix home maybeAlias =
   case maybeAlias of
-    Just alias ->
+    Just (alias, _) ->
       alias
     Nothing ->
       if Name.hasDot home

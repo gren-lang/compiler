@@ -30,7 +30,7 @@ parse expectedAlias str =
         case result of
           Right imp ->
             case Src._alias imp of
-              Just alias ->
+              Just (alias, _) ->
                 Name.toChars alias == expectedAlias
               Nothing ->
                 False
