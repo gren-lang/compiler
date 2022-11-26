@@ -5,7 +5,8 @@ module Gren.Platform
     --
     encode,
     decoder,
-    fromString,
+    fromChars,
+    toChars,
   )
 where
 
@@ -13,7 +14,6 @@ import Data.Binary (Binary, get, getWord8, put, putWord8)
 import Data.Utf8 qualified as Utf8
 import Json.Decode qualified as D
 import Json.Encode qualified as E
-import Reporting.Exit qualified as Exit
 
 data Platform
   = Common
@@ -36,21 +36,28 @@ encode platform =
     Browser -> E.chars "browser"
     Node -> E.chars "node"
 
-decoder :: D.Decoder Exit.OutlineProblem Platform
-decoder =
+decoder :: a -> D.Decoder a Platform
+decoder badPlatformError =
   do
     platformStr <- D.string
-    case fromString $ Utf8.toChars platformStr of
+    case fromChars $ Utf8.toChars platformStr of
       Just platform -> D.succeed platform
-      Nothing -> D.failure Exit.OP_BadPlatform
+      Nothing -> D.failure badPlatformError
 
-fromString :: String -> Maybe Platform
-fromString value =
+fromChars :: [Char] -> Maybe Platform
+fromChars value =
   case value of
     "common" -> Just Common
     "browser" -> Just Browser
     "node" -> Just Node
     _ -> Nothing
+
+toChars :: Platform -> [Char]
+toChars value =
+  case value of
+    Common -> "common"
+    Browser -> "browser"
+    Node -> "node"
 
 -- BINARY
 

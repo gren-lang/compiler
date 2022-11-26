@@ -90,7 +90,7 @@ initPlatformParser =
   Parser
     { _singular = "platform",
       _plural = "platforms",
-      _parser = Platform.fromString,
+      _parser = Platform.fromChars,
       _suggest = \_ -> return ["common", "browser", "node"],
       _examples = \_ -> return ["common", "browser", "node"]
     }
