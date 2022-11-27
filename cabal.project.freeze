@@ -62,4 +62,4 @@ constraints: any.HUnit ==1.6.2.0,
              any.vector ==0.13.0.0,
              vector +boundschecks -internalchecks -unsafechecks -wall,
              any.vector-stream ==0.1.0.0
-index-state: hackage.haskell.org 2022-10-14T01:36:57Z
+index-state: hackage.haskell.org 2022-11-21T04:09:33Z

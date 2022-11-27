@@ -173,10 +173,15 @@ addVersion :: Goals -> Pkg.Name -> V.Version -> Solver Goals
 addVersion (Goals rootPlatform pending solved) name version =
   do
     (Constraints gren platform deps) <- getConstraints name version
-    if C.goodGren gren && Platform.compatible rootPlatform platform
-      then do
-        newPending <- foldM (addConstraint name solved) pending (Map.toList deps)
-        return (Goals rootPlatform newPending (Map.insert name version solved))
+    if C.goodGren gren
+      then
+        if Platform.compatible rootPlatform platform
+          then do
+            newPending <- foldM (addConstraint name solved) pending (Map.toList deps)
+            return (Goals rootPlatform newPending (Map.insert name version solved))
+          else
+            solverError $
+              Exit.SolverIncompatiblePlatforms name rootPlatform platform
       else backtrack
 
 addConstraint :: Pkg.Name -> Map.Map Pkg.Name V.Version -> Map.Map Pkg.Name C.Constraint -> (Pkg.Name, C.Constraint) -> Solver (Map.Map Pkg.Name C.Constraint)
