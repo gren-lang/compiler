@@ -269,14 +269,14 @@ crawlFile env@(Env _ root projectType _ _ buildID _ _) mvar docsNeed expectedNam
     case Parse.fromByteString projectType source of
       Left err ->
         return $ SBadSyntax path time source err
-      Right modul@(Src.Module maybeActualName _ _ imports values _ _ _ _ _) ->
+      Right modul@(Src.Module maybeActualName _ _ imports values _ _ _ _ _ _) ->
         case maybeActualName of
           Nothing ->
             return $ SBadSyntax path time source (Syntax.ModuleNameUnspecified expectedName)
           Just name@(A.At _ actualName) ->
             if expectedName == actualName
               then
-                let deps = map Src.getImportName imports
+                let deps = map (Src.getImportName . snd) imports
                     local = Details.Local path time deps (any (isMain . snd) values) lastChange buildID
                  in crawlDeps env mvar deps (SChanged local source modul docsNeed)
               else return $ SBadSyntax path time source (Syntax.ModuleNameMismatch expectedName name)
@@ -335,11 +335,11 @@ checkModule env@(Env _ root projectType _ _ _ _ _) foreigns resultsMVar name sta
                 RProblem $
                   Error.Module name path time source $
                     case Parse.fromByteString projectType source of
-                      Right (Src.Module _ _ _ imports _ _ _ _ _ _) ->
+                      Right (Src.Module _ _ _ imports _ _ _ _ _ _ _) ->
                         Error.BadImports (toImportErrors env results imports problems)
                       Left err ->
                         Error.BadSyntax err
-    SChanged local@(Details.Local path time deps _ _ lastCompile) source modul@(Src.Module _ _ _ imports _ _ _ _ _ _) docsNeed ->
+    SChanged local@(Details.Local path time deps _ _ lastCompile) source modul@(Src.Module _ _ _ imports _ _ _ _ _ _ _) docsNeed ->
       do
         results <- readMVar resultsMVar
         depsStatus <- checkDeps root results deps lastCompile
@@ -430,7 +430,7 @@ checkDepsHelp root results deps new same cached importProblems isBlocked lastDep
 
 -- TO IMPORT ERROR
 
-toImportErrors :: Env -> ResultDict -> [Src.Import] -> NE.List (ModuleName.Raw, Import.Problem) -> NE.List Import.Error
+toImportErrors :: Env -> ResultDict -> [([Src.Comment], Src.Import)] -> NE.List (ModuleName.Raw, Import.Problem) -> NE.List Import.Error
 toImportErrors (Env _ _ _ _ _ _ locals foreigns) results imports problems =
   let knownModules =
         Set.unions
@@ -440,10 +440,10 @@ toImportErrors (Env _ _ _ _ _ _ locals foreigns) results imports problems =
           ]
 
       unimportedModules =
-        Set.difference knownModules (Set.fromList (map Src.getImportName imports))
+        Set.difference knownModules (Set.fromList (map (Src.getImportName . snd) imports))
 
       regionDict =
-        Map.fromList (map (\(Src.Import (A.At region name) _ _ _ _) -> (name, region)) imports)
+        Map.fromList (map (\(_, Src.Import (A.At region name) _ _ _ _) -> (name, region)) imports)
 
       toError (name, problem) =
         Import.Error (regionDict ! name) name unimportedModules problem
@@ -760,11 +760,11 @@ fromRepl root details source =
     case Parse.fromByteString projectType source of
       Left syntaxError ->
         return $ Left $ Exit.ReplBadInput source $ Error.BadSyntax syntaxError
-      Right modul@(Src.Module _ _ _ imports _ _ _ _ _ _) ->
+      Right modul@(Src.Module _ _ _ imports _ _ _ _ _ _ _) ->
         do
           dmvar <- Details.loadInterfaces root details
 
-          let deps = map Src.getImportName imports
+          let deps = map (Src.getImportName . snd) imports
           mvar <- newMVar Map.empty
           crawlDeps env mvar deps ()
 
@@ -785,7 +785,7 @@ fromRepl root details source =
                 finalizeReplArtifacts env source modul depsStatus resultMVars results
 
 finalizeReplArtifacts :: Env -> B.ByteString -> Src.Module -> DepsStatus -> ResultDict -> Map.Map ModuleName.Raw Result -> IO (Either Exit.Repl ReplArtifacts)
-finalizeReplArtifacts env@(Env _ root projectType platform _ _ _ _) source modul@(Src.Module _ _ _ imports _ _ _ _ _ _) depsStatus resultMVars results =
+finalizeReplArtifacts env@(Env _ root projectType platform _ _ _ _) source modul@(Src.Module _ _ _ imports _ _ _ _ _ _ _) depsStatus resultMVars results =
   let pkg =
         projectTypeToPkg projectType
 
@@ -951,9 +951,9 @@ crawlRoot env@(Env _ _ projectType _ _ buildID _ _) mvar root =
         time <- File.getTime path
         source <- File.readUtf8 path
         case Parse.fromByteString projectType source of
-          Right modul@(Src.Module _ _ _ imports values _ _ _ _ _) ->
+          Right modul@(Src.Module _ _ _ imports values _ _ _ _ _ _) ->
             do
-              let deps = map Src.getImportName imports
+              let deps = map (Src.getImportName . snd) imports
               let local = Details.Local path time deps (any (isMain . snd) values) buildID buildID
               crawlDeps env mvar deps (SOutsideOk local source modul)
           Left syntaxError ->
@@ -976,7 +976,7 @@ checkRoot env@(Env _ root _ _ _ _ _ _) results rootStatus =
       return (RInside name)
     SOutsideErr err ->
       return (ROutsideErr err)
-    SOutsideOk local@(Details.Local path time deps _ _ lastCompile) source modul@(Src.Module _ _ _ imports _ _ _ _ _ _) ->
+    SOutsideOk local@(Details.Local path time deps _ _ lastCompile) source modul@(Src.Module _ _ _ imports _ _ _ _ _ _ _) ->
       do
         depsStatus <- checkDeps root results deps lastCompile
         case depsStatus of

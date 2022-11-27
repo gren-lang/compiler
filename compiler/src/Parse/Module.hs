@@ -16,6 +16,7 @@ where
 import AST.Source qualified as Src
 import AST.SourceComments qualified as SC
 import Data.ByteString qualified as BS
+import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.Name qualified as Name
 import Gren.Compiler.Imports qualified as Imports
 import Gren.Package qualified as Pkg
@@ -59,7 +60,7 @@ isKernel projectType =
 
 data Module = Module
   { _header :: Maybe Header,
-    _imports :: [Src.Import],
+    _imports :: [([Src.Comment], Src.Import)],
     _infixes :: [A.Located Src.Infix],
     _decls :: [Decl.Decl]
   }
@@ -68,24 +69,29 @@ chompModule :: ProjectType -> Parser E.Module Module
 chompModule projectType =
   do
     header <- chompHeader
-    imports <- chompImports (if isCore projectType then [] else Imports.defaults)
+    let defaultImports = (if isCore projectType then [] else Imports.defaults)
+    (imports, commentsAfterImports) <- chompImports (fmap ([],) defaultImports) []
     infixes <- if isKernel projectType then chompInfixes [] else return []
-    decls <- specialize E.Declarations $ chompDecls []
+    let initialDecls =
+          case nonEmpty commentsAfterImports of
+            Nothing -> []
+            Just comments -> [Decl.TopLevelComments comments]
+    decls <- specialize E.Declarations $ chompDecls initialDecls
     return (Module header imports infixes decls)
 
 -- CHECK MODULE
 
 checkModule :: ProjectType -> Module -> Either E.Error Src.Module
 checkModule projectType (Module maybeHeader imports infixes decls) =
-  let (values, unions, aliases, ports) = categorizeDecls [] [] [] [] 0 decls
+  let (values, unions, aliases, ports, topLevelComments) = categorizeDecls [] [] [] [] [] 0 decls
    in case maybeHeader of
         Just (Header name effects exports docs comments) ->
-          Src.Module (Just name) exports (toDocs docs decls) imports values unions aliases infixes comments
+          Src.Module (Just name) exports (toDocs docs decls) imports values unions aliases infixes topLevelComments comments
             <$> checkEffects projectType ports effects
         Nothing ->
           let comments = SC.HeaderComments [] [] [] [] [] []
            in Right $
-                Src.Module Nothing (A.At A.one Src.Open) (Src.NoDocs A.one) imports values unions aliases infixes comments $
+                Src.Module Nothing (A.At A.one Src.Open) (Src.NoDocs A.one) imports values unions aliases infixes topLevelComments comments $
                   case ports of
                     [] -> Src.NoEffects
                     _ : _ -> Src.Ports ports (SC.PortsComments [])
@@ -121,23 +127,26 @@ categorizeDecls ::
   [(Src.SourceOrder, A.Located Src.Union)] ->
   [(Src.SourceOrder, A.Located Src.Alias)] ->
   [(Src.SourceOrder, Src.Port)] ->
+  [(Src.SourceOrder, NonEmpty Src.Comment)] ->
   Src.SourceOrder ->
   [Decl.Decl] ->
   ( [(Src.SourceOrder, A.Located Src.Value)],
     [(Src.SourceOrder, A.Located Src.Union)],
     [(Src.SourceOrder, A.Located Src.Alias)],
-    [(Src.SourceOrder, Src.Port)]
+    [(Src.SourceOrder, Src.Port)],
+    [(Src.SourceOrder, NonEmpty Src.Comment)]
   )
-categorizeDecls values unions aliases ports index decls =
+categorizeDecls values unions aliases ports topLevelComments index decls =
   case decls of
     [] ->
-      (values, unions, aliases, ports)
+      (values, unions, aliases, ports, topLevelComments)
     decl : otherDecls ->
       case decl of
-        Decl.Value _ value -> categorizeDecls ((index, value) : values) unions aliases ports (index + 1) otherDecls
-        Decl.Union _ union -> categorizeDecls values ((index, union) : unions) aliases ports (index + 1) otherDecls
-        Decl.Alias _ alias -> categorizeDecls values unions ((index, alias) : aliases) ports (index + 1) otherDecls
-        Decl.Port _ port_ -> categorizeDecls values unions aliases ((index, port_) : ports) (index + 1) otherDecls
+        Decl.Value _ value -> categorizeDecls ((index, value) : values) unions aliases ports topLevelComments (index + 1) otherDecls
+        Decl.Union _ union -> categorizeDecls values ((index, union) : unions) aliases ports topLevelComments (index + 1) otherDecls
+        Decl.Alias _ alias -> categorizeDecls values unions ((index, alias) : aliases) ports topLevelComments (index + 1) otherDecls
+        Decl.Port _ port_ -> categorizeDecls values unions aliases ((index, port_) : ports) topLevelComments (index + 1) otherDecls
+        Decl.TopLevelComments comments -> categorizeDecls values unions aliases ports ((index, comments) : topLevelComments) (index + 1) otherDecls
 
 -- TO DOCS
 
@@ -145,21 +154,22 @@ toDocs :: Either A.Region Src.DocComment -> [Decl.Decl] -> Src.Docs
 toDocs comment decls =
   case comment of
     Right overview ->
-      Src.YesDocs overview (getComments decls [])
+      Src.YesDocs overview (getDocComments decls [])
     Left region ->
       Src.NoDocs region
 
-getComments :: [Decl.Decl] -> [(Name.Name, Src.DocComment)] -> [(Name.Name, Src.DocComment)]
-getComments decls comments =
+getDocComments :: [Decl.Decl] -> [(Name.Name, Src.DocComment)] -> [(Name.Name, Src.DocComment)]
+getDocComments decls comments =
   case decls of
     [] ->
       comments
     decl : otherDecls ->
       case decl of
-        Decl.Value c (A.At _ (Src.Value n _ _ _)) -> getComments otherDecls (addComment c n comments)
-        Decl.Union c (A.At _ (Src.Union n _ _)) -> getComments otherDecls (addComment c n comments)
-        Decl.Alias c (A.At _ (Src.Alias n _ _)) -> getComments otherDecls (addComment c n comments)
-        Decl.Port c (Src.Port n _) -> getComments otherDecls (addComment c n comments)
+        Decl.Value c (A.At _ (Src.Value n _ _ _)) -> getDocComments otherDecls (addComment c n comments)
+        Decl.Union c (A.At _ (Src.Union n _ _)) -> getDocComments otherDecls (addComment c n comments)
+        Decl.Alias c (A.At _ (Src.Alias n _ _)) -> getDocComments otherDecls (addComment c n comments)
+        Decl.Port c (Src.Port n _) -> getDocComments otherDecls (addComment c n comments)
+        Decl.TopLevelComments _ -> getDocComments otherDecls comments
 
 addComment :: Maybe Src.DocComment -> A.Located Name.Name -> [(Name.Name, Src.DocComment)] -> [(Name.Name, Src.DocComment)]
 addComment maybeComment (A.At _ name) comments =
@@ -181,13 +191,17 @@ freshLine toFreshLineError =
 chompDecls :: [Decl.Decl] -> Parser E.Decl [Decl.Decl]
 chompDecls decls =
   do
-    (decl, _) <- Decl.declaration
+    ((decl, commentsAfterDecl), _) <- Decl.declaration
+    let newDecls =
+          case nonEmpty commentsAfterDecl of
+            Nothing -> decl : decls
+            Just comments -> Decl.TopLevelComments comments : decl : decls
     oneOfWithFallback
       [ do
           Space.checkFreshLine E.DeclStart
-          chompDecls (decl : decls)
+          chompDecls newDecls
       ]
-      (reverse (decl : decls))
+      (reverse newDecls)
 
 chompInfixes :: [A.Located Src.Infix] -> Parser E.Module [A.Located Src.Infix]
 chompInfixes infixes =
@@ -370,31 +384,32 @@ spaces_em =
 
 -- IMPORTS
 
-chompImports :: [Src.Import] -> Parser E.Module [Src.Import]
-chompImports is =
+chompImports :: [([Src.Comment], Src.Import)] -> [Src.Comment] -> Parser E.Module ([([Src.Comment], Src.Import)], [Src.Comment])
+chompImports is trailingComments =
   oneOfWithFallback
     [ do
-        i <- chompImport
-        chompImports (i : is)
+        (i, commentsAfterI) <- chompImport
+        chompImports ((trailingComments, i) : is) commentsAfterI
     ]
-    (reverse is)
+    (reverse is, trailingComments)
 
-chompImport :: Parser E.Module Src.Import
+chompImport :: Parser E.Module (Src.Import, [Src.Comment])
 chompImport =
   do
     Keyword.import_ E.ImportStart
     commentsAfterImportKeyword <- Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentName
     name@(A.At (A.Region _ end) _) <- addLocation (Var.moduleName E.ImportName)
     commentsAfterName <- Space.chompIndentedAtLeast 1 E.ModuleSpace
-    commentsAfterImportLine <- Space.chomp E.ModuleSpace
-    let comments = SC.ImportComments commentsAfterImportKeyword commentsAfterName
+    outdentedComments <- Space.chomp E.ModuleSpace
     oneOf
       E.ImportEnd
       [ do
           Space.checkFreshLine E.ImportEnd
-          return $ Src.Import name Nothing (Src.Explicit []) Nothing comments,
+          let comments = SC.ImportComments commentsAfterImportKeyword commentsAfterName
+          return $ (Src.Import name Nothing (Src.Explicit []) Nothing comments, outdentedComments),
         do
           Space.checkIndent end E.ImportEnd
+          let comments = SC.ImportComments commentsAfterImportKeyword (commentsAfterName ++ outdentedComments)
           oneOf
             E.ImportAs
             [ chompAs name comments,
@@ -402,7 +417,7 @@ chompImport =
             ]
       ]
 
-chompAs :: A.Located Name.Name -> SC.ImportComments -> Parser E.Module Src.Import
+chompAs :: A.Located Name.Name -> SC.ImportComments -> Parser E.Module (Src.Import, [Src.Comment])
 chompAs name comments =
   do
     Keyword.as_ E.ImportAs
@@ -410,29 +425,29 @@ chompAs name comments =
     alias <- Var.moduleName E.ImportAlias
     end <- getPosition
     commentsAfterAliasName <- Space.chompIndentedAtLeast 1 E.ModuleSpace
-    commentsAfterImportLine <- Space.chomp E.ModuleSpace
-    let aliasComments = SC.ImportAliasComments commentsAfterAs commentsAfterAliasName
-    let aliasWithComments = Just (alias, aliasComments)
+    outdentedComments <- Space.chomp E.ModuleSpace
     oneOf
       E.ImportEnd
       [ do
           Space.checkFreshLine E.ImportEnd
-          return $ Src.Import name aliasWithComments (Src.Explicit []) Nothing comments,
+          let aliasComments = SC.ImportAliasComments commentsAfterAs commentsAfterAliasName
+          return (Src.Import name (Just (alias, aliasComments)) (Src.Explicit []) Nothing comments, outdentedComments),
         do
           Space.checkIndent end E.ImportEnd
-          chompExposing name aliasWithComments comments
+          let aliasComments = SC.ImportAliasComments commentsAfterAs (commentsAfterAliasName <> outdentedComments)
+          chompExposing name (Just (alias, aliasComments)) comments
       ]
 
-chompExposing :: A.Located Name.Name -> Maybe (Name.Name, SC.ImportAliasComments) -> SC.ImportComments -> Parser E.Module Src.Import
+chompExposing :: A.Located Name.Name -> Maybe (Name.Name, SC.ImportAliasComments) -> SC.ImportComments -> Parser E.Module (Src.Import, [Src.Comment])
 chompExposing name maybeAlias comments =
   do
     Keyword.exposing_ E.ImportExposing
     commentsAfterExposing <- Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentExposingArray
     exposed <- specialize E.ImportExposingArray exposing
     commentsAfterListing <- Space.chompIndentedAtLeast 1 E.ModuleSpace
-    commentsAfterImportLine <- freshLine E.ImportEnd
+    outdentedComments <- freshLine E.ImportEnd
     let exposingComments = SC.ImportExposingComments commentsAfterExposing commentsAfterListing
-    return $ Src.Import name maybeAlias exposed (Just exposingComments) comments
+    return (Src.Import name maybeAlias exposed (Just exposingComments) comments, outdentedComments)
 
 -- LISTING
 

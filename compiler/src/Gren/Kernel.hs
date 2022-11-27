@@ -87,7 +87,7 @@ parser pkg foreigns =
     word2 0x2F 0x2A {-/*-} toError
     _ <- Space.chomp ignoreError
     Space.checkFreshLine toError
-    imports <- specialize ignoreError (Module.chompImports [])
+    imports <- fmap snd . fst <$> specialize ignoreError (Module.chompImports [] [])
     word2 0x2A 0x2F toError -- /
     chunks <- parseChunks (toVarTable pkg foreigns imports) Map.empty Map.empty
     return (Content imports chunks)

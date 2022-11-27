@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 -- Temporary while implementing gren format
 {-# OPTIONS_GHC -Wno-error=unused-do-bind #-}
+{-# OPTIONS_GHC -Wno-error=unused-matches #-}
 
 module Parse.Expression
   ( expression,
@@ -79,25 +80,25 @@ parenthesizedExpr start@(A.Position row col) =
                       word1 0x29 {-)-} E.ParenthesizedOperatorClose
                       addEnd start (Src.Op op),
                     do
-                      (comments2, (expr, end)) <-
+                      ((expr, commentsAfter), end) <-
                         specialize E.ParenthesizedExpr $
                           do
                             negatedExpr@(A.At (A.Region _ end) _) <- term
-                            comments2_ <- Space.chomp E.Space
+                            commentsAfterTerm <- Space.chomp E.Space
                             let exprStart = A.Position row (col + 2)
                             let expr = A.at exprStart end (Src.Negate negatedExpr)
-                            (,) comments2_ <$> chompExprEnd exprStart (State [] expr [] end)
+                            chompExprEnd exprStart (State [] expr [] end commentsAfterTerm)
                       Space.checkIndent end E.ParenthesizedIndentEnd
                       word1 0x29 {-)-} E.ParenthesizedOperatorClose
-                      addEnd start (Src.Parens comments1 expr comments2)
+                      addEnd start (Src.Parens comments1 expr commentsAfter)
                   ]
               else do
                 word1 0x29 {-)-} E.ParenthesizedOperatorClose
                 addEnd start (Src.Op op),
           do
-            (expr, _) <- specialize E.ParenthesizedExpr expression
+            ((expr, commentsAfter), _) <- specialize E.ParenthesizedExpr expression
             word1 0x29 {-)-} E.ParenthesizedEnd
-            addEnd start (Src.Parens comments1 expr [])
+            addEnd start (Src.Parens comments1 expr commentsAfter)
         ]
 
 accessor :: A.Position -> Parser E.Expr Src.Expr
@@ -145,7 +146,7 @@ array start =
       oneOf
         E.ArrayOpen
         [ do
-            (entry, end) <- specialize E.ArrayExpr expression
+            ((entry, commentsAfterEntry), end) <- specialize E.ArrayExpr expression
             Space.checkIndent end E.ArrayIndentEnd
             chompArrayEnd start [entry],
           do
@@ -160,7 +161,7 @@ chompArrayEnd start entries =
     [ do
         word1 0x2C {-,-} E.ArrayEnd
         Space.chompAndCheckIndent E.ArraySpace E.ArrayIndentExpr
-        (entry, end) <- specialize E.ArrayExpr expression
+        ((entry, commentsAfterEntry), end) <- specialize E.ArrayExpr expression
         Space.checkIndent end E.ArrayIndentEnd
         chompArrayEnd start (entry : entries),
       do
@@ -194,7 +195,7 @@ record start =
                 do
                   word1 0x3D {-=-} E.RecordEquals
                   Space.chompAndCheckIndent E.RecordSpace E.RecordIndentExpr
-                  (value, end) <- specialize E.RecordExpr expression
+                  ((value, commentsAfterValue), end) <- specialize E.RecordExpr expression
                   Space.checkIndent end E.RecordIndentEnd
                   case expr of
                     A.At exprRegion (Src.Var Src.LowVar name) -> do
@@ -229,13 +230,13 @@ chompField =
     Space.chompAndCheckIndent E.RecordSpace E.RecordIndentEquals
     word1 0x3D {-=-} E.RecordEquals
     Space.chompAndCheckIndent E.RecordSpace E.RecordIndentExpr
-    (value, end) <- specialize E.RecordExpr expression
+    ((value, commentsAfter), end) <- specialize E.RecordExpr expression
     Space.checkIndent end E.RecordIndentEnd
     return (key, value)
 
 -- EXPRESSIONS
 
-expression :: Space.Parser E.Expr Src.Expr
+expression :: Space.Parser E.Expr (Src.Expr, [Src.Comment])
 expression =
   do
     start <- getPosition
@@ -248,27 +249,28 @@ expression =
         do
           expr <- possiblyNegativeTerm start
           end <- getPosition
-          Space.chomp E.Space
-          chompExprEnd start (State [] expr [] end)
+          commentsAfter <- Space.chomp E.Space
+          chompExprEnd start (State [] expr [] end commentsAfter)
       ]
 
 data State = State
-  { _ops :: ![(Src.Expr, A.Located Name.Name)],
+  { _ops :: ![(Src.Expr, [Src.Comment], A.Located Name.Name)],
     _expr :: !Src.Expr,
-    _args :: ![Src.Expr],
-    _end :: !A.Position
+    _args :: ![([Src.Comment], Src.Expr)],
+    _end :: !A.Position,
+    _commentsAfter :: [Src.Comment]
   }
 
-chompExprEnd :: A.Position -> State -> Space.Parser E.Expr Src.Expr
-chompExprEnd start (State ops expr args end) =
+chompExprEnd :: A.Position -> State -> Space.Parser E.Expr (Src.Expr, [Src.Comment])
+chompExprEnd start (State ops expr args end commentsBefore) =
   oneOfWithFallback
     [ -- argument
       do
         Space.checkIndent end E.Start
         arg <- term
         newEnd <- getPosition
-        Space.chomp E.Space
-        chompExprEnd start (State ops expr (arg : args) newEnd),
+        commentsAfter <- Space.chomp E.Space
+        chompExprEnd start (State ops expr ((commentsBefore, arg) : args) newEnd commentsAfter),
       -- operator
       do
         Space.checkIndent end E.Start
@@ -280,9 +282,9 @@ chompExprEnd start (State ops expr args end) =
           do
             negatedExpr <- term
             newEnd <- getPosition
-            Space.chomp E.Space
+            commentsAfter <- Space.chomp E.Space
             let arg = A.at opStart newEnd (Src.Negate negatedExpr)
-            chompExprEnd start (State ops expr (arg : args) newEnd)
+            chompExprEnd start (State ops expr ((commentsBefore, arg) : args) newEnd commentsAfter)
           else
             let err = E.OperatorRight opName
              in oneOf
@@ -291,12 +293,12 @@ chompExprEnd start (State ops expr args end) =
                     do
                       newExpr <- possiblyNegativeTerm newStart
                       newEnd <- getPosition
-                      Space.chomp E.Space
-                      let newOps = (toCall expr args, op) : ops
-                      chompExprEnd start (State newOps newExpr [] newEnd),
+                      commentsAfter <- Space.chomp E.Space
+                      let newOps = (toCall expr args, commentsBefore, op) : ops
+                      chompExprEnd start (State newOps newExpr [] newEnd commentsAfter),
                     -- final term
                     do
-                      (newLast, newEnd) <-
+                      ((newLast, commentsAfter), newEnd) <-
                         oneOf
                           err
                           [ let_ newStart,
@@ -304,19 +306,21 @@ chompExprEnd start (State ops expr args end) =
                             if_ newStart,
                             function newStart
                           ]
-                      let newOps = (toCall expr args, op) : ops
+                      let newOps = (toCall expr args, commentsBefore, op) : ops
                       let finalExpr = Src.Binops (reverse newOps) newLast
-                      return (A.at start newEnd finalExpr, newEnd)
+                      return ((A.at start newEnd finalExpr, commentsAfter), newEnd)
                   ]
     ]
     -- done
     ( case ops of
         [] ->
-          ( toCall expr args,
+          ( (toCall expr args, commentsBefore),
             end
           )
         _ ->
-          ( A.at start end (Src.Binops (reverse ops) (toCall expr args)),
+          ( ( A.at start end (Src.Binops (reverse ops) (toCall expr args)),
+              commentsBefore
+            ),
             end
           )
     )
@@ -332,30 +336,30 @@ possiblyNegativeTerm start =
       term
     ]
 
-toCall :: Src.Expr -> [Src.Expr] -> Src.Expr
+toCall :: Src.Expr -> [([Src.Comment], Src.Expr)] -> Src.Expr
 toCall func revArgs =
   case revArgs of
     [] ->
       func
-    lastArg : _ ->
+    (_, lastArg) : _ ->
       A.merge func lastArg (Src.Call func (reverse revArgs))
 
 -- IF EXPRESSION
 
-if_ :: A.Position -> Space.Parser E.Expr Src.Expr
+if_ :: A.Position -> Space.Parser E.Expr (Src.Expr, [Src.Comment])
 if_ start =
   inContext E.If (Keyword.if_ E.Start) $
     chompIfEnd start []
 
-chompIfEnd :: A.Position -> [(Src.Expr, Src.Expr)] -> Space.Parser E.If Src.Expr
+chompIfEnd :: A.Position -> [(Src.Expr, Src.Expr)] -> Space.Parser E.If (Src.Expr, [Src.Comment])
 chompIfEnd start branches =
   do
     Space.chompAndCheckIndent E.IfSpace E.IfIndentCondition
-    (condition, condEnd) <- specialize E.IfCondition expression
+    ((condition, commentsAfterCondition), condEnd) <- specialize E.IfCondition expression
     Space.checkIndent condEnd E.IfIndentThen
     Keyword.then_ E.IfThen
     Space.chompAndCheckIndent E.IfSpace E.IfIndentThenBranch
-    (thenBranch, thenEnd) <- specialize E.IfThenBranch expression
+    ((thenBranch, commentsAfterThen), thenEnd) <- specialize E.IfThenBranch expression
     Space.checkIndent thenEnd E.IfIndentElse
     Keyword.else_ E.IfElse
     Space.chompAndCheckIndent E.IfSpace E.IfIndentElseBranch
@@ -366,14 +370,14 @@ chompIfEnd start branches =
           Keyword.if_ E.IfElseBranchStart
           chompIfEnd start newBranches,
         do
-          (elseBranch, elseEnd) <- specialize E.IfElseBranch expression
+          ((elseBranch, commentsAfterElse), elseEnd) <- specialize E.IfElseBranch expression
           let ifExpr = Src.If (reverse newBranches) elseBranch
-          return (A.at start elseEnd ifExpr, elseEnd)
+          return ((A.at start elseEnd ifExpr, commentsAfterElse), elseEnd)
       ]
 
 -- LAMBDA EXPRESSION
 
-function :: A.Position -> Space.Parser E.Expr Src.Expr
+function :: A.Position -> Space.Parser E.Expr (Src.Expr, [Src.Comment])
 function start =
   inContext E.Func (word1 0x5C {-\-} E.Start) $
     do
@@ -382,9 +386,9 @@ function start =
       Space.chompAndCheckIndent E.FuncSpace E.FuncIndentArrow
       revArgs <- chompArgs [arg]
       Space.chompAndCheckIndent E.FuncSpace E.FuncIndentBody
-      (body, end) <- specialize E.FuncBody expression
+      ((body, commentsAfterBody), end) <- specialize E.FuncBody expression
       let funcExpr = Src.Lambda (reverse revArgs) body
-      return (A.at start end funcExpr, end)
+      return ((A.at start end funcExpr, commentsAfterBody), end)
 
 chompArgs :: [Src.Pattern] -> Parser E.Func [Src.Pattern]
 chompArgs revArgs =
@@ -401,47 +405,49 @@ chompArgs revArgs =
 
 -- CASE EXPRESSIONS
 
-case_ :: A.Position -> Space.Parser E.Expr Src.Expr
+case_ :: A.Position -> Space.Parser E.Expr (Src.Expr, [Src.Comment])
 case_ start =
   inContext E.Case (Keyword.case_ E.Start) $
     do
       Space.chompAndCheckIndent E.CaseSpace E.CaseIndentExpr
-      (expr, exprEnd) <- specialize E.CaseExpr expression
+      ((expr, commentsAfterExpr), exprEnd) <- specialize E.CaseExpr expression
       Space.checkIndent exprEnd E.CaseIndentOf
       Keyword.of_ E.CaseOf
-      Space.chompAndCheckIndent E.CaseSpace E.CaseIndentPattern
+      commentsAfterOf <- Space.chompAndCheckIndent E.CaseSpace E.CaseIndentPattern
       withIndent $
         do
-          (firstBranch, firstEnd) <- chompBranch
-          (branches, end) <- chompCaseEnd [firstBranch] firstEnd
+          ((branchPat, branchExpr, commentsAfterFirstBranch), firstEnd) <- chompBranch
+          let firstBranch = (commentsAfterOf, branchPat, branchExpr)
+          ((branches, commentsAfterLastBranch), end) <- chompCaseEnd [firstBranch] commentsAfterFirstBranch firstEnd
           return
-            ( A.at start end (Src.Case expr branches),
+            ( (A.at start end (Src.Case expr branches), commentsAfterLastBranch),
               end
             )
 
-chompBranch :: Space.Parser E.Case (Src.Pattern, Src.Expr)
+chompBranch :: Space.Parser E.Case (Src.Pattern, Src.Expr, [Src.Comment])
 chompBranch =
   do
     (pattern, patternEnd) <- specialize E.CasePattern Pattern.expression
     Space.checkIndent patternEnd E.CaseIndentArrow
     word2 0x2D 0x3E {-->-} E.CaseArrow
     Space.chompAndCheckIndent E.CaseSpace E.CaseIndentBranch
-    (branchExpr, end) <- specialize E.CaseBranch expression
-    return ((pattern, branchExpr), end)
+    ((branchExpr, commentsAfterBranch), end) <- specialize E.CaseBranch expression
+    return ((pattern, branchExpr, commentsAfterBranch), end)
 
-chompCaseEnd :: [(Src.Pattern, Src.Expr)] -> A.Position -> Space.Parser E.Case [(Src.Pattern, Src.Expr)]
-chompCaseEnd branches end =
+chompCaseEnd :: [([Src.Comment], Src.Pattern, Src.Expr)] -> [Src.Comment] -> A.Position -> Space.Parser E.Case ([([Src.Comment], Src.Pattern, Src.Expr)], [Src.Comment])
+chompCaseEnd branches commentsBetween end =
   oneOfWithFallback
     [ do
         Space.checkAligned E.CasePatternAlignment
-        (branch, newEnd) <- chompBranch
-        chompCaseEnd (branch : branches) newEnd
+        ((pat, expr, commentsAfter), newEnd) <- chompBranch
+        let branch = (commentsBetween, pat, expr)
+        chompCaseEnd (branch : branches) commentsAfter newEnd
     ]
-    (reverse branches, end)
+    ((reverse branches, commentsBetween), end)
 
 -- LET EXPRESSION
 
-let_ :: A.Position -> Space.Parser E.Expr Src.Expr
+let_ :: A.Position -> Space.Parser E.Expr (Src.Expr, [Src.Comment])
 let_ start =
   inContext E.Let (Keyword.let_ E.Start) $
     do
@@ -457,9 +463,9 @@ let_ start =
       Space.checkIndent defsEnd E.LetIndentIn
       Keyword.in_ E.LetIn
       Space.chompAndCheckIndent E.LetSpace E.LetIndentBody
-      (body, end) <- specialize E.LetBody expression
+      ((body, commentsAfter), end) <- specialize E.LetBody expression
       return
-        ( A.at start end (Src.Let defs body),
+        ( (A.at start end (Src.Let defs body), commentsAfter),
           end
         )
 
@@ -497,7 +503,7 @@ definition =
           [ do
               word1 0x3A {-:-} E.DefEquals
               Space.chompAndCheckIndent E.DefSpace E.DefIndentType
-              (tipe, _) <- specialize E.DefType Type.expression
+              ((tipe, commentsAfterTipe), _) <- specialize E.DefType Type.expression
               Space.checkAligned E.DefAlignment
               defName <- chompMatchingName name
               Space.chompAndCheckIndent E.DefSpace E.DefIndentEquals
@@ -516,7 +522,7 @@ chompDefArgsAndBody start name tipe revArgs =
       do
         word1 0x3D {-=-} E.DefEquals
         Space.chompAndCheckIndent E.DefSpace E.DefIndentBody
-        (body, end) <- specialize E.DefBody expression
+        ((body, commentsAfterBody), end) <- specialize E.DefBody expression
         return
           ( A.at start end (Src.Define name (reverse revArgs) body tipe),
             end
@@ -549,5 +555,5 @@ destructure =
       Space.chompAndCheckIndent E.DestructSpace E.DestructIndentEquals
       word1 0x3D {-=-} E.DestructEquals
       Space.chompAndCheckIndent E.DestructSpace E.DestructIndentBody
-      (expr, end) <- specialize E.DestructBody expression
+      ((expr, commentsAfter), end) <- specialize E.DestructBody expression
       return (A.at start end (Src.Destruct pattern expr), end)

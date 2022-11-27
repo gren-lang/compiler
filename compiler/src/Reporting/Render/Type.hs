@@ -118,12 +118,12 @@ srcToDoc context (A.At _ tipe) =
       apply
         context
         (D.fromName name)
-        (map (srcToDoc App) args)
+        (map (srcToDoc App . snd) args)
     Src.TTypeQual _ home name args ->
       apply
         context
         (D.fromName home <> "." <> D.fromName name)
-        (map (srcToDoc App) args)
+        (map (srcToDoc App . snd) args)
     Src.TRecord fields ext ->
       record
         (map srcFieldToDocs fields)

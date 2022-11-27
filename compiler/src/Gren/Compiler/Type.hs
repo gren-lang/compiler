@@ -87,7 +87,7 @@ encode tipe =
 decoder :: D.Decoder () Type
 decoder =
   let parser =
-        P.specialize (\_ _ _ -> ()) (fromRawType . fst <$> Type.expression)
+        P.specialize (\_ _ _ -> ()) (fromRawType . fst . fst <$> Type.expression)
    in D.customString parser (\_ _ -> ())
 
 fromRawType :: Src.Type -> Type
@@ -98,9 +98,9 @@ fromRawType (A.At _ astType) =
     Src.TVar x ->
       Var x
     Src.TType _ name args ->
-      Type name (map fromRawType args)
+      Type name (map (fromRawType . snd) args)
     Src.TTypeQual _ _ name args ->
-      Type name (map fromRawType args)
+      Type name (map (fromRawType . snd) args)
     Src.TRecord fields ext ->
       let fromField (A.At _ field, tipe) = (field, fromRawType tipe)
        in Record

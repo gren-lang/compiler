@@ -34,15 +34,15 @@ toByteStringBuilder module_ =
 -- Data structure extras
 --
 
-repair :: [(a, b)] -> a -> (a, [(b, a)])
-repair [] single = (single, [])
-repair ((first, b) : rest) final =
-  (first, repairHelp b rest final)
+repair3 :: [(a, b, c)] -> a -> (a, [(b, c, a)])
+repair3 [] single = (single, [])
+repair3 ((first, b, c) : rest) final =
+  (first, repair3Help b c rest final)
 
-repairHelp :: b -> [(a, b)] -> a -> [(b, a)]
-repairHelp b [] a = [(b, a)]
-repairHelp b1 ((a1, b2) : rest) a2 =
-  (b1, a1) : repairHelp b2 rest a2
+repair3Help :: b -> c -> [(a, b, c)] -> a -> [(b, c, a)]
+repair3Help b c [] a = [(b, c, a)]
+repair3Help b1 c1 ((a1, b2, c2) : rest) a2 =
+  (b1, c1, a1) : repair3Help b2 c2 rest a2
 
 --
 -- Helper functions
@@ -158,10 +158,15 @@ formatComment = \case
      in Block.mustBreak $ Block.string7 open <> utf8 text
 
 formatCommentBlock :: [Src.Comment] -> Maybe Block
-formatCommentBlock = fmap spaceOrStack . nonEmpty . fmap formatComment
+formatCommentBlock =
+  fmap formatCommentBlockNonEmpty . nonEmpty
+
+formatCommentBlockNonEmpty :: NonEmpty Src.Comment -> Block
+formatCommentBlockNonEmpty =
+  spaceOrStack . fmap formatComment
 
 formatModule :: Src.Module -> Block
-formatModule (Src.Module moduleName exports docs imports values unions aliases binops comments effects) =
+formatModule (Src.Module moduleName exports docs imports values unions aliases binops topLevelComments comments effects) =
   Block.stack $
     NonEmpty.fromList $
       catMaybes
@@ -195,6 +200,7 @@ formatModule (Src.Module moduleName exports docs imports values unions aliases b
                       [ fmap (formatWithDocComment valueName formatValue . A.toValue) <$> values,
                         fmap (formatWithDocComment unionName formatUnion . A.toValue) <$> unions,
                         fmap (formatWithDocComment aliasName formatAlias . A.toValue) <$> aliases,
+                        fmap formatTopLevelCommentBlock <$> topLevelComments,
                         case effects of
                           Src.NoEffects -> []
                           Src.Ports ports _ -> fmap (formatWithDocComment portName formatPort) <$> ports
@@ -241,6 +247,13 @@ formatModule (Src.Module moduleName exports docs imports values unions aliases b
               [ Block.blankLine,
                 Block.stack $ fmap (formatInfix . A.toValue) some
               ]
+
+formatTopLevelCommentBlock :: NonEmpty Src.Comment -> Block
+formatTopLevelCommentBlock comments =
+  Block.stack
+    [ Block.blankLine,
+      formatCommentBlockNonEmpty comments
+    ]
 
 formatEffectsModuleWhereClause :: Src.Effects -> Maybe Block
 formatEffectsModuleWhereClause = \case
@@ -306,8 +319,8 @@ formatExposed = \case
   Src.Upper name privacy -> Block.line $ utf8 $ A.toValue name
   Src.Operator _ name -> Block.line $ Block.char7 '(' <> utf8 name <> Block.char7 ')'
 
-formatImport :: Src.Import -> Block
-formatImport (Src.Import name alias exposing exposingComments comments) =
+formatImport :: ([Src.Comment], Src.Import) -> Block
+formatImport (commentsBefore, Src.Import name alias exposing exposingComments comments) =
   let (SC.ImportComments commentsAfterKeyword commentsAfterName) = comments
    in spaceOrIndent $
         NonEmpty.fromList $
@@ -402,11 +415,14 @@ formatUnion (Src.Union name args ctors) =
         [] -> []
         (first : rest) -> formatCtor '=' first : fmap (formatCtor '|') rest
 
-formatCtor :: Char -> (A.Located Name, [Src.Type]) -> Block
+formatCtor :: Char -> (A.Located Name, [([Src.Comment], Src.Type)]) -> Block
 formatCtor open (name, args) =
   spaceOrIndent $
     Block.line (Block.char7 open <> Block.space <> utf8 (A.toValue name))
-      :| fmap (typeParensProtectSpaces . formatType . A.toValue) args
+      :| fmap (typeParensProtectSpaces . formatArg) args
+  where
+    formatArg (comments, arg) =
+      formatType (A.toValue arg)
 
 formatAlias :: Src.Alias -> Block
 formatAlias (Src.Alias name args type_) =
@@ -493,7 +509,7 @@ formatExpr = \case
           formatExpr $
             A.toValue expr
   Src.Binops postfixOps final ->
-    let (first, rest) = repair postfixOps final
+    let (first, rest) = repair3 postfixOps final
      in ExpressionContainsInfixOps $
           spaceOrIndentForce forceMultiline $
             exprParensProtectInfixOps (formatExpr $ A.toValue first)
@@ -501,8 +517,9 @@ formatExpr = \case
     where
       -- for now we just use multiline formatting for specific operators,
       -- since we don't yet track where the linebreaks are in the source
-      forceMultiline = any (opForcesMultiline . A.toValue . snd) postfixOps
-      formatPair (op, expr) =
+      forceMultiline = any (opForcesMultiline . opFromPair) postfixOps
+      opFromPair (_, _, name) = A.toValue name
+      formatPair (commentsBeforeOp, op, expr) =
         Block.prefix
           4
           (utf8 (A.toValue op) <> Block.space)
@@ -526,7 +543,10 @@ formatExpr = \case
     ExpressionContainsSpaces $
       spaceOrIndent $
         exprParensProtectInfixOps (formatExpr $ A.toValue fn)
-          :| fmap (exprParensProtectSpaces . formatExpr . A.toValue) args
+          :| fmap formatArg args
+    where
+      formatArg (commentsBefore, arg) =
+        exprParensProtectSpaces (formatExpr $ A.toValue arg)
   Src.If [] else_ ->
     formatExpr $ A.toValue else_
   Src.If (if_ : elseifs) else_ ->
@@ -577,7 +597,7 @@ formatExpr = \case
           ]
           :| List.intersperse Block.blankLine (fmap (Block.indent . formatCaseBranch) branches)
     where
-      formatCaseBranch (pat, expr) =
+      formatCaseBranch (commentsBefore, pat, expr) =
         Block.stack
           [ spaceOrStack
               [ patternParensNone $ formatPattern (A.toValue pat),
@@ -699,7 +719,10 @@ formatType = \case
     TypeContainsSpaces $
       spaceOrIndent $
         Block.line (utf8 name)
-          :| fmap (typeParensProtectSpaces . formatType . A.toValue) args
+          :| fmap (typeParensProtectSpaces . formatArg) args
+    where
+      formatArg (comments, arg) =
+        formatType (A.toValue arg)
   Src.TTypeQual _ ns name [] ->
     NoTypeParens $
       Block.line (utf8 ns <> Block.char7 '.' <> utf8 name)
@@ -707,7 +730,10 @@ formatType = \case
     TypeContainsSpaces $
       spaceOrIndent $
         Block.line (utf8 ns <> Block.char7 '.' <> utf8 name)
-          :| fmap (typeParensProtectSpaces . formatType . A.toValue) args
+          :| fmap (typeParensProtectSpaces . formatArg) args
+    where
+      formatArg (comments, arg) =
+        formatType (A.toValue arg)
   Src.TRecord fields Nothing ->
     NoTypeParens $
       group '{' ',' '}' True $

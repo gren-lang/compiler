@@ -257,7 +257,7 @@ attemptImport lines =
   let src = linesToByteString lines
       parser = P.specialize (\_ _ _ -> ()) PM.chompImport
    in case P.fromByteString parser (\_ _ -> ()) src of
-        Right (Src.Import (A.At _ name) _ _ _ _) ->
+        Right (Src.Import (A.At _ name) _ _ _ _, _) ->
           Done (Import name src)
         Left () ->
           ifFail lines (Import "ERR" src)
@@ -280,12 +280,13 @@ attemptDeclOrExpr lines =
       exprParser = P.specialize (toExprPosition src) PE.expression
       declParser = P.specialize (toDeclPosition src) PD.declaration
    in case P.fromByteString declParser (,) src of
-        Right (decl, _) ->
+        Right ((decl, _), _) ->
           case decl of
             PD.Value _ (A.At _ (Src.Value (A.At _ name) _ _ _)) -> ifDone lines (Decl name src)
             PD.Union _ (A.At _ (Src.Union (A.At _ name) _ _)) -> ifDone lines (Type name src)
             PD.Alias _ (A.At _ (Src.Alias (A.At _ name) _ _)) -> ifDone lines (Type name src)
             PD.Port _ _ -> Done Port
+            PD.TopLevelComments _ -> Done Skip
         Left declPosition
           | startsWithKeyword "type" lines ->
               ifFail lines (Type "ERR" src)

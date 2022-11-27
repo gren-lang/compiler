@@ -28,7 +28,7 @@ parse :: String -> BS.ByteString -> IO ()
 parse expectedAlias str =
   let checkResult result =
         case result of
-          Right imp ->
+          Right (imp, _) ->
             case Src._alias imp of
               Just (alias, _) ->
                 Name.toChars alias == expectedAlias

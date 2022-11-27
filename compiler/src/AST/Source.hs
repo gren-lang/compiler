@@ -37,6 +37,7 @@ where
 import AST.SourceComments (Comment, GREN_COMMENT)
 import AST.SourceComments qualified as SC
 import AST.Utils.Binop qualified as Binop
+import Data.List.NonEmpty (NonEmpty)
 import Data.Name (Name)
 import Data.Name qualified as Name
 import Gren.Float qualified as EF
@@ -58,12 +59,12 @@ data Expr_
   | Array [Expr]
   | Op Name
   | Negate Expr
-  | Binops [(Expr, A.Located Name)] Expr
+  | Binops [(Expr, [Comment], A.Located Name)] Expr
   | Lambda [Pattern] Expr
-  | Call Expr [Expr]
+  | Call Expr [([Comment], Expr)]
   | If [(Expr, Expr)] Expr
   | Let [A.Located Def] Expr
-  | Case Expr [(Pattern, Expr)]
+  | Case Expr [([Comment], Pattern, Expr)]
   | Accessor Name
   | Access Expr (A.Located Name)
   | Update Expr [(A.Located Name, Expr)]
@@ -111,8 +112,8 @@ type Type =
 data Type_
   = TLambda Type Type
   | TVar Name
-  | TType A.Region Name [Type]
-  | TTypeQual A.Region Name Name [Type]
+  | TType A.Region Name [([Comment], Type)]
+  | TTypeQual A.Region Name Name [([Comment], Type)]
   | TRecord [(A.Located Name, Type)] (Maybe (A.Located Name))
   deriving (Show)
 
@@ -124,18 +125,19 @@ data Module = Module
   { _name :: Maybe (A.Located Name),
     _exports :: A.Located Exposing,
     _docs :: Docs,
-    _imports :: [Import],
+    _imports :: [([Comment], Import)],
     _values :: [(SourceOrder, A.Located Value)],
     _unions :: [(SourceOrder, A.Located Union)],
     _aliases :: [(SourceOrder, A.Located Alias)],
     _binops :: [A.Located Infix],
+    _topLevelComments :: [(SourceOrder, NonEmpty Comment)],
     _headerComments :: SC.HeaderComments,
     _effects :: Effects
   }
   deriving (Show)
 
 getName :: Module -> Name
-getName (Module maybeName _ _ _ _ _ _ _ _ _) =
+getName (Module maybeName _ _ _ _ _ _ _ _ _ _) =
   case maybeName of
     Just (A.At _ name) ->
       name
@@ -158,7 +160,7 @@ data Import = Import
 data Value = Value (A.Located Name) [Pattern] Expr (Maybe Type)
   deriving (Show)
 
-data Union = Union (A.Located Name) [A.Located Name] [(A.Located Name, [Type])]
+data Union = Union (A.Located Name) [A.Located Name] [(A.Located Name, [([Comment], Type)])]
   deriving (Show)
 
 data Alias = Alias (A.Located Name) [A.Located Name] Type

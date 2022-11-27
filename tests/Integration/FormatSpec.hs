@@ -119,6 +119,10 @@ spec = do
                            "import Module2WithAs as M2",
                            "import Module3WithExposing exposing (..)",
                            "import Module4WithAsAndExposing as M4 exposing (..)",
+                           "",
+                           "",
+                           "",
+                           "{- D -}",
                            formattedModuleBody
                          ]
 
@@ -133,6 +137,143 @@ spec = do
         `shouldFormatModuleBodyAs` [ "f =",
                                      "    {}"
                                    ]
+    it "formats comments between top-level definitions" $
+      [ "f = {}",
+        "-- B",
+        "g = {}",
+        "-- C",
+        "h = {}"
+      ]
+        `shouldFormatModuleBodyAs` [ "f =",
+                                     "    {}",
+                                     "",
+                                     "",
+                                     "",
+                                     "-- B",
+                                     "",
+                                     "",
+                                     "g =",
+                                     "    {}",
+                                     "",
+                                     "",
+                                     "",
+                                     "-- C",
+                                     "",
+                                     "",
+                                     "h =",
+                                     "    {}"
+                                   ]
+    describe "formats comments between imports and first declaration" $ do
+      it "basic last import" $
+        [ "module Main exposing (..)",
+          "import Html",
+          "-- A",
+          "f = {}"
+        ]
+          `shouldFormatAs` [ "module Main exposing (..)",
+                             "",
+                             "import Html",
+                             "",
+                             "",
+                             "",
+                             "-- A",
+                             "",
+                             "",
+                             "f =",
+                             "    {}"
+                           ]
+      it "last import has 'as' clause" $
+        [ "module Main exposing (..)",
+          "import Html as H",
+          "-- A",
+          "f = {}"
+        ]
+          `shouldFormatAs` [ "module Main exposing (..)",
+                             "",
+                             "import Html as H",
+                             "",
+                             "",
+                             "",
+                             "-- A",
+                             "",
+                             "",
+                             "f =",
+                             "    {}"
+                           ]
+      it "last import has 'exposing' clause" $
+        [ "module Main exposing (..)",
+          "import Html exposing (div)",
+          "-- A",
+          "f = {}"
+        ]
+          `shouldFormatAs` [ "module Main exposing (..)",
+                             "",
+                             "import Html exposing ( div )",
+                             "",
+                             "",
+                             "",
+                             "-- A",
+                             "",
+                             "",
+                             "f =",
+                             "    {}"
+                           ]
+      it "last import has 'as' clause and `exposing` clause" $
+        [ "module Main exposing (..)",
+          "import Html as H exposing (div)",
+          "-- A",
+          "f = {}"
+        ]
+          `shouldFormatAs` [ "module Main exposing (..)",
+                             "",
+                             "import Html as H exposing ( div )",
+                             "",
+                             "",
+                             "",
+                             "-- A",
+                             "",
+                             "",
+                             "f =",
+                             "    {}"
+                           ]
+    it "formats comments after custom type declarations" $
+      [ "type T1 = T1a | T1b",
+        "-- A",
+        "f = {}"
+      ]
+        `shouldFormatModuleBodyAs` [ "type T1",
+                                     "    = T1a",
+                                     "    | T1b",
+                                     "",
+                                     "",
+                                     "",
+                                     "-- A",
+                                     "",
+                                     "",
+                                     "f =",
+                                     "    {}"
+                                   ]
+    it "formats comments after value declarations ending in a case expression" $
+      [ "f =",
+        "    case x of",
+        "        _ -> {}",
+        "-- A",
+        "g = {}"
+      ]
+        `shouldFormatModuleBodyAs` [ "f =",
+                                     "    case x of",
+                                     "        _ ->",
+                                     "            {}",
+                                     "",
+                                     "",
+                                     "",
+                                     "-- A",
+                                     "",
+                                     "",
+                                     "g =",
+                                     "    {}"
+                                   ]
+
   describe "expressions" $ do
     describe "record" $ do
       describe "empty" $ do

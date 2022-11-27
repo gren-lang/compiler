@@ -46,7 +46,7 @@ addVars module_ (Env.Env home vs ts cs bs qvs qts qcs) =
     Result.ok $ Env.Env home vs2 ts cs bs qvs qts qcs
 
 collectVars :: Src.Module -> Result i w (Map.Map Name.Name Env.Var)
-collectVars (Src.Module _ _ _ _ values _ _ _ _ effects) =
+collectVars (Src.Module _ _ _ _ values _ _ _ _ _ effects) =
   let addDecl dict (A.At _ (Src.Value (A.At region name) _ _ _)) =
         Dups.insert name region (Env.TopLevel region) dict
    in Dups.detect Error.DuplicateDecl $
@@ -75,7 +75,7 @@ toEffectDups effects =
 -- ADD TYPES
 
 addTypes :: Src.Module -> Env.Env -> Result i w Env.Env
-addTypes (Src.Module _ _ _ _ _ unions aliases _ _ _) (Env.Env home vs ts cs bs qvs qts qcs) =
+addTypes (Src.Module _ _ _ _ _ unions aliases _ _ _ _) (Env.Env home vs ts cs bs qvs qts qcs) =
   let addAliasDups dups (A.At _ (Src.Alias (A.At region name) _ _)) = Dups.insert name region () dups
       addUnionDups dups (A.At _ (Src.Union (A.At region name) _ _)) = Dups.insert name region () dups
       typeNameDups =
@@ -132,9 +132,9 @@ getEdges edges (A.At _ tipe) =
     Src.TVar _ ->
       edges
     Src.TType _ name args ->
-      List.foldl' getEdges (name : edges) args
+      List.foldl' getEdges (name : edges) (fmap snd args)
     Src.TTypeQual _ _ _ args ->
-      List.foldl' getEdges edges args
+      List.foldl' getEdges edges (fmap snd args)
     Src.TRecord fields _ ->
       List.foldl' (\es (_, t) -> getEdges es t) edges fields
 
@@ -146,7 +146,7 @@ checkUnionFreeVars (A.At unionRegion (Src.Union (A.At _ name) args ctors)) =
         Dups.insert arg region region dict
 
       addCtorFreeVars (_, tipes) freeVars =
-        List.foldl' addFreeVars freeVars tipes
+        List.foldl' addFreeVars freeVars (fmap snd tipes)
    in do
         boundVars <- Dups.detect (Error.DuplicateUnionArg name) (foldr addArg Dups.none args)
         let freeVars = foldr addCtorFreeVars Map.empty ctors
@@ -184,9 +184,9 @@ addFreeVars freeVars (A.At region tipe) =
     Src.TVar name ->
       Map.insert name region freeVars
     Src.TType _ _ args ->
-      List.foldl' addFreeVars freeVars args
+      List.foldl' addFreeVars freeVars (fmap snd args)
     Src.TTypeQual _ _ _ args ->
-      List.foldl' addFreeVars freeVars args
+      List.foldl' addFreeVars freeVars (fmap snd args)
     Src.TRecord fields maybeExt ->
       let extFreeVars =
             case maybeExt of
@@ -199,7 +199,7 @@ addFreeVars freeVars (A.At region tipe) =
 -- ADD CTORS
 
 addCtors :: Src.Module -> Env.Env -> Result i w (Env.Env, Unions, Aliases)
-addCtors (Src.Module _ _ _ _ _ unions aliases _ _ _) env@(Env.Env home vs ts cs bs qvs qts qcs) =
+addCtors (Src.Module _ _ _ _ _ unions aliases _ _ _ _) env@(Env.Env home vs ts cs bs qvs qts qcs) =
   do
     unionInfo <- traverse (canonicalizeUnion env) (fmap snd unions)
     aliasInfo <- traverse (canonicalizeAlias env) (fmap snd aliases)
@@ -244,15 +244,15 @@ canonicalizeUnion env@(Env.Env home _ _ _ _ _ _ _) (A.At _ (Src.Union (A.At _ na
         Dups.unions $ map (toCtor home name union) cctors
       )
 
-canonicalizeCtor :: Env.Env -> Index.ZeroBased -> (A.Located Name.Name, [Src.Type]) -> Result i w (A.Located Can.Ctor)
+canonicalizeCtor :: Env.Env -> Index.ZeroBased -> (A.Located Name.Name, [([Src.Comment], Src.Type)]) -> Result i w (A.Located Can.Ctor)
 canonicalizeCtor env index (A.At region ctor, tipes) =
   do
-    ctipes <- traverse (Type.canonicalize env) tipes
+    ctipes <- traverse (Type.canonicalize env) (fmap snd tipes)
     Result.ok $
       A.At region $
         Can.Ctor ctor index (length ctipes) ctipes
 
-toOpts :: [(A.Located Name.Name, [Src.Type])] -> Can.CtorOpts
+toOpts :: [(A.Located Name.Name, [([Src.Comment], Src.Type)])] -> Can.CtorOpts
 toOpts ctors =
   case ctors of
     [(_, [_])] ->
