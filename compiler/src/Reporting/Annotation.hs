@@ -8,6 +8,7 @@ module Reporting.Annotation
     toValue,
     merge,
     at,
+    isIndentedAtLeast,
     toRegion,
     mergeRegions,
     zero,
@@ -41,6 +42,10 @@ toValue (At _ value) =
 merge :: Located a -> Located b -> value -> Located value
 merge (At r1 _) (At r2 _) value =
   At (mergeRegions r1 r2) value
+
+isIndentedAtLeast :: Word16 -> Located a -> Bool
+isIndentedAtLeast indent (At (Region (Position _ col) _) _) =
+  col >= indent
 
 -- POSITION
 

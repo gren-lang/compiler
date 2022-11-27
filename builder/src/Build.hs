@@ -282,7 +282,7 @@ crawlFile env@(Env _ root projectType _ _ buildID _ _) mvar docsNeed expectedNam
               else return $ SBadSyntax path time source (Syntax.ModuleNameMismatch expectedName name)
 
 isMain :: A.Located Src.Value -> Bool
-isMain (A.At _ (Src.Value (A.At _ name) _ _ _)) =
+isMain (A.At _ (Src.Value (A.At _ name) _ _ _ _)) =
   name == Name._main
 
 -- CHECK MODULE

@@ -165,7 +165,7 @@ getDocComments decls comments =
       comments
     decl : otherDecls ->
       case decl of
-        Decl.Value c (A.At _ (Src.Value n _ _ _)) -> getDocComments otherDecls (addComment c n comments)
+        Decl.Value c (A.At _ (Src.Value n _ _ _ _)) -> getDocComments otherDecls (addComment c n comments)
         Decl.Union c (A.At _ (Src.Union n _ _)) -> getDocComments otherDecls (addComment c n comments)
         Decl.Alias c (A.At _ (Src.Alias n _ _)) -> getDocComments otherDecls (addComment c n comments)
         Decl.Port c (Src.Port n _) -> getDocComments otherDecls (addComment c n comments)
@@ -399,7 +399,7 @@ chompImport =
     Keyword.import_ E.ImportStart
     commentsAfterImportKeyword <- Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentName
     name@(A.At (A.Region _ end) _) <- addLocation (Var.moduleName E.ImportName)
-    commentsAfterName <- Space.chompIndentedAtLeast 1 E.ModuleSpace
+    commentsAfterName <- Space.chompIndentedAtLeast 2 E.ModuleSpace
     outdentedComments <- Space.chomp E.ModuleSpace
     oneOf
       E.ImportEnd
@@ -424,7 +424,7 @@ chompAs name comments =
     commentsAfterAs <- Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentAlias
     alias <- Var.moduleName E.ImportAlias
     end <- getPosition
-    commentsAfterAliasName <- Space.chompIndentedAtLeast 1 E.ModuleSpace
+    commentsAfterAliasName <- Space.chompIndentedAtLeast 2 E.ModuleSpace
     outdentedComments <- Space.chomp E.ModuleSpace
     oneOf
       E.ImportEnd
@@ -444,7 +444,7 @@ chompExposing name maybeAlias comments =
     Keyword.exposing_ E.ImportExposing
     commentsAfterExposing <- Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentExposingArray
     exposed <- specialize E.ImportExposingArray exposing
-    commentsAfterListing <- Space.chompIndentedAtLeast 1 E.ModuleSpace
+    commentsAfterListing <- Space.chompIndentedAtLeast 2 E.ModuleSpace
     outdentedComments <- freshLine E.ImportEnd
     let exposingComments = SC.ImportExposingComments commentsAfterExposing commentsAfterListing
     return (Src.Import name maybeAlias exposed (Just exposingComments) comments, outdentedComments)

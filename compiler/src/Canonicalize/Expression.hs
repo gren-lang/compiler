@@ -76,12 +76,12 @@ canonicalize env (A.At region expression) =
         Can.Negate <$> canonicalize env expr
       Src.Binops ops final ->
         A.toValue <$> canonicalizeBinops region env ops final
-      Src.Lambda srcArgs body ->
+      Src.Lambda srcArgs body _ ->
         delayedUsage $
           do
             (args, bindings) <-
               Pattern.verify Error.DPLambdaArgs $
-                traverse (Pattern.canonicalize env) srcArgs
+                traverse (Pattern.canonicalize env) (fmap snd srcArgs)
 
             newEnv <-
               Env.addLocals bindings env
@@ -98,8 +98,8 @@ canonicalize env (A.At region expression) =
         Can.If
           <$> traverse (canonicalizeIfBranch env) branches
           <*> canonicalize env finally
-      Src.Let defs expr ->
-        A.toValue <$> canonicalizeLet region env defs expr
+      Src.Let defs expr _ ->
+        A.toValue <$> canonicalizeLet region env (fmap snd defs) expr
       Src.Case expr branches ->
         Can.Case
           <$> canonicalize env expr
@@ -231,7 +231,7 @@ canonicalizeLet letRegion env defs body =
 addBindings :: Dups.Dict A.Region -> A.Located Src.Def -> Dups.Dict A.Region
 addBindings bindings (A.At _ def) =
   case def of
-    Src.Define (A.At region name) _ _ _ ->
+    Src.Define (A.At region name) _ _ _ _ ->
       Dups.insert name region region bindings
     Src.Destruct pattern _ ->
       addBindingsHelp bindings pattern
@@ -274,13 +274,13 @@ data Binding
 addDefNodes :: Env.Env -> [Node] -> A.Located Src.Def -> Result FreeLocals [W.Warning] [Node]
 addDefNodes env nodes (A.At _ def) =
   case def of
-    Src.Define aname@(A.At _ name) srcArgs body maybeType ->
+    Src.Define aname@(A.At _ name) srcArgs body maybeType _ ->
       case maybeType of
         Nothing ->
           do
             (args, argBindings) <-
               Pattern.verify (Error.DPFuncArgs name) $
-                traverse (Pattern.canonicalize env) srcArgs
+                traverse (Pattern.canonicalize env . snd) srcArgs
 
             newEnv <-
               Env.addLocals argBindings env
@@ -296,7 +296,7 @@ addDefNodes env nodes (A.At _ def) =
             (Can.Forall freeVars ctipe) <- Type.toAnnotation env tipe
             ((args, resultType), argBindings) <-
               Pattern.verify (Error.DPFuncArgs name) $
-                gatherTypedArgs env name srcArgs ctipe Index.first []
+                gatherTypedArgs env name (fmap snd srcArgs) ctipe Index.first []
 
             newEnv <-
               Env.addLocals argBindings env

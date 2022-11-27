@@ -274,7 +274,77 @@ spec = do
                                      "    {}"
                                    ]
 
+    describe "value declarations" $ do
+      it "formats comments" $
+        ["f{-A-}x{-B-}y{-C-}={-D-}[]"]
+          `shouldFormatModuleBodyAs` [ "f {- A -} x {- B -} y {- C -} =",
+                                       "    {- D -}",
+                                       "    []"
+                                     ]
+      it "formats indented comments after the body" $ do
+        [ "f = []",
+          " {-B-}"
+          ]
+          `shouldFormatModuleBodyAs` [ "f =",
+                                       "    []",
+                                       "    {- B -}"
+                                     ]
+
   describe "expressions" $ do
+    describe "lambda" $ do
+      it "formats comments" $
+        ["\\{-A-}x{-B-}y{-C-}->{-D-}[]"]
+          `shouldFormatExpressionAs` ["\\{- A -} x {- B -} y {- C -} -> {- D -} []"]
+
+    describe "let" $ do
+      it "formats comments" $
+        ["let{-A-}x{-D-}={-E-}1{-B-}in{-C-}x"]
+          `shouldFormatExpressionAs` [ "let",
+                                       "    {- A -}",
+                                       "    x {- D -} =",
+                                       "        {- E -}",
+                                       "        1",
+                                       "        {- B -}",
+                                       "in",
+                                       "{- C -}",
+                                       "x"
+                                     ]
+      it "formats comments between and after declarations" $
+        [ "let",
+          "    x = 1",
+          "    {-A-}",
+          "{-B-}",
+          "    y = 2",
+          "    {-C-}",
+          "{-D-}",
+          "in x"
+        ]
+          `shouldFormatExpressionAs` [ "let",
+                                       "    x =",
+                                       "        1",
+                                       "",
+                                       "    {- A -} {- B -}",
+                                       "    y =",
+                                       "        2",
+                                       "",
+                                       "    {- C -} {- D -}",
+                                       "in",
+                                       "x"
+                                     ]
+      it "formats indented comments after declarations" $
+        [ "let",
+          "    x = 1",
+          "     {-A-}",
+          "in x"
+        ]
+          `shouldFormatExpressionAs` [ "let",
+                                       "    x =",
+                                       "        1",
+                                       "        {- A -}",
+                                       "in",
+                                       "x"
+                                     ]
+
     describe "record" $ do
       describe "empty" $ do
         it "formats already formatted" $
@@ -291,6 +361,7 @@ spec = do
                                        ", b = 2",
                                        "}"
                                      ]
+
   describe "parentheses" $ do
     it "removes unnecessary parentheses" $
       ["(a)"]
@@ -347,12 +418,17 @@ shouldFormatExpressionAs inputLines expectedOutputLines =
       cleanOutput i =
         LazyText.stripPrefix "module Main exposing (..)\n\n\n\nexpr =\n" i
           >>= (return . LazyText.lines)
-          >>= traverse (LazyText.stripPrefix "    ")
+          >>= traverse stripIndent
           >>= (return . LazyText.unlines)
    in case fmap cleanOutput actualOutput of
-        Left _ ->
-          expectationFailure "shouldFormatExpressionAs: failed to format"
+        Left err ->
+          expectationFailure ("shouldFormatExpressionAs: failed to format: " <> show err)
         Right Nothing ->
-          expectationFailure "shouldFormatExpressionAs: internal error: could clean output"
+          expectationFailure ("shouldFormatExpressionAs: internal error: couldn't clean output: " <> show actualOutput)
         Right (Just actualExpression) ->
           actualExpression `shouldBe` expectedOutput
+  where
+    stripIndent text =
+      if text == ""
+        then Just text
+        else LazyText.stripPrefix "    " text

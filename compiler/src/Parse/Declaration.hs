@@ -12,7 +12,9 @@ module Parse.Declaration
 where
 
 import AST.Source qualified as Src
+import AST.SourceComments qualified as SC
 import AST.Utils.Binop qualified as Binop
+import Data.List qualified as List
 import Data.List.NonEmpty (NonEmpty)
 import Data.Name qualified as Name
 import Parse.Expression qualified as Expr
@@ -71,35 +73,38 @@ valueDecl maybeDocs start =
     end <- getPosition
     specialize (E.DeclDef name) $
       do
-        Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentEquals
+        commentsAfterName <- Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentEquals
         oneOf
           E.DeclDefEquals
           [ do
               word1 0x3A {-:-} E.DeclDefEquals
+              let commentsBeforeColon = commentsAfterName
               Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentType
               ((tipe, commentsAfterTipe), _) <- specialize E.DeclDefType Type.expression
               Space.checkFreshLine E.DeclDefNameRepeat
               defName <- chompMatchingName name
-              Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentEquals
-              chompDefArgsAndBody maybeDocs start defName (Just tipe) [],
-            chompDefArgsAndBody maybeDocs start (A.at start end name) Nothing []
+              commentsAfterMatchingName <- Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentEquals
+              chompDefArgsAndBody maybeDocs start defName (Just tipe) [] commentsAfterMatchingName,
+            chompDefArgsAndBody maybeDocs start (A.at start end name) Nothing [] commentsAfterName
           ]
 
-chompDefArgsAndBody :: Maybe Src.DocComment -> A.Position -> A.Located Name.Name -> Maybe Src.Type -> [Src.Pattern] -> Space.Parser E.DeclDef (Decl, [Src.Comment])
-chompDefArgsAndBody maybeDocs start name tipe revArgs =
+chompDefArgsAndBody :: Maybe Src.DocComment -> A.Position -> A.Located Name.Name -> Maybe Src.Type -> [([Src.Comment], Src.Pattern)] -> [Src.Comment] -> Space.Parser E.DeclDef (Decl, [Src.Comment])
+chompDefArgsAndBody maybeDocs start name tipe revArgs commentsBefore =
   oneOf
     E.DeclDefEquals
     [ do
         arg <- specialize E.DeclDefArg Pattern.term
-        Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentEquals
-        chompDefArgsAndBody maybeDocs start name tipe (arg : revArgs),
+        commentsAfterArg <- Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentEquals
+        chompDefArgsAndBody maybeDocs start name tipe ((commentsBefore, arg) : revArgs) commentsAfterArg,
       do
         word1 0x3D {-=-} E.DeclDefEquals
-        Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentBody
+        commentsAfterEquals <- Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentBody
         ((body, commentsAfter), end) <- specialize E.DeclDefBody Expr.expression
-        let value = Src.Value name (reverse revArgs) body tipe
+        let (commentsAfterBody, commentsAfterDef) = List.span (A.isIndentedAtLeast 2) commentsAfter
+        let comments = SC.ValueComments commentsBefore commentsAfterEquals commentsAfterBody
+        let value = Src.Value name (reverse revArgs) body tipe comments
         let avalue = A.at start end value
-        return ((Value maybeDocs avalue, commentsAfter), end)
+        return ((Value maybeDocs avalue, commentsAfterDef), end)
     ]
 
 chompMatchingName :: Name.Name -> Parser E.DeclDef (A.Located Name.Name)

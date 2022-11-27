@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 -- Temporary while implementing gren format
 {-# OPTIONS_GHC -Wno-error=unused-do-bind #-}
+{-# OPTIONS_GHC -Wno-error=unused-local-binds #-}
 {-# OPTIONS_GHC -Wno-error=unused-matches #-}
 
 module Parse.Expression
@@ -9,6 +10,8 @@ module Parse.Expression
 where
 
 import AST.Source qualified as Src
+import AST.SourceComments qualified as SC
+import Data.List qualified as List
 import Data.Name qualified as Name
 import Parse.Keyword qualified as Keyword
 import Parse.Number qualified as Number
@@ -381,26 +384,27 @@ function :: A.Position -> Space.Parser E.Expr (Src.Expr, [Src.Comment])
 function start =
   inContext E.Func (word1 0x5C {-\-} E.Start) $
     do
-      Space.chompAndCheckIndent E.FuncSpace E.FuncIndentArg
+      commentsBeforeFirstArg <- Space.chompAndCheckIndent E.FuncSpace E.FuncIndentArg
       arg <- specialize E.FuncArg Pattern.term
-      Space.chompAndCheckIndent E.FuncSpace E.FuncIndentArrow
-      revArgs <- chompArgs [arg]
-      Space.chompAndCheckIndent E.FuncSpace E.FuncIndentBody
+      commentsAfterFirstArg <- Space.chompAndCheckIndent E.FuncSpace E.FuncIndentArrow
+      (revArgs, commentsAfterArgs) <- chompArgs [(commentsBeforeFirstArg, arg)] commentsAfterFirstArg
+      commentsAfterArrow <- Space.chompAndCheckIndent E.FuncSpace E.FuncIndentBody
       ((body, commentsAfterBody), end) <- specialize E.FuncBody expression
-      let funcExpr = Src.Lambda (reverse revArgs) body
+      let comments = SC.LambdaComments commentsAfterArgs commentsAfterArrow
+      let funcExpr = Src.Lambda (reverse revArgs) body comments
       return ((A.at start end funcExpr, commentsAfterBody), end)
 
-chompArgs :: [Src.Pattern] -> Parser E.Func [Src.Pattern]
-chompArgs revArgs =
+chompArgs :: [([Src.Comment], Src.Pattern)] -> [Src.Comment] -> Parser E.Func ([([Src.Comment], Src.Pattern)], [Src.Comment])
+chompArgs revArgs commentsBefore =
   oneOf
     E.FuncArrow
     [ do
         arg <- specialize E.FuncArg Pattern.term
-        Space.chompAndCheckIndent E.FuncSpace E.FuncIndentArrow
-        chompArgs (arg : revArgs),
+        commentsAfterArg <- Space.chompAndCheckIndent E.FuncSpace E.FuncIndentArrow
+        chompArgs ((commentsBefore, arg) : revArgs) commentsAfterArg,
       do
         word2 0x2D 0x3E {-->-} E.FuncArrow
-        return revArgs
+        return (revArgs, commentsBefore)
     ]
 
 -- CASE EXPRESSIONS
@@ -451,37 +455,38 @@ let_ :: A.Position -> Space.Parser E.Expr (Src.Expr, [Src.Comment])
 let_ start =
   inContext E.Let (Keyword.let_ E.Start) $
     do
-      (defs, defsEnd) <-
+      ((defs, commentsBeforeIn), defsEnd) <-
         withBacksetIndent 3 $
           do
-            Space.chompAndCheckIndent E.LetSpace E.LetIndentDef
+            commentsBeforeDef <- Space.chompAndCheckIndent E.LetSpace E.LetIndentDef
             withIndent $
               do
-                (def, end) <- chompLetDef
-                chompLetDefs [def] end
+                ((def, commentsAfterDef), end) <- chompLetDef
+                chompLetDefs [(commentsBeforeDef, def)] commentsAfterDef end
 
       Space.checkIndent defsEnd E.LetIndentIn
       Keyword.in_ E.LetIn
-      Space.chompAndCheckIndent E.LetSpace E.LetIndentBody
+      commentsAfterIn <- Space.chompAndCheckIndent E.LetSpace E.LetIndentBody
       ((body, commentsAfter), end) <- specialize E.LetBody expression
+      let comments = SC.LetComments commentsBeforeIn commentsAfterIn
       return
-        ( (A.at start end (Src.Let defs body), commentsAfter),
+        ( (A.at start end (Src.Let defs body comments), commentsAfter),
           end
         )
 
-chompLetDefs :: [A.Located Src.Def] -> A.Position -> Space.Parser E.Let [A.Located Src.Def]
-chompLetDefs revDefs end =
+chompLetDefs :: [([Src.Comment], A.Located Src.Def)] -> [Src.Comment] -> A.Position -> Space.Parser E.Let ([([Src.Comment], A.Located Src.Def)], [Src.Comment])
+chompLetDefs revDefs commentsBefore end =
   oneOfWithFallback
     [ do
         Space.checkAligned E.LetDefAlignment
-        (def, newEnd) <- chompLetDef
-        chompLetDefs (def : revDefs) newEnd
+        ((def, commentsAfter), newEnd) <- chompLetDef
+        chompLetDefs ((commentsBefore, def) : revDefs) commentsAfter newEnd
     ]
-    (reverse revDefs, end)
+    ((reverse revDefs, commentsBefore), end)
 
 -- LET DEFINITIONS
 
-chompLetDef :: Space.Parser E.Let (A.Located Src.Def)
+chompLetDef :: Space.Parser E.Let (A.Located Src.Def, [Src.Comment])
 chompLetDef =
   oneOf
     E.LetDefName
@@ -491,40 +496,43 @@ chompLetDef =
 
 -- DEFINITION
 
-definition :: Space.Parser E.Let (A.Located Src.Def)
+definition :: Space.Parser E.Let (A.Located Src.Def, [Src.Comment])
 definition =
   do
     aname@(A.At (A.Region start _) name) <- addLocation (Var.lower E.LetDefName)
     specialize (E.LetDef name) $
       do
-        Space.chompAndCheckIndent E.DefSpace E.DefIndentEquals
+        commentsAfterName <- Space.chompAndCheckIndent E.DefSpace E.DefIndentEquals
         oneOf
           E.DefEquals
           [ do
               word1 0x3A {-:-} E.DefEquals
+              let commentsBeforeColon = commentsAfterName
               Space.chompAndCheckIndent E.DefSpace E.DefIndentType
               ((tipe, commentsAfterTipe), _) <- specialize E.DefType Type.expression
               Space.checkAligned E.DefAlignment
               defName <- chompMatchingName name
-              Space.chompAndCheckIndent E.DefSpace E.DefIndentEquals
-              chompDefArgsAndBody start defName (Just tipe) [],
-            chompDefArgsAndBody start aname Nothing []
+              commentsAfterMatchingName <- Space.chompAndCheckIndent E.DefSpace E.DefIndentEquals
+              chompDefArgsAndBody start defName (Just tipe) [] commentsAfterMatchingName,
+            chompDefArgsAndBody start aname Nothing [] commentsAfterName
           ]
 
-chompDefArgsAndBody :: A.Position -> A.Located Name.Name -> Maybe Src.Type -> [Src.Pattern] -> Space.Parser E.Def (A.Located Src.Def)
-chompDefArgsAndBody start name tipe revArgs =
+chompDefArgsAndBody :: A.Position -> A.Located Name.Name -> Maybe Src.Type -> [([Src.Comment], Src.Pattern)] -> [Src.Comment] -> Space.Parser E.Def (A.Located Src.Def, [Src.Comment])
+chompDefArgsAndBody start@(A.Position _ startCol) name tipe revArgs commentsBefore =
   oneOf
     E.DefEquals
     [ do
         arg <- specialize E.DefArg Pattern.term
-        Space.chompAndCheckIndent E.DefSpace E.DefIndentEquals
-        chompDefArgsAndBody start name tipe (arg : revArgs),
+        commentsAfterArg <- Space.chompAndCheckIndent E.DefSpace E.DefIndentEquals
+        chompDefArgsAndBody start name tipe ((commentsBefore, arg) : revArgs) commentsAfterArg,
       do
         word1 0x3D {-=-} E.DefEquals
-        Space.chompAndCheckIndent E.DefSpace E.DefIndentBody
-        ((body, commentsAfterBody), end) <- specialize E.DefBody expression
+        commentsAfterEquals <- Space.chompAndCheckIndent E.DefSpace E.DefIndentBody
+        ((body, commentsAfter), end) <- specialize E.DefBody expression
+        let (commentsAfterBody, commentsAfterDef) = List.span (A.isIndentedAtLeast (startCol + 1)) commentsAfter
+        let comments = SC.ValueComments commentsBefore commentsAfterEquals commentsAfterBody
         return
-          ( A.at start end (Src.Define name (reverse revArgs) body tipe),
+          ( (A.at start end (Src.Define name (reverse revArgs) body tipe comments), commentsAfterDef),
             end
           )
     ]
@@ -546,7 +554,7 @@ chompMatchingName expectedName =
 
 -- DESTRUCTURE
 
-destructure :: Space.Parser E.Let (A.Located Src.Def)
+destructure :: Space.Parser E.Let (A.Located Src.Def, [Src.Comment])
 destructure =
   specialize E.LetDestruct $
     do
@@ -556,4 +564,4 @@ destructure =
       word1 0x3D {-=-} E.DestructEquals
       Space.chompAndCheckIndent E.DestructSpace E.DestructIndentBody
       ((expr, commentsAfter), end) <- specialize E.DestructBody expression
-      return (A.at start end (Src.Destruct pattern expr), end)
+      return ((A.at start end (Src.Destruct pattern expr), commentsAfter), end)

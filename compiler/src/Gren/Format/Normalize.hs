@@ -32,7 +32,7 @@ removeDefaultImports :: Parse.ProjectType -> ([Src.Comment], Src.Import) -> Mayb
 removeDefaultImports projectType import_@(_, Src.Import name alias exposing _ _) =
   case Map.lookup (A.toValue name) (defaultImports projectType) of
     Just (Src.Import _ defAlias defExposing _ _) ->
-      if alias == defAlias && exposingEq exposing defExposing
+      if fmap fst alias == fmap fst defAlias && exposingEq exposing defExposing
         then Nothing
         else Just import_
     Nothing -> Just import_

@@ -2,7 +2,8 @@
 {-# OPTIONS_GHC -Wall #-}
 
 module AST.Source
-  ( Comment (..),
+  ( Comment,
+    Comment_ (..),
     GREN_COMMENT,
     Expr,
     Expr_ (..),
@@ -34,7 +35,7 @@ module AST.Source
   )
 where
 
-import AST.SourceComments (Comment, GREN_COMMENT)
+import AST.SourceComments (Comment, Comment_, GREN_COMMENT)
 import AST.SourceComments qualified as SC
 import AST.Utils.Binop qualified as Binop
 import Data.List.NonEmpty (NonEmpty)
@@ -60,10 +61,10 @@ data Expr_
   | Op Name
   | Negate Expr
   | Binops [(Expr, [Comment], A.Located Name)] Expr
-  | Lambda [Pattern] Expr
+  | Lambda [([Comment], Pattern)] Expr SC.LambdaComments
   | Call Expr [([Comment], Expr)]
   | If [(Expr, Expr)] Expr
-  | Let [A.Located Def] Expr
+  | Let [([Comment], A.Located Def)] Expr SC.LetComments
   | Case Expr [([Comment], Pattern, Expr)]
   | Accessor Name
   | Access Expr (A.Located Name)
@@ -78,7 +79,7 @@ data VarType = LowVar | CapVar
 -- DEFINITIONS
 
 data Def
-  = Define (A.Located Name) [Pattern] Expr (Maybe Type)
+  = Define (A.Located Name) [([Comment], Pattern)] Expr (Maybe Type) SC.ValueComments
   | Destruct Pattern Expr
   deriving (Show)
 
@@ -157,7 +158,7 @@ data Import = Import
   }
   deriving (Show)
 
-data Value = Value (A.Located Name) [Pattern] Expr (Maybe Type)
+data Value = Value (A.Located Name) [([Comment], Pattern)] Expr (Maybe Type) SC.ValueComments
   deriving (Show)
 
 data Union = Union (A.Located Name) [A.Located Name] [(A.Located Name, [([Comment], Type)])]
