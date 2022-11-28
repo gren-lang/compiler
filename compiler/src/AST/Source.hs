@@ -8,6 +8,7 @@ module AST.Source
     Expr,
     Expr_ (..),
     VarType (..),
+    CaseBranch,
     Def (..),
     Pattern,
     Pattern_ (..),
@@ -65,7 +66,7 @@ data Expr_
   | Call Expr [([Comment], Expr)]
   | If [(Expr, Expr)] Expr
   | Let [([Comment], A.Located Def)] Expr SC.LetComments
-  | Case Expr [([Comment], Pattern, Expr)]
+  | Case Expr [CaseBranch] SC.CaseComments
   | Accessor Name
   | Access Expr (A.Located Name)
   | Update Expr [(A.Located Name, Expr)]
@@ -75,6 +76,9 @@ data Expr_
 
 data VarType = LowVar | CapVar
   deriving (Show)
+
+type CaseBranch =
+  (Pattern, Expr, SC.CaseBranchComments)
 
 -- DEFINITIONS
 
@@ -92,8 +96,8 @@ data Pattern_
   | PVar Name
   | PRecord [RecordFieldPattern]
   | PAlias Pattern (A.Located Name)
-  | PCtor A.Region Name [Pattern]
-  | PCtorQual A.Region Name Name [Pattern]
+  | PCtor A.Region Name [([Comment], Pattern)]
+  | PCtorQual A.Region Name Name [([Comment], Pattern)]
   | PArray [Pattern]
   | PChr ES.String
   | PStr ES.String

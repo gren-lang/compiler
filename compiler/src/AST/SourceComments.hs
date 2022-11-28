@@ -100,3 +100,16 @@ data LetComments = LetComments
     _afterIn :: [Comment]
   }
   deriving (Show)
+
+data CaseComments = CaseComments
+  { _afterCaseKeyword :: [Comment],
+    _beforeOfKeyword :: [Comment]
+  }
+  deriving (Show)
+
+data CaseBranchComments = CaseBranchComments
+  { _beforeBranch :: [Comment],
+    _beforeBranchArrow :: [Comment],
+    _beforeBranchBody :: [Comment]
+  }
+  deriving (Show)

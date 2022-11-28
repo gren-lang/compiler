@@ -624,26 +624,35 @@ formatExpr = \case
                 ],
           withCommentsStackBefore commentsAfterIn $ exprParensNone $ formatExpr (A.toValue body)
         ]
-  Src.Case subject branches ->
+  Src.Case subject branches (SC.CaseComments commentsAfterCaseKeyword commentsBeforeOfKeyword) ->
     ExpressionHasAmbiguousEnd $
       Block.stack $
         spaceOrStack
           [ spaceOrIndent
               [ Block.line (Block.string7 "case"),
-                exprParensNone $ formatExpr (A.toValue subject)
+                withCommentsAround commentsAfterCaseKeyword commentsBeforeOfKeyword $
+                  exprParensNone $
+                    formatExpr (A.toValue subject)
               ],
             Block.line (Block.string7 "of")
           ]
           :| List.intersperse Block.blankLine (fmap (Block.indent . formatCaseBranch) branches)
     where
-      formatCaseBranch (commentsBefore, pat, expr) =
-        Block.stack
-          [ spaceOrStack
-              [ patternParensNone $ formatPattern (A.toValue pat),
-                Block.line $ Block.string7 "->"
-              ],
-            Block.indent $ exprParensNone $ formatExpr $ A.toValue expr
-          ]
+      formatCaseBranch (pat, expr, SC.CaseBranchComments commentsBefore commentsAfterPattern commentsBeforeBody) =
+        withCommentsStackBefore commentsBefore $
+          Block.stack
+            [ spaceOrStack
+                [ withCommentsAround [] commentsAfterPattern $
+                    patternParensNone $
+                      formatPattern (A.toValue pat),
+                  Block.line $ Block.string7 "->"
+                ],
+              Block.indent $
+                withCommentsStackBefore commentsBeforeBody $
+                  exprParensNone $
+                    formatExpr $
+                      A.toValue expr
+            ]
   Src.Accessor field ->
     NoExpressionParens $
       Block.line $
@@ -857,7 +866,7 @@ formatPattern = \case
     PatternContainsSpaces $
       spaceOrIndent $
         Block.line (utf8 name)
-          :| fmap (patternParensProtectSpaces . formatPattern . A.toValue) args
+          :| fmap (patternParensProtectSpaces . formatPatternConstructorArg) args
   Src.PCtorQual _ ns name [] ->
     NoPatternParens $
       Block.line (utf8 ns <> Block.char7 '.' <> utf8 name)
@@ -865,7 +874,7 @@ formatPattern = \case
     PatternContainsSpaces $
       spaceOrIndent $
         Block.line (utf8 ns <> Block.char7 '.' <> utf8 name)
-          :| fmap (patternParensProtectSpaces . formatPattern . A.toValue) args
+          :| fmap (patternParensProtectSpaces . formatPatternConstructorArg) args
   Src.PArray items ->
     NoPatternParens $
       group '[' ',' ']' False $
@@ -880,6 +889,10 @@ formatPattern = \case
     NoPatternParens $
       Block.line $
         Block.string7 (show int)
+
+formatPatternConstructorArg :: ([Src.Comment], Src.Pattern) -> PatternBlock
+formatPatternConstructorArg (commentsBefore, pat) =
+  formatPattern (A.toValue pat)
 
 data StringStyle
   = StringStyleChar

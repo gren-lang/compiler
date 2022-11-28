@@ -345,6 +345,26 @@ spec = do
                                        "x"
                                      ]
 
+    describe "case" $ do
+      it "formats comments" $
+        [ "case{-A-}x{-B-}of{-C-}",
+          "{-D-}",
+          " Nothing{-E-}->{-F-}y",
+          "{-H-}",
+          " _{-J-}->{-K-}z"
+        ]
+          `shouldFormatExpressionAs` [ "case {- A -} x {- B -} of",
+                                       "    {- C -} {- D -}",
+                                       "    Nothing {- E -} ->",
+                                       "        {- F -}",
+                                       "        y",
+                                       "",
+                                       "    {- H -}",
+                                       "    _ {- J -} ->",
+                                       "        {- K -}",
+                                       "        z"
+                                     ]
+
     describe "record" $ do
       describe "empty" $ do
         it "formats already formatted" $

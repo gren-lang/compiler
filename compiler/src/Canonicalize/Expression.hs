@@ -100,7 +100,7 @@ canonicalize env (A.At region expression) =
           <*> canonicalize env finally
       Src.Let defs expr _ ->
         A.toValue <$> canonicalizeLet region env (fmap snd defs) expr
-      Src.Case expr branches ->
+      Src.Case expr branches _ ->
         Can.Case
           <$> canonicalize env expr
           <*> traverse (canonicalizeCaseBranch env) branches
@@ -133,8 +133,8 @@ canonicalizeIfBranch env (condition, branch) =
 
 -- CANONICALIZE CASE BRANCH
 
-canonicalizeCaseBranch :: Env.Env -> ([Src.Comment], Src.Pattern, Src.Expr) -> Result FreeLocals [W.Warning] Can.CaseBranch
-canonicalizeCaseBranch env (_, pattern, expr) =
+canonicalizeCaseBranch :: Env.Env -> Src.CaseBranch -> Result FreeLocals [W.Warning] Can.CaseBranch
+canonicalizeCaseBranch env (pattern, expr, _) =
   directUsage $
     do
       (cpattern, bindings) <-
@@ -246,9 +246,9 @@ addBindingsHelp bindings (A.At region pattern) =
     Src.PRecord fields ->
       List.foldl' addBindingsHelp bindings (map extractRecordFieldPattern fields)
     Src.PCtor _ _ patterns ->
-      List.foldl' addBindingsHelp bindings patterns
+      List.foldl' addBindingsHelp bindings (fmap snd patterns)
     Src.PCtorQual _ _ _ patterns ->
-      List.foldl' addBindingsHelp bindings patterns
+      List.foldl' addBindingsHelp bindings (fmap snd patterns)
     Src.PArray patterns ->
       List.foldl' addBindingsHelp bindings patterns
     Src.PAlias aliasPattern (A.At nameRegion name) ->
@@ -356,8 +356,8 @@ getPatternNames names (A.At region pattern) =
     Src.PRecord fields ->
       List.foldl' (\n f -> getPatternNames n (extractRecordFieldPattern f)) names fields
     Src.PAlias ptrn name -> getPatternNames (name : names) ptrn
-    Src.PCtor _ _ args -> List.foldl' getPatternNames names args
-    Src.PCtorQual _ _ _ args -> List.foldl' getPatternNames names args
+    Src.PCtor _ _ args -> List.foldl' getPatternNames names (fmap snd args)
+    Src.PCtorQual _ _ _ args -> List.foldl' getPatternNames names (fmap snd args)
     Src.PArray patterns -> List.foldl' getPatternNames names patterns
     Src.PChr _ -> names
     Src.PStr _ -> names

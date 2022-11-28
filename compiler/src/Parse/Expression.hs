@@ -413,38 +413,39 @@ case_ :: A.Position -> Space.Parser E.Expr (Src.Expr, [Src.Comment])
 case_ start =
   inContext E.Case (Keyword.case_ E.Start) $
     do
-      Space.chompAndCheckIndent E.CaseSpace E.CaseIndentExpr
+      commentsBeforeExpr <- Space.chompAndCheckIndent E.CaseSpace E.CaseIndentExpr
       ((expr, commentsAfterExpr), exprEnd) <- specialize E.CaseExpr expression
       Space.checkIndent exprEnd E.CaseIndentOf
       Keyword.of_ E.CaseOf
       commentsAfterOf <- Space.chompAndCheckIndent E.CaseSpace E.CaseIndentPattern
       withIndent $
         do
-          ((branchPat, branchExpr, commentsAfterFirstBranch), firstEnd) <- chompBranch
-          let firstBranch = (commentsAfterOf, branchPat, branchExpr)
+          ((firstBranch, commentsAfterFirstBranch), firstEnd) <- chompBranch commentsAfterOf
           ((branches, commentsAfterLastBranch), end) <- chompCaseEnd [firstBranch] commentsAfterFirstBranch firstEnd
+          let caseComments = SC.CaseComments commentsBeforeExpr commentsAfterExpr
           return
-            ( (A.at start end (Src.Case expr branches), commentsAfterLastBranch),
+            ( (A.at start end (Src.Case expr branches caseComments), commentsAfterLastBranch),
               end
             )
 
-chompBranch :: Space.Parser E.Case (Src.Pattern, Src.Expr, [Src.Comment])
-chompBranch =
+chompBranch :: [Src.Comment] -> Space.Parser E.Case (Src.CaseBranch, [Src.Comment])
+chompBranch commentsBeforeBranch =
   do
-    (pattern, patternEnd) <- specialize E.CasePattern Pattern.expression
+    ((pattern, commentsAfterPattern), patternEnd) <- specialize E.CasePattern Pattern.expression
     Space.checkIndent patternEnd E.CaseIndentArrow
     word2 0x2D 0x3E {-->-} E.CaseArrow
-    Space.chompAndCheckIndent E.CaseSpace E.CaseIndentBranch
+    commentsAfterArrow <- Space.chompAndCheckIndent E.CaseSpace E.CaseIndentBranch
     ((branchExpr, commentsAfterBranch), end) <- specialize E.CaseBranch expression
-    return ((pattern, branchExpr, commentsAfterBranch), end)
+    let branchComments = SC.CaseBranchComments commentsBeforeBranch commentsAfterPattern commentsAfterArrow
+    let branch = (pattern, branchExpr, branchComments)
+    return ((branch, commentsAfterBranch), end)
 
-chompCaseEnd :: [([Src.Comment], Src.Pattern, Src.Expr)] -> [Src.Comment] -> A.Position -> Space.Parser E.Case ([([Src.Comment], Src.Pattern, Src.Expr)], [Src.Comment])
+chompCaseEnd :: [Src.CaseBranch] -> [Src.Comment] -> A.Position -> Space.Parser E.Case ([Src.CaseBranch], [Src.Comment])
 chompCaseEnd branches commentsBetween end =
   oneOfWithFallback
     [ do
         Space.checkAligned E.CasePatternAlignment
-        ((pat, expr, commentsAfter), newEnd) <- chompBranch
-        let branch = (commentsBetween, pat, expr)
+        ((branch, commentsAfter), newEnd) <- chompBranch commentsBetween
         chompCaseEnd (branch : branches) commentsAfter newEnd
     ]
     ((reverse branches, commentsBetween), end)
