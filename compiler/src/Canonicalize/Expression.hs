@@ -94,7 +94,7 @@ canonicalize env (A.At region expression) =
         Can.Call
           <$> canonicalize env func
           <*> traverse (canonicalize env) (fmap snd args)
-      Src.If branches finally ->
+      Src.If branches finally _ ->
         Can.If
           <$> traverse (canonicalizeIfBranch env) branches
           <*> canonicalize env finally
@@ -125,8 +125,8 @@ canonicalize env (A.At region expression) =
 
 -- CANONICALIZE IF BRANCH
 
-canonicalizeIfBranch :: Env.Env -> (Src.Expr, Src.Expr) -> Result FreeLocals [W.Warning] (Can.Expr, Can.Expr)
-canonicalizeIfBranch env (condition, branch) =
+canonicalizeIfBranch :: Env.Env -> Src.IfBranch -> Result FreeLocals [W.Warning] (Can.Expr, Can.Expr)
+canonicalizeIfBranch env (condition, branch, _) =
   (,)
     <$> canonicalize env condition
     <*> canonicalize env branch

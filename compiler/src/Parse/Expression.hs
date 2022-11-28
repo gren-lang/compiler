@@ -352,30 +352,33 @@ toCall func revArgs =
 if_ :: A.Position -> Space.Parser E.Expr (Src.Expr, [Src.Comment])
 if_ start =
   inContext E.If (Keyword.if_ E.Start) $
-    chompIfEnd start []
+    chompIfEnd start [] []
 
-chompIfEnd :: A.Position -> [(Src.Expr, Src.Expr)] -> Space.Parser E.If (Src.Expr, [Src.Comment])
-chompIfEnd start branches =
+chompIfEnd :: A.Position -> [Src.IfBranch] -> [Src.Comment] -> Space.Parser E.If (Src.Expr, [Src.Comment])
+chompIfEnd start@(A.Position _ indent) branches commentsBefore =
   do
-    Space.chompAndCheckIndent E.IfSpace E.IfIndentCondition
+    commentsBeforeCondition <- Space.chompAndCheckIndent E.IfSpace E.IfIndentCondition
     ((condition, commentsAfterCondition), condEnd) <- specialize E.IfCondition expression
     Space.checkIndent condEnd E.IfIndentThen
     Keyword.then_ E.IfThen
-    Space.chompAndCheckIndent E.IfSpace E.IfIndentThenBranch
-    ((thenBranch, commentsAfterThen), thenEnd) <- specialize E.IfThenBranch expression
+    commentsAfterThenKeyword <- Space.chompAndCheckIndent E.IfSpace E.IfIndentThenBranch
+    ((thenBranch, commentsAfterThenBody), thenEnd) <- specialize E.IfThenBranch expression
     Space.checkIndent thenEnd E.IfIndentElse
     Keyword.else_ E.IfElse
-    Space.chompAndCheckIndent E.IfSpace E.IfIndentElseBranch
-    let newBranches = (condition, thenBranch) : branches
+    commentsAfterElseKeyword <- Space.chompAndCheckIndent E.IfSpace E.IfIndentElseBranch
+    let branchComments = SC.IfBranchComments (commentsBefore ++ commentsBeforeCondition) commentsAfterCondition commentsAfterThenKeyword commentsAfterThenBody
+    let newBranches = (condition, thenBranch, branchComments) : branches
     oneOf
       E.IfElseBranchStart
       [ do
           Keyword.if_ E.IfElseBranchStart
-          chompIfEnd start newBranches,
+          chompIfEnd start newBranches commentsAfterElseKeyword,
         do
-          ((elseBranch, commentsAfterElse), elseEnd) <- specialize E.IfElseBranch expression
-          let ifExpr = Src.If (reverse newBranches) elseBranch
-          return ((A.at start elseEnd ifExpr, commentsAfterElse), elseEnd)
+          ((elseBranch, commentsAfterExpr), elseEnd) <- specialize E.IfElseBranch expression
+          let (commentsAfterElseBody, commentsAfter) = List.span (A.isIndentedMoreThan indent) commentsAfterExpr
+          let ifComments = SC.IfComments commentsAfterElseKeyword commentsAfterElseBody
+          let ifExpr = Src.If (reverse newBranches) elseBranch ifComments
+          return ((A.at start elseEnd ifExpr, commentsAfter), elseEnd)
       ]
 
 -- LAMBDA EXPRESSION

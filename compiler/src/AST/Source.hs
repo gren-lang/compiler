@@ -8,6 +8,7 @@ module AST.Source
     Expr,
     Expr_ (..),
     VarType (..),
+    IfBranch,
     CaseBranch,
     Def (..),
     Pattern,
@@ -64,7 +65,7 @@ data Expr_
   | Binops [(Expr, [Comment], A.Located Name)] Expr
   | Lambda [([Comment], Pattern)] Expr SC.LambdaComments
   | Call Expr [([Comment], Expr)]
-  | If [(Expr, Expr)] Expr
+  | If [IfBranch] Expr SC.IfComments
   | Let [([Comment], A.Located Def)] Expr SC.LetComments
   | Case Expr [CaseBranch] SC.CaseComments
   | Accessor Name
@@ -76,6 +77,9 @@ data Expr_
 
 data VarType = LowVar | CapVar
   deriving (Show)
+
+type IfBranch =
+  (Expr, Expr, SC.IfBranchComments)
 
 type CaseBranch =
   (Pattern, Expr, SC.CaseBranchComments)

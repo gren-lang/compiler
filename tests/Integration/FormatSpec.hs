@@ -296,6 +296,33 @@ spec = do
         ["\\{-A-}x{-B-}y{-C-}->{-D-}[]"]
           `shouldFormatExpressionAs` ["\\{- A -} x {- B -} y {- C -} -> {- D -} []"]
 
+    describe "if" $ do
+      it "formats comments" $
+        ["if{-A-}x{-B-}then{-C-}1{-D-}else{-E-}if{-F-}y{-G-}then{-H-}2{-I-}else{-J-}3"]
+          `shouldFormatExpressionAs` [ "if {- A -} x {- B -} then",
+                                       "    {- C -}",
+                                       "    1",
+                                       "    {- D -}",
+                                       "else if {- E -} {- F -} y {- G -} then",
+                                       "    {- H -}",
+                                       "    2",
+                                       "    {- I -}",
+                                       "else",
+                                       "    {- J -}",
+                                       "    3"
+                                     ]
+      it "formats indented comments after else body" $
+        [ "if x then 1",
+          "else 2{-A-}",
+          " {-B-}"
+        ]
+          `shouldFormatExpressionAs` [ "if x then",
+                                       "    1",
+                                       "else",
+                                       "    2",
+                                       "    {- A -} {- B -}"
+                                     ]
+
     describe "let" $ do
       it "formats comments" $
         ["let{-A-}x{-D-}={-E-}1{-B-}in{-C-}x"]

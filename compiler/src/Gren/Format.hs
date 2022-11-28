@@ -579,33 +579,44 @@ formatExpr = \case
     where
       formatArg (commentsBefore, arg) =
         exprParensProtectSpaces (formatExpr $ A.toValue arg)
-  Src.If [] else_ ->
+  Src.If [] else_ _ ->
     formatExpr $ A.toValue else_
-  Src.If (if_ : elseifs) else_ ->
+  Src.If (if_ : elseifs) else_ (SC.IfComments commentsBeforeElseBody commentsAfterElseBody) ->
     ExpressionHasAmbiguousEnd $
       Block.stack $
         NonEmpty.fromList $
           mconcat
-            [ List.singleton $ formatIfClause "if" if_,
-              fmap (formatIfClause "else if") elseifs,
+            [ List.singleton $ formatIfBranch "if" if_,
+              fmap (formatIfBranch "else if") elseifs,
               List.singleton $
                 Block.stack
                   [ Block.line $ Block.string7 "else",
-                    Block.indent $ exprParensNone $ formatExpr $ A.toValue else_
+                    Block.indent $
+                      withCommentsStackAround commentsBeforeElseBody commentsAfterElseBody $
+                        exprParensNone $
+                          formatExpr $
+                            A.toValue else_
                   ]
             ]
     where
-      formatIfClause :: String -> (Src.Expr, Src.Expr) -> Block
-      formatIfClause keyword (predicate, body) =
+      formatIfBranch :: String -> Src.IfBranch -> Block
+      formatIfBranch keyword (predicate, body, SC.IfBranchComments commentsAfterIf commentsBeforeThen commentsBeforeBody commentsAfterBody) =
         Block.stack
           [ spaceOrStack
               [ spaceOrIndent
                   [ Block.line $ Block.string7 keyword,
-                    exprParensNone $ formatExpr $ A.toValue predicate
+                    withCommentsAround commentsAfterIf commentsBeforeThen $
+                      exprParensNone $
+                        formatExpr $
+                          A.toValue predicate
                   ],
                 Block.line $ Block.string7 "then"
               ],
-            Block.indent $ exprParensNone $ formatExpr $ A.toValue body
+            Block.indent $
+              withCommentsStackAround commentsBeforeBody commentsAfterBody $
+                exprParensNone $
+                  formatExpr $
+                    A.toValue body
           ]
   Src.Let [] body _ ->
     formatExpr $ A.toValue body

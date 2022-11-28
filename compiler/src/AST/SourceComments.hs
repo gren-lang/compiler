@@ -95,6 +95,20 @@ data LambdaComments = LambdaComments
   }
   deriving (Show)
 
+data IfComments = IfComments
+  { _beforeElseBody :: [Comment],
+    _afterElseBody :: [Comment]
+  }
+  deriving (Show)
+
+data IfBranchComments = IfBranchComments
+  { _afterIfKeyword :: [Comment],
+    _beforeThenKeyword :: [Comment],
+    _beforeThenBody :: [Comment],
+    _afterThenBody :: [Comment]
+  }
+  deriving (Show)
+
 data LetComments = LetComments
   { _afterLetDecls :: [Comment],
     _afterIn :: [Comment]
