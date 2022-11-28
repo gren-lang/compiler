@@ -100,7 +100,7 @@ chompDefArgsAndBody maybeDocs start name tipe revArgs commentsBefore =
         word1 0x3D {-=-} E.DeclDefEquals
         commentsAfterEquals <- Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentBody
         ((body, commentsAfter), end) <- specialize E.DeclDefBody Expr.expression
-        let (commentsAfterBody, commentsAfterDef) = List.span (A.isIndentedAtLeast 2) commentsAfter
+        let (commentsAfterBody, commentsAfterDef) = List.span (A.isIndentedMoreThan 1) commentsAfter
         let comments = SC.ValueComments commentsBefore commentsAfterEquals commentsAfterBody
         let value = Src.Value name (reverse revArgs) body tipe comments
         let avalue = A.at start end value

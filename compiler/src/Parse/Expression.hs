@@ -437,7 +437,7 @@ chompBranch commentsBeforeBranch =
     word2 0x2D 0x3E {-->-} E.CaseArrow
     commentsAfterArrow <- Space.chompAndCheckIndent E.CaseSpace E.CaseIndentBranch
     ((branchExpr, commentsAfterBranchExpr), end) <- specialize E.CaseBranch expression
-    let (commentsAfterBranchBody, commentsAfterBranch) = List.span (A.isIndentedAtLeast (indent + 1)) commentsAfterBranchExpr
+    let (commentsAfterBranchBody, commentsAfterBranch) = List.span (A.isIndentedMoreThan indent) commentsAfterBranchExpr
     let branchComments = SC.CaseBranchComments commentsBeforeBranch commentsAfterPattern commentsAfterArrow commentsAfterBranchBody
     let branch = (pattern, branchExpr, branchComments)
     return ((branch, commentsAfterBranch), end)
@@ -532,7 +532,7 @@ chompDefArgsAndBody start@(A.Position _ startCol) name tipe revArgs commentsBefo
         word1 0x3D {-=-} E.DefEquals
         commentsAfterEquals <- Space.chompAndCheckIndent E.DefSpace E.DefIndentBody
         ((body, commentsAfter), end) <- specialize E.DefBody expression
-        let (commentsAfterBody, commentsAfterDef) = List.span (A.isIndentedAtLeast (startCol + 1)) commentsAfter
+        let (commentsAfterBody, commentsAfterDef) = List.span (A.isIndentedMoreThan startCol) commentsAfter
         let comments = SC.ValueComments commentsBefore commentsAfterEquals commentsAfterBody
         return
           ( (A.at start end (Src.Define name (reverse revArgs) body tipe comments), commentsAfterDef),
