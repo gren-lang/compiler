@@ -110,6 +110,7 @@ data CaseComments = CaseComments
 data CaseBranchComments = CaseBranchComments
   { _beforeBranch :: [Comment],
     _beforeBranchArrow :: [Comment],
-    _beforeBranchBody :: [Comment]
+    _beforeBranchBody :: [Comment],
+    _afterBranchBody :: [Comment]
   }
   deriving (Show)

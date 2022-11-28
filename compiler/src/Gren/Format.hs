@@ -638,7 +638,7 @@ formatExpr = \case
           ]
           :| List.intersperse Block.blankLine (fmap (Block.indent . formatCaseBranch) branches)
     where
-      formatCaseBranch (pat, expr, SC.CaseBranchComments commentsBefore commentsAfterPattern commentsBeforeBody) =
+      formatCaseBranch (pat, expr, SC.CaseBranchComments commentsBefore commentsAfterPattern commentsBeforeBody commentsAfterBody) =
         withCommentsStackBefore commentsBefore $
           Block.stack
             [ spaceOrStack
@@ -648,7 +648,7 @@ formatExpr = \case
                   Block.line $ Block.string7 "->"
                 ],
               Block.indent $
-                withCommentsStackBefore commentsBeforeBody $
+                withCommentsStackAround commentsBeforeBody commentsAfterBody $
                   exprParensNone $
                     formatExpr $
                       A.toValue expr

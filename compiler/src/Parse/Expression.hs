@@ -431,12 +431,14 @@ case_ start =
 chompBranch :: [Src.Comment] -> Space.Parser E.Case (Src.CaseBranch, [Src.Comment])
 chompBranch commentsBeforeBranch =
   do
+    indent <- getCol
     ((pattern, commentsAfterPattern), patternEnd) <- specialize E.CasePattern Pattern.expression
     Space.checkIndent patternEnd E.CaseIndentArrow
     word2 0x2D 0x3E {-->-} E.CaseArrow
     commentsAfterArrow <- Space.chompAndCheckIndent E.CaseSpace E.CaseIndentBranch
-    ((branchExpr, commentsAfterBranch), end) <- specialize E.CaseBranch expression
-    let branchComments = SC.CaseBranchComments commentsBeforeBranch commentsAfterPattern commentsAfterArrow
+    ((branchExpr, commentsAfterBranchExpr), end) <- specialize E.CaseBranch expression
+    let (commentsAfterBranchBody, commentsAfterBranch) = List.span (A.isIndentedAtLeast (indent + 1)) commentsAfterBranchExpr
+    let branchComments = SC.CaseBranchComments commentsBeforeBranch commentsAfterPattern commentsAfterArrow commentsAfterBranchBody
     let branch = (pattern, branchExpr, branchComments)
     return ((branch, commentsAfterBranch), end)
 

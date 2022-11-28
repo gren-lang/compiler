@@ -348,21 +348,39 @@ spec = do
     describe "case" $ do
       it "formats comments" $
         [ "case{-A-}x{-B-}of{-C-}",
-          "{-D-}",
+          " {-D1-}",
+          "{-D2-}",
           " Nothing{-E-}->{-F-}y",
-          "{-H-}",
+          " {-H1-}",
+          "{-H2-}",
           " _{-J-}->{-K-}z"
         ]
           `shouldFormatExpressionAs` [ "case {- A -} x {- B -} of",
-                                       "    {- C -} {- D -}",
+                                       "    {- C -} {- D1 -} {- D2 -}",
                                        "    Nothing {- E -} ->",
                                        "        {- F -}",
                                        "        y",
                                        "",
-                                       "    {- H -}",
+                                       "    {- H1 -} {- H2 -}",
                                        "    _ {- J -} ->",
                                        "        {- K -}",
                                        "        z"
+                                     ]
+      it "formats indented comments after branches" $
+        [ "case x of",
+          " Nothing -> y{-A-}",
+          "  {-B-}",
+          " _ -> z{-C-}",
+          "  {-D-}"
+        ]
+          `shouldFormatExpressionAs` [ "case x of",
+                                       "    Nothing ->",
+                                       "        y",
+                                       "        {- A -} {- B -}",
+                                       "",
+                                       "    _ ->",
+                                       "        z",
+                                       "        {- C -} {- D -}"
                                      ]
 
     describe "record" $ do
