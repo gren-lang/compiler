@@ -579,33 +579,44 @@ formatExpr = \case
     where
       formatArg (commentsBefore, arg) =
         exprParensProtectSpaces (formatExpr $ A.toValue arg)
-  Src.If [] else_ ->
+  Src.If [] else_ _ ->
     formatExpr $ A.toValue else_
-  Src.If (if_ : elseifs) else_ ->
+  Src.If (if_ : elseifs) else_ (SC.IfComments commentsBeforeElseBody commentsAfterElseBody) ->
     ExpressionHasAmbiguousEnd $
       Block.stack $
         NonEmpty.fromList $
           mconcat
-            [ List.singleton $ formatIfClause "if" if_,
-              fmap (formatIfClause "else if") elseifs,
+            [ List.singleton $ formatIfBranch "if" if_,
+              fmap (formatIfBranch "else if") elseifs,
               List.singleton $
                 Block.stack
                   [ Block.line $ Block.string7 "else",
-                    Block.indent $ exprParensNone $ formatExpr $ A.toValue else_
+                    Block.indent $
+                      withCommentsStackAround commentsBeforeElseBody commentsAfterElseBody $
+                        exprParensNone $
+                          formatExpr $
+                            A.toValue else_
                   ]
             ]
     where
-      formatIfClause :: String -> (Src.Expr, Src.Expr) -> Block
-      formatIfClause keyword (predicate, body) =
+      formatIfBranch :: String -> Src.IfBranch -> Block
+      formatIfBranch keyword (predicate, body, SC.IfBranchComments commentsAfterIf commentsBeforeThen commentsBeforeBody commentsAfterBody) =
         Block.stack
           [ spaceOrStack
               [ spaceOrIndent
                   [ Block.line $ Block.string7 keyword,
-                    exprParensNone $ formatExpr $ A.toValue predicate
+                    withCommentsAround commentsAfterIf commentsBeforeThen $
+                      exprParensNone $
+                        formatExpr $
+                          A.toValue predicate
                   ],
                 Block.line $ Block.string7 "then"
               ],
-            Block.indent $ exprParensNone $ formatExpr $ A.toValue body
+            Block.indent $
+              withCommentsStackAround commentsBeforeBody commentsAfterBody $
+                exprParensNone $
+                  formatExpr $
+                    A.toValue body
           ]
   Src.Let [] body _ ->
     formatExpr $ A.toValue body
@@ -624,26 +635,35 @@ formatExpr = \case
                 ],
           withCommentsStackBefore commentsAfterIn $ exprParensNone $ formatExpr (A.toValue body)
         ]
-  Src.Case subject branches ->
+  Src.Case subject branches (SC.CaseComments commentsAfterCaseKeyword commentsBeforeOfKeyword) ->
     ExpressionHasAmbiguousEnd $
       Block.stack $
         spaceOrStack
           [ spaceOrIndent
               [ Block.line (Block.string7 "case"),
-                exprParensNone $ formatExpr (A.toValue subject)
+                withCommentsAround commentsAfterCaseKeyword commentsBeforeOfKeyword $
+                  exprParensNone $
+                    formatExpr (A.toValue subject)
               ],
             Block.line (Block.string7 "of")
           ]
           :| List.intersperse Block.blankLine (fmap (Block.indent . formatCaseBranch) branches)
     where
-      formatCaseBranch (commentsBefore, pat, expr) =
-        Block.stack
-          [ spaceOrStack
-              [ patternParensNone $ formatPattern (A.toValue pat),
-                Block.line $ Block.string7 "->"
-              ],
-            Block.indent $ exprParensNone $ formatExpr $ A.toValue expr
-          ]
+      formatCaseBranch (pat, expr, SC.CaseBranchComments commentsBefore commentsAfterPattern commentsBeforeBody commentsAfterBody) =
+        withCommentsStackBefore commentsBefore $
+          Block.stack
+            [ spaceOrStack
+                [ withCommentsAround [] commentsAfterPattern $
+                    patternParensNone $
+                      formatPattern (A.toValue pat),
+                  Block.line $ Block.string7 "->"
+                ],
+              Block.indent $
+                withCommentsStackAround commentsBeforeBody commentsAfterBody $
+                  exprParensNone $
+                    formatExpr $
+                      A.toValue expr
+            ]
   Src.Accessor field ->
     NoExpressionParens $
       Block.line $
@@ -857,7 +877,7 @@ formatPattern = \case
     PatternContainsSpaces $
       spaceOrIndent $
         Block.line (utf8 name)
-          :| fmap (patternParensProtectSpaces . formatPattern . A.toValue) args
+          :| fmap (patternParensProtectSpaces . formatPatternConstructorArg) args
   Src.PCtorQual _ ns name [] ->
     NoPatternParens $
       Block.line (utf8 ns <> Block.char7 '.' <> utf8 name)
@@ -865,7 +885,7 @@ formatPattern = \case
     PatternContainsSpaces $
       spaceOrIndent $
         Block.line (utf8 ns <> Block.char7 '.' <> utf8 name)
-          :| fmap (patternParensProtectSpaces . formatPattern . A.toValue) args
+          :| fmap (patternParensProtectSpaces . formatPatternConstructorArg) args
   Src.PArray items ->
     NoPatternParens $
       group '[' ',' ']' False $
@@ -880,6 +900,10 @@ formatPattern = \case
     NoPatternParens $
       Block.line $
         Block.string7 (show int)
+
+formatPatternConstructorArg :: ([Src.Comment], Src.Pattern) -> PatternBlock
+formatPatternConstructorArg (commentsBefore, pat) =
+  formatPattern (A.toValue pat)
 
 data StringStyle
   = StringStyleChar

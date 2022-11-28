@@ -3,6 +3,8 @@
 {-# LANGUAGE UnboxedTuples #-}
 -- Temporary while implementing gren format
 {-# OPTIONS_GHC -Wno-error=unused-do-bind #-}
+{-# OPTIONS_GHC -Wno-error=unused-local-binds #-}
+{-# OPTIONS_GHC -Wno-error=unused-matches #-}
 
 module Parse.Pattern
   ( term,
@@ -106,8 +108,8 @@ parenthesized :: Parser E.Pattern Src.Pattern
 parenthesized =
   inContext E.PParenthesized (word1 0x28 {-(-} E.PStart) $
     do
-      Space.chompAndCheckIndent E.PParenthesizedSpace E.PParenthesizedIndentPattern
-      (pattern, end) <- P.specialize E.PParenthesizedPattern expression
+      commentsAfterOpenBrace <- Space.chompAndCheckIndent E.PParenthesizedSpace E.PParenthesizedIndentPattern
+      ((pattern, commentsAfterPattern), end) <- P.specialize E.PParenthesizedPattern expression
       Space.checkIndent end E.PParenthesizedIndentEnd
       word1 0x29 {-)-} E.PParenthesizedEnd
       return pattern
@@ -138,8 +140,8 @@ recordPatternHelp start revPatterns =
       E.PRecordEnd
       [ do
           word1 0x3D {-=-} E.PRecordEquals
-          Space.chompAndCheckIndent E.PRecordSpace E.PRecordIndentField
-          (pattern, fieldEnd) <- P.specialize E.PRecordExpr expression
+          commentsAfterEquals <- Space.chompAndCheckIndent E.PRecordSpace E.PRecordIndentField
+          ((pattern, commentsAfterPattern), fieldEnd) <- P.specialize E.PRecordExpr expression
           Space.chompAndCheckIndent E.PRecordSpace E.PRecordIndentEnd
           let namedPattern =
                 A.at fieldStart fieldEnd $
@@ -173,11 +175,11 @@ array :: A.Position -> Parser E.Pattern Src.Pattern
 array start =
   inContext E.PArray (word1 0x5B {-[-} E.PStart) $
     do
-      Space.chompAndCheckIndent E.PArraySpace E.PArrayIndentOpen
+      commentsAfterOpenBracket <- Space.chompAndCheckIndent E.PArraySpace E.PArrayIndentOpen
       oneOf
         E.PArrayOpen
         [ do
-            (pattern, end) <- P.specialize E.PArrayExpr expression
+            ((pattern, commentsAfterPattern), end) <- P.specialize E.PArrayExpr expression
             Space.checkIndent end E.PArrayIndentEnd
             arrayHelp start [pattern],
           do
@@ -192,7 +194,7 @@ arrayHelp start patterns =
     [ do
         word1 0x2C {-,-} E.PArrayEnd
         Space.chompAndCheckIndent E.PArraySpace E.PArrayIndentExpr
-        (pattern, end) <- P.specialize E.PArrayExpr expression
+        ((pattern, commentsAfter), end) <- P.specialize E.PArrayExpr expression
         Space.checkIndent end E.PArrayIndentEnd
         arrayHelp start (pattern : patterns),
       do
@@ -202,34 +204,35 @@ arrayHelp start patterns =
 
 -- EXPRESSION
 
-expression :: Space.Parser E.Pattern Src.Pattern
+expression :: Space.Parser E.Pattern (Src.Pattern, [Src.Comment])
 expression = do
   start <- getPosition
   ePart <- exprPart
   exprHelp start ePart
 
-exprHelp :: A.Position -> (Src.Pattern, A.Position) -> Space.Parser E.Pattern Src.Pattern
-exprHelp start (pattern, end) =
+exprHelp :: A.Position -> ((Src.Pattern, [Src.Comment]), A.Position) -> Space.Parser E.Pattern (Src.Pattern, [Src.Comment])
+exprHelp start ((pattern, commentsAfterPattern), end) =
   oneOfWithFallback
     [ do
         Space.checkIndent end E.PIndentStart
+        let commentsBeforeAs = commentsAfterPattern
         Keyword.as_ E.PStart
-        Space.chompAndCheckIndent E.PSpace E.PIndentAlias
+        commentsAfterAs <- Space.chompAndCheckIndent E.PSpace E.PIndentAlias
         nameStart <- getPosition
         name <- Var.lower E.PAlias
         newEnd <- getPosition
-        Space.chomp E.PSpace
+        commentsAfterAlias <- Space.chomp E.PSpace
         let alias = A.at nameStart newEnd name
         return
-          ( A.at start newEnd (Src.PAlias pattern alias),
+          ( (A.at start newEnd (Src.PAlias pattern alias), commentsAfterAlias),
             newEnd
           )
     ]
-    ( pattern,
+    ( (pattern, commentsAfterPattern),
       end
     )
 
-exprPart :: Space.Parser E.Pattern Src.Pattern
+exprPart :: Space.Parser E.Pattern (Src.Pattern, [Src.Comment])
 exprPart =
   oneOf
     E.PStart
@@ -240,26 +243,28 @@ exprPart =
         exprTermHelp (A.Region start end) upper start [],
       do
         eterm@(A.At (A.Region _ end) _) <- term
-        Space.chomp E.PSpace
-        return (eterm, end)
+        commentsAfter <- Space.chomp E.PSpace
+        return ((eterm, commentsAfter), end)
     ]
 
-exprTermHelp :: A.Region -> Var.Upper -> A.Position -> [Src.Pattern] -> Space.Parser E.Pattern Src.Pattern
+exprTermHelp :: A.Region -> Var.Upper -> A.Position -> [([Src.Comment], Src.Pattern)] -> Space.Parser E.Pattern (Src.Pattern, [Src.Comment])
 exprTermHelp region upper start revArgs =
   do
     end <- getPosition
-    Space.chomp E.PSpace
+    commentsAfter <- Space.chomp E.PSpace
     oneOfWithFallback
       [ do
           Space.checkIndent end E.PIndentStart
           arg <- term
-          exprTermHelp region upper start (arg : revArgs)
+          exprTermHelp region upper start ((commentsAfter, arg) : revArgs)
       ]
-      ( A.at start end $
-          case upper of
-            Var.Unqualified name ->
-              Src.PCtor region name (reverse revArgs)
-            Var.Qualified home name ->
-              Src.PCtorQual region home name (reverse revArgs),
+      ( ( A.at start end $
+            case upper of
+              Var.Unqualified name ->
+                Src.PCtor region name (reverse revArgs)
+              Var.Qualified home name ->
+                Src.PCtorQual region home name (reverse revArgs),
+          commentsAfter
+        ),
         end
       )

@@ -48,4 +48,4 @@ parse expectedStr =
             expectedStr == Utf8.toChars str
           _ ->
             False
-   in Helpers.checkSuccessfulParse Pattern.expression Error.Syntax.PStart isExpectedString
+   in Helpers.checkSuccessfulParse (fmap (\((pat, _), loc) -> (pat, loc)) Pattern.expression) Error.Syntax.PStart isExpectedString

@@ -48,7 +48,7 @@ parse expectedName =
             expectedName == (Name.toChars name)
           _ ->
             False
-   in Helpers.checkSuccessfulParse Pattern.expression Error.Syntax.PStart isWildCardPattern
+   in Helpers.checkSuccessfulParse (fmap (\((pat, _), loc) -> (pat, loc)) Pattern.expression) Error.Syntax.PStart isWildCardPattern
 
 failToParse :: BS.ByteString -> IO ()
 failToParse =

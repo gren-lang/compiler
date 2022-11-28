@@ -65,9 +65,9 @@ canonicalize env (A.At region pattern) =
       Src.PRecord fields ->
         Can.PRecord <$> canonicalizeRecordFields env fields
       Src.PCtor nameRegion name patterns ->
-        canonicalizeCtor env region name patterns =<< Env.findCtor nameRegion env name
+        canonicalizeCtor env region name (fmap snd patterns) =<< Env.findCtor nameRegion env name
       Src.PCtorQual nameRegion home name patterns ->
-        canonicalizeCtor env region name patterns =<< Env.findCtorQual nameRegion env home name
+        canonicalizeCtor env region name (fmap snd patterns) =<< Env.findCtorQual nameRegion env home name
       Src.PArray patterns ->
         Can.PArray <$> canonicalizeList env patterns
       Src.PAlias ptrn (A.At reg name) ->

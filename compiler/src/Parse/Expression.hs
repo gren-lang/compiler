@@ -352,30 +352,33 @@ toCall func revArgs =
 if_ :: A.Position -> Space.Parser E.Expr (Src.Expr, [Src.Comment])
 if_ start =
   inContext E.If (Keyword.if_ E.Start) $
-    chompIfEnd start []
+    chompIfEnd start [] []
 
-chompIfEnd :: A.Position -> [(Src.Expr, Src.Expr)] -> Space.Parser E.If (Src.Expr, [Src.Comment])
-chompIfEnd start branches =
+chompIfEnd :: A.Position -> [Src.IfBranch] -> [Src.Comment] -> Space.Parser E.If (Src.Expr, [Src.Comment])
+chompIfEnd start@(A.Position _ indent) branches commentsBefore =
   do
-    Space.chompAndCheckIndent E.IfSpace E.IfIndentCondition
+    commentsBeforeCondition <- Space.chompAndCheckIndent E.IfSpace E.IfIndentCondition
     ((condition, commentsAfterCondition), condEnd) <- specialize E.IfCondition expression
     Space.checkIndent condEnd E.IfIndentThen
     Keyword.then_ E.IfThen
-    Space.chompAndCheckIndent E.IfSpace E.IfIndentThenBranch
-    ((thenBranch, commentsAfterThen), thenEnd) <- specialize E.IfThenBranch expression
+    commentsAfterThenKeyword <- Space.chompAndCheckIndent E.IfSpace E.IfIndentThenBranch
+    ((thenBranch, commentsAfterThenBody), thenEnd) <- specialize E.IfThenBranch expression
     Space.checkIndent thenEnd E.IfIndentElse
     Keyword.else_ E.IfElse
-    Space.chompAndCheckIndent E.IfSpace E.IfIndentElseBranch
-    let newBranches = (condition, thenBranch) : branches
+    commentsAfterElseKeyword <- Space.chompAndCheckIndent E.IfSpace E.IfIndentElseBranch
+    let branchComments = SC.IfBranchComments (commentsBefore ++ commentsBeforeCondition) commentsAfterCondition commentsAfterThenKeyword commentsAfterThenBody
+    let newBranches = (condition, thenBranch, branchComments) : branches
     oneOf
       E.IfElseBranchStart
       [ do
           Keyword.if_ E.IfElseBranchStart
-          chompIfEnd start newBranches,
+          chompIfEnd start newBranches commentsAfterElseKeyword,
         do
-          ((elseBranch, commentsAfterElse), elseEnd) <- specialize E.IfElseBranch expression
-          let ifExpr = Src.If (reverse newBranches) elseBranch
-          return ((A.at start elseEnd ifExpr, commentsAfterElse), elseEnd)
+          ((elseBranch, commentsAfterExpr), elseEnd) <- specialize E.IfElseBranch expression
+          let (commentsAfterElseBody, commentsAfter) = List.span (A.isIndentedMoreThan indent) commentsAfterExpr
+          let ifComments = SC.IfComments commentsAfterElseKeyword commentsAfterElseBody
+          let ifExpr = Src.If (reverse newBranches) elseBranch ifComments
+          return ((A.at start elseEnd ifExpr, commentsAfter), elseEnd)
       ]
 
 -- LAMBDA EXPRESSION
@@ -413,38 +416,41 @@ case_ :: A.Position -> Space.Parser E.Expr (Src.Expr, [Src.Comment])
 case_ start =
   inContext E.Case (Keyword.case_ E.Start) $
     do
-      Space.chompAndCheckIndent E.CaseSpace E.CaseIndentExpr
+      commentsBeforeExpr <- Space.chompAndCheckIndent E.CaseSpace E.CaseIndentExpr
       ((expr, commentsAfterExpr), exprEnd) <- specialize E.CaseExpr expression
       Space.checkIndent exprEnd E.CaseIndentOf
       Keyword.of_ E.CaseOf
       commentsAfterOf <- Space.chompAndCheckIndent E.CaseSpace E.CaseIndentPattern
       withIndent $
         do
-          ((branchPat, branchExpr, commentsAfterFirstBranch), firstEnd) <- chompBranch
-          let firstBranch = (commentsAfterOf, branchPat, branchExpr)
+          ((firstBranch, commentsAfterFirstBranch), firstEnd) <- chompBranch commentsAfterOf
           ((branches, commentsAfterLastBranch), end) <- chompCaseEnd [firstBranch] commentsAfterFirstBranch firstEnd
+          let caseComments = SC.CaseComments commentsBeforeExpr commentsAfterExpr
           return
-            ( (A.at start end (Src.Case expr branches), commentsAfterLastBranch),
+            ( (A.at start end (Src.Case expr branches caseComments), commentsAfterLastBranch),
               end
             )
 
-chompBranch :: Space.Parser E.Case (Src.Pattern, Src.Expr, [Src.Comment])
-chompBranch =
+chompBranch :: [Src.Comment] -> Space.Parser E.Case (Src.CaseBranch, [Src.Comment])
+chompBranch commentsBeforeBranch =
   do
-    (pattern, patternEnd) <- specialize E.CasePattern Pattern.expression
+    indent <- getCol
+    ((pattern, commentsAfterPattern), patternEnd) <- specialize E.CasePattern Pattern.expression
     Space.checkIndent patternEnd E.CaseIndentArrow
     word2 0x2D 0x3E {-->-} E.CaseArrow
-    Space.chompAndCheckIndent E.CaseSpace E.CaseIndentBranch
-    ((branchExpr, commentsAfterBranch), end) <- specialize E.CaseBranch expression
-    return ((pattern, branchExpr, commentsAfterBranch), end)
+    commentsAfterArrow <- Space.chompAndCheckIndent E.CaseSpace E.CaseIndentBranch
+    ((branchExpr, commentsAfterBranchExpr), end) <- specialize E.CaseBranch expression
+    let (commentsAfterBranchBody, commentsAfterBranch) = List.span (A.isIndentedMoreThan indent) commentsAfterBranchExpr
+    let branchComments = SC.CaseBranchComments commentsBeforeBranch commentsAfterPattern commentsAfterArrow commentsAfterBranchBody
+    let branch = (pattern, branchExpr, branchComments)
+    return ((branch, commentsAfterBranch), end)
 
-chompCaseEnd :: [([Src.Comment], Src.Pattern, Src.Expr)] -> [Src.Comment] -> A.Position -> Space.Parser E.Case ([([Src.Comment], Src.Pattern, Src.Expr)], [Src.Comment])
+chompCaseEnd :: [Src.CaseBranch] -> [Src.Comment] -> A.Position -> Space.Parser E.Case ([Src.CaseBranch], [Src.Comment])
 chompCaseEnd branches commentsBetween end =
   oneOfWithFallback
     [ do
         Space.checkAligned E.CasePatternAlignment
-        ((pat, expr, commentsAfter), newEnd) <- chompBranch
-        let branch = (commentsBetween, pat, expr)
+        ((branch, commentsAfter), newEnd) <- chompBranch commentsBetween
         chompCaseEnd (branch : branches) commentsAfter newEnd
     ]
     ((reverse branches, commentsBetween), end)
@@ -529,7 +535,7 @@ chompDefArgsAndBody start@(A.Position _ startCol) name tipe revArgs commentsBefo
         word1 0x3D {-=-} E.DefEquals
         commentsAfterEquals <- Space.chompAndCheckIndent E.DefSpace E.DefIndentBody
         ((body, commentsAfter), end) <- specialize E.DefBody expression
-        let (commentsAfterBody, commentsAfterDef) = List.span (A.isIndentedAtLeast (startCol + 1)) commentsAfter
+        let (commentsAfterBody, commentsAfterDef) = List.span (A.isIndentedMoreThan startCol) commentsAfter
         let comments = SC.ValueComments commentsBefore commentsAfterEquals commentsAfterBody
         return
           ( (A.at start end (Src.Define name (reverse revArgs) body tipe comments), commentsAfterDef),
