@@ -917,7 +917,12 @@ formatPattern = \case
   Src.PArray items ->
     NoPatternParens $
       group '[' ',' ']' False $
-        fmap (patternParensNone . formatPattern . A.toValue) items
+        fmap formatArrayPatternEntry items
+    where
+      formatArrayPatternEntry (pattern, SC.PArrayEntryComments commentsBefore commentsAfter) =
+        withCommentsAround commentsBefore commentsAfter $
+          patternParensNone $
+            formatPattern (A.toValue pattern)
   Src.PChr char ->
     NoPatternParens $
       formatString StringStyleChar char

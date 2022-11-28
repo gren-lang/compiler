@@ -134,3 +134,11 @@ data CaseBranchComments = CaseBranchComments
     _afterBranchBody :: [Comment]
   }
   deriving (Show)
+
+-- Patterns
+
+data PArrayEntryComments = PArrayEntryComments
+  { _beforePArrayEntry :: [Comment],
+    _afterPArrayEntry :: [Comment]
+  }
+  deriving (Show)

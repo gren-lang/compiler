@@ -16,6 +16,7 @@ module AST.Source
     Pattern_ (..),
     RecordFieldPattern,
     RecordFieldPattern_ (..),
+    PArrayEntry,
     Type,
     Type_ (..),
     SourceOrder,
@@ -106,7 +107,7 @@ data Pattern_
   | PAlias Pattern (A.Located Name)
   | PCtor A.Region Name [([Comment], Pattern)]
   | PCtorQual A.Region Name Name [([Comment], Pattern)]
-  | PArray [Pattern]
+  | PArray [PArrayEntry]
   | PChr ES.String
   | PStr ES.String
   | PInt Int
@@ -116,6 +117,8 @@ type RecordFieldPattern = A.Located RecordFieldPattern_
 
 data RecordFieldPattern_ = RFPattern (A.Located Name) Pattern
   deriving (Show)
+
+type PArrayEntry = (Pattern, SC.PArrayEntryComments)
 
 -- TYPE
 

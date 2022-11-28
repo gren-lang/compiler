@@ -13,6 +13,7 @@ module Parse.Pattern
 where
 
 import AST.Source qualified as Src
+import AST.SourceComments qualified as SC
 import Data.Name qualified as Name
 import Data.Utf8 qualified as Utf8
 import Foreign.Ptr (plusPtr)
@@ -181,22 +182,26 @@ array start =
         [ do
             ((pattern, commentsAfterPattern), end) <- P.specialize E.PArrayExpr expression
             Space.checkIndent end E.PArrayIndentEnd
-            arrayHelp start [pattern],
+            let entryComments = SC.PArrayEntryComments commentsAfterOpenBracket commentsAfterPattern
+            let entry = (pattern, entryComments)
+            arrayHelp start [entry],
           do
             word1 0x5D {-]-} E.PArrayEnd
             addEnd start (Src.PArray [])
         ]
 
-arrayHelp :: A.Position -> [Src.Pattern] -> Parser E.PArray Src.Pattern
+arrayHelp :: A.Position -> [Src.PArrayEntry] -> Parser E.PArray Src.Pattern
 arrayHelp start patterns =
   oneOf
     E.PArrayEnd
     [ do
         word1 0x2C {-,-} E.PArrayEnd
-        Space.chompAndCheckIndent E.PArraySpace E.PArrayIndentExpr
-        ((pattern, commentsAfter), end) <- P.specialize E.PArrayExpr expression
+        commentsAfterComma <- Space.chompAndCheckIndent E.PArraySpace E.PArrayIndentExpr
+        ((pattern, commentsAfterPattern), end) <- P.specialize E.PArrayExpr expression
         Space.checkIndent end E.PArrayIndentEnd
-        arrayHelp start (pattern : patterns),
+        let entryComments = SC.PArrayEntryComments commentsAfterComma commentsAfterPattern
+        let entry = (pattern, entryComments)
+        arrayHelp start (entry : patterns),
       do
         word1 0x5D {-]-} E.PArrayEnd
         addEnd start (Src.PArray (reverse patterns))

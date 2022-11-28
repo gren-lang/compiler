@@ -250,7 +250,7 @@ addBindingsHelp bindings (A.At region pattern) =
     Src.PCtorQual _ _ _ patterns ->
       List.foldl' addBindingsHelp bindings (fmap snd patterns)
     Src.PArray patterns ->
-      List.foldl' addBindingsHelp bindings patterns
+      List.foldl' addBindingsHelp bindings (fmap fst patterns)
     Src.PAlias aliasPattern (A.At nameRegion name) ->
       Dups.insert name nameRegion nameRegion $
         addBindingsHelp bindings aliasPattern
@@ -358,7 +358,7 @@ getPatternNames names (A.At region pattern) =
     Src.PAlias ptrn name -> getPatternNames (name : names) ptrn
     Src.PCtor _ _ args -> List.foldl' getPatternNames names (fmap snd args)
     Src.PCtorQual _ _ _ args -> List.foldl' getPatternNames names (fmap snd args)
-    Src.PArray patterns -> List.foldl' getPatternNames names patterns
+    Src.PArray patterns -> List.foldl' getPatternNames names (fmap fst patterns)
     Src.PChr _ -> names
     Src.PStr _ -> names
     Src.PInt _ -> names

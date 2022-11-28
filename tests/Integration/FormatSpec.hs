@@ -464,6 +464,14 @@ spec = do
         assertFormattedExpression
           ["({- A -} x)"]
 
+  describe "patterns" $ do
+    describe "array patterns" $ do
+      it "formats comments" $
+        ["f [{-A-}1{-B-},{-C-}2{-D-}] = {}"]
+          `shouldFormatModuleBodyAs` [ "f [ {- A -} 1 {- B -}, {- C -} 2 {- D -} ] =",
+                                       "    {}"
+                                     ]
+
 assertFormatted :: [Text] -> IO ()
 assertFormatted lines_ =
   lines_ `shouldFormatAs` lines_
