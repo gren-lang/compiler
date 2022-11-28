@@ -68,16 +68,28 @@ spaceOrIndentForce :: Bool -> NonEmpty Block -> Block
 spaceOrIndentForce forceMultiline = Block.rowOrIndentForce forceMultiline (Just Block.space)
 
 group :: Char -> Char -> Char -> Bool -> [Block] -> Block
-group open _ close _ [] = Block.line $ Block.char7 open <> Block.char7 close
-group open sep close forceMultiline (first : rest) =
+group open sep close forceMultiline = groupWithBlankLines open sep close forceMultiline . fmap (0,)
+
+-- | NOTE: The blankLines number for the first entry is always ignored.
+groupWithBlankLines :: Char -> Char -> Char -> Bool -> [(Int, Block)] -> Block
+groupWithBlankLines open _ close _ [] = Block.line $ Block.char7 open <> Block.char7 close
+groupWithBlankLines open sep close forceMultiline ((_, first) : rest) =
   Block.rowOrStackForce
     forceMultiline
     (Just Block.space)
     [ Block.rowOrStackForce forceMultiline Nothing $
-        Block.prefix 2 (Block.char7 open <> Block.space) first
-          :| fmap (Block.prefix 2 (Block.char7 sep <> Block.space)) (rest),
+        formatEntry open (0, first)
+          :| fmap (formatEntry sep) (rest),
       Block.line (Block.char7 close)
     ]
+  where
+    formatEntry char (0, entry) =
+      Block.prefix 2 (Block.char7 char <> Block.space) entry
+    formatEntry char (blankLines, entry) =
+      Block.stack $
+        NonEmpty.prependList (replicate blankLines Block.blankLine) $
+          NonEmpty.singleton $
+            Block.prefix 2 (Block.char7 char <> Block.space) entry
 
 surround :: Char -> Char -> Block -> Block
 surround open close block =
@@ -154,6 +166,15 @@ withCommentsStackAround before after block =
     (Just beforeBlock, Nothing) -> Block.stack [beforeBlock, block]
     (Nothing, Just afterBlock) -> Block.stack [block, afterBlock]
     (Just beforeBlock, Just afterBlock) -> Block.stack [beforeBlock, block, afterBlock]
+
+withCommentsStackAroundIndented :: [Src.Comment] -> [Src.Comment] -> Block -> Block
+withCommentsStackAroundIndented [] [] block = block
+withCommentsStackAroundIndented before after block =
+  case (formatCommentBlock before, formatCommentBlock after) of
+    (Nothing, Nothing) -> block
+    (Just beforeBlock, Nothing) -> Block.stack [beforeBlock, block]
+    (Nothing, Just afterBlock) -> Block.stack [block, Block.indent afterBlock]
+    (Just beforeBlock, Just afterBlock) -> Block.stack [beforeBlock, block, Block.indent afterBlock]
 
 --
 -- AST -> Block
@@ -518,8 +539,15 @@ formatExpr = \case
         utf8 ns <> Block.char7 '.' <> utf8 name
   Src.Array exprs ->
     NoExpressionParens $
-      group '[' ',' ']' True $
-        fmap (exprParensNone . formatExpr . A.toValue) exprs
+      groupWithBlankLines '[' ',' ']' True $
+        fmap formatArrayEntry exprs
+    where
+      formatArrayEntry (entryExpr, SC.ArrayEntryComments commentsBefore commentsAfter) =
+        ( if List.null commentsBefore then 0 else 1,
+          withCommentsStackAroundIndented commentsBefore commentsAfter $
+            exprParensNone $
+              formatExpr (A.toValue entryExpr)
+        )
   Src.Op name ->
     NoExpressionParens $
       Block.line $

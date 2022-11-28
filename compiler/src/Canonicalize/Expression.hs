@@ -67,7 +67,7 @@ canonicalize env (A.At region expression) =
           Src.LowVar -> findVarQual region env prefix name
           Src.CapVar -> toVarCtor name <$> Env.findCtorQual region env prefix name
       Src.Array exprs ->
-        Can.Array <$> traverse (canonicalize env) exprs
+        Can.Array <$> traverse (canonicalize env) (fmap fst exprs)
       Src.Op op ->
         do
           (Env.Binop _ home name annotation _ _) <- Env.findBinop region env op

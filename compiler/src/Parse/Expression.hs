@@ -145,27 +145,32 @@ array :: A.Position -> Parser E.Expr Src.Expr
 array start =
   inContext E.Array (word1 0x5B {-[-} E.Start) $
     do
-      Space.chompAndCheckIndent E.ArraySpace E.ArrayIndentOpen
+      commentsAfterOpenBrace <- Space.chompAndCheckIndent E.ArraySpace E.ArrayIndentOpen
       oneOf
         E.ArrayOpen
         [ do
-            ((entry, commentsAfterEntry), end) <- specialize E.ArrayExpr expression
+            ((expr, commentsAfterExpr), end) <- specialize E.ArrayExpr expression
             Space.checkIndent end E.ArrayIndentEnd
+            let entryComments = SC.ArrayEntryComments commentsAfterOpenBrace commentsAfterExpr
+            let entry = (expr, entryComments)
             chompArrayEnd start [entry],
           do
+            -- TODO: comments in an empty array are dropped; what to do with these?
             word1 0x5D {-]-} E.ArrayOpen
             addEnd start (Src.Array [])
         ]
 
-chompArrayEnd :: A.Position -> [Src.Expr] -> Parser E.Array Src.Expr
+chompArrayEnd :: A.Position -> [Src.ArrayEntry] -> Parser E.Array Src.Expr
 chompArrayEnd start entries =
   oneOf
     E.ArrayEnd
     [ do
         word1 0x2C {-,-} E.ArrayEnd
-        Space.chompAndCheckIndent E.ArraySpace E.ArrayIndentExpr
-        ((entry, commentsAfterEntry), end) <- specialize E.ArrayExpr expression
+        commentsAfterComma <- Space.chompAndCheckIndent E.ArraySpace E.ArrayIndentExpr
+        ((expr, commentsAfterExpr), end) <- specialize E.ArrayExpr expression
         Space.checkIndent end E.ArrayIndentEnd
+        let entryComments = SC.ArrayEntryComments commentsAfterComma commentsAfterExpr
+        let entry = (expr, entryComments)
         chompArrayEnd start (entry : entries),
       do
         word1 0x5D {-]-} E.ArrayEnd

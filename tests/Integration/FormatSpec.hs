@@ -291,6 +291,31 @@ spec = do
                                      ]
 
   describe "expressions" $ do
+    describe "array literals" $ do
+      it "formats" $
+        ["[1,2,3]"]
+          `shouldFormatExpressionAs` [ "[ 1",
+                                       ", 2",
+                                       ", 3",
+                                       "]"
+                                     ]
+
+      it "formats comments" $
+        ["[{-A-}1{-B-},{-C-}2{-D-},{-E-}3{-F-}]"]
+          `shouldFormatExpressionAs` [ "[ {- A -}",
+                                       "  1",
+                                       "    {- B -}",
+                                       "",
+                                       ", {- C -}",
+                                       "  2",
+                                       "    {- D -}",
+                                       "",
+                                       ", {- E -}",
+                                       "  3",
+                                       "    {- F -}",
+                                       "]"
+                                     ]
+
     describe "lambda" $ do
       it "formats comments" $
         ["\\{-A-}x{-B-}y{-C-}->{-D-}[]"]

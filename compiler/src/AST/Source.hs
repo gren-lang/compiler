@@ -8,6 +8,7 @@ module AST.Source
     Expr,
     Expr_ (..),
     VarType (..),
+    ArrayEntry,
     IfBranch,
     CaseBranch,
     Def (..),
@@ -59,7 +60,7 @@ data Expr_
   | Float EF.Float
   | Var VarType Name
   | VarQual VarType Name Name
-  | Array [Expr]
+  | Array [ArrayEntry]
   | Op Name
   | Negate Expr
   | Binops [(Expr, [Comment], A.Located Name)] Expr
@@ -77,6 +78,9 @@ data Expr_
 
 data VarType = LowVar | CapVar
   deriving (Show)
+
+type ArrayEntry =
+  (Expr, SC.ArrayEntryComments)
 
 type IfBranch =
   (Expr, Expr, SC.IfBranchComments)

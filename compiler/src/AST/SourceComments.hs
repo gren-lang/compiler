@@ -89,6 +89,12 @@ data ValueComments = ValueComments
 
 -- Expressions
 
+data ArrayEntryComments = ArrayEntryComments
+  { _beforeArrayEntry :: [Comment],
+    _afterArrayEntry :: [Comment]
+  }
+  deriving (Show)
+
 data LambdaComments = LambdaComments
   { _beforeArrow :: [Comment],
     _afterArrow :: [Comment]
