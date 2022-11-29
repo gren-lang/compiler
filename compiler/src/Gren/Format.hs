@@ -136,8 +136,10 @@ extendedGroup open baseSep sep fieldSep close base fields =
                 NonEmpty.prependList (maybeToList before) $
                   NonEmpty.singleton $
                     spaceOrIndent
-                      [ key,
-                        Block.line $ Block.char7 fieldSep,
+                      [ spaceOrIndent
+                          [ key,
+                            Block.line $ Block.char7 fieldSep
+                          ],
                         value
                       ]
 

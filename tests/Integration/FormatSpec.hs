@@ -451,6 +451,15 @@ spec = do
                                        ", b = 2",
                                        "}"
                                      ]
+      it "formats field with multiline value" $
+        [ "{a = --X",
+          "1}"
+        ]
+          `shouldFormatExpressionAs` [ "{ a =",
+                                       "    -- X",
+                                       "    1",
+                                       "}"
+                                     ]
       it "formats comments" $
         ["{{-A-}a{-B-}={-C-}1{-D-},{-E-}b{-F-}={-G-}2{-H-}}"]
           `shouldFormatExpressionAs` [ "{ {- A -}",
@@ -466,6 +475,16 @@ spec = do
           `shouldFormatExpressionAs` [ "{ base",
                                        "    | a = 1",
                                        "    , b = 2",
+                                       "}"
+                                     ]
+      it "formats field with multiline value" $
+        [ "{base|a = --X",
+          "1}"
+        ]
+          `shouldFormatExpressionAs` [ "{ base",
+                                       "    | a =",
+                                       "        -- X",
+                                       "        1",
                                        "}"
                                      ]
       it "formats with comments" $
