@@ -10,6 +10,7 @@ module Parse.Type
 where
 
 import AST.Source qualified as Src
+import AST.SourceComments qualified as SC
 import Data.Name qualified as Name
 import Parse.Primitives (Parser, addEnd, addLocation, getPosition, inContext, oneOf, oneOfWithFallback, specialize, word1, word2)
 import Parse.Space qualified as Space
@@ -52,7 +53,7 @@ term =
         -- records
         inContext E.TRecord (word1 0x7B {- { -} E.TStart) $
           do
-            Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentOpen
+            commentsAfterOpenBrace <- Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentOpen
             oneOf
               E.TRecordOpen
               [ do
@@ -60,21 +61,25 @@ term =
                   addEnd start (Src.TRecord [] Nothing),
                 do
                   name <- addLocation (Var.lower E.TRecordField)
-                  Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentColon
+                  commentsAfterFirstName <- Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentColon
                   oneOf
                     E.TRecordColon
                     [ do
                         word1 0x7C E.TRecordColon
-                        Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentField
-                        field <- chompField
+                        commentsAfterBar <- Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentField
+                        field <- chompField commentsAfterBar
                         fields <- chompRecordEnd [field]
+                        -- TODO: use commentsAfterOpenBrace
+                        -- TODO: use commentsAfterOpenFirstName
                         addEnd start (Src.TRecord fields (Just name)),
                       do
                         word1 0x3A {-:-} E.TRecordColon
-                        Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentType
+                        commentsAfterColon <- Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentType
                         ((tipe, commentsAfterTipe), end) <- specialize E.TRecordType expression
                         Space.checkIndent end E.TRecordIndentEnd
-                        fields <- chompRecordEnd [(name, tipe)]
+                        let fieldComments = SC.RecordFieldComments commentsAfterOpenBrace commentsAfterFirstName commentsAfterColon commentsAfterTipe
+                        let field = (name, tipe, fieldComments)
+                        fields <- chompRecordEnd [field]
                         addEnd start (Src.TRecord fields Nothing)
                     ]
               ]
@@ -141,32 +146,31 @@ chompArgs args commentsBetween end =
 
 -- RECORD
 
-type Field = (A.Located Name.Name, Src.Type)
-
-chompRecordEnd :: [Field] -> Parser E.TRecord [Field]
+chompRecordEnd :: [Src.TRecordField] -> Parser E.TRecord [Src.TRecordField]
 chompRecordEnd fields =
   oneOf
     E.TRecordEnd
     [ do
         word1 0x2C {-,-} E.TRecordEnd
-        Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentField
-        field <- chompField
+        commentsAfterComma <- Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentField
+        field <- chompField commentsAfterComma
         chompRecordEnd (field : fields),
       do
         word1 0x7D {-}-} E.TRecordEnd
         return (reverse fields)
     ]
 
-chompField :: Parser E.TRecord Field
-chompField =
+chompField :: [Src.Comment] -> Parser E.TRecord Src.TRecordField
+chompField commentsBefore =
   do
     name <- addLocation (Var.lower E.TRecordField)
-    Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentColon
+    commentsAfterName <- Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentColon
     word1 0x3A {-:-} E.TRecordColon
-    Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentType
+    commentsAfterColon <- Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentType
     ((tipe, commentsAfterTipe), end) <- specialize E.TRecordType expression
     Space.checkIndent end E.TRecordIndentEnd
-    return (name, tipe)
+    let comments = SC.RecordFieldComments commentsBefore commentsAfterName commentsAfterColon commentsAfterTipe
+    return (name, tipe, comments)
 
 -- VARIANT
 

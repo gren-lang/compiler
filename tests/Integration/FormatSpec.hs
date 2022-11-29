@@ -501,6 +501,24 @@ spec = do
                                        "    {}"
                                      ]
 
+  describe "types" $ do
+    describe "record types" $ do
+      it "formats with fields" $
+        ["{a:Bool,   b : Int}"]
+          `shouldFormatTypeAs` [ "{ a : Bool",
+                                 ", b : Int",
+                                 "}"
+                               ]
+      it "formats comments" $
+        ["{{-A-}a{-B-}:{-C-}Bool{-D-},{-E-}b{-F-}:{-G-}Int{-H-}}"]
+          `shouldFormatTypeAs` [ "{ {- A -}",
+                                 "  a {- B -} : {- C -} Bool {- D -}",
+                                 "",
+                                 ", {- E -}",
+                                 "  b {- F -} : {- G -} Int {- H -}",
+                                 "}"
+                               ]
+
 assertFormatted :: [Text] -> IO ()
 assertFormatted lines_ =
   lines_ `shouldFormatAs` lines_
@@ -552,6 +570,29 @@ shouldFormatExpressionAs inputLines expectedOutputLines =
           expectationFailure ("shouldFormatExpressionAs: failed to format: " <> show err)
         Right Nothing ->
           expectationFailure ("shouldFormatExpressionAs: internal error: couldn't clean output: " <> show actualOutput)
+        Right (Just actualExpression) ->
+          actualExpression `shouldBe` expectedOutput
+  where
+    stripIndent text =
+      if text == ""
+        then Just text
+        else LazyText.stripPrefix "    " text
+
+shouldFormatTypeAs :: [Text] -> [Text] -> IO ()
+shouldFormatTypeAs inputLines expectedOutputLines =
+  let input = TE.encodeUtf8 $ "type alias Type =\n" <> Text.unlines (fmap ("    " <>) inputLines)
+      expectedOutput = LazyText.unlines $ fmap LazyText.fromStrict expectedOutputLines
+      actualOutput = LTE.decodeUtf8 . Builder.toLazyByteString <$> Format.formatByteString Parse.Application input
+      cleanOutput i =
+        LazyText.stripPrefix "module Main exposing (..)\n\n\n\ntype alias Type =\n" i
+          >>= (return . LazyText.lines)
+          >>= traverse stripIndent
+          >>= (return . LazyText.unlines)
+   in case fmap cleanOutput actualOutput of
+        Left err ->
+          expectationFailure ("shouldFormatTypeAs: failed to format: " <> show err)
+        Right Nothing ->
+          expectationFailure ("shouldFormatTypeAs: internal error: couldn't clean output: " <> show actualOutput)
         Right (Just actualExpression) ->
           actualExpression `shouldBe` expectedOutput
   where

@@ -839,14 +839,24 @@ formatType = \case
         formatType (A.toValue arg)
   Src.TRecord fields Nothing ->
     NoTypeParens $
-      group '{' ',' '}' True $
+      groupWithBlankLines '{' ',' '}' True $
         fmap formatField fields
     where
-      formatField (name, type_) =
-        spaceOrIndent
-          [ Block.line $ utf8 (A.toValue name) <> Block.space <> Block.char7 ':',
-            typeParensNone $ formatType (A.toValue type_)
-          ]
+      formatField (name, type_, SC.RecordFieldComments commentsBeforeName commentsAfterName commentsBeforeValue commentsAfterValue) =
+        ( if List.null commentsBeforeName then 0 else 1,
+          withCommentsStackBefore commentsBeforeName $
+            spaceOrIndent
+              [ spaceOrIndent
+                  [ withCommentsAround [] commentsAfterName $
+                      Block.line $
+                        utf8 (A.toValue name),
+                    Block.line $ Block.char7 ':'
+                  ],
+                withCommentsAround commentsBeforeValue commentsAfterValue $
+                  typeParensNone $
+                    formatType (A.toValue type_)
+              ]
+        )
   Src.TRecord [] (Just base) ->
     NoTypeParens $
       Block.line $
@@ -863,10 +873,13 @@ formatType = \case
         (Block.line $ utf8 $ A.toValue base)
         (fmap formatField $ first :| rest)
     where
-      formatField (field, type_) =
-        ( Nothing,
-          Block.line $ utf8 $ A.toValue field,
-          typeParensNone $ formatType $ A.toValue type_
+      formatField (field, type_, SC.RecordFieldComments commentsBeforeName commentsAfterName commentsBeforeValue commentsAfterValue) =
+        ( formatCommentBlock commentsBeforeName,
+          withCommentsAround [] commentsAfterName $ Block.line $ utf8 $ A.toValue field,
+          withCommentsAround commentsBeforeValue commentsAfterValue $
+            typeParensNone $
+              formatType $
+                A.toValue type_
         )
 
 data PatternBlock

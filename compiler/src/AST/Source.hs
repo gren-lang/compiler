@@ -20,6 +20,7 @@ module AST.Source
     PArrayEntry,
     Type,
     Type_ (..),
+    TRecordField,
     SourceOrder,
     Module (..),
     getName,
@@ -134,8 +135,10 @@ data Type_
   | TVar Name
   | TType A.Region Name [([Comment], Type)]
   | TTypeQual A.Region Name Name [([Comment], Type)]
-  | TRecord [(A.Located Name, Type)] (Maybe (A.Located Name))
+  | TRecord [TRecordField] (Maybe (A.Located Name))
   deriving (Show)
+
+type TRecordField = (A.Located Name, Type, SC.RecordFieldComments)
 
 -- MODULE
 
