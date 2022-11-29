@@ -460,6 +460,14 @@ spec = do
                                        "  b {- F -} = {- G -} 2 {- H -}",
                                        "}"
                                      ]
+    describe "record update" $ do
+      it "formats" $
+        ["{base|a=1,b=2}"]
+          `shouldFormatExpressionAs` [ "{ base",
+                                       "    | a = 1",
+                                       "    , b = 2",
+                                       "}"
+                                     ]
 
   describe "parentheses" $ do
     it "removes unnecessary parentheses" $
