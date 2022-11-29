@@ -11,6 +11,7 @@ module AST.Source
     ArrayEntry,
     IfBranch,
     CaseBranch,
+    RecordField,
     Def (..),
     Pattern,
     Pattern_ (..),
@@ -72,8 +73,8 @@ data Expr_
   | Case Expr [CaseBranch] SC.CaseComments
   | Accessor Name
   | Access Expr (A.Located Name)
-  | Update Expr [(A.Located Name, Expr)]
-  | Record [(A.Located Name, Expr)]
+  | Update Expr [RecordField]
+  | Record [RecordField]
   | Parens [Comment] Expr [Comment]
   deriving (Show)
 
@@ -88,6 +89,9 @@ type IfBranch =
 
 type CaseBranch =
   (Pattern, Expr, SC.CaseBranchComments)
+
+type RecordField =
+  (A.Located Name, Expr, SC.RecordFieldComments)
 
 -- DEFINITIONS
 

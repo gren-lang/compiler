@@ -712,20 +712,30 @@ formatExpr = \case
         (exprParensNone $ formatExpr $ A.toValue base)
         (fmap formatField $ first :| rest)
     where
-      formatField (field, expr) =
+      formatField (field, expr, comments) =
         ( utf8 $ A.toValue field,
           exprParensNone $ formatExpr (A.toValue expr)
         )
   Src.Record fields ->
     NoExpressionParens $
-      group '{' ',' '}' True $
+      groupWithBlankLines '{' ',' '}' True $
         fmap formatField fields
     where
-      formatField (name, expr) =
-        spaceOrIndent
-          [ Block.line $ utf8 (A.toValue name) <> Block.space <> Block.char7 '=',
-            exprParensNone $ formatExpr (A.toValue expr)
-          ]
+      formatField (name, expr, SC.RecordFieldComments commentsBeforeName commentsAfterName commentsBeforeValue commentsAfterValue) =
+        ( if List.null commentsBeforeName then 0 else 1,
+          withCommentsStackBefore commentsBeforeName $
+            spaceOrIndent
+              [ spaceOrIndent
+                  [ withCommentsAround [] commentsAfterName $
+                      Block.line $
+                        utf8 (A.toValue name),
+                    Block.line $ Block.char7 '='
+                  ],
+                withCommentsAround commentsBeforeValue commentsAfterValue $
+                  exprParensNone $
+                    formatExpr (A.toValue expr)
+              ]
+        )
   Src.Parens [] expr [] ->
     formatExpr $ A.toValue expr
   Src.Parens commentsBefore expr commentsAfter ->

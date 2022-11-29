@@ -451,6 +451,15 @@ spec = do
                                        ", b = 2",
                                        "}"
                                      ]
+      it "formats comments" $
+        ["{{-A-}a{-B-}={-C-}1{-D-},{-E-}b{-F-}={-G-}2{-H-}}"]
+          `shouldFormatExpressionAs` [ "{ {- A -}",
+                                       "  a {- B -} = {- C -} 1 {- D -}",
+                                       "",
+                                       ", {- E -}",
+                                       "  b {- F -} = {- G -} 2 {- H -}",
+                                       "}"
+                                     ]
 
   describe "parentheses" $ do
     it "removes unnecessary parentheses" $

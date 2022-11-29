@@ -183,31 +183,36 @@ record :: A.Position -> Parser E.Expr Src.Expr
 record start =
   inContext E.Record (word1 0x7B {- { -} E.Start) $
     do
-      Space.chompAndCheckIndent E.RecordSpace E.RecordIndentOpen
+      commentsAfterOpenBrace <- Space.chompAndCheckIndent E.RecordSpace E.RecordIndentOpen
       oneOf
         E.RecordOpen
         [ do
+            -- TODO: what to do with comments in empty record
             word1 0x7D {-}-} E.RecordEnd
             addEnd start (Src.Record []),
           do
-            expr <- specialize E.RecordUpdateExpr term
-            Space.chompAndCheckIndent E.RecordSpace E.RecordIndentEquals
+            firstTerm <- specialize E.RecordUpdateExpr term
+            commentsAfterFirstTerm <- Space.chompAndCheckIndent E.RecordSpace E.RecordIndentEquals
             oneOf
               E.RecordEquals
               [ do
                   word1 0x7C {- vertical bar -} E.RecordPipe
-                  Space.chompAndCheckIndent E.RecordSpace E.RecordIndentField
-                  firstField <- chompField
+                  commentsAfterBar <- Space.chompAndCheckIndent E.RecordSpace E.RecordIndentField
+                  firstField <- chompField commentsAfterBar
+                  -- TODO: use commentsAfterOpenBrace
+                  -- TODO: use commentsAfterFirstTerm
                   fields <- chompFields [firstField]
-                  addEnd start (Src.Update expr fields),
+                  addEnd start (Src.Update firstTerm fields),
                 do
                   word1 0x3D {-=-} E.RecordEquals
-                  Space.chompAndCheckIndent E.RecordSpace E.RecordIndentExpr
+                  commentsAfterEquals <- Space.chompAndCheckIndent E.RecordSpace E.RecordIndentExpr
                   ((value, commentsAfterValue), end) <- specialize E.RecordExpr expression
                   Space.checkIndent end E.RecordIndentEnd
-                  case expr of
+                  case firstTerm of
                     A.At exprRegion (Src.Var Src.LowVar name) -> do
-                      fields <- chompFields [(A.At exprRegion name, value)]
+                      let firstFieldComments = SC.RecordFieldComments commentsAfterOpenBrace commentsAfterFirstTerm commentsAfterEquals commentsAfterValue
+                      let firstField = (A.At exprRegion name, value, firstFieldComments)
+                      fields <- chompFields [firstField]
                       addEnd start (Src.Record fields)
                     A.At (A.Region (A.Position row col) _) _ ->
                       P.Parser $ \_ _ _ _ eerr ->
@@ -215,32 +220,31 @@ record start =
               ]
         ]
 
-type Field = (A.Located Name.Name, Src.Expr)
-
-chompFields :: [Field] -> Parser E.Record [Field]
+chompFields :: [Src.RecordField] -> Parser E.Record [Src.RecordField]
 chompFields fields =
   oneOf
     E.RecordEnd
     [ do
         word1 0x2C {-,-} E.RecordEnd
-        Space.chompAndCheckIndent E.RecordSpace E.RecordIndentField
-        f <- chompField
+        commentsAfterComma <- Space.chompAndCheckIndent E.RecordSpace E.RecordIndentField
+        f <- chompField commentsAfterComma
         chompFields (f : fields),
       do
         word1 0x7D {-}-} E.RecordEnd
         return (reverse fields)
     ]
 
-chompField :: Parser E.Record Field
-chompField =
+chompField :: [Src.Comment] -> Parser E.Record Src.RecordField
+chompField commentsBefore =
   do
     key <- addLocation (Var.lower E.RecordField)
-    Space.chompAndCheckIndent E.RecordSpace E.RecordIndentEquals
+    commentsAfterFieldName <- Space.chompAndCheckIndent E.RecordSpace E.RecordIndentEquals
     word1 0x3D {-=-} E.RecordEquals
-    Space.chompAndCheckIndent E.RecordSpace E.RecordIndentExpr
+    commentsAfterEquals <- Space.chompAndCheckIndent E.RecordSpace E.RecordIndentExpr
     ((value, commentsAfter), end) <- specialize E.RecordExpr expression
     Space.checkIndent end E.RecordIndentEnd
-    return (key, value)
+    let comments = SC.RecordFieldComments commentsBefore commentsAfterFieldName commentsAfterEquals commentsAfter
+    return (key, value, comments)
 
 -- EXPRESSIONS
 

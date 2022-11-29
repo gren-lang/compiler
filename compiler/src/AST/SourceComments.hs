@@ -135,6 +135,14 @@ data CaseBranchComments = CaseBranchComments
   }
   deriving (Show)
 
+data RecordFieldComments = RecordFieldComments
+  { _beforeFieldName :: [Comment],
+    _afterFieldName :: [Comment],
+    _beforeFieldValue :: [Comment],
+    _afterFieldValue :: [Comment]
+  }
+  deriving (Show)
+
 -- Patterns
 
 data PArrayEntryComments = PArrayEntryComments

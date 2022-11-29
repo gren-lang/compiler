@@ -53,11 +53,11 @@ canonicalize env (A.At typeRegion tipe) =
         cfields <- sequenceA =<< Dups.checkFields (canonicalizeFields env fields)
         return $ Can.TRecord cfields (fmap A.toValue ext)
 
-canonicalizeFields :: Env.Env -> [(A.Located Name.Name, Src.Type)] -> [(A.Located Name.Name, Result i w Can.FieldType)]
+canonicalizeFields :: Env.Env -> [(A.Located Name.Name, Src.Type)] -> [(A.Located Name.Name, Result i w Can.FieldType, ())]
 canonicalizeFields env fields =
   let len = fromIntegral (length fields)
       canonicalizeField index (name, srcType) =
-        (name, Can.FieldType index <$> canonicalize env srcType)
+        (name, Can.FieldType index <$> canonicalize env srcType, ())
    in zipWith canonicalizeField [0 .. len] fields
 
 -- CANONICALIZE TYPE
