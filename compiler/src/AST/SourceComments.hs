@@ -89,6 +89,12 @@ data ValueComments = ValueComments
 
 -- Expressions
 
+data ArrayEntryComments = ArrayEntryComments
+  { _beforeArrayEntry :: [Comment],
+    _afterArrayEntry :: [Comment]
+  }
+  deriving (Show)
+
 data LambdaComments = LambdaComments
   { _beforeArrow :: [Comment],
     _afterArrow :: [Comment]
@@ -126,5 +132,27 @@ data CaseBranchComments = CaseBranchComments
     _beforeBranchArrow :: [Comment],
     _beforeBranchBody :: [Comment],
     _afterBranchBody :: [Comment]
+  }
+  deriving (Show)
+
+data UpdateComments = UpdateComments
+  { _beforeBase :: [Comment],
+    _afterBase :: [Comment]
+  }
+  deriving (Show)
+
+data RecordFieldComments = RecordFieldComments
+  { _beforeFieldName :: [Comment],
+    _afterFieldName :: [Comment],
+    _beforeFieldValue :: [Comment],
+    _afterFieldValue :: [Comment]
+  }
+  deriving (Show)
+
+-- Patterns
+
+data PArrayEntryComments = PArrayEntryComments
+  { _beforePArrayEntry :: [Comment],
+    _afterPArrayEntry :: [Comment]
   }
   deriving (Show)

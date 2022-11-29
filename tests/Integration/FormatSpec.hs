@@ -291,6 +291,31 @@ spec = do
                                      ]
 
   describe "expressions" $ do
+    describe "array literals" $ do
+      it "formats" $
+        ["[1,2,3]"]
+          `shouldFormatExpressionAs` [ "[ 1",
+                                       ", 2",
+                                       ", 3",
+                                       "]"
+                                     ]
+
+      it "formats comments" $
+        ["[{-A-}1{-B-},{-C-}2{-D-},{-E-}3{-F-}]"]
+          `shouldFormatExpressionAs` [ "[ {- A -}",
+                                       "  1",
+                                       "    {- B -}",
+                                       "",
+                                       ", {- C -}",
+                                       "  2",
+                                       "    {- D -}",
+                                       "",
+                                       ", {- E -}",
+                                       "  3",
+                                       "    {- F -}",
+                                       "]"
+                                     ]
+
     describe "lambda" $ do
       it "formats comments" $
         ["\\{-A-}x{-B-}y{-C-}->{-D-}[]"]
@@ -426,6 +451,54 @@ spec = do
                                        ", b = 2",
                                        "}"
                                      ]
+      it "formats field with multiline value" $
+        [ "{a = --X",
+          "1}"
+        ]
+          `shouldFormatExpressionAs` [ "{ a =",
+                                       "    -- X",
+                                       "    1",
+                                       "}"
+                                     ]
+      it "formats comments" $
+        ["{{-A-}a{-B-}={-C-}1{-D-},{-E-}b{-F-}={-G-}2{-H-}}"]
+          `shouldFormatExpressionAs` [ "{ {- A -}",
+                                       "  a {- B -} = {- C -} 1 {- D -}",
+                                       "",
+                                       ", {- E -}",
+                                       "  b {- F -} = {- G -} 2 {- H -}",
+                                       "}"
+                                     ]
+    describe "record update" $ do
+      it "formats" $
+        ["{base|a=1,b=2}"]
+          `shouldFormatExpressionAs` [ "{ base",
+                                       "    | a = 1",
+                                       "    , b = 2",
+                                       "}"
+                                     ]
+      it "formats field with multiline value" $
+        [ "{base|a = --X",
+          "1}"
+        ]
+          `shouldFormatExpressionAs` [ "{ base",
+                                       "    | a =",
+                                       "        -- X",
+                                       "        1",
+                                       "}"
+                                     ]
+      it "formats with comments" $
+        ["{{-A-}base{-B-}|{-C-}a{-D-}={-E-}1{-F-},{-G-}b{-H-}={-I-}2{-J-}}"]
+          `shouldFormatExpressionAs` [ "{ {- A -}",
+                                       "  base",
+                                       "  {- B -}",
+                                       "    | {- C -}",
+                                       "      a {- D -} = {- E -} 1 {- F -}",
+                                       "",
+                                       "    , {- G -}",
+                                       "      b {- H -} = {- I -} 2 {- J -}",
+                                       "}"
+                                     ]
 
   describe "parentheses" $ do
     it "removes unnecessary parentheses" $
@@ -438,6 +511,52 @@ spec = do
       it "retains parentheses used to group comments" $
         assertFormattedExpression
           ["({- A -} x)"]
+
+  describe "patterns" $ do
+    describe "array patterns" $ do
+      it "formats comments" $
+        ["f [{-A-}1{-B-},{-C-}2{-D-}] = {}"]
+          `shouldFormatModuleBodyAs` [ "f [ {- A -} 1 {- B -}, {- C -} 2 {- D -} ] =",
+                                       "    {}"
+                                     ]
+
+  describe "types" $ do
+    describe "record types" $ do
+      it "formats with fields" $
+        ["{a:Bool,   b : Int}"]
+          `shouldFormatTypeAs` [ "{ a : Bool",
+                                 ", b : Int",
+                                 "}"
+                               ]
+      it "formats comments" $
+        ["{{-A-}a{-B-}:{-C-}Bool{-D-},{-E-}b{-F-}:{-G-}Int{-H-}}"]
+          `shouldFormatTypeAs` [ "{ {- A -}",
+                                 "  a {- B -} : {- C -} Bool {- D -}",
+                                 "",
+                                 ", {- E -}",
+                                 "  b {- F -} : {- G -} Int {- H -}",
+                                 "}"
+                               ]
+    describe "record extension types" $ do
+      it "formats" $
+        ["{base|a:Bool,b:Int}"]
+          `shouldFormatTypeAs` [ "{ base",
+                                 "    | a : Bool",
+                                 "    , b : Int",
+                                 "}"
+                               ]
+      it "formats with comments" $
+        ["{{-A-}base{-B-}|{-C-}a{-D-}:{-E-}Bool{-F-},{-G-}b{-H-}:{-I-}Int{-J-}}"]
+          `shouldFormatTypeAs` [ "{ {- A -}",
+                                 "  base",
+                                 "  {- B -}",
+                                 "    | {- C -}",
+                                 "      a {- D -} : {- E -} Bool {- F -}",
+                                 "",
+                                 "    , {- G -}",
+                                 "      b {- H -} : {- I -} Int {- J -}",
+                                 "}"
+                               ]
 
 assertFormatted :: [Text] -> IO ()
 assertFormatted lines_ =
@@ -490,6 +609,29 @@ shouldFormatExpressionAs inputLines expectedOutputLines =
           expectationFailure ("shouldFormatExpressionAs: failed to format: " <> show err)
         Right Nothing ->
           expectationFailure ("shouldFormatExpressionAs: internal error: couldn't clean output: " <> show actualOutput)
+        Right (Just actualExpression) ->
+          actualExpression `shouldBe` expectedOutput
+  where
+    stripIndent text =
+      if text == ""
+        then Just text
+        else LazyText.stripPrefix "    " text
+
+shouldFormatTypeAs :: [Text] -> [Text] -> IO ()
+shouldFormatTypeAs inputLines expectedOutputLines =
+  let input = TE.encodeUtf8 $ "type alias Type =\n" <> Text.unlines (fmap ("    " <>) inputLines)
+      expectedOutput = LazyText.unlines $ fmap LazyText.fromStrict expectedOutputLines
+      actualOutput = LTE.decodeUtf8 . Builder.toLazyByteString <$> Format.formatByteString Parse.Application input
+      cleanOutput i =
+        LazyText.stripPrefix "module Main exposing (..)\n\n\n\ntype alias Type =\n" i
+          >>= (return . LazyText.lines)
+          >>= traverse stripIndent
+          >>= (return . LazyText.unlines)
+   in case fmap cleanOutput actualOutput of
+        Left err ->
+          expectationFailure ("shouldFormatTypeAs: failed to format: " <> show err)
+        Right Nothing ->
+          expectationFailure ("shouldFormatTypeAs: internal error: couldn't clean output: " <> show actualOutput)
         Right (Just actualExpression) ->
           actualExpression `shouldBe` expectedOutput
   where

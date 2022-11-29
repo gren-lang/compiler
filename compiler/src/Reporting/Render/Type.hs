@@ -127,10 +127,10 @@ srcToDoc context (A.At _ tipe) =
     Src.TRecord fields ext ->
       record
         (map srcFieldToDocs fields)
-        (fmap (D.fromName . A.toValue) ext)
+        (fmap (D.fromName . A.toValue . fst) ext)
 
-srcFieldToDocs :: (A.Located Name.Name, Src.Type) -> (Doc, Doc)
-srcFieldToDocs (A.At _ fieldName, fieldType) =
+srcFieldToDocs :: Src.TRecordField -> (Doc, Doc)
+srcFieldToDocs (A.At _ fieldName, fieldType, _) =
   ( D.fromName fieldName,
     srcToDoc None fieldType
   )

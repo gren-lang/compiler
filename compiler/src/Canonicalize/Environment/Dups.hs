@@ -52,20 +52,20 @@ detectHelp toError name values =
 
 -- CHECK FIELDS
 
-checkFields :: [(A.Located Name.Name, a)] -> Result.Result i w Error.Error (Map.Map Name.Name a)
+checkFields :: [(A.Located Name.Name, a, comments)] -> Result.Result i w Error.Error (Map.Map Name.Name a)
 checkFields fields =
   detect Error.DuplicateField (foldr addField none fields)
 
-addField :: (A.Located Name.Name, a) -> Dict a -> Dict a
-addField (A.At region name, value) dups =
+addField :: (A.Located Name.Name, a, comments) -> Dict a -> Dict a
+addField (A.At region name, value, _) dups =
   Map.insertWith OneOrMore.more name (OneOrMore.one (Info region value)) dups
 
-checkFields' :: (A.Region -> a -> b) -> [(A.Located Name.Name, a)] -> Result.Result i w Error.Error (Map.Map Name.Name b)
+checkFields' :: (A.Region -> a -> b) -> [(A.Located Name.Name, a, comments)] -> Result.Result i w Error.Error (Map.Map Name.Name b)
 checkFields' toValue fields =
   detect Error.DuplicateField (foldr (addField' toValue) none fields)
 
-addField' :: (A.Region -> a -> b) -> (A.Located Name.Name, a) -> Dict b -> Dict b
-addField' toValue (A.At region name, value) dups =
+addField' :: (A.Region -> a -> b) -> (A.Located Name.Name, a, comments) -> Dict b -> Dict b
+addField' toValue (A.At region name, value, _) dups =
   Map.insertWith OneOrMore.more name (OneOrMore.one (Info region (toValue region value))) dups
 
 -- BUILDING DICTIONARIES

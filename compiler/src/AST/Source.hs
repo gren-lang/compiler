@@ -8,15 +8,19 @@ module AST.Source
     Expr,
     Expr_ (..),
     VarType (..),
+    ArrayEntry,
     IfBranch,
     CaseBranch,
+    RecordField,
     Def (..),
     Pattern,
     Pattern_ (..),
     RecordFieldPattern,
     RecordFieldPattern_ (..),
+    PArrayEntry,
     Type,
     Type_ (..),
+    TRecordField,
     SourceOrder,
     Module (..),
     getName,
@@ -59,7 +63,7 @@ data Expr_
   | Float EF.Float
   | Var VarType Name
   | VarQual VarType Name Name
-  | Array [Expr]
+  | Array [ArrayEntry]
   | Op Name
   | Negate Expr
   | Binops [(Expr, [Comment], A.Located Name)] Expr
@@ -70,19 +74,25 @@ data Expr_
   | Case Expr [CaseBranch] SC.CaseComments
   | Accessor Name
   | Access Expr (A.Located Name)
-  | Update Expr [(A.Located Name, Expr)]
-  | Record [(A.Located Name, Expr)]
+  | Update Expr [RecordField] SC.UpdateComments
+  | Record [RecordField]
   | Parens [Comment] Expr [Comment]
   deriving (Show)
 
 data VarType = LowVar | CapVar
   deriving (Show)
 
+type ArrayEntry =
+  (Expr, SC.ArrayEntryComments)
+
 type IfBranch =
   (Expr, Expr, SC.IfBranchComments)
 
 type CaseBranch =
   (Pattern, Expr, SC.CaseBranchComments)
+
+type RecordField =
+  (A.Located Name, Expr, SC.RecordFieldComments)
 
 -- DEFINITIONS
 
@@ -102,7 +112,7 @@ data Pattern_
   | PAlias Pattern (A.Located Name)
   | PCtor A.Region Name [([Comment], Pattern)]
   | PCtorQual A.Region Name Name [([Comment], Pattern)]
-  | PArray [Pattern]
+  | PArray [PArrayEntry]
   | PChr ES.String
   | PStr ES.String
   | PInt Int
@@ -112,6 +122,8 @@ type RecordFieldPattern = A.Located RecordFieldPattern_
 
 data RecordFieldPattern_ = RFPattern (A.Located Name) Pattern
   deriving (Show)
+
+type PArrayEntry = (Pattern, SC.PArrayEntryComments)
 
 -- TYPE
 
@@ -123,8 +135,10 @@ data Type_
   | TVar Name
   | TType A.Region Name [([Comment], Type)]
   | TTypeQual A.Region Name Name [([Comment], Type)]
-  | TRecord [(A.Located Name, Type)] (Maybe (A.Located Name))
+  | TRecord [TRecordField] (Maybe (A.Located Name, SC.UpdateComments))
   deriving (Show)
+
+type TRecordField = (A.Located Name, Type, SC.RecordFieldComments)
 
 -- MODULE
 

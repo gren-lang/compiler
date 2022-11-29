@@ -17,7 +17,8 @@ import Data.List.NonEmpty (NonEmpty ((:|)), nonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
-import Data.Maybe (catMaybes)
+import Data.Maybe (catMaybes, maybeToList)
+import Data.Maybe qualified as Maybe
 import Data.Name (Name)
 import Data.Semigroup (sconcat)
 import Data.Utf8 qualified as Utf8
@@ -68,16 +69,28 @@ spaceOrIndentForce :: Bool -> NonEmpty Block -> Block
 spaceOrIndentForce forceMultiline = Block.rowOrIndentForce forceMultiline (Just Block.space)
 
 group :: Char -> Char -> Char -> Bool -> [Block] -> Block
-group open _ close _ [] = Block.line $ Block.char7 open <> Block.char7 close
-group open sep close forceMultiline (first : rest) =
+group open sep close forceMultiline = groupWithBlankLines open sep close forceMultiline . fmap (0,)
+
+-- | NOTE: The blankLines number for the first entry is always ignored.
+groupWithBlankLines :: Char -> Char -> Char -> Bool -> [(Int, Block)] -> Block
+groupWithBlankLines open _ close _ [] = Block.line $ Block.char7 open <> Block.char7 close
+groupWithBlankLines open sep close forceMultiline ((_, first) : rest) =
   Block.rowOrStackForce
     forceMultiline
     (Just Block.space)
     [ Block.rowOrStackForce forceMultiline Nothing $
-        Block.prefix 2 (Block.char7 open <> Block.space) first
-          :| fmap (Block.prefix 2 (Block.char7 sep <> Block.space)) (rest),
+        formatEntry open (0, first)
+          :| fmap (formatEntry sep) (rest),
       Block.line (Block.char7 close)
     ]
+  where
+    formatEntry char (0, entry) =
+      Block.prefix 2 (Block.char7 char <> Block.space) entry
+    formatEntry char (blankLines, entry) =
+      Block.stack $
+        NonEmpty.prependList (replicate blankLines Block.blankLine) $
+          NonEmpty.singleton $
+            Block.prefix 2 (Block.char7 char <> Block.space) entry
 
 surround :: Char -> Char -> Block -> Block
 surround open close block =
@@ -90,43 +103,45 @@ surround open close block =
 parens :: Block -> Block
 parens = surround '(' ')'
 
-extendedGroup :: Char -> Char -> Char -> Char -> Char -> Block -> NonEmpty (Block.Line, Block) -> Block
+extendedGroup :: Char -> Char -> Char -> Char -> Char -> Block -> NonEmpty (Maybe Block, Block, Block) -> Block
 extendedGroup open baseSep sep fieldSep close base fields =
   case fields of
     (single :| []) ->
       spaceOrStack
         [ spaceOrIndent
-            [ spaceOrIndent
-                [ Block.line $ Block.char7 open,
-                  base
-                ],
-              formatField baseSep single
+            [ formattedBase,
+              formatField True baseSep single
             ],
           Block.line $ Block.char7 close
         ]
     (first :| rest) ->
       Block.stack
-        [ spaceOrIndent
-            [ Block.line $ Block.char7 open,
-              base
-            ],
+        [ formattedBase,
           Block.indent $
             Block.stack $
-              formatField baseSep first
-                :| fmap (formatField sep) rest,
+              formatField True baseSep first
+                :| fmap (formatField False sep) rest,
           Block.line $ Block.char7 close
         ]
   where
-    formatField punc (key, value) =
-      spaceOrIndent
-        [ Block.line $
-            Block.char7 punc
-              <> Block.space
-              <> key
-              <> Block.space
-              <> Block.char7 fieldSep,
-          value
-        ]
+    formattedBase =
+      Block.prefix 2 (Block.char7 open <> Block.space) base
+
+    formatField isFirst punc (before, key, value) =
+      Block.stack $
+        NonEmpty.prependList (if isFirst || Maybe.isNothing before then [] else [Block.blankLine]) $
+          NonEmpty.singleton $
+            Block.prefix 2 (Block.char7 punc <> Block.space) $
+              Block.stack $
+                NonEmpty.prependList (maybeToList before) $
+                  NonEmpty.singleton $
+                    spaceOrIndent
+                      [ spaceOrIndent
+                          [ key,
+                            Block.line $ Block.char7 fieldSep
+                          ],
+                        value
+                      ]
 
 withCommentsBefore :: [Src.Comment] -> Block -> Block
 withCommentsBefore before = withCommentsAround before []
@@ -154,6 +169,15 @@ withCommentsStackAround before after block =
     (Just beforeBlock, Nothing) -> Block.stack [beforeBlock, block]
     (Nothing, Just afterBlock) -> Block.stack [block, afterBlock]
     (Just beforeBlock, Just afterBlock) -> Block.stack [beforeBlock, block, afterBlock]
+
+withCommentsStackAroundIndented :: [Src.Comment] -> [Src.Comment] -> Block -> Block
+withCommentsStackAroundIndented [] [] block = block
+withCommentsStackAroundIndented before after block =
+  case (formatCommentBlock before, formatCommentBlock after) of
+    (Nothing, Nothing) -> block
+    (Just beforeBlock, Nothing) -> Block.stack [beforeBlock, block]
+    (Nothing, Just afterBlock) -> Block.stack [block, Block.indent afterBlock]
+    (Just beforeBlock, Just afterBlock) -> Block.stack [beforeBlock, block, Block.indent afterBlock]
 
 --
 -- AST -> Block
@@ -518,8 +542,15 @@ formatExpr = \case
         utf8 ns <> Block.char7 '.' <> utf8 name
   Src.Array exprs ->
     NoExpressionParens $
-      group '[' ',' ']' True $
-        fmap (exprParensNone . formatExpr . A.toValue) exprs
+      groupWithBlankLines '[' ',' ']' True $
+        fmap formatArrayEntry exprs
+    where
+      formatArrayEntry (entryExpr, SC.ArrayEntryComments commentsBefore commentsAfter) =
+        ( if List.null commentsBefore then 0 else 1,
+          withCommentsStackAroundIndented commentsBefore commentsAfter $
+            exprParensNone $
+              formatExpr (A.toValue entryExpr)
+        )
   Src.Op name ->
     NoExpressionParens $
       Block.line $
@@ -671,9 +702,9 @@ formatExpr = \case
   Src.Access expr field ->
     NoExpressionParens $
       Block.addSuffix (Block.char7 '.' <> utf8 (A.toValue field)) (exprParensProtectSpaces $ formatExpr $ A.toValue expr)
-  Src.Update base [] ->
+  Src.Update base [] _ ->
     formatExpr $ A.toValue base
-  Src.Update base (first : rest) ->
+  Src.Update base (first : rest) (SC.UpdateComments commentsBeforeBase commentsAfterBase) ->
     NoExpressionParens $
       extendedGroup
         '{'
@@ -681,23 +712,36 @@ formatExpr = \case
         ','
         '='
         '}'
-        (exprParensNone $ formatExpr $ A.toValue base)
+        (withCommentsStackAround commentsBeforeBase commentsAfterBase $ exprParensNone $ formatExpr $ A.toValue base)
         (fmap formatField $ first :| rest)
     where
-      formatField (field, expr) =
-        ( utf8 $ A.toValue field,
-          exprParensNone $ formatExpr (A.toValue expr)
+      formatField (field, expr, SC.RecordFieldComments commentsBeforeName commentsAfterName commentsBeforeValue commentsAfterValue) =
+        ( formatCommentBlock commentsBeforeName,
+          withCommentsAround [] commentsAfterName $ Block.line $ utf8 $ A.toValue field,
+          withCommentsAround commentsBeforeValue commentsAfterValue $
+            exprParensNone $
+              formatExpr (A.toValue expr)
         )
   Src.Record fields ->
     NoExpressionParens $
-      group '{' ',' '}' True $
+      groupWithBlankLines '{' ',' '}' True $
         fmap formatField fields
     where
-      formatField (name, expr) =
-        spaceOrIndent
-          [ Block.line $ utf8 (A.toValue name) <> Block.space <> Block.char7 '=',
-            exprParensNone $ formatExpr (A.toValue expr)
-          ]
+      formatField (name, expr, SC.RecordFieldComments commentsBeforeName commentsAfterName commentsBeforeValue commentsAfterValue) =
+        ( if List.null commentsBeforeName then 0 else 1,
+          withCommentsStackBefore commentsBeforeName $
+            spaceOrIndent
+              [ spaceOrIndent
+                  [ withCommentsAround [] commentsAfterName $
+                      Block.line $
+                        utf8 (A.toValue name),
+                    Block.line $ Block.char7 '='
+                  ],
+                withCommentsAround commentsBeforeValue commentsAfterValue $
+                  exprParensNone $
+                    formatExpr (A.toValue expr)
+              ]
+        )
   Src.Parens [] expr [] ->
     formatExpr $ A.toValue expr
   Src.Parens commentsBefore expr commentsAfter ->
@@ -797,20 +841,30 @@ formatType = \case
         formatType (A.toValue arg)
   Src.TRecord fields Nothing ->
     NoTypeParens $
-      group '{' ',' '}' True $
+      groupWithBlankLines '{' ',' '}' True $
         fmap formatField fields
     where
-      formatField (name, type_) =
-        spaceOrIndent
-          [ Block.line $ utf8 (A.toValue name) <> Block.space <> Block.char7 ':',
-            typeParensNone $ formatType (A.toValue type_)
-          ]
-  Src.TRecord [] (Just base) ->
+      formatField (name, type_, SC.RecordFieldComments commentsBeforeName commentsAfterName commentsBeforeValue commentsAfterValue) =
+        ( if List.null commentsBeforeName then 0 else 1,
+          withCommentsStackBefore commentsBeforeName $
+            spaceOrIndent
+              [ spaceOrIndent
+                  [ withCommentsAround [] commentsAfterName $
+                      Block.line $
+                        utf8 (A.toValue name),
+                    Block.line $ Block.char7 ':'
+                  ],
+                withCommentsAround commentsBeforeValue commentsAfterValue $
+                  typeParensNone $
+                    formatType (A.toValue type_)
+              ]
+        )
+  Src.TRecord [] (Just (base, _)) ->
     NoTypeParens $
       Block.line $
         utf8 $
           A.toValue base
-  Src.TRecord (first : rest) (Just base) ->
+  Src.TRecord (first : rest) (Just (base, SC.UpdateComments commentsBeforeBase commentsAfterBase)) ->
     NoTypeParens $
       extendedGroup
         '{'
@@ -818,12 +872,16 @@ formatType = \case
         ','
         ':'
         '}'
-        (Block.line $ utf8 $ A.toValue base)
+        (withCommentsStackAround commentsBeforeBase commentsAfterBase $ Block.line $ utf8 $ A.toValue base)
         (fmap formatField $ first :| rest)
     where
-      formatField (field, type_) =
-        ( utf8 $ A.toValue field,
-          typeParensNone $ formatType $ A.toValue type_
+      formatField (field, type_, SC.RecordFieldComments commentsBeforeName commentsAfterName commentsBeforeValue commentsAfterValue) =
+        ( formatCommentBlock commentsBeforeName,
+          withCommentsAround [] commentsAfterName $ Block.line $ utf8 $ A.toValue field,
+          withCommentsAround commentsBeforeValue commentsAfterValue $
+            typeParensNone $
+              formatType $
+                A.toValue type_
         )
 
 data PatternBlock
@@ -889,7 +947,12 @@ formatPattern = \case
   Src.PArray items ->
     NoPatternParens $
       group '[' ',' ']' False $
-        fmap (patternParensNone . formatPattern . A.toValue) items
+        fmap formatArrayPatternEntry items
+    where
+      formatArrayPatternEntry (pattern, SC.PArrayEntryComments commentsBefore commentsAfter) =
+        withCommentsAround commentsBefore commentsAfter $
+          patternParensNone $
+            formatPattern (A.toValue pattern)
   Src.PChr char ->
     NoPatternParens $
       formatString StringStyleChar char

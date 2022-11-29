@@ -69,7 +69,7 @@ canonicalize env (A.At region pattern) =
       Src.PCtorQual nameRegion home name patterns ->
         canonicalizeCtor env region name (fmap snd patterns) =<< Env.findCtorQual nameRegion env home name
       Src.PArray patterns ->
-        Can.PArray <$> canonicalizeList env patterns
+        Can.PArray <$> canonicalizeList env (fmap fst patterns)
       Src.PAlias ptrn (A.At reg name) ->
         do
           cpattern <- canonicalize env ptrn
