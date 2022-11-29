@@ -105,7 +105,7 @@ fromRawType (A.At _ astType) =
       let fromField (A.At _ field, tipe, _) = (field, fromRawType tipe)
        in Record
             (map fromField fields)
-            (fmap A.toValue ext)
+            (fmap (A.toValue . fst) ext)
 
 -- JSON for PROGRAM
 

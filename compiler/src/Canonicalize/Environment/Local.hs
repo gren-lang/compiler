@@ -192,7 +192,7 @@ addFreeVars freeVars (A.At region tipe) =
             case maybeExt of
               Nothing ->
                 freeVars
-              Just (A.At extRegion ext) ->
+              Just (A.At extRegion ext, _) ->
                 Map.insert ext extRegion freeVars
        in List.foldl' (\fvs (_, t, _) -> addFreeVars fvs t) extFreeVars fields
 

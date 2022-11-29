@@ -51,7 +51,7 @@ canonicalize env (A.At typeRegion tipe) =
     Src.TRecord fields ext ->
       do
         cfields <- sequenceA =<< Dups.checkFields (canonicalizeFields env fields)
-        return $ Can.TRecord cfields (fmap A.toValue ext)
+        return $ Can.TRecord cfields (fmap (A.toValue . fst) ext)
 
 canonicalizeFields :: Env.Env -> [Src.TRecordField] -> [(A.Located Name.Name, Result i w Can.FieldType, ())]
 canonicalizeFields env fields =

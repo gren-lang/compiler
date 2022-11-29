@@ -857,12 +857,12 @@ formatType = \case
                     formatType (A.toValue type_)
               ]
         )
-  Src.TRecord [] (Just base) ->
+  Src.TRecord [] (Just (base, _)) ->
     NoTypeParens $
       Block.line $
         utf8 $
           A.toValue base
-  Src.TRecord (first : rest) (Just base) ->
+  Src.TRecord (first : rest) (Just (base, SC.UpdateComments commentsBeforeBase commentsAfterBase)) ->
     NoTypeParens $
       extendedGroup
         '{'
@@ -870,7 +870,7 @@ formatType = \case
         ','
         ':'
         '}'
-        (Block.line $ utf8 $ A.toValue base)
+        (withCommentsStackAround commentsBeforeBase commentsAfterBase $ Block.line $ utf8 $ A.toValue base)
         (fmap formatField $ first :| rest)
     where
       formatField (field, type_, SC.RecordFieldComments commentsBeforeName commentsAfterName commentsBeforeValue commentsAfterValue) =

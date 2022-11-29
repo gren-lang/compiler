@@ -518,6 +518,26 @@ spec = do
                                  "  b {- F -} : {- G -} Int {- H -}",
                                  "}"
                                ]
+    describe "record extension types" $ do
+      it "formats" $
+        ["{base|a:Bool,b:Int}"]
+          `shouldFormatTypeAs` [ "{ base",
+                                 "    | a : Bool",
+                                 "    , b : Int",
+                                 "}"
+                               ]
+      it "formats with comments" $
+        ["{{-A-}base{-B-}|{-C-}a{-D-}:{-E-}Bool{-F-},{-G-}b{-H-}:{-I-}Int{-J-}}"]
+          `shouldFormatTypeAs` [ "{ {- A -}",
+                                 "  base",
+                                 "  {- B -}",
+                                 "    | {- C -}",
+                                 "      a {- D -} : {- E -} Bool {- F -}",
+                                 "",
+                                 "    , {- G -}",
+                                 "      b {- H -} : {- I -} Int {- J -}",
+                                 "}"
+                               ]
 
 assertFormatted :: [Text] -> IO ()
 assertFormatted lines_ =

@@ -67,11 +67,10 @@ term =
                     [ do
                         word1 0x7C E.TRecordColon
                         commentsAfterBar <- Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentField
+                        let baseComments = SC.UpdateComments commentsAfterOpenBrace commentsAfterFirstName
                         field <- chompField commentsAfterBar
                         fields <- chompRecordEnd [field]
-                        -- TODO: use commentsAfterOpenBrace
-                        -- TODO: use commentsAfterOpenFirstName
-                        addEnd start (Src.TRecord fields (Just name)),
+                        addEnd start (Src.TRecord fields (Just (name, baseComments))),
                       do
                         word1 0x3A {-:-} E.TRecordColon
                         commentsAfterColon <- Space.chompAndCheckIndent E.TRecordSpace E.TRecordIndentType
