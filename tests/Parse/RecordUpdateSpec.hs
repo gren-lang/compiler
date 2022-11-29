@@ -56,7 +56,7 @@ parse str =
 isUpdateExpr :: Either x ((Src.Expr, [Src.Comment]), A.Position) -> Bool
 isUpdateExpr result =
   case result of
-    Right ((A.At _ (Src.Update _ _), _), _) -> True
+    Right ((A.At _ (Src.Update _ _ _), _), _) -> True
     _ -> False
 
 --

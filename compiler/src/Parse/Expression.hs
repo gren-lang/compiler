@@ -199,10 +199,9 @@ record start =
                   word1 0x7C {- vertical bar -} E.RecordPipe
                   commentsAfterBar <- Space.chompAndCheckIndent E.RecordSpace E.RecordIndentField
                   firstField <- chompField commentsAfterBar
-                  -- TODO: use commentsAfterOpenBrace
-                  -- TODO: use commentsAfterFirstTerm
+                  let comments = SC.UpdateComments commentsAfterOpenBrace commentsAfterFirstTerm
                   fields <- chompFields [firstField]
-                  addEnd start (Src.Update firstTerm fields),
+                  addEnd start (Src.Update firstTerm fields comments),
                 do
                   word1 0x3D {-=-} E.RecordEquals
                   commentsAfterEquals <- Space.chompAndCheckIndent E.RecordSpace E.RecordIndentExpr

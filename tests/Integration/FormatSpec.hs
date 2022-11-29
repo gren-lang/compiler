@@ -468,6 +468,18 @@ spec = do
                                        "    , b = 2",
                                        "}"
                                      ]
+      it "formats with comments" $
+        ["{{-A-}base{-B-}|{-C-}a{-D-}={-E-}1{-F-},{-G-}b{-H-}={-I-}2{-J-}}"]
+          `shouldFormatExpressionAs` [ "{ {- A -}",
+                                       "  base",
+                                       "  {- B -}",
+                                       "    | {- C -}",
+                                       "      a {- D -} = {- E -} 1 {- F -}",
+                                       "",
+                                       "    , {- G -}",
+                                       "      b {- H -} = {- I -} 2 {- J -}",
+                                       "}"
+                                     ]
 
   describe "parentheses" $ do
     it "removes unnecessary parentheses" $

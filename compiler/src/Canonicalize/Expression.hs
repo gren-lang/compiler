@@ -110,7 +110,7 @@ canonicalize env (A.At region expression) =
         Can.Access
           <$> canonicalize env record
           <*> Result.ok field
-      Src.Update baseRecord fields ->
+      Src.Update baseRecord fields _ ->
         let makeCanFields =
               Dups.checkFields' (\r t -> Can.FieldUpdate r <$> canonicalize env t) fields
          in Can.Update

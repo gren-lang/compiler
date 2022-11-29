@@ -73,7 +73,7 @@ data Expr_
   | Case Expr [CaseBranch] SC.CaseComments
   | Accessor Name
   | Access Expr (A.Located Name)
-  | Update Expr [RecordField]
+  | Update Expr [RecordField] SC.UpdateComments
   | Record [RecordField]
   | Parens [Comment] Expr [Comment]
   deriving (Show)
