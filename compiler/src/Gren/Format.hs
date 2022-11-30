@@ -613,7 +613,8 @@ formatExpr = \case
           :| fmap formatArg args
     where
       formatArg (commentsBefore, arg) =
-        exprParensProtectSpaces (formatExpr $ A.toValue arg)
+        withCommentsBefore commentsBefore $
+          exprParensProtectSpaces (formatExpr $ A.toValue arg)
   Src.If [] else_ _ ->
     formatExpr $ A.toValue else_
   Src.If (if_ : elseifs) else_ (SC.IfComments commentsBeforeElseBody commentsAfterElseBody) ->

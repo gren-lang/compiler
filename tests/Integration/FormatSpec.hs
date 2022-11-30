@@ -332,6 +332,11 @@ spec = do
         ["\\{-A-}x{-B-}y{-C-}->{-D-}[]"]
           `shouldFormatExpressionAs` ["\\{- A -} x {- B -} y {- C -} -> {- D -} []"]
 
+    describe "function call" $ do
+      it "formats comments" $
+        ["f{-A-}x{-B-}y{-C-}z"]
+          `shouldFormatExpressionAs` ["f {- A -} x {- B -} y {- C -} z"]
+
     describe "if" $ do
       it "formats comments" $
         ["if{-A-}x{-B-}then{-C-}1{-D-}else{-E-}if{-F-}y{-G-}then{-H-}2{-I-}else{-J-}3"]
