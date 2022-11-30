@@ -445,12 +445,18 @@ spec = do
         [ "let",
           "    x = 1",
           "     {-A-}",
+          "    {y,z} = r",
+          "     {-B-}",
           "in x"
         ]
           `shouldFormatExpressionAs` [ "let",
                                        "    x =",
                                        "        1",
                                        "        {- A -}",
+                                       "",
+                                       "    { y, z } =",
+                                       "        r",
+                                       "        {- B -}",
                                        "in",
                                        "x"
                                      ]

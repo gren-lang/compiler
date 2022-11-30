@@ -573,12 +573,12 @@ destructure :: Space.Parser E.Let (A.Located Src.Def, [Src.Comment])
 destructure =
   specialize E.LetDestruct $
     do
-      start <- getPosition
+      start@(A.Position _ startCol) <- getPosition
       pattern <- specialize E.DestructPattern Pattern.term
       commentsAfterPattern <- Space.chompAndCheckIndent E.DestructSpace E.DestructIndentEquals
       word1 0x3D {-=-} E.DestructEquals
       commentsAfterEquals <- Space.chompAndCheckIndent E.DestructSpace E.DestructIndentBody
       ((expr, commentsAfter), end) <- specialize E.DestructBody expression
-      let commentsAfterBody = []
+      let (commentsAfterBody, commentsAfterDef) = List.span (A.isIndentedMoreThan startCol) commentsAfter
       let comments = SC.ValueComments commentsAfterPattern commentsAfterEquals commentsAfterBody
-      return ((A.at start end (Src.Destruct pattern expr comments), commentsAfter), end)
+      return ((A.at start end (Src.Destruct pattern expr comments), commentsAfterDef), end)
