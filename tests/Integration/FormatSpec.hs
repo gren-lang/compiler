@@ -316,15 +316,26 @@ spec = do
                                        "]"
                                      ]
 
+    describe "unary operators (negation)" $ do
+      it "formats" $
+        ["-x"]
+          `shouldFormatExpressionAs` ["-x"]
+      it "formats multiline value" $
+        [ "-(x --A",
+          ")"
+        ]
+          `shouldFormatExpressionAs` [ "-(x",
+                                       "  -- A",
+                                       " )"
+                                     ]
+
     describe "binary operators" $ do
       it "formats" $
-        do
-          ["1+2*3"]
+        ["1+2*3"]
           `shouldFormatExpressionAs` ["1 + 2 * 3"]
 
       it "formats comments" $
-        do
-          ["1{-A-}+{-B-}2{-C-}*{-D-}3"]
+        ["1{-A-}+{-B-}2{-C-}*{-D-}3"]
           `shouldFormatExpressionAs` ["1 {- A -} + {- B -} 2 {- C -} * {- D -} 3"]
 
     describe "lambda" $ do
