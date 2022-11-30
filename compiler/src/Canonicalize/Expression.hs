@@ -291,7 +291,7 @@ addDefNodes env nodes (A.At _ def) =
             let cdef = Can.Def aname args cbody
             let node = (Define cdef, name, Map.keys freeLocals)
             logLetLocals args freeLocals (node : nodes)
-        Just tipe ->
+        Just (tipe, _) ->
           do
             (Can.Forall freeVars ctipe) <- Type.toAnnotation env tipe
             ((args, resultType), argBindings) <-

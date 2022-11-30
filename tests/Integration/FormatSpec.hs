@@ -126,7 +126,7 @@ spec = do
                            formattedModuleBody
                          ]
 
-  describe "top-level definition" $ do
+  describe "top-level definitions" $ do
     it "formats already formatted" $
       assertFormattedModuleBody
         [ "f x =",
@@ -288,6 +288,16 @@ spec = do
           `shouldFormatModuleBodyAs` [ "f =",
                                        "    []",
                                        "    {- B -}"
+                                     ]
+      it "formats comments in type annotations" $
+        do
+          [ "f{-A-}:{-B-}Int{-C-}",
+            "f =",
+            "    0"
+            ]
+          `shouldFormatModuleBodyAs` [ "f {- A -} : {- B -} Int {- C -}",
+                                       "f =",
+                                       "    0"
                                      ]
 
   describe "expressions" $ do

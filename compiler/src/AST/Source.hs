@@ -101,7 +101,7 @@ type RecordField =
 -- DEFINITIONS
 
 data Def
-  = Define (A.Located Name) [([Comment], Pattern)] Expr (Maybe Type) SC.ValueComments
+  = Define (A.Located Name) [([Comment], Pattern)] Expr (Maybe (Type, SC.ValueTypeComments)) SC.ValueComments
   | Destruct Pattern Expr
   deriving (Show)
 
@@ -184,7 +184,7 @@ data Import = Import
   }
   deriving (Show)
 
-data Value = Value (A.Located Name) [([Comment], Pattern)] Expr (Maybe Type) SC.ValueComments
+data Value = Value (A.Located Name) [([Comment], Pattern)] Expr (Maybe (Type, SC.ValueTypeComments)) SC.ValueComments
   deriving (Show)
 
 data Union = Union (A.Located Name) [A.Located Name] [(A.Located Name, [([Comment], Type)])]

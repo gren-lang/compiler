@@ -141,7 +141,7 @@ toNodeOne env (A.At _ (Src.Value aname@(A.At _ name) srcArgs body maybeType _)) 
             name,
             Map.keys freeLocals
           )
-    Just srcType ->
+    Just (srcType, _) ->
       do
         (Can.Forall freeVars tipe) <- Type.toAnnotation env srcType
 

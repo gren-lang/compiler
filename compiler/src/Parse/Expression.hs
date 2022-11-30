@@ -522,17 +522,17 @@ definition =
           E.DefEquals
           [ do
               word1 0x3A {-:-} E.DefEquals
-              let commentsBeforeColon = commentsAfterName
-              Space.chompAndCheckIndent E.DefSpace E.DefIndentType
+              commentsAfterColon <- Space.chompAndCheckIndent E.DefSpace E.DefIndentType
               ((tipe, commentsAfterTipe), _) <- specialize E.DefType Type.expression
               Space.checkAligned E.DefAlignment
               defName <- chompMatchingName name
               commentsAfterMatchingName <- Space.chompAndCheckIndent E.DefSpace E.DefIndentEquals
-              chompDefArgsAndBody start defName (Just tipe) [] commentsAfterMatchingName,
+              let tipeComments = SC.ValueTypeComments commentsAfterName commentsAfterColon commentsAfterTipe
+              chompDefArgsAndBody start defName (Just (tipe, tipeComments)) [] commentsAfterMatchingName,
             chompDefArgsAndBody start aname Nothing [] commentsAfterName
           ]
 
-chompDefArgsAndBody :: A.Position -> A.Located Name.Name -> Maybe Src.Type -> [([Src.Comment], Src.Pattern)] -> [Src.Comment] -> Space.Parser E.Def (A.Located Src.Def, [Src.Comment])
+chompDefArgsAndBody :: A.Position -> A.Located Name.Name -> Maybe (Src.Type, SC.ValueTypeComments) -> [([Src.Comment], Src.Pattern)] -> [Src.Comment] -> Space.Parser E.Def (A.Located Src.Def, [Src.Comment])
 chompDefArgsAndBody start@(A.Position _ startCol) name tipe revArgs commentsBefore =
   oneOf
     E.DefEquals
