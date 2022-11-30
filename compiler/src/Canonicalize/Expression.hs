@@ -233,7 +233,7 @@ addBindings bindings (A.At _ def) =
   case def of
     Src.Define (A.At region name) _ _ _ _ ->
       Dups.insert name region region bindings
-    Src.Destruct pattern _ ->
+    Src.Destruct pattern _ _ ->
       addBindingsHelp bindings pattern
 
 addBindingsHelp :: Dups.Dict A.Region -> Src.Pattern -> Dups.Dict A.Region
@@ -307,7 +307,7 @@ addDefNodes env nodes (A.At _ def) =
             let cdef = Can.TypedDef aname freeVars args cbody resultType
             let node = (Define cdef, name, Map.keys freeLocals)
             logLetLocals args freeLocals (node : nodes)
-    Src.Destruct pattern body ->
+    Src.Destruct pattern body _ ->
       do
         (cpattern, _bindings) <-
           Pattern.verify Error.DPDestruct $

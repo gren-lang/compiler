@@ -575,8 +575,10 @@ destructure =
     do
       start <- getPosition
       pattern <- specialize E.DestructPattern Pattern.term
-      Space.chompAndCheckIndent E.DestructSpace E.DestructIndentEquals
+      commentsAfterPattern <- Space.chompAndCheckIndent E.DestructSpace E.DestructIndentEquals
       word1 0x3D {-=-} E.DestructEquals
-      Space.chompAndCheckIndent E.DestructSpace E.DestructIndentBody
+      commentsAfterEquals <- Space.chompAndCheckIndent E.DestructSpace E.DestructIndentBody
       ((expr, commentsAfter), end) <- specialize E.DestructBody expression
-      return ((A.at start end (Src.Destruct pattern expr), commentsAfter), end)
+      let commentsAfterBody = []
+      let comments = SC.ValueComments commentsAfterPattern commentsAfterEquals commentsAfterBody
+      return ((A.at start end (Src.Destruct pattern expr comments), commentsAfter), end)

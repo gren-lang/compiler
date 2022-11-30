@@ -778,13 +778,18 @@ formatDef (commentsBefore, def) =
     case A.toValue def of
       Src.Define name args body ann comments ->
         formatBasicDef (A.toValue name) args (A.toValue body) ann comments
-      Src.Destruct pat body ->
+      Src.Destruct pat body (SC.ValueComments commentsBeforeEquals commentsBeforeBody commentsAfterBody) ->
         Block.stack
           [ spaceOrIndent
-              [ patternParensProtectSpaces $ formatPattern $ A.toValue pat,
+              [ withCommentsAround [] commentsBeforeEquals $
+                  patternParensProtectSpaces $
+                    formatPattern (A.toValue pat),
                 Block.line $ Block.char7 '='
               ],
-            Block.indent $ exprParensNone $ formatExpr $ A.toValue body
+            Block.indent $
+              withCommentsStackAround commentsBeforeBody commentsAfterBody $
+                exprParensNone $
+                  formatExpr (A.toValue body)
           ]
 
 data TypeBlock

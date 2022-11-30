@@ -398,6 +398,28 @@ spec = do
                                        "{- C -}",
                                        "x"
                                      ]
+      it "formats comments in type annotations" $
+        [ "let f{-A-}:{-B-}Int{-C-}",
+          "    f =",
+          "        0",
+          "in x"
+        ]
+          `shouldFormatExpressionAs` [ "let",
+                                       "    f {- A -} : {- B -} Int {- C -}",
+                                       "    f =",
+                                       "        0",
+                                       "in",
+                                       "x"
+                                     ]
+      it "formats comments in destructure declarations" $
+        ["let{ x, y }{-A-}={-B-}r in x"]
+          `shouldFormatExpressionAs` [ "let",
+                                       "    { x, y } {- A -} =",
+                                       "        {- B -}",
+                                       "        r",
+                                       "in",
+                                       "x"
+                                     ]
       it "formats comments between and after declarations" $
         [ "let",
           "    x = 1",

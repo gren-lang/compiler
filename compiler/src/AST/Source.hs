@@ -102,7 +102,7 @@ type RecordField =
 
 data Def
   = Define (A.Located Name) [([Comment], Pattern)] Expr (Maybe (Type, SC.ValueTypeComments)) SC.ValueComments
-  | Destruct Pattern Expr
+  | Destruct Pattern Expr SC.ValueComments
   deriving (Show)
 
 -- PATTERN
