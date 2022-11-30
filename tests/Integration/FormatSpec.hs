@@ -281,20 +281,19 @@ spec = do
                                        "    {- D -}",
                                        "    []"
                                      ]
-      it "formats indented comments after the body" $ do
+      it "formats indented comments after the body" $
         [ "f = []",
           " {-B-}"
-          ]
+        ]
           `shouldFormatModuleBodyAs` [ "f =",
                                        "    []",
                                        "    {- B -}"
                                      ]
       it "formats comments in type annotations" $
-        do
-          [ "f{-A-}:{-B-}Int{-C-}",
-            "f =",
-            "    0"
-            ]
+        [ "f{-A-}:{-B-}Int{-C-}",
+          "f =",
+          "    0"
+        ]
           `shouldFormatModuleBodyAs` [ "f {- A -} : {- B -} Int {- C -}",
                                        "f =",
                                        "    0"
@@ -643,8 +642,8 @@ shouldFormatModuleBodyAs inputLines expectedOutputLines =
       expectedOutput = LazyText.unlines $ fmap LazyText.fromStrict expectedOutputLines
       actualOutput = LTE.decodeUtf8 . Builder.toLazyByteString <$> Format.formatByteString Parse.Application input
    in case LazyText.stripPrefix "module Main exposing (..)\n\n\n\n" <$> actualOutput of
-        Left _ ->
-          expectationFailure "shouldFormatModuleBodyAs: failed to format"
+        Left err ->
+          expectationFailure ("shouldFormatModuleBodyAs: failed to format" <> show err)
         Right Nothing ->
           expectationFailure "shouldFormatModuleBodyAs: internal error: could not strip module header"
         Right (Just actualModuleBody) ->
