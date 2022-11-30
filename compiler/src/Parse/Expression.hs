@@ -1,8 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
--- Temporary while implementing gren format
-{-# OPTIONS_GHC -Wno-error=unused-do-bind #-}
-{-# OPTIONS_GHC -Wno-error=unused-local-binds #-}
-{-# OPTIONS_GHC -Wno-error=unused-matches #-}
 
 module Parse.Expression
   ( expression,
