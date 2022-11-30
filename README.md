@@ -1,6 +1,6 @@
 # Gren
 
-Compiler for the Gren, a pure functional programming language that is easy to learn, but powerful in use.
+Compiler for Gren, a pure functional programming language that is easy to learn, but powerful in use.
 
 There are easier ways to install the compiler than compiling the source, you might want to read the [setup instructions](https://gren-lang.org/install).
 
