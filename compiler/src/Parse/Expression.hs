@@ -1,8 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
--- Temporary while implementing gren format
-{-# OPTIONS_GHC -Wno-error=unused-do-bind #-}
-{-# OPTIONS_GHC -Wno-error=unused-local-binds #-}
-{-# OPTIONS_GHC -Wno-error=unused-matches #-}
 
 module Parse.Expression
   ( expression,
@@ -265,7 +261,7 @@ expression =
       ]
 
 data State = State
-  { _ops :: ![(Src.Expr, [Src.Comment], A.Located Name.Name)],
+  { _ops :: ![Src.BinopsSegment],
     _expr :: !Src.Expr,
     _args :: ![([Src.Comment], Src.Expr)],
     _end :: !A.Position,
@@ -286,7 +282,7 @@ chompExprEnd start (State ops expr args end commentsBefore) =
       do
         Space.checkIndent end E.Start
         op@(A.At (A.Region opStart opEnd) opName) <- addLocation (Symbol.operator E.Start E.OperatorReserved)
-        Space.chompAndCheckIndent E.Space (E.IndentOperatorRight opName)
+        commentsAfterOp <- Space.chompAndCheckIndent E.Space (E.IndentOperatorRight opName)
         newStart <- getPosition
         if "-" == opName && end /= opStart && opEnd == newStart
           then -- negative terms
@@ -298,6 +294,7 @@ chompExprEnd start (State ops expr args end commentsBefore) =
             chompExprEnd start (State ops expr ((commentsBefore, arg) : args) newEnd commentsAfter)
           else
             let err = E.OperatorRight opName
+                opComments = SC.BinopsSegmentComments commentsBefore commentsAfterOp
              in oneOf
                   err
                   [ -- term
@@ -305,7 +302,7 @@ chompExprEnd start (State ops expr args end commentsBefore) =
                       newExpr <- possiblyNegativeTerm newStart
                       newEnd <- getPosition
                       commentsAfter <- Space.chomp E.Space
-                      let newOps = (toCall expr args, commentsBefore, op) : ops
+                      let newOps = (toCall expr args, op, opComments) : ops
                       chompExprEnd start (State newOps newExpr [] newEnd commentsAfter),
                     -- final term
                     do
@@ -317,7 +314,7 @@ chompExprEnd start (State ops expr args end commentsBefore) =
                             if_ newStart,
                             function newStart
                           ]
-                      let newOps = (toCall expr args, commentsBefore, op) : ops
+                      let newOps = (toCall expr args, op, opComments) : ops
                       let finalExpr = Src.Binops (reverse newOps) newLast
                       return ((A.at start newEnd finalExpr, commentsAfter), newEnd)
                   ]
@@ -521,17 +518,17 @@ definition =
           E.DefEquals
           [ do
               word1 0x3A {-:-} E.DefEquals
-              let commentsBeforeColon = commentsAfterName
-              Space.chompAndCheckIndent E.DefSpace E.DefIndentType
+              commentsAfterColon <- Space.chompAndCheckIndent E.DefSpace E.DefIndentType
               ((tipe, commentsAfterTipe), _) <- specialize E.DefType Type.expression
               Space.checkAligned E.DefAlignment
               defName <- chompMatchingName name
               commentsAfterMatchingName <- Space.chompAndCheckIndent E.DefSpace E.DefIndentEquals
-              chompDefArgsAndBody start defName (Just tipe) [] commentsAfterMatchingName,
+              let tipeComments = SC.ValueTypeComments commentsAfterName commentsAfterColon commentsAfterTipe
+              chompDefArgsAndBody start defName (Just (tipe, tipeComments)) [] commentsAfterMatchingName,
             chompDefArgsAndBody start aname Nothing [] commentsAfterName
           ]
 
-chompDefArgsAndBody :: A.Position -> A.Located Name.Name -> Maybe Src.Type -> [([Src.Comment], Src.Pattern)] -> [Src.Comment] -> Space.Parser E.Def (A.Located Src.Def, [Src.Comment])
+chompDefArgsAndBody :: A.Position -> A.Located Name.Name -> Maybe (Src.Type, SC.ValueTypeComments) -> [([Src.Comment], Src.Pattern)] -> [Src.Comment] -> Space.Parser E.Def (A.Located Src.Def, [Src.Comment])
 chompDefArgsAndBody start@(A.Position _ startCol) name tipe revArgs commentsBefore =
   oneOf
     E.DefEquals
@@ -572,10 +569,12 @@ destructure :: Space.Parser E.Let (A.Located Src.Def, [Src.Comment])
 destructure =
   specialize E.LetDestruct $
     do
-      start <- getPosition
+      start@(A.Position _ startCol) <- getPosition
       pattern <- specialize E.DestructPattern Pattern.term
-      Space.chompAndCheckIndent E.DestructSpace E.DestructIndentEquals
+      commentsAfterPattern <- Space.chompAndCheckIndent E.DestructSpace E.DestructIndentEquals
       word1 0x3D {-=-} E.DestructEquals
-      Space.chompAndCheckIndent E.DestructSpace E.DestructIndentBody
+      commentsAfterEquals <- Space.chompAndCheckIndent E.DestructSpace E.DestructIndentBody
       ((expr, commentsAfter), end) <- specialize E.DestructBody expression
-      return ((A.at start end (Src.Destruct pattern expr), commentsAfter), end)
+      let (commentsAfterBody, commentsAfterDef) = List.span (A.isIndentedMoreThan startCol) commentsAfter
+      let comments = SC.ValueComments commentsAfterPattern commentsAfterEquals commentsAfterBody
+      return ((A.at start end (Src.Destruct pattern expr comments), commentsAfterDef), end)

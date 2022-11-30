@@ -9,6 +9,7 @@ module AST.Source
     Expr_ (..),
     VarType (..),
     ArrayEntry,
+    BinopsSegment,
     IfBranch,
     CaseBranch,
     RecordField,
@@ -66,7 +67,7 @@ data Expr_
   | Array [ArrayEntry]
   | Op Name
   | Negate Expr
-  | Binops [(Expr, [Comment], A.Located Name)] Expr
+  | Binops [BinopsSegment] Expr
   | Lambda [([Comment], Pattern)] Expr SC.LambdaComments
   | Call Expr [([Comment], Expr)]
   | If [IfBranch] Expr SC.IfComments
@@ -85,6 +86,9 @@ data VarType = LowVar | CapVar
 type ArrayEntry =
   (Expr, SC.ArrayEntryComments)
 
+type BinopsSegment =
+  (Expr, A.Located Name, SC.BinopsSegmentComments)
+
 type IfBranch =
   (Expr, Expr, SC.IfBranchComments)
 
@@ -97,8 +101,8 @@ type RecordField =
 -- DEFINITIONS
 
 data Def
-  = Define (A.Located Name) [([Comment], Pattern)] Expr (Maybe Type) SC.ValueComments
-  | Destruct Pattern Expr
+  = Define (A.Located Name) [([Comment], Pattern)] Expr (Maybe (Type, SC.ValueTypeComments)) SC.ValueComments
+  | Destruct Pattern Expr SC.ValueComments
   deriving (Show)
 
 -- PATTERN
@@ -180,7 +184,7 @@ data Import = Import
   }
   deriving (Show)
 
-data Value = Value (A.Located Name) [([Comment], Pattern)] Expr (Maybe Type) SC.ValueComments
+data Value = Value (A.Located Name) [([Comment], Pattern)] Expr (Maybe (Type, SC.ValueTypeComments)) SC.ValueComments
   deriving (Show)
 
 data Union = Union (A.Located Name) [A.Located Name] [(A.Located Name, [([Comment], Type)])]

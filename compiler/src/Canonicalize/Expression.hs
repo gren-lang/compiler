@@ -149,9 +149,9 @@ canonicalizeCaseBranch env (pattern, expr, _) =
 
 -- CANONICALIZE BINOPS
 
-canonicalizeBinops :: A.Region -> Env.Env -> [(Src.Expr, [Src.Comment], A.Located Name.Name)] -> Src.Expr -> Result FreeLocals [W.Warning] Can.Expr
+canonicalizeBinops :: A.Region -> Env.Env -> [Src.BinopsSegment] -> Src.Expr -> Result FreeLocals [W.Warning] Can.Expr
 canonicalizeBinops overallRegion env ops final =
-  let canonicalizeHelp (expr, _, A.At region op) =
+  let canonicalizeHelp (expr, A.At region op, _) =
         (,)
           <$> canonicalize env expr
           <*> Env.findBinop region env op
@@ -233,7 +233,7 @@ addBindings bindings (A.At _ def) =
   case def of
     Src.Define (A.At region name) _ _ _ _ ->
       Dups.insert name region region bindings
-    Src.Destruct pattern _ ->
+    Src.Destruct pattern _ _ ->
       addBindingsHelp bindings pattern
 
 addBindingsHelp :: Dups.Dict A.Region -> Src.Pattern -> Dups.Dict A.Region
@@ -291,7 +291,7 @@ addDefNodes env nodes (A.At _ def) =
             let cdef = Can.Def aname args cbody
             let node = (Define cdef, name, Map.keys freeLocals)
             logLetLocals args freeLocals (node : nodes)
-        Just tipe ->
+        Just (tipe, _) ->
           do
             (Can.Forall freeVars ctipe) <- Type.toAnnotation env tipe
             ((args, resultType), argBindings) <-
@@ -307,7 +307,7 @@ addDefNodes env nodes (A.At _ def) =
             let cdef = Can.TypedDef aname freeVars args cbody resultType
             let node = (Define cdef, name, Map.keys freeLocals)
             logLetLocals args freeLocals (node : nodes)
-    Src.Destruct pattern body ->
+    Src.Destruct pattern body _ ->
       do
         (cpattern, _bindings) <-
           Pattern.verify Error.DPDestruct $

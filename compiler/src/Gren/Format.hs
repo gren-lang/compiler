@@ -405,9 +405,9 @@ formatAssociativity = \case
 
 formatValue :: Src.Value -> Block
 formatValue (Src.Value name args body type_ comments) =
-  formatBasicDef (A.toValue name) args (A.toValue body) (fmap A.toValue type_) comments
+  formatBasicDef (A.toValue name) args (A.toValue body) type_ comments
 
-formatBasicDef :: Name -> [([Src.Comment], Src.Pattern)] -> Src.Expr_ -> Maybe Src.Type_ -> SC.ValueComments -> Block
+formatBasicDef :: Name -> [([Src.Comment], Src.Pattern)] -> Src.Expr_ -> Maybe (Src.Type, SC.ValueTypeComments) -> SC.ValueComments -> Block
 formatBasicDef name args body type_ (SC.ValueComments commentsBeforeEquals commentsBeforeBody commentsAfterBody) =
   Block.stack $
     NonEmpty.fromList $
@@ -432,11 +432,19 @@ formatBasicDef name args body type_ (SC.ValueComments commentsBeforeEquals comme
         patternParensProtectSpaces $
           formatPattern (A.toValue pat)
 
-formatTypeAnnotation :: Maybe String -> Name -> Src.Type_ -> Block
-formatTypeAnnotation prefix name t =
-  spaceOrIndent
-    [ Block.line $ withPrefix $ utf8 name <> Block.space <> Block.char7 ':',
-      typeParensNone $ formatType t
+formatTypeAnnotation :: Maybe String -> Name -> (Src.Type, SC.ValueTypeComments) -> Block
+formatTypeAnnotation prefix name (t, SC.ValueTypeComments commentsBeforeColon commentsAfterColon commentsAfterType) =
+  spaceOrIndent $
+    [ spaceOrStack $
+        NonEmpty.fromList $
+          catMaybes
+            [ Just $ Block.line $ withPrefix $ utf8 name,
+              formatCommentBlock commentsBeforeColon,
+              Just $ Block.line $ Block.char7 ':'
+            ],
+      withCommentsAround commentsAfterColon commentsAfterType $
+        typeParensNone $
+          formatType (A.toValue t)
     ]
   where
     withPrefix a =
@@ -486,7 +494,7 @@ formatAlias (Src.Alias name args type_) =
 formatPort :: Src.Port -> Block
 formatPort = \case
   Src.Port name type_ ->
-    formatTypeAnnotation (Just "port") (A.toValue name) (A.toValue type_)
+    formatTypeAnnotation (Just "port") (A.toValue name) (type_, SC.ValueTypeComments [] [] [])
 
 data ExpressionBlock
   = NoExpressionParens Block
@@ -566,17 +574,21 @@ formatExpr = \case
      in ExpressionContainsInfixOps $
           spaceOrIndentForce forceMultiline $
             exprParensProtectInfixOps (formatExpr $ A.toValue first)
-              :| fmap formatPair rest
+              :| fmap formatSegment rest
     where
       -- for now we just use multiline formatting for specific operators,
       -- since we don't yet track where the linebreaks are in the source
-      forceMultiline = any (opForcesMultiline . opFromPair) postfixOps
-      opFromPair (_, _, name) = A.toValue name
-      formatPair (commentsBeforeOp, op, expr) =
-        Block.prefix
-          4
-          (utf8 (A.toValue op) <> Block.space)
-          (exprParensProtectInfixOps $ formatExpr $ A.toValue expr)
+      forceMultiline = any (opForcesMultiline . opFromSegment) postfixOps
+      opFromSegment (_, name, _) = A.toValue name
+      formatSegment (op, SC.BinopsSegmentComments commentsBeforeOp commentsAfterOp, expr) =
+        withCommentsBefore commentsBeforeOp $
+          Block.prefix
+            4
+            (utf8 (A.toValue op) <> Block.space)
+            ( withCommentsBefore commentsAfterOp $
+                exprParensProtectInfixOps $
+                  formatExpr (A.toValue expr)
+            )
   Src.Lambda [] body _ ->
     formatExpr $ A.toValue body
   Src.Lambda (arg1 : args) body (SC.LambdaComments commentsBeforeArrow commentsAfterArrow) ->
@@ -609,7 +621,8 @@ formatExpr = \case
           :| fmap formatArg args
     where
       formatArg (commentsBefore, arg) =
-        exprParensProtectSpaces (formatExpr $ A.toValue arg)
+        withCommentsBefore commentsBefore $
+          exprParensProtectSpaces (formatExpr $ A.toValue arg)
   Src.If [] else_ _ ->
     formatExpr $ A.toValue else_
   Src.If (if_ : elseifs) else_ (SC.IfComments commentsBeforeElseBody commentsAfterElseBody) ->
@@ -765,14 +778,19 @@ formatDef (commentsBefore, def) =
   withCommentsStackBefore commentsBefore $
     case A.toValue def of
       Src.Define name args body ann comments ->
-        formatBasicDef (A.toValue name) args (A.toValue body) (fmap A.toValue ann) comments
-      Src.Destruct pat body ->
+        formatBasicDef (A.toValue name) args (A.toValue body) ann comments
+      Src.Destruct pat body (SC.ValueComments commentsBeforeEquals commentsBeforeBody commentsAfterBody) ->
         Block.stack
           [ spaceOrIndent
-              [ patternParensProtectSpaces $ formatPattern $ A.toValue pat,
+              [ withCommentsAround [] commentsBeforeEquals $
+                  patternParensProtectSpaces $
+                    formatPattern (A.toValue pat),
                 Block.line $ Block.char7 '='
               ],
-            Block.indent $ exprParensNone $ formatExpr $ A.toValue body
+            Block.indent $
+              withCommentsStackAround commentsBeforeBody commentsAfterBody $
+                exprParensNone $
+                  formatExpr (A.toValue body)
           ]
 
 data TypeBlock

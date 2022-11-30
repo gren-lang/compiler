@@ -126,7 +126,7 @@ spec = do
                            formattedModuleBody
                          ]
 
-  describe "top-level definition" $ do
+  describe "top-level definitions" $ do
     it "formats already formatted" $
       assertFormattedModuleBody
         [ "f x =",
@@ -281,13 +281,22 @@ spec = do
                                        "    {- D -}",
                                        "    []"
                                      ]
-      it "formats indented comments after the body" $ do
+      it "formats indented comments after the body" $
         [ "f = []",
           " {-B-}"
-          ]
+        ]
           `shouldFormatModuleBodyAs` [ "f =",
                                        "    []",
                                        "    {- B -}"
+                                     ]
+      it "formats comments in type annotations" $
+        [ "f{-A-}:{-B-}Int{-C-}",
+          "f =",
+          "    0"
+        ]
+          `shouldFormatModuleBodyAs` [ "f {- A -} : {- B -} Int {- C -}",
+                                       "f =",
+                                       "    0"
                                      ]
 
   describe "expressions" $ do
@@ -316,10 +325,37 @@ spec = do
                                        "]"
                                      ]
 
+    describe "unary operators (negation)" $ do
+      it "formats" $
+        ["-x"]
+          `shouldFormatExpressionAs` ["-x"]
+      it "formats multiline value" $
+        [ "-(x --A",
+          ")"
+        ]
+          `shouldFormatExpressionAs` [ "-(x",
+                                       "  -- A",
+                                       " )"
+                                     ]
+
+    describe "binary operators" $ do
+      it "formats" $
+        ["1+2*3"]
+          `shouldFormatExpressionAs` ["1 + 2 * 3"]
+
+      it "formats comments" $
+        ["1{-A-}+{-B-}2{-C-}*{-D-}3"]
+          `shouldFormatExpressionAs` ["1 {- A -} + {- B -} 2 {- C -} * {- D -} 3"]
+
     describe "lambda" $ do
       it "formats comments" $
         ["\\{-A-}x{-B-}y{-C-}->{-D-}[]"]
           `shouldFormatExpressionAs` ["\\{- A -} x {- B -} y {- C -} -> {- D -} []"]
+
+    describe "function call" $ do
+      it "formats comments" $
+        ["f{-A-}x{-B-}y{-C-}z"]
+          `shouldFormatExpressionAs` ["f {- A -} x {- B -} y {- C -} z"]
 
     describe "if" $ do
       it "formats comments" $
@@ -361,6 +397,28 @@ spec = do
                                        "{- C -}",
                                        "x"
                                      ]
+      it "formats comments in type annotations" $
+        [ "let f{-A-}:{-B-}Int{-C-}",
+          "    f =",
+          "        0",
+          "in x"
+        ]
+          `shouldFormatExpressionAs` [ "let",
+                                       "    f {- A -} : {- B -} Int {- C -}",
+                                       "    f =",
+                                       "        0",
+                                       "in",
+                                       "x"
+                                     ]
+      it "formats comments in destructure declarations" $
+        ["let{ x, y }{-A-}={-B-}r in x"]
+          `shouldFormatExpressionAs` [ "let",
+                                       "    { x, y } {- A -} =",
+                                       "        {- B -}",
+                                       "        r",
+                                       "in",
+                                       "x"
+                                     ]
       it "formats comments between and after declarations" $
         [ "let",
           "    x = 1",
@@ -387,12 +445,18 @@ spec = do
         [ "let",
           "    x = 1",
           "     {-A-}",
+          "    {y,z} = r",
+          "     {-B-}",
           "in x"
         ]
           `shouldFormatExpressionAs` [ "let",
                                        "    x =",
                                        "        1",
                                        "        {- A -}",
+                                       "",
+                                       "    { y, z } =",
+                                       "        r",
+                                       "        {- B -}",
                                        "in",
                                        "x"
                                      ]
@@ -469,6 +533,7 @@ spec = do
                                        "  b {- F -} = {- G -} 2 {- H -}",
                                        "}"
                                      ]
+
     describe "record update" $ do
       it "formats" $
         ["{base|a=1,b=2}"]
@@ -583,8 +648,8 @@ shouldFormatModuleBodyAs inputLines expectedOutputLines =
       expectedOutput = LazyText.unlines $ fmap LazyText.fromStrict expectedOutputLines
       actualOutput = LTE.decodeUtf8 . Builder.toLazyByteString <$> Format.formatByteString Parse.Application input
    in case LazyText.stripPrefix "module Main exposing (..)\n\n\n\n" <$> actualOutput of
-        Left _ ->
-          expectationFailure "shouldFormatModuleBodyAs: failed to format"
+        Left err ->
+          expectationFailure ("shouldFormatModuleBodyAs: failed to format" <> show err)
         Right Nothing ->
           expectationFailure "shouldFormatModuleBodyAs: internal error: could not strip module header"
         Right (Just actualModuleBody) ->

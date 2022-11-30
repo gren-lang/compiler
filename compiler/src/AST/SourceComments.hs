@@ -87,7 +87,20 @@ data ValueComments = ValueComments
   }
   deriving (Show)
 
+data ValueTypeComments = ValueTypeComments
+  { _beforeTypeColon :: [Comment],
+    _afterTypeColon :: [Comment],
+    _afterValueType :: [Comment]
+  }
+  deriving (Show)
+
 -- Expressions
+
+data BinopsSegmentComments = BinopsSegmentComments
+  { _beforeOperator :: [Comment],
+    _afterOperator :: [Comment]
+  }
+  deriving (Show)
 
 data ArrayEntryComments = ArrayEntryComments
   { _beforeArrayEntry :: [Comment],
