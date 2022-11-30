@@ -435,16 +435,17 @@ formatBasicDef name args body type_ (SC.ValueComments commentsBeforeEquals comme
 formatTypeAnnotation :: Maybe String -> Name -> (Src.Type, SC.ValueTypeComments) -> Block
 formatTypeAnnotation prefix name (t, SC.ValueTypeComments commentsBeforeColon commentsAfterColon commentsAfterType) =
   spaceOrIndent $
-    NonEmpty.fromList $
-      catMaybes
-        [ Just $ Block.line $ withPrefix $ utf8 name,
-          formatCommentBlock commentsBeforeColon,
-          Just $ Block.line $ Block.char7 ':',
-          Just $
-            withCommentsAround commentsAfterColon commentsAfterType $
-              typeParensNone $
-                formatType (A.toValue t)
-        ]
+    [ spaceOrStack $
+        NonEmpty.fromList $
+          catMaybes
+            [ Just $ Block.line $ withPrefix $ utf8 name,
+              formatCommentBlock commentsBeforeColon,
+              Just $ Block.line $ Block.char7 ':'
+            ],
+      withCommentsAround commentsAfterColon commentsAfterType $
+        typeParensNone $
+          formatType (A.toValue t)
+    ]
   where
     withPrefix a =
       case prefix of
