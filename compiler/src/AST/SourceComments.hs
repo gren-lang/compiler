@@ -89,6 +89,12 @@ data ValueComments = ValueComments
 
 -- Expressions
 
+data BinopsSegmentComments = BinopsSegmentComments
+  { _beforeOperator :: [Comment],
+    _afterOperator :: [Comment]
+  }
+  deriving (Show)
+
 data ArrayEntryComments = ArrayEntryComments
   { _beforeArrayEntry :: [Comment],
     _afterArrayEntry :: [Comment]

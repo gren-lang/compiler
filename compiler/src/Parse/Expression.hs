@@ -265,7 +265,7 @@ expression =
       ]
 
 data State = State
-  { _ops :: ![(Src.Expr, [Src.Comment], A.Located Name.Name)],
+  { _ops :: ![Src.BinopsSegment],
     _expr :: !Src.Expr,
     _args :: ![([Src.Comment], Src.Expr)],
     _end :: !A.Position,
@@ -286,7 +286,7 @@ chompExprEnd start (State ops expr args end commentsBefore) =
       do
         Space.checkIndent end E.Start
         op@(A.At (A.Region opStart opEnd) opName) <- addLocation (Symbol.operator E.Start E.OperatorReserved)
-        Space.chompAndCheckIndent E.Space (E.IndentOperatorRight opName)
+        commentsAfterOp <- Space.chompAndCheckIndent E.Space (E.IndentOperatorRight opName)
         newStart <- getPosition
         if "-" == opName && end /= opStart && opEnd == newStart
           then -- negative terms
@@ -298,6 +298,7 @@ chompExprEnd start (State ops expr args end commentsBefore) =
             chompExprEnd start (State ops expr ((commentsBefore, arg) : args) newEnd commentsAfter)
           else
             let err = E.OperatorRight opName
+                opComments = SC.BinopsSegmentComments commentsBefore commentsAfterOp
              in oneOf
                   err
                   [ -- term
@@ -305,7 +306,7 @@ chompExprEnd start (State ops expr args end commentsBefore) =
                       newExpr <- possiblyNegativeTerm newStart
                       newEnd <- getPosition
                       commentsAfter <- Space.chomp E.Space
-                      let newOps = (toCall expr args, commentsBefore, op) : ops
+                      let newOps = (toCall expr args, op, opComments) : ops
                       chompExprEnd start (State newOps newExpr [] newEnd commentsAfter),
                     -- final term
                     do
@@ -317,7 +318,7 @@ chompExprEnd start (State ops expr args end commentsBefore) =
                             if_ newStart,
                             function newStart
                           ]
-                      let newOps = (toCall expr args, commentsBefore, op) : ops
+                      let newOps = (toCall expr args, op, opComments) : ops
                       let finalExpr = Src.Binops (reverse newOps) newLast
                       return ((A.at start newEnd finalExpr, commentsAfter), newEnd)
                   ]

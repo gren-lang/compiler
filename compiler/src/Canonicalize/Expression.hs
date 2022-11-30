@@ -149,9 +149,9 @@ canonicalizeCaseBranch env (pattern, expr, _) =
 
 -- CANONICALIZE BINOPS
 
-canonicalizeBinops :: A.Region -> Env.Env -> [(Src.Expr, [Src.Comment], A.Located Name.Name)] -> Src.Expr -> Result FreeLocals [W.Warning] Can.Expr
+canonicalizeBinops :: A.Region -> Env.Env -> [Src.BinopsSegment] -> Src.Expr -> Result FreeLocals [W.Warning] Can.Expr
 canonicalizeBinops overallRegion env ops final =
-  let canonicalizeHelp (expr, _, A.At region op) =
+  let canonicalizeHelp (expr, A.At region op, _) =
         (,)
           <$> canonicalize env expr
           <*> Env.findBinop region env op

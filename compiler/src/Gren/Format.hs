@@ -566,17 +566,21 @@ formatExpr = \case
      in ExpressionContainsInfixOps $
           spaceOrIndentForce forceMultiline $
             exprParensProtectInfixOps (formatExpr $ A.toValue first)
-              :| fmap formatPair rest
+              :| fmap formatSegment rest
     where
       -- for now we just use multiline formatting for specific operators,
       -- since we don't yet track where the linebreaks are in the source
-      forceMultiline = any (opForcesMultiline . opFromPair) postfixOps
-      opFromPair (_, _, name) = A.toValue name
-      formatPair (commentsBeforeOp, op, expr) =
-        Block.prefix
-          4
-          (utf8 (A.toValue op) <> Block.space)
-          (exprParensProtectInfixOps $ formatExpr $ A.toValue expr)
+      forceMultiline = any (opForcesMultiline . opFromSegment) postfixOps
+      opFromSegment (_, name, _) = A.toValue name
+      formatSegment (op, SC.BinopsSegmentComments commentsBeforeOp commentsAfterOp, expr) =
+        withCommentsBefore commentsBeforeOp $
+          Block.prefix
+            4
+            (utf8 (A.toValue op) <> Block.space)
+            ( withCommentsBefore commentsAfterOp $
+                exprParensProtectInfixOps $
+                  formatExpr (A.toValue expr)
+            )
   Src.Lambda [] body _ ->
     formatExpr $ A.toValue body
   Src.Lambda (arg1 : args) body (SC.LambdaComments commentsBeforeArrow commentsAfterArrow) ->

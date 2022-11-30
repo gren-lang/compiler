@@ -9,6 +9,7 @@ module AST.Source
     Expr_ (..),
     VarType (..),
     ArrayEntry,
+    BinopsSegment,
     IfBranch,
     CaseBranch,
     RecordField,
@@ -66,7 +67,7 @@ data Expr_
   | Array [ArrayEntry]
   | Op Name
   | Negate Expr
-  | Binops [(Expr, [Comment], A.Located Name)] Expr
+  | Binops [BinopsSegment] Expr
   | Lambda [([Comment], Pattern)] Expr SC.LambdaComments
   | Call Expr [([Comment], Expr)]
   | If [IfBranch] Expr SC.IfComments
@@ -84,6 +85,9 @@ data VarType = LowVar | CapVar
 
 type ArrayEntry =
   (Expr, SC.ArrayEntryComments)
+
+type BinopsSegment =
+  (Expr, A.Located Name, SC.BinopsSegmentComments)
 
 type IfBranch =
   (Expr, Expr, SC.IfBranchComments)

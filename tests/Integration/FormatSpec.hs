@@ -316,6 +316,17 @@ spec = do
                                        "]"
                                      ]
 
+    describe "binary operators" $ do
+      it "formats" $
+        do
+          ["1+2*3"]
+          `shouldFormatExpressionAs` ["1 + 2 * 3"]
+
+      it "formats comments" $
+        do
+          ["1{-A-}+{-B-}2{-C-}*{-D-}3"]
+          `shouldFormatExpressionAs` ["1 {- A -} + {- B -} 2 {- C -} * {- D -} 3"]
+
     describe "lambda" $ do
       it "formats comments" $
         ["\\{-A-}x{-B-}y{-C-}->{-D-}[]"]
@@ -469,6 +480,7 @@ spec = do
                                        "  b {- F -} = {- G -} 2 {- H -}",
                                        "}"
                                      ]
+
     describe "record update" $ do
       it "formats" $
         ["{base|a=1,b=2}"]
