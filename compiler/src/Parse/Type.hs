@@ -107,7 +107,8 @@ expression =
           word2 0x2D 0x3E {-->-} E.TStart -- could just be another type instead
           commentsAfterArrow <- Space.chompAndCheckIndent E.TSpace E.TIndentStart
           ((tipe2, commentsAfter), end2) <- expression
-          let tipe = A.at start end2 (Src.TLambda tipe1 tipe2)
+          let comments = SC.TLambdaComments commentsBeforeArrow commentsAfterArrow
+          let tipe = A.at start end2 (Src.TLambda tipe1 tipe2 comments)
           return ((tipe, commentsAfter), end2)
       ]
       term1

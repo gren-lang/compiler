@@ -586,6 +586,12 @@ spec = do
                                      ]
 
   describe "types" $ do
+    describe "function types" $ do
+      it "formats comments" $
+        do
+          ["a{-A-}->{-B-}b"]
+          `shouldFormatTypeAs` ["a {- A -} -> {- B -} b"]
+
     describe "record types" $ do
       it "formats with fields" $
         ["{a:Bool,   b : Int}"]

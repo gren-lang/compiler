@@ -127,7 +127,7 @@ toNode alias@(A.At _ (Src.Alias (A.At _ name) _ tipe)) =
 getEdges :: [Name.Name] -> Src.Type -> [Name.Name]
 getEdges edges (A.At _ tipe) =
   case tipe of
-    Src.TLambda arg result ->
+    Src.TLambda arg result _ ->
       getEdges (getEdges edges arg) result
     Src.TVar _ ->
       edges
@@ -181,7 +181,7 @@ checkAliasFreeVars (A.At aliasRegion (Src.Alias (A.At _ name) args tipe)) =
 addFreeVars :: Map.Map Name.Name A.Region -> Src.Type -> Map.Map Name.Name A.Region
 addFreeVars freeVars (A.At region tipe) =
   case tipe of
-    Src.TLambda arg result ->
+    Src.TLambda arg result _ ->
       addFreeVars (addFreeVars freeVars arg) result
     Src.TVar name ->
       Map.insert name region freeVars

@@ -172,6 +172,12 @@ data PArrayEntryComments = PArrayEntryComments
 
 -- Types
 
+data TLambdaComments = TLambdaComments
+  { _beforeTArrow :: [Comment],
+    _afterTArrow :: [Comment]
+  }
+  deriving (Show)
+
 data TParensComments = TParensComments
   { _afterOpening :: [Comment],
     _beforeClosing :: [Comment]

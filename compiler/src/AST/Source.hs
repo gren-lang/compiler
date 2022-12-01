@@ -135,7 +135,7 @@ type Type =
   A.Located Type_
 
 data Type_
-  = TLambda Type Type
+  = TLambda Type Type SC.TLambdaComments
   | TVar Name
   | TType A.Region Name [([Comment], Type)]
   | TTypeQual A.Region Name Name [([Comment], Type)]

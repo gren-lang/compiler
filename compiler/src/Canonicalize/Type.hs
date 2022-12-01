@@ -44,7 +44,7 @@ canonicalize env (A.At typeRegion tipe) =
     Src.TTypeQual region home name args ->
       canonicalizeType env typeRegion name (fmap snd args)
         =<< Env.findTypeQual region env home name
-    Src.TLambda a b ->
+    Src.TLambda a b _ ->
       Can.TLambda
         <$> canonicalize env a
         <*> canonicalize env b

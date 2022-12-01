@@ -93,7 +93,7 @@ decoder =
 fromRawType :: Src.Type -> Type
 fromRawType (A.At _ astType) =
   case astType of
-    Src.TLambda t1 t2 ->
+    Src.TLambda t1 t2 _ ->
       Lambda (fromRawType t1) (fromRawType t2)
     Src.TVar x ->
       Var x
