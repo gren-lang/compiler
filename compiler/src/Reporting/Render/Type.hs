@@ -128,6 +128,8 @@ srcToDoc context (A.At _ tipe) =
       record
         (map srcFieldToDocs fields)
         (fmap (D.fromName . A.toValue . fst) ext)
+    Src.TParens inner _ ->
+      srcToDoc context inner
 
 srcFieldToDocs :: Src.TRecordField -> (Doc, Doc)
 srcFieldToDocs (A.At _ fieldName, fieldType, _) =

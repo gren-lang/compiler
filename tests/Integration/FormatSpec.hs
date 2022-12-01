@@ -626,6 +626,9 @@ spec = do
       it "removes unnecessary parens" $
         ["((a -> b)) -> c"]
           `shouldFormatTypeAs` ["(a -> b) -> c"]
+      it "formats comments" $
+        ["({-A-}Int{-B-})"]
+          `shouldFormatTypeAs` ["({- A -} Int {- B -})"]
 
 assertFormatted :: [Text] -> IO ()
 assertFormatted lines_ =

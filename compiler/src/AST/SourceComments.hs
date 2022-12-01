@@ -169,3 +169,11 @@ data PArrayEntryComments = PArrayEntryComments
     _afterPArrayEntry :: [Comment]
   }
   deriving (Show)
+
+-- Types
+
+data TParensComments = TParensComments
+  { _afterOpening :: [Comment],
+    _beforeClosing :: [Comment]
+  }
+  deriving (Show)

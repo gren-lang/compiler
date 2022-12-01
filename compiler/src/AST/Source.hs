@@ -140,6 +140,7 @@ data Type_
   | TType A.Region Name [([Comment], Type)]
   | TTypeQual A.Region Name Name [([Comment], Type)]
   | TRecord [TRecordField] (Maybe (A.Located Name, SC.UpdateComments))
+  | TParens Type SC.TParensComments
   deriving (Show)
 
 type TRecordField = (A.Located Name, Type, SC.RecordFieldComments)

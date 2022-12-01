@@ -759,14 +759,21 @@ formatExpr = \case
     formatExpr $ A.toValue expr
   Src.Parens commentsBefore expr commentsAfter ->
     NoExpressionParens $
-      parens $
-        spaceOrStack $
-          NonEmpty.fromList $
-            catMaybes
-              [ formatCommentBlock commentsBefore,
-                Just $ exprParensNone $ formatExpr (A.toValue expr),
-                formatCommentBlock commentsAfter
-              ]
+      parensComments commentsBefore commentsAfter $
+        exprParensNone $
+          formatExpr (A.toValue expr)
+
+parensComments :: [Src.Comment] -> [Src.Comment] -> Block -> Block
+parensComments [] [] inner = inner
+parensComments commentsBefore commentsAfter inner =
+  parens $
+    spaceOrStack $
+      NonEmpty.fromList $
+        catMaybes
+          [ formatCommentBlock commentsBefore,
+            Just $ inner,
+            formatCommentBlock commentsAfter
+          ]
 
 opForcesMultiline :: Name -> Bool
 opForcesMultiline op =
@@ -901,6 +908,13 @@ formatType = \case
               formatType $
                 A.toValue type_
         )
+  Src.TParens inner (SC.TParensComments [] []) ->
+    formatType (A.toValue inner)
+  Src.TParens inner (SC.TParensComments commentsBefore commentsAfter) ->
+    NoTypeParens $
+      parensComments commentsBefore commentsAfter $
+        typeParensNone $
+          formatType (A.toValue inner)
 
 data PatternBlock
   = NoPatternParens Block

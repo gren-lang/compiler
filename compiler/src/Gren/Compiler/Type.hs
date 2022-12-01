@@ -106,6 +106,8 @@ fromRawType (A.At _ astType) =
        in Record
             (map fromField fields)
             (fmap (A.toValue . fst) ext)
+    Src.TParens inner _ ->
+      fromRawType inner
 
 -- JSON for PROGRAM
 

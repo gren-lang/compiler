@@ -45,11 +45,12 @@ term =
         -- parenthesis
         inContext E.TParenthesis (word1 0x28 {-(-} E.TStart) $
           do
-            commentsBeforeOpeningParen <- Space.chompAndCheckIndent E.TParenthesisSpace E.TParenthesisIndentOpen
+            commentsAfterOpeningParen <- Space.chompAndCheckIndent E.TParenthesisSpace E.TParenthesisIndentOpen
             ((tipe, commentsBeforeClosingParen), end) <- specialize E.TParenthesisType expression
             Space.checkIndent end E.TParenthesisIndentEnd
             word1 0x29 {-)-} E.TParenthesisEnd
-            return tipe,
+            let comments = SC.TParensComments commentsAfterOpeningParen commentsBeforeClosingParen
+            addEnd start (Src.TParens tipe comments),
         -- records
         inContext E.TRecord (word1 0x7B {- { -} E.TStart) $
           do
