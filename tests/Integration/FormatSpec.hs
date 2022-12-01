@@ -622,6 +622,10 @@ spec = do
                                  "      b {- H -} : {- I -} Int {- J -}",
                                  "}"
                                ]
+    describe "parentheses" $ do
+      it "removes unnecessary parens" $
+        ["((a -> b)) -> c"]
+          `shouldFormatTypeAs` ["(a -> b) -> c"]
 
 assertFormatted :: [Text] -> IO ()
 assertFormatted lines_ =
