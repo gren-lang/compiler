@@ -29,6 +29,7 @@ module AST.Source
     Import (..),
     Value (..),
     Union (..),
+    UnionVariant,
     Alias (..),
     Infix (..),
     Port (..),
@@ -188,8 +189,11 @@ data Import = Import
 data Value = Value (A.Located Name) [([Comment], Pattern)] Expr (Maybe (Type, SC.ValueTypeComments)) SC.ValueComments
   deriving (Show)
 
-data Union = Union (A.Located Name) [A.Located Name] [(A.Located Name, [([Comment], Type)])]
+data Union = Union (A.Located Name) [([Comment], A.Located Name)] [UnionVariant] SC.UnionComments
   deriving (Show)
+
+type UnionVariant =
+  ([Comment], A.Located Name, [([Comment], Type)], [Comment])
 
 data Alias = Alias (A.Located Name) [A.Located Name] Type
   deriving (Show)

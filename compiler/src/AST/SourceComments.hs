@@ -94,6 +94,12 @@ data ValueTypeComments = ValueTypeComments
   }
   deriving (Show)
 
+data UnionComments = UnionComments
+  { _beforeUnionTypeName :: [Comment],
+    _afterUnionTypeArgs :: [Comment]
+  }
+  deriving (Show)
+
 -- Expressions
 
 data BinopsSegmentComments = BinopsSegmentComments

@@ -77,7 +77,7 @@ toEffectDups effects =
 addTypes :: Src.Module -> Env.Env -> Result i w Env.Env
 addTypes (Src.Module _ _ _ _ _ unions aliases _ _ _ _) (Env.Env home vs ts cs bs qvs qts qcs) =
   let addAliasDups dups (A.At _ (Src.Alias (A.At region name) _ _)) = Dups.insert name region () dups
-      addUnionDups dups (A.At _ (Src.Union (A.At region name) _ _)) = Dups.insert name region () dups
+      addUnionDups dups (A.At _ (Src.Union (A.At region name) _ _ _)) = Dups.insert name region () dups
       typeNameDups =
         List.foldl' addUnionDups (List.foldl' addAliasDups Dups.none (fmap snd aliases)) (fmap snd unions)
    in do
@@ -86,7 +86,7 @@ addTypes (Src.Module _ _ _ _ _ unions aliases _ _ _ _) (Env.Env home vs ts cs bs
         addAliases (fmap snd aliases) (Env.Env home vs ts1 cs bs qvs qts qcs)
 
 addUnion :: ModuleName.Canonical -> Env.Exposed Env.Type -> A.Located Src.Union -> Result i w (Env.Exposed Env.Type)
-addUnion home types union@(A.At _ (Src.Union (A.At _ name) _ _)) =
+addUnion home types union@(A.At _ (Src.Union (A.At _ name) _ _ _)) =
   do
     arity <- checkUnionFreeVars union
     let one = Env.Specific home (Env.Union arity home)
@@ -143,11 +143,11 @@ getEdges edges (A.At _ tipe) =
 -- CHECK FREE VARIABLES
 
 checkUnionFreeVars :: A.Located Src.Union -> Result i w Int
-checkUnionFreeVars (A.At unionRegion (Src.Union (A.At _ name) args ctors)) =
-  let addArg (A.At region arg) dict =
+checkUnionFreeVars (A.At unionRegion (Src.Union (A.At _ name) args ctors _)) =
+  let addArg (_, A.At region arg) dict =
         Dups.insert arg region region dict
 
-      addCtorFreeVars (_, tipes) freeVars =
+      addCtorFreeVars (_, _, tipes, _) freeVars =
         List.foldl' addFreeVars freeVars (fmap snd tipes)
    in do
         boundVars <- Dups.detect (Error.DuplicateUnionArg name) (foldr addArg Dups.none args)
@@ -157,7 +157,7 @@ checkUnionFreeVars (A.At unionRegion (Src.Union (A.At _ name) args ctors)) =
             Result.ok (length args)
           unbound : unbounds ->
             Result.throw $
-              Error.TypeVarsUnboundInUnion unionRegion name (map A.toValue args) unbound unbounds
+              Error.TypeVarsUnboundInUnion unionRegion name (map (A.toValue . snd) args) unbound unbounds
 
 checkAliasFreeVars :: A.Located Src.Alias -> Result i w [Name.Name]
 checkAliasFreeVars (A.At aliasRegion (Src.Alias (A.At _ name) args tipe)) =
@@ -237,10 +237,10 @@ canonicalizeAlias env (A.At _ (Src.Alias (A.At _ name) args tipe)) =
 -- CANONICALIZE UNION
 
 canonicalizeUnion :: Env.Env -> A.Located Src.Union -> Result i w ((Name.Name, Can.Union), CtorDups)
-canonicalizeUnion env@(Env.Env home _ _ _ _ _ _ _) (A.At _ (Src.Union (A.At _ name) avars ctors)) =
+canonicalizeUnion env@(Env.Env home _ _ _ _ _ _ _) (A.At _ (Src.Union (A.At _ name) avars ctors _)) =
   do
     cctors <- Index.indexedTraverse (canonicalizeCtor env) ctors
-    let vars = map A.toValue avars
+    let vars = map (A.toValue . snd) avars
     let alts = map A.toValue cctors
     let union = Can.Union vars alts (length alts) (toOpts ctors)
     Result.ok
@@ -248,21 +248,21 @@ canonicalizeUnion env@(Env.Env home _ _ _ _ _ _ _) (A.At _ (Src.Union (A.At _ na
         Dups.unions $ map (toCtor home name union) cctors
       )
 
-canonicalizeCtor :: Env.Env -> Index.ZeroBased -> (A.Located Name.Name, [([Src.Comment], Src.Type)]) -> Result i w (A.Located Can.Ctor)
-canonicalizeCtor env index (A.At region ctor, tipes) =
+canonicalizeCtor :: Env.Env -> Index.ZeroBased -> Src.UnionVariant -> Result i w (A.Located Can.Ctor)
+canonicalizeCtor env index (_, A.At region ctor, tipes, _) =
   do
     ctipes <- traverse (Type.canonicalize env) (fmap snd tipes)
     Result.ok $
       A.At region $
         Can.Ctor ctor index (length ctipes) ctipes
 
-toOpts :: [(A.Located Name.Name, [([Src.Comment], Src.Type)])] -> Can.CtorOpts
+toOpts :: [Src.UnionVariant] -> Can.CtorOpts
 toOpts ctors =
   case ctors of
-    [(_, [_])] ->
+    [(_, _, [_], _)] ->
       Can.Unbox
     _ ->
-      if all (null . snd) ctors then Can.Enum else Can.Normal
+      if all (\(_, _, args, _) -> null args) ctors then Can.Enum else Can.Normal
 
 toCtor :: ModuleName.Canonical -> Name.Name -> Can.Union -> A.Located Can.Ctor -> CtorDups
 toCtor home typeName union (A.At region (Can.Ctor name index _ args)) =

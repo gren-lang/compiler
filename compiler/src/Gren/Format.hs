@@ -260,7 +260,7 @@ formatModule (Src.Module moduleName exports docs imports values unions aliases b
         Src.YesDocs _ defs -> Map.fromList defs
 
     valueName (Src.Value name _ _ _ _) = A.toValue name
-    unionName (Src.Union name _ _) = A.toValue name
+    unionName (Src.Union name _ _ _) = A.toValue name
     aliasName (Src.Alias name _ _) = A.toValue name
     portName (Src.Port name _) = A.toValue name
 
@@ -454,29 +454,36 @@ formatTypeAnnotation prefix name (t, SC.ValueTypeComments commentsBeforeColon co
           Block.string7 prefixString <> Block.char7 ' ' <> a
 
 formatUnion :: Src.Union -> Block
-formatUnion (Src.Union name args ctors) =
+formatUnion (Src.Union name args ctors (SC.UnionComments commentsBeforeName commentsAfterArgs)) =
   Block.stack $
     spaceOrIndent
       [ Block.line (Block.string7 "type"),
-        spaceOrIndent $
-          Block.line (utf8 $ A.toValue name)
-            :| fmap (Block.line . utf8 . A.toValue) args
+        withCommentsAround commentsBeforeName commentsAfterArgs $
+          spaceOrIndent $
+            Block.line (utf8 $ A.toValue name)
+              :| fmap formatArg args
       ]
       :| fmap Block.indent formatCtors
   where
+    formatArg (comments, arg) =
+      withCommentsBefore comments $
+        Block.line $
+          utf8 (A.toValue arg)
     formatCtors =
       case ctors of
         [] -> []
         (first : rest) -> formatCtor '=' first : fmap (formatCtor '|') rest
 
-formatCtor :: Char -> (A.Located Name, [([Src.Comment], Src.Type)]) -> Block
-formatCtor open (name, args) =
-  spaceOrIndent $
-    Block.line (Block.char7 open <> Block.space <> utf8 (A.toValue name))
-      :| fmap (typeParensProtectSpaces . formatArg) args
+formatCtor :: Char -> Src.UnionVariant -> Block
+formatCtor open (commentsBefore, name, args, commentsAfter) =
+  Block.prefix 2 (Block.char7 open <> Block.space) $
+    withCommentsAround commentsBefore commentsAfter $
+      spaceOrIndent $
+        Block.line (utf8 (A.toValue name))
+          :| fmap formatArg args
   where
-    formatArg (comments, arg) =
-      formatType (A.toValue arg)
+    formatArg (commentsBeforeArg, arg) =
+      withCommentsBefore commentsBeforeArg $ typeParensProtectSpaces $ formatType (A.toValue arg)
 
 formatAlias :: Src.Alias -> Block
 formatAlias (Src.Alias name args type_) =

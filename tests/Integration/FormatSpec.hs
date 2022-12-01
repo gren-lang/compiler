@@ -274,6 +274,26 @@ spec = do
                                      "    {}"
                                    ]
 
+    describe "union type declarations" $ do
+      it "formats comments" $
+        ["type{-A-}T{-B-}a{-C-}b{-D-}={-E-}A{-F-}a{-G-}a{-H-}|{-I-}B{-J-}b"]
+          `shouldFormatModuleBodyAs` [ "type {- A -} T {- B -} a {- C -} b {- D -}",
+                                       "    = {- E -} A {- F -} a {- G -} a {- H -}",
+                                       "    | {- I -} B {- J -} b"
+                                     ]
+      it "formats indented comments after last variant" $
+        [ "type T = A{-A-}",
+          " {-B-}",
+          "{-C-}"
+        ]
+          `shouldFormatModuleBodyAs` [ "type T",
+                                       "    = A {- A -} {- B -}",
+                                       "",
+                                       "",
+                                       "",
+                                       "{- C -}"
+                                     ]
+
     describe "value declarations" $ do
       it "formats comments" $
         ["f{-A-}x{-B-}y{-C-}={-D-}[]"]
