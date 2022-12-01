@@ -607,9 +607,11 @@ spec = do
 
   describe "types" $ do
     describe "function types" $ do
+      it "formats" $
+        ["a->b->c->d"]
+          `shouldFormatTypeAs` ["a -> b -> c -> d"]
       it "formats comments" $
-        do
-          ["a{-A-}->{-B-}b"]
+        ["a{-A-}->{-B-}b"]
           `shouldFormatTypeAs` ["a {- A -} -> {- B -} b"]
 
     describe "type with arguments" $ do

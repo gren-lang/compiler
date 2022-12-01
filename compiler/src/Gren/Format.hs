@@ -830,21 +830,20 @@ typeParensProtectSpaces = \case
   TypeContainsArrow block -> parens block
   TypeContainsSpaces block -> parens block
 
-collectLambdaTypes :: Src.Type -> SC.TLambdaComments -> Src.Type -> (Src.Type, NonEmpty (SC.TLambdaComments, Src.Type))
-collectLambdaTypes left comments = \case
+collectLambdaTypes :: SC.TLambdaComments -> Src.Type -> (NonEmpty (SC.TLambdaComments, Src.Type))
+collectLambdaTypes comments = \case
   (A.At _ (Src.TLambda next rest nextComments)) ->
-    let (first, outs) = collectLambdaTypes next nextComments rest
-     in (first, NonEmpty.cons (comments, next) outs)
+    NonEmpty.cons (comments, next) (collectLambdaTypes nextComments rest)
   other ->
-    (left, NonEmpty.singleton (comments, other))
+    (NonEmpty.singleton (comments, other))
 
 formatType :: Src.Type_ -> TypeBlock
 formatType = \case
   Src.TLambda left right comments ->
     TypeContainsArrow $
-      let (first, rest) = collectLambdaTypes left comments right
+      let rest = collectLambdaTypes comments right
        in spaceOrStack $
-            (typeParensProtectArrows $ formatType (A.toValue first))
+            (typeParensProtectArrows $ formatType (A.toValue left))
               :| NonEmpty.toList (fmap formatSegment rest)
     where
       formatSegment (SC.TLambdaComments commentsBeforeArrow commentsAfterArrow, next) =
