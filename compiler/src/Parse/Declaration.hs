@@ -15,7 +15,8 @@ import AST.Source qualified as Src
 import AST.SourceComments qualified as SC
 import AST.Utils.Binop qualified as Binop
 import Data.List qualified as List
-import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Name qualified as Name
 import Parse.Expression qualified as Expr
 import Parse.Keyword qualified as Keyword
@@ -129,11 +130,12 @@ typeDecl :: Maybe Src.DocComment -> A.Position -> Space.Parser E.Decl (Decl, [Sr
 typeDecl maybeDocs start =
   inContext E.DeclType (Keyword.type_ E.DeclStart) $
     do
-      Space.chompAndCheckIndent E.DT_Space E.DT_IndentName
+      commentsAfterTypeKeyword <- Space.chompAndCheckIndent E.DT_Space E.DT_IndentName
       oneOf
         E.DT_Name
         [ inContext E.DT_Alias (Keyword.alias_ E.DT_Name) $
             do
+              -- TODO: use commentsAfterTypeKeyword
               Space.chompAndCheckIndent E.AliasSpace E.AliasIndentEquals
               (name, args) <- chompAliasNameToEquals
               ((tipe, commentsAfterTipe), end) <- specialize E.AliasBody Type.expression
@@ -141,11 +143,12 @@ typeDecl maybeDocs start =
               return ((Alias maybeDocs alias, commentsAfterTipe), end),
           specialize E.DT_Union $
             do
-              (name, args) <- chompCustomNameToEquals
+              (name, args, commentsAfterArgs, commentsAfterEquals) <- chompCustomNameToEquals
               ((firstName, firstArgs, commentsAfterFirst), firstEnd) <- Type.variant
-              let firstVariant = (firstName, firstArgs)
-              ((variants, commentsAfter), end) <- chompVariants [firstVariant] commentsAfterFirst firstEnd
-              let union = A.at start end (Src.Union name args variants)
+              let firstVariant = (commentsAfterEquals, firstName, firstArgs, commentsAfterFirst)
+              ((variants, commentsAfter), end) <- chompVariants (NonEmpty.singleton firstVariant) firstEnd
+              let comments = SC.UnionComments commentsAfterTypeKeyword commentsAfterArgs
+              let union = A.at start end (Src.Union name args variants comments)
               return ((Union maybeDocs union, commentsAfter), end)
         ]
 
@@ -174,40 +177,41 @@ chompAliasNameToEqualsHelp name args =
 
 -- CUSTOM TYPES
 
-chompCustomNameToEquals :: Parser E.CustomType (A.Located Name.Name, [A.Located Name.Name])
+chompCustomNameToEquals :: Parser E.CustomType (A.Located Name.Name, [([Src.Comment], A.Located Name.Name)], [Src.Comment], [Src.Comment])
 chompCustomNameToEquals =
   do
     name <- addLocation (Var.upper E.CT_Name)
-    Space.chompAndCheckIndent E.CT_Space E.CT_IndentEquals
-    chompCustomNameToEqualsHelp name []
+    commentsAfterName <- Space.chompAndCheckIndent E.CT_Space E.CT_IndentEquals
+    chompCustomNameToEqualsHelp name commentsAfterName []
 
-chompCustomNameToEqualsHelp :: A.Located Name.Name -> [A.Located Name.Name] -> Parser E.CustomType (A.Located Name.Name, [A.Located Name.Name])
-chompCustomNameToEqualsHelp name args =
+chompCustomNameToEqualsHelp :: A.Located Name.Name -> [Src.Comment] -> [([Src.Comment], A.Located Name.Name)] -> Parser E.CustomType (A.Located Name.Name, [([Src.Comment], A.Located Name.Name)], [Src.Comment], [Src.Comment])
+chompCustomNameToEqualsHelp name commentsAfterPrev args =
   oneOf
     E.CT_Equals
     [ do
         arg <- addLocation (Var.lower E.CT_Equals)
-        Space.chompAndCheckIndent E.CT_Space E.CT_IndentEquals
-        chompCustomNameToEqualsHelp name (arg : args),
+        commentsAfterArg <- Space.chompAndCheckIndent E.CT_Space E.CT_IndentEquals
+        chompCustomNameToEqualsHelp name commentsAfterArg ((commentsAfterPrev, arg) : args),
       do
         word1 0x3D {-=-} E.CT_Equals
-        Space.chompAndCheckIndent E.CT_Space E.CT_IndentAfterEquals
-        return (name, reverse args)
+        commentsAfter <- Space.chompAndCheckIndent E.CT_Space E.CT_IndentAfterEquals
+        return (name, reverse args, commentsAfterPrev, commentsAfter)
     ]
 
-chompVariants :: [(A.Located Name.Name, [([Src.Comment], Src.Type)])] -> [Src.Comment] -> A.Position -> Space.Parser E.CustomType ([(A.Located Name.Name, [([Src.Comment], Src.Type)])], [Src.Comment])
-chompVariants variants commentsBetween end =
+chompVariants :: NonEmpty (Src.UnionVariant) -> A.Position -> Space.Parser E.CustomType ([Src.UnionVariant], [Src.Comment])
+chompVariants variants@((lastCommentsBefore, lastName, lastArgs, lastCommentsAfter) :| rest) end =
   oneOfWithFallback
     [ do
         Space.checkIndent end E.CT_IndentBar
-        let commentsBeforeBar = commentsBetween
         word1 0x7C E.CT_Bar
         commentsAfterBar <- Space.chompAndCheckIndent E.CT_Space E.CT_IndentAfterBar
         ((name, args, commentsAfter), newEnd) <- Type.variant
-        let variant = (name, args)
-        chompVariants (variant : variants) commentsAfter newEnd
+        let variant = (commentsAfterBar, name, args, commentsAfter)
+        chompVariants (NonEmpty.cons variant variants) newEnd
     ]
-    ((reverse variants, commentsBetween), end)
+    ( let (commentsAfterLastVariant, commentsAfter) = List.span (A.isIndentedMoreThan 1) lastCommentsAfter
+       in ((reverse ((lastCommentsBefore, lastName, lastArgs, commentsAfterLastVariant) : rest), commentsAfter), end)
+    )
 
 -- PORT
 

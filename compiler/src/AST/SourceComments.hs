@@ -94,6 +94,12 @@ data ValueTypeComments = ValueTypeComments
   }
   deriving (Show)
 
+data UnionComments = UnionComments
+  { _beforeUnionTypeName :: [Comment],
+    _afterUnionTypeArgs :: [Comment]
+  }
+  deriving (Show)
+
 -- Expressions
 
 data BinopsSegmentComments = BinopsSegmentComments
@@ -167,5 +173,19 @@ data RecordFieldComments = RecordFieldComments
 data PArrayEntryComments = PArrayEntryComments
   { _beforePArrayEntry :: [Comment],
     _afterPArrayEntry :: [Comment]
+  }
+  deriving (Show)
+
+-- Types
+
+data TLambdaComments = TLambdaComments
+  { _beforeTArrow :: [Comment],
+    _afterTArrow :: [Comment]
+  }
+  deriving (Show)
+
+data TParensComments = TParensComments
+  { _afterOpening :: [Comment],
+    _beforeClosing :: [Comment]
   }
   deriving (Show)

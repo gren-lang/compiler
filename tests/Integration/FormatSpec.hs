@@ -274,6 +274,26 @@ spec = do
                                      "    {}"
                                    ]
 
+    describe "union type declarations" $ do
+      it "formats comments" $
+        ["type{-A-}T{-B-}a{-C-}b{-D-}={-E-}A{-F-}a{-G-}a{-H-}|{-I-}B{-J-}b"]
+          `shouldFormatModuleBodyAs` [ "type {- A -} T {- B -} a {- C -} b {- D -}",
+                                       "    = {- E -} A {- F -} a {- G -} a {- H -}",
+                                       "    | {- I -} B {- J -} b"
+                                     ]
+      it "formats indented comments after last variant" $
+        [ "type T = A{-A-}",
+          " {-B-}",
+          "{-C-}"
+        ]
+          `shouldFormatModuleBodyAs` [ "type T",
+                                       "    = A {- A -} {- B -}",
+                                       "",
+                                       "",
+                                       "",
+                                       "{- C -}"
+                                     ]
+
     describe "value declarations" $ do
       it "formats comments" $
         ["f{-A-}x{-B-}y{-C-}={-D-}[]"]
@@ -586,6 +606,22 @@ spec = do
                                      ]
 
   describe "types" $ do
+    describe "function types" $ do
+      it "formats" $
+        ["a->b->c->d"]
+          `shouldFormatTypeAs` ["a -> b -> c -> d"]
+      it "formats comments" $
+        ["a{-A-}->{-B-}b"]
+          `shouldFormatTypeAs` ["a {- A -} -> {- B -} b"]
+
+    describe "type with arguments" $ do
+      it "formats comments" $
+        ["Dict{-A-}Int{-B-}String"]
+          `shouldFormatTypeAs` ["Dict {- A -} Int {- B -} String"]
+      it "formats comments for qualified types" $
+        ["Dict.Dict{-A-}Int{-B-}String"]
+          `shouldFormatTypeAs` ["Dict.Dict {- A -} Int {- B -} String"]
+
     describe "record types" $ do
       it "formats with fields" $
         ["{a:Bool,   b : Int}"]
@@ -622,6 +658,13 @@ spec = do
                                  "      b {- H -} : {- I -} Int {- J -}",
                                  "}"
                                ]
+    describe "parentheses" $ do
+      it "removes unnecessary parens" $
+        ["((a -> b)) -> c"]
+          `shouldFormatTypeAs` ["(a -> b) -> c"]
+      it "formats comments" $
+        ["({-A-}Int{-B-})"]
+          `shouldFormatTypeAs` ["({- A -} Int {- B -})"]
 
 assertFormatted :: [Text] -> IO ()
 assertFormatted lines_ =

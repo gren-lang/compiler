@@ -44,7 +44,7 @@ canonicalize env (A.At typeRegion tipe) =
     Src.TTypeQual region home name args ->
       canonicalizeType env typeRegion name (fmap snd args)
         =<< Env.findTypeQual region env home name
-    Src.TLambda a b ->
+    Src.TLambda a b _ ->
       Can.TLambda
         <$> canonicalize env a
         <*> canonicalize env b
@@ -52,6 +52,8 @@ canonicalize env (A.At typeRegion tipe) =
       do
         cfields <- sequenceA =<< Dups.checkFields (canonicalizeFields env fields)
         return $ Can.TRecord cfields (fmap (A.toValue . fst) ext)
+    Src.TParens inner _ ->
+      canonicalize env inner
 
 canonicalizeFields :: Env.Env -> [Src.TRecordField] -> [(A.Located Name.Name, Result i w Can.FieldType, ())]
 canonicalizeFields env fields =

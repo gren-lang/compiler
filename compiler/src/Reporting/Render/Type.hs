@@ -105,7 +105,7 @@ vrecord entries maybeExt =
 srcToDoc :: Context -> Src.Type -> Doc
 srcToDoc context (A.At _ tipe) =
   case tipe of
-    Src.TLambda arg1 result ->
+    Src.TLambda arg1 result _ ->
       let (arg2, rest) = collectSrcArgs result
        in lambda
             context
@@ -128,6 +128,8 @@ srcToDoc context (A.At _ tipe) =
       record
         (map srcFieldToDocs fields)
         (fmap (D.fromName . A.toValue . fst) ext)
+    Src.TParens inner _ ->
+      srcToDoc context inner
 
 srcFieldToDocs :: Src.TRecordField -> (Doc, Doc)
 srcFieldToDocs (A.At _ fieldName, fieldType, _) =
@@ -138,7 +140,7 @@ srcFieldToDocs (A.At _ fieldName, fieldType, _) =
 collectSrcArgs :: Src.Type -> (Src.Type, [Src.Type])
 collectSrcArgs tipe =
   case tipe of
-    A.At _ (Src.TLambda a result) ->
+    A.At _ (Src.TLambda a result _) ->
       let (b, cs) = collectSrcArgs result
        in (a, b : cs)
     _ ->

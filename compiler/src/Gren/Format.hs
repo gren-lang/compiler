@@ -260,7 +260,7 @@ formatModule (Src.Module moduleName exports docs imports values unions aliases b
         Src.YesDocs _ defs -> Map.fromList defs
 
     valueName (Src.Value name _ _ _ _) = A.toValue name
-    unionName (Src.Union name _ _) = A.toValue name
+    unionName (Src.Union name _ _ _) = A.toValue name
     aliasName (Src.Alias name _ _) = A.toValue name
     portName (Src.Port name _) = A.toValue name
 
@@ -454,29 +454,36 @@ formatTypeAnnotation prefix name (t, SC.ValueTypeComments commentsBeforeColon co
           Block.string7 prefixString <> Block.char7 ' ' <> a
 
 formatUnion :: Src.Union -> Block
-formatUnion (Src.Union name args ctors) =
+formatUnion (Src.Union name args ctors (SC.UnionComments commentsBeforeName commentsAfterArgs)) =
   Block.stack $
     spaceOrIndent
       [ Block.line (Block.string7 "type"),
-        spaceOrIndent $
-          Block.line (utf8 $ A.toValue name)
-            :| fmap (Block.line . utf8 . A.toValue) args
+        withCommentsAround commentsBeforeName commentsAfterArgs $
+          spaceOrIndent $
+            Block.line (utf8 $ A.toValue name)
+              :| fmap formatArg args
       ]
       :| fmap Block.indent formatCtors
   where
+    formatArg (comments, arg) =
+      withCommentsBefore comments $
+        Block.line $
+          utf8 (A.toValue arg)
     formatCtors =
       case ctors of
         [] -> []
         (first : rest) -> formatCtor '=' first : fmap (formatCtor '|') rest
 
-formatCtor :: Char -> (A.Located Name, [([Src.Comment], Src.Type)]) -> Block
-formatCtor open (name, args) =
-  spaceOrIndent $
-    Block.line (Block.char7 open <> Block.space <> utf8 (A.toValue name))
-      :| fmap (typeParensProtectSpaces . formatArg) args
+formatCtor :: Char -> Src.UnionVariant -> Block
+formatCtor open (commentsBefore, name, args, commentsAfter) =
+  Block.prefix 2 (Block.char7 open <> Block.space) $
+    withCommentsAround commentsBefore commentsAfter $
+      spaceOrIndent $
+        Block.line (utf8 (A.toValue name))
+          :| fmap formatArg args
   where
-    formatArg (comments, arg) =
-      formatType (A.toValue arg)
+    formatArg (commentsBeforeArg, arg) =
+      withCommentsBefore commentsBeforeArg $ typeParensProtectSpaces $ formatType (A.toValue arg)
 
 formatAlias :: Src.Alias -> Block
 formatAlias (Src.Alias name args type_) =
@@ -759,14 +766,21 @@ formatExpr = \case
     formatExpr $ A.toValue expr
   Src.Parens commentsBefore expr commentsAfter ->
     NoExpressionParens $
-      parens $
-        spaceOrStack $
-          NonEmpty.fromList $
-            catMaybes
-              [ formatCommentBlock commentsBefore,
-                Just $ exprParensNone $ formatExpr (A.toValue expr),
-                formatCommentBlock commentsAfter
-              ]
+      parensComments commentsBefore commentsAfter $
+        exprParensNone $
+          formatExpr (A.toValue expr)
+
+parensComments :: [Src.Comment] -> [Src.Comment] -> Block -> Block
+parensComments [] [] inner = inner
+parensComments commentsBefore commentsAfter inner =
+  parens $
+    spaceOrStack $
+      NonEmpty.fromList $
+        catMaybes
+          [ formatCommentBlock commentsBefore,
+            Just $ inner,
+            formatCommentBlock commentsAfter
+          ]
 
 opForcesMultiline :: Name -> Bool
 opForcesMultiline op =
@@ -816,22 +830,29 @@ typeParensProtectSpaces = \case
   TypeContainsArrow block -> parens block
   TypeContainsSpaces block -> parens block
 
-collectLambdaTypes :: Src.Type -> Src.Type -> NonEmpty (Src.Type)
-collectLambdaTypes left = \case
-  (A.At _ (Src.TLambda next rest)) ->
-    NonEmpty.cons left (collectLambdaTypes next rest)
+collectLambdaTypes :: SC.TLambdaComments -> Src.Type -> (NonEmpty (SC.TLambdaComments, Src.Type))
+collectLambdaTypes comments = \case
+  (A.At _ (Src.TLambda next rest nextComments)) ->
+    NonEmpty.cons (comments, next) (collectLambdaTypes nextComments rest)
   other ->
-    left :| [other]
+    (NonEmpty.singleton (comments, other))
 
 formatType :: Src.Type_ -> TypeBlock
 formatType = \case
-  Src.TLambda left right ->
+  Src.TLambda left right comments ->
     TypeContainsArrow $
-      case collectLambdaTypes left right of
-        (first :| rest) ->
-          spaceOrStack $
-            (typeParensProtectArrows $ formatType (A.toValue first))
-              :| fmap (Block.prefix 3 (Block.string7 "-> ") . typeParensProtectArrows . formatType . A.toValue) rest
+      let rest = collectLambdaTypes comments right
+       in spaceOrStack $
+            (typeParensProtectArrows $ formatType (A.toValue left))
+              :| NonEmpty.toList (fmap formatSegment rest)
+    where
+      formatSegment (SC.TLambdaComments commentsBeforeArrow commentsAfterArrow, next) =
+        ( withCommentsBefore commentsBeforeArrow $
+            Block.prefix 3 (Block.string7 "-> ") $
+              withCommentsBefore commentsAfterArrow $
+                typeParensProtectArrows $
+                  formatType (A.toValue next)
+        )
   Src.TVar name ->
     NoTypeParens $
       Block.line (utf8 name)
@@ -842,10 +863,10 @@ formatType = \case
     TypeContainsSpaces $
       spaceOrIndent $
         Block.line (utf8 name)
-          :| fmap (typeParensProtectSpaces . formatArg) args
+          :| fmap formatArg args
     where
       formatArg (comments, arg) =
-        formatType (A.toValue arg)
+        withCommentsBefore comments $ typeParensProtectSpaces $ formatType (A.toValue arg)
   Src.TTypeQual _ ns name [] ->
     NoTypeParens $
       Block.line (utf8 ns <> Block.char7 '.' <> utf8 name)
@@ -853,10 +874,10 @@ formatType = \case
     TypeContainsSpaces $
       spaceOrIndent $
         Block.line (utf8 ns <> Block.char7 '.' <> utf8 name)
-          :| fmap (typeParensProtectSpaces . formatArg) args
+          :| fmap formatArg args
     where
       formatArg (comments, arg) =
-        formatType (A.toValue arg)
+        withCommentsBefore comments $ typeParensProtectSpaces $ formatType (A.toValue arg)
   Src.TRecord fields Nothing ->
     NoTypeParens $
       groupWithBlankLines '{' ',' '}' True $
@@ -901,6 +922,13 @@ formatType = \case
               formatType $
                 A.toValue type_
         )
+  Src.TParens inner (SC.TParensComments [] []) ->
+    formatType (A.toValue inner)
+  Src.TParens inner (SC.TParensComments commentsBefore commentsAfter) ->
+    NoTypeParens $
+      parensComments commentsBefore commentsAfter $
+        typeParensNone $
+          formatType (A.toValue inner)
 
 data PatternBlock
   = NoPatternParens Block

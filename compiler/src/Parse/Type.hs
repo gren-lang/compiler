@@ -1,7 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
--- Temporary while implementing gren format
-{-# OPTIONS_GHC -Wno-error=unused-do-bind #-}
-{-# OPTIONS_GHC -Wno-error=unused-matches #-}
 
 module Parse.Type
   ( expression,
@@ -45,11 +42,12 @@ term =
         -- parenthesis
         inContext E.TParenthesis (word1 0x28 {-(-} E.TStart) $
           do
-            commentsBeforeOpeningParen <- Space.chompAndCheckIndent E.TParenthesisSpace E.TParenthesisIndentOpen
+            commentsAfterOpeningParen <- Space.chompAndCheckIndent E.TParenthesisSpace E.TParenthesisIndentOpen
             ((tipe, commentsBeforeClosingParen), end) <- specialize E.TParenthesisType expression
             Space.checkIndent end E.TParenthesisIndentEnd
             word1 0x29 {-)-} E.TParenthesisEnd
-            return tipe,
+            let comments = SC.TParensComments commentsAfterOpeningParen commentsBeforeClosingParen
+            addEnd start (Src.TParens tipe comments),
         -- records
         inContext E.TRecord (word1 0x7B {- { -} E.TStart) $
           do
@@ -106,7 +104,8 @@ expression =
           word2 0x2D 0x3E {-->-} E.TStart -- could just be another type instead
           commentsAfterArrow <- Space.chompAndCheckIndent E.TSpace E.TIndentStart
           ((tipe2, commentsAfter), end2) <- expression
-          let tipe = A.at start end2 (Src.TLambda tipe1 tipe2)
+          let comments = SC.TLambdaComments commentsBeforeArrow commentsAfterArrow
+          let tipe = A.at start end2 (Src.TLambda tipe1 tipe2 comments)
           return ((tipe, commentsAfter), end2)
       ]
       term1
