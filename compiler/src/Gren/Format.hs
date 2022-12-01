@@ -857,10 +857,10 @@ formatType = \case
     TypeContainsSpaces $
       spaceOrIndent $
         Block.line (utf8 name)
-          :| fmap (typeParensProtectSpaces . formatArg) args
+          :| fmap formatArg args
     where
       formatArg (comments, arg) =
-        formatType (A.toValue arg)
+        withCommentsBefore comments $ typeParensProtectSpaces $ formatType (A.toValue arg)
   Src.TTypeQual _ ns name [] ->
     NoTypeParens $
       Block.line (utf8 ns <> Block.char7 '.' <> utf8 name)
@@ -868,10 +868,10 @@ formatType = \case
     TypeContainsSpaces $
       spaceOrIndent $
         Block.line (utf8 ns <> Block.char7 '.' <> utf8 name)
-          :| fmap (typeParensProtectSpaces . formatArg) args
+          :| fmap formatArg args
     where
       formatArg (comments, arg) =
-        formatType (A.toValue arg)
+        withCommentsBefore comments $ typeParensProtectSpaces $ formatType (A.toValue arg)
   Src.TRecord fields Nothing ->
     NoTypeParens $
       groupWithBlankLines '{' ',' '}' True $

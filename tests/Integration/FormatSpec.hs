@@ -592,6 +592,14 @@ spec = do
           ["a{-A-}->{-B-}b"]
           `shouldFormatTypeAs` ["a {- A -} -> {- B -} b"]
 
+    describe "type with arguments" $ do
+      it "formats comments" $
+        ["Dict{-A-}Int{-B-}String"]
+          `shouldFormatTypeAs` ["Dict {- A -} Int {- B -} String"]
+      it "formats comments for qualified types" $
+        ["Dict.Dict{-A-}Int{-B-}String"]
+          `shouldFormatTypeAs` ["Dict.Dict {- A -} Int {- B -} String"]
+
     describe "record types" $ do
       it "formats with fields" $
         ["{a:Bool,   b : Int}"]
