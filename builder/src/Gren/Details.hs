@@ -129,7 +129,7 @@ verifyInstall scope root (Solver.Env cache) outline =
       Outline.Pkg pkg -> Task.run (verifyPkg env time pkg >> return ())
       Outline.App app -> Task.run (verifyApp env time app >> return ())
 
--- LOAD -- used by Make, Repl
+-- LOAD -- used by Make, Docs, Repl
 
 load :: Reporting.Style -> BW.Scope -> FilePath -> IO (Either Exit.Details Details)
 load style scope root =
@@ -186,19 +186,21 @@ initEnv key scope root =
 type Task a = Task.Task Exit.Details a
 
 verifyPkg :: Env -> File.Time -> Outline.PkgOutline -> Task Details
-verifyPkg env time (Outline.PkgOutline pkg _ _ _ exposed direct gren rootPlatform) =
+verifyPkg env@(Env reportKey _ _ _) time (Outline.PkgOutline pkg _ _ _ exposed direct gren rootPlatform) =
   if Con.goodGren gren
     then do
+      _ <- Task.io $ Reporting.report reportKey $ Reporting.DStart $ Map.size direct
       solution <- verifyConstraints env rootPlatform (Map.map (Con.exactly . Con.lowerBound) direct)
       let exposedList = Outline.flattenExposed exposed
       verifyDependencies env time (ValidPkg rootPlatform pkg exposedList) solution direct
     else Task.throw $ Exit.DetailsBadGrenInPkg gren
 
 verifyApp :: Env -> File.Time -> Outline.AppOutline -> Task Details
-verifyApp env time outline@(Outline.AppOutline grenVersion rootPlatform srcDirs direct _) =
+verifyApp env@(Env reportKey _ _ _) time outline@(Outline.AppOutline grenVersion rootPlatform srcDirs direct _) =
   if grenVersion == V.compiler
     then do
       stated <- checkAppDeps outline
+      _ <- Task.io $ Reporting.report reportKey $ Reporting.DStart (Map.size stated)
       actual <- verifyConstraints env rootPlatform (Map.map Con.exactly stated)
       if Map.size stated == Map.size actual
         then verifyDependencies env time (ValidApp rootPlatform srcDirs) actual direct
@@ -221,9 +223,9 @@ verifyConstraints ::
   Platform.Platform ->
   Map.Map Pkg.Name Con.Constraint ->
   Task (Map.Map Pkg.Name Solver.Details)
-verifyConstraints (Env _ _ _ cache) rootPlatform constraints =
+verifyConstraints (Env reportKey _ _ cache) rootPlatform constraints =
   do
-    result <- Task.io $ Solver.verify cache rootPlatform constraints
+    result <- Task.io $ Solver.verify reportKey cache rootPlatform constraints
     case result of
       Solver.Ok details -> return details
       Solver.NoSolution -> Task.throw $ Exit.DetailsNoSolution
@@ -251,10 +253,9 @@ fork work =
 -- VERIFY DEPENDENCIES
 
 verifyDependencies :: Env -> File.Time -> ValidOutline -> Map.Map Pkg.Name Solver.Details -> Map.Map Pkg.Name a -> Task Details
-verifyDependencies env@(Env key scope root cache) time outline solution directDeps =
+verifyDependencies env@(Env _ scope root cache) time outline solution directDeps =
   Task.eio id $
     do
-      Reporting.report key (Reporting.DStart (Map.size solution))
       mvar <- newEmptyMVar
       mvars <-
         Dirs.withRegistryLock cache $
@@ -316,7 +317,6 @@ verifyDep :: Env -> MVar (Map.Map Pkg.Name (MVar Dep)) -> Map.Map Pkg.Name Solve
 verifyDep (Env key _ _ cache) depsMVar solution pkg details@(Solver.Details vsn directDeps) =
   do
     let fingerprint = Map.intersectionWith (\(Solver.Details v _) _ -> v) solution directDeps
-    Reporting.report key Reporting.DCached
     maybeCache <- File.readBinary (Dirs.package cache pkg vsn </> "artifacts.dat")
     case maybeCache of
       Nothing ->

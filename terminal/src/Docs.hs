@@ -71,7 +71,7 @@ runHelp root style (Flags maybeOutput _) =
                 return ()
             Just DevStdOut ->
               do
-                docs <- buildExposed style root details Build.KeepDocs exposed
+                docs <- buildExposed Reporting.silent root details Build.KeepDocs exposed
                 let builder = Json.encodeUgly $ Docs.encode docs
                 Task.io $ B.hPutBuilder IO.stdout builder
             Nothing ->

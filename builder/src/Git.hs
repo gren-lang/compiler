@@ -56,9 +56,8 @@ githubUrl pkg =
 --
 
 clone :: GitUrl -> V.Version -> FilePath -> IO (Either Error ())
-clone (GitUrl (pkgName, gitUrl)) vsn targetFolder = do
+clone (GitUrl (_, gitUrl)) vsn targetFolder = do
   maybeExec <- checkInstalledGit
-  putStrFlush $ "Cloning " ++ pkgName ++ " " ++ V.toChars vsn ++ "... "
   case maybeExec of
     Nothing ->
       return $ Left MissingGit
@@ -78,13 +77,10 @@ clone (GitUrl (pkgName, gitUrl)) vsn targetFolder = do
           ""
       case exitCode of
         Exit.ExitFailure 128 -> do
-          putStrLn "Error!"
           return $ Left $ NoSuchRepoOrVersion vsn
         Exit.ExitFailure _ -> do
-          putStrLn "Error!"
           return $ Left $ FailedCommand ("git" : args) stderr
         Exit.ExitSuccess -> do
-          putStrLn "Ok!"
           return $ Right ()
 
 tags :: GitUrl -> IO (Either Error (V.Version, [V.Version]))

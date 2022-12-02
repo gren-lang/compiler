@@ -6,6 +6,7 @@ module Deps.Package
     latestCompatibleVersionForPackages,
     --
     bumpPossibilities,
+    isPackageInCache,
     installPackageVersion,
   )
 where
@@ -119,6 +120,11 @@ sameMinor (V.Version major1 minor1 _) (V.Version major2 minor2 _) =
   major1 == major2 && minor1 == minor2
 
 -- INSTALL PACKAGE VERSION
+
+isPackageInCache :: Dirs.PackageCache -> Pkg.Name -> V.Version -> IO Bool
+isPackageInCache cache pkg vsn = do
+  let versionedPkgPath = Dirs.package cache pkg vsn
+  Dir.doesDirectoryExist versionedPkgPath
 
 installPackageVersion :: Dirs.PackageCache -> Pkg.Name -> V.Version -> IO (Either Git.Error ())
 installPackageVersion cache pkg vsn = do

@@ -28,6 +28,7 @@ import Gren.Package qualified as Pkg
 import Gren.Platform qualified as Platform
 import Gren.Version qualified as V
 import Json.Decode qualified as D
+import Reporting qualified
 import Reporting.Exit qualified as Exit
 import System.FilePath ((</>))
 
@@ -67,13 +68,14 @@ data Details
   = Details V.Version (Map.Map Pkg.Name C.Constraint)
 
 verify ::
+  Reporting.DKey ->
   Dirs.PackageCache ->
   Platform.Platform ->
   Map.Map Pkg.Name C.Constraint ->
   IO (Result (Map.Map Pkg.Name Details))
-verify cache rootPlatform constraints =
+verify key cache rootPlatform constraints =
   Dirs.withRegistryLock cache $
-    case try rootPlatform constraints of
+    case try key rootPlatform constraints of
       Solver solver ->
         solver
           (State cache Map.empty)
@@ -96,17 +98,19 @@ data AppSolution = AppSolution
   }
 
 addToApp ::
+  Reporting.DKey ->
   Dirs.PackageCache ->
   Pkg.Name ->
   V.Version ->
   Outline.AppOutline ->
   IO (Result AppSolution)
-addToApp cache pkg compatibleVsn outline@(Outline.AppOutline _ rootPlatform _ direct indirect) =
+addToApp key cache pkg compatibleVsn outline@(Outline.AppOutline _ rootPlatform _ direct indirect) =
   Dirs.withRegistryLock cache $
     let allDeps = Map.union direct indirect
 
         attempt toConstraint deps =
           try
+            key
             rootPlatform
             (Map.insert pkg (C.untilNextMajor compatibleVsn) (Map.map toConstraint deps))
      in case oneOf
@@ -145,9 +149,9 @@ getTransitive constraints solution unvisited visited =
 
 -- TRY
 
-try :: Platform.Platform -> Map.Map Pkg.Name C.Constraint -> Solver (Map.Map Pkg.Name V.Version)
-try rootPlatform constraints =
-  exploreGoals (Goals rootPlatform constraints Map.empty)
+try :: Reporting.DKey -> Platform.Platform -> Map.Map Pkg.Name C.Constraint -> Solver (Map.Map Pkg.Name V.Version)
+try key rootPlatform constraints =
+  exploreGoals key (Goals rootPlatform constraints Map.empty)
 
 -- EXPLORE GOALS
 
@@ -157,8 +161,8 @@ data Goals = Goals
     _solved :: Map.Map Pkg.Name V.Version
   }
 
-exploreGoals :: Goals -> Solver (Map.Map Pkg.Name V.Version)
-exploreGoals (Goals rootPlatform pending solved) =
+exploreGoals :: Reporting.DKey -> Goals -> Solver (Map.Map Pkg.Name V.Version)
+exploreGoals key (Goals rootPlatform pending solved) =
   case Map.minViewWithKey pending of
     Nothing ->
       return solved
@@ -166,13 +170,13 @@ exploreGoals (Goals rootPlatform pending solved) =
       do
         let goals1 = Goals rootPlatform otherPending solved
         let lowestVersion = C.lowerBound constraint
-        goals2 <- addVersion goals1 name lowestVersion
-        exploreGoals goals2
+        goals2 <- addVersion key goals1 name lowestVersion
+        exploreGoals key goals2
 
-addVersion :: Goals -> Pkg.Name -> V.Version -> Solver Goals
-addVersion (Goals rootPlatform pending solved) name version =
+addVersion :: Reporting.DKey -> Goals -> Pkg.Name -> V.Version -> Solver Goals
+addVersion reportKey (Goals rootPlatform pending solved) name version =
   do
-    (Constraints gren platform deps) <- getConstraints name version
+    (Constraints gren platform deps) <- getConstraints reportKey name version
     if C.goodGren gren
       then
         if Platform.compatible rootPlatform platform
@@ -209,8 +213,8 @@ addConstraint sourcePkg solved unsolved (name, newConstraint) =
 
 -- GET CONSTRAINTS
 
-getConstraints :: Pkg.Name -> V.Version -> Solver Constraints
-getConstraints pkg vsn =
+getConstraints :: Reporting.DKey -> Pkg.Name -> V.Version -> Solver Constraints
+getConstraints reportKey pkg vsn =
   Solver $ \state@(State cache cDict) ok back err ->
     do
       let key = (pkg, vsn)
@@ -219,24 +223,43 @@ getConstraints pkg vsn =
           ok state cs back
         Nothing ->
           do
-            let toNewState cs = State cache (Map.insert key cs cDict)
-            let home = Dirs.package cache pkg vsn
-            packageInstalResult <- Package.installPackageVersion cache pkg vsn
-            case packageInstalResult of
-              Left gitErr ->
-                err $ Exit.SolverBadGitOperationVersionedPkg pkg vsn gitErr
-              Right () -> do
-                let path = home </> "gren.json"
-                outlineExists <- File.exists path
-                if outlineExists
-                  then do
-                    bytes <- File.readUtf8 path
-                    case D.fromByteString constraintsDecoder bytes of
+            isPackageInCache <- Package.isPackageInCache cache pkg vsn
+            if isPackageInCache
+              then do
+                Reporting.report reportKey Reporting.DCached
+                constraintsDecodeResult <- getConstraintsHelper cache pkg vsn
+                case constraintsDecodeResult of
+                  Left exitMsg ->
+                    err exitMsg
+                  Right cs ->
+                    ok (State cache (Map.insert key cs cDict)) cs back
+              else do
+                Reporting.report reportKey Reporting.DRequested
+                packageInstalResult <- Package.installPackageVersion cache pkg vsn
+                case packageInstalResult of
+                  Left gitErr ->
+                    do
+                      Reporting.report reportKey $ Reporting.DFailed pkg vsn
+                      err $ Exit.SolverBadGitOperationVersionedPkg pkg vsn gitErr
+                  Right () -> do
+                    Reporting.report reportKey $ Reporting.DReceived pkg vsn
+                    constraintsDecodeResult <- getConstraintsHelper cache pkg vsn
+                    case constraintsDecodeResult of
+                      Left exitMsg ->
+                        err exitMsg
                       Right cs ->
-                        ok (toNewState cs) cs back
-                      Left _ ->
-                        err (Exit.SolverBadCacheData pkg vsn)
-                  else err (Exit.SolverBadCacheData pkg vsn)
+                        ok (State cache (Map.insert key cs cDict)) cs back
+
+getConstraintsHelper :: Dirs.PackageCache -> Pkg.Name -> V.Version -> IO (Either Exit.Solver Constraints)
+getConstraintsHelper cache pkg vsn =
+  do
+    let path = Dirs.package cache pkg vsn </> "gren.json"
+    bytes <- File.readUtf8 path
+    case D.fromByteString constraintsDecoder bytes of
+      Right cs ->
+        return $ Right cs
+      Left _ ->
+        return $ Left $ Exit.SolverBadCacheData pkg vsn
 
 constraintsDecoder :: D.Decoder () Constraints
 constraintsDecoder =
