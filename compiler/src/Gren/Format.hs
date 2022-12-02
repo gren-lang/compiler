@@ -228,7 +228,7 @@ formatModule (Src.Module moduleName exports docs imports values unions aliases b
                   ],
           formatCommentBlock (commentsAfterLine <> commentsAfterDocComment),
           Just $ Block.stack $ Block.blankLine :| fmap formatImport imports,
-          infixDefs,
+          Block.stack . (Block.blankLine :|) . pure <$> infixDefs,
           let defs =
                 fmap snd $
                   List.sortOn fst $

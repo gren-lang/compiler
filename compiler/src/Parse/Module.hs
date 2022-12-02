@@ -210,7 +210,7 @@ chompInfixes infixes =
         binop <- Decl.infix_
         chompInfixes (binop : infixes)
     ]
-    infixes
+    (reverse infixes)
 
 -- MODULE DOC COMMENT
 

@@ -11,6 +11,7 @@ import Data.Text.Encoding qualified as TE
 import Data.Text.Lazy qualified as LazyText
 import Data.Text.Lazy.Encoding qualified as LTE
 import Format qualified
+import Gren.Package qualified
 import Parse.Module qualified as Parse
 import Test.Hspec
 
@@ -318,6 +319,19 @@ spec = do
                                        "f =",
                                        "    0"
                                      ]
+    describe "operator declarations" $ do
+      it "formats" $
+        [ "infix left 0 (|>) = apR",
+          "infix right 0 (<|) = apL",
+          "f = {}"
+        ]
+          `shouldFormatKernelModuleBodyAs` [ "infix left  0 (|>) = apR",
+                                             "infix right 0 (<|) = apL",
+                                             "",
+                                             "",
+                                             "f =",
+                                             "    {}"
+                                           ]
 
   describe "expressions" $ do
     describe "array literals" $ do
@@ -686,10 +700,18 @@ assertFormattedModuleBody lines_ =
   lines_ `shouldFormatModuleBodyAs` lines_
 
 shouldFormatModuleBodyAs :: [Text] -> [Text] -> IO ()
-shouldFormatModuleBodyAs inputLines expectedOutputLines =
+shouldFormatModuleBodyAs =
+  shouldFormatModuleBodyAs_ Parse.Application
+
+shouldFormatKernelModuleBodyAs :: [Text] -> [Text] -> IO ()
+shouldFormatKernelModuleBodyAs =
+  shouldFormatModuleBodyAs_ (Parse.Package Gren.Package.kernel)
+
+shouldFormatModuleBodyAs_ :: Parse.ProjectType -> [Text] -> [Text] -> IO ()
+shouldFormatModuleBodyAs_ projectType inputLines expectedOutputLines =
   let input = TE.encodeUtf8 $ Text.unlines inputLines
       expectedOutput = LazyText.unlines $ fmap LazyText.fromStrict expectedOutputLines
-      actualOutput = LTE.decodeUtf8 . Builder.toLazyByteString <$> Format.formatByteString Parse.Application input
+      actualOutput = LTE.decodeUtf8 . Builder.toLazyByteString <$> Format.formatByteString projectType input
    in case LazyText.stripPrefix "module Main exposing (..)\n\n\n\n" <$> actualOutput of
         Left err ->
           expectationFailure ("shouldFormatModuleBodyAs: failed to format" <> show err)
