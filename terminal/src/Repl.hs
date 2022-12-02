@@ -129,7 +129,7 @@ installDeps root =
         packageCache <- Dirs.getPackageCache
         let platform = Outline.platform outline
         let dependencies = Outline.dependencyConstraints outline
-        _ <- Solver.verify packageCache platform dependencies
+        _ <- Solver.verify Reporting.ignorer packageCache platform dependencies
         return ()
 
 -- LOOP

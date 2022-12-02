@@ -153,7 +153,7 @@ makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ rootPlatform _ 
     Just vsn -> do
       let constraints = toConstraints direct indirect
       let withMissingPkg = Map.delete pkg constraints
-      result <- Task.io $ Solver.verify cache rootPlatform withMissingPkg
+      result <- Task.io $ Solver.verify Reporting.ignorer cache rootPlatform withMissingPkg
       case result of
         Solver.Ok solution ->
           let old = Map.union direct indirect
@@ -184,7 +184,7 @@ makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ rootPlatform _ 
         Just _ -> do
           let constraints = toConstraints direct indirect
           let withMissingPkg = Map.delete pkg constraints
-          result <- Task.io $ Solver.verify cache rootPlatform withMissingPkg
+          result <- Task.io $ Solver.verify Reporting.ignorer cache rootPlatform withMissingPkg
           case result of
             Solver.Ok solution ->
               let old = Map.union direct indirect
@@ -229,7 +229,7 @@ makePkgPlan (Solver.Env cache) pkg outline@(Outline.PkgOutline _ _ _ _ _ deps _ 
     then return NoSuchPackage
     else do
       let withMissingPkg = Map.delete pkg deps
-      result <- Task.io $ Solver.verify cache rootPlatform withMissingPkg
+      result <- Task.io $ Solver.verify Reporting.ignorer cache rootPlatform withMissingPkg
       case result of
         Solver.Ok _ ->
           let changes = Map.difference deps withMissingPkg

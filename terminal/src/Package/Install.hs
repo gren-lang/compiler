@@ -44,13 +44,13 @@ run args (Flags _skipPrompts) =
           return (Left Exit.InstallNoOutline)
         Just root ->
           Task.run $
-            do
-              env <- Task.io Solver.initEnv
-              oldOutline <- Task.eio Exit.InstallBadOutline $ Outline.read root
-              case args of
-                NoArgs ->
-                  installDependencies env oldOutline
-                Install pkg ->
+            case args of
+              NoArgs ->
+                Task.eio Exit.InstallBadDetails $ installDependencies root
+              Install pkg ->
+                do
+                  env <- Task.io Solver.initEnv
+                  oldOutline <- Task.eio Exit.InstallBadOutline $ Outline.read root
                   case oldOutline of
                     Outline.App outline ->
                       do
@@ -146,21 +146,17 @@ attemptChangesHelp root env skipPrompt oldOutline newOutline question =
 
 -- INSTALL DEPENDENCIES
 
-installDependencies :: Solver.Env -> Outline.Outline -> Task ()
-installDependencies (Solver.Env cache) outline =
+installDependencies :: FilePath -> IO (Either Exit.Details ())
+installDependencies path =
   do
-    let rootPlatform = Outline.platform outline
-    let dependencies = Outline.dependencyConstraints outline
-    result <- Task.io $ Solver.verify cache rootPlatform dependencies
+    terminalStyle <- Reporting.terminal
+    result <- BW.withScope $ \scope ->
+      Details.load terminalStyle scope path
     case result of
-      Solver.Ok _ ->
-        do
-          Task.io $ putStrLn "All required dependencies are installed."
-          return ()
-      Solver.NoSolution ->
-        Task.throw Exit.InstallNoSolverSolution
-      Solver.Err exit ->
-        Task.throw (Exit.InstallHadSolverTrouble exit)
+      Left err ->
+        return $ Left err
+      Right _ ->
+        return $ Right ()
 
 -- MAKE APP PLAN
 
@@ -190,7 +186,7 @@ makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ _ _ direct indi
               Exit.InstallHadSolverTrouble $
                 Exit.SolverBadGitOperationUnversionedPkg pkg gitError
           Right compatibleVersion -> do
-            result <- Task.io $ Solver.addToApp cache pkg compatibleVersion outline
+            result <- Task.io $ Solver.addToApp Reporting.ignorer cache pkg compatibleVersion outline
             case result of
               Solver.Ok (Solver.AppSolution old new app) ->
                 return (Changes (detectChanges old new) (Outline.App app))
@@ -220,7 +216,7 @@ makePkgPlan (Solver.Env cache) pkg outline@(Outline.PkgOutline _ _ _ _ _ deps _ 
         Right compatibleVersion -> do
           let old = deps
           let cons = Map.insert pkg (C.untilNextMajor compatibleVersion) old
-          result <- Task.io $ Solver.verify cache rootPlatform cons
+          result <- Task.io $ Solver.verify Reporting.ignorer cache rootPlatform cons
           case result of
             Solver.Ok solution ->
               let (Solver.Details vsn _) = solution ! pkg
