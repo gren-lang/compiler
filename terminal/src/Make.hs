@@ -56,9 +56,9 @@ data ReportType
 type Task a = Task.Task Exit.Make a
 
 run :: [FilePath] -> Flags -> IO ()
-run paths flags@(Flags _ _ _ report) =
+run paths flags@(Flags _ _ maybeOutput report) =
   do
-    style <- getStyle report
+    style <- getStyle maybeOutput report
     maybeRoot <- Dirs.findRoot
     Reporting.attemptWithStyle style Exit.makeToReport $
       case maybeRoot of
@@ -135,11 +135,12 @@ runHelp root paths style (Flags debug optimize maybeOutput _) =
 
 -- GET INFORMATION
 
-getStyle :: Maybe ReportType -> IO Reporting.Style
-getStyle report =
-  case report of
-    Nothing -> Reporting.terminal
-    Just Json -> return Reporting.json
+getStyle :: Maybe Output -> Maybe ReportType -> IO Reporting.Style
+getStyle maybeOutput report =
+  case (maybeOutput, report) of
+    (Just DevStdOut, _) -> return Reporting.silent
+    (_, Nothing) -> Reporting.terminal
+    (_, Just Json) -> return Reporting.json
 
 getMode :: Bool -> Bool -> Task DesiredMode
 getMode debug optimize =
