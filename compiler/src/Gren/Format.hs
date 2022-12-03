@@ -202,7 +202,7 @@ formatCommentBlockNonEmpty =
   spaceOrStack . fmap formatComment
 
 formatModule :: Src.Module -> Block
-formatModule (Src.Module moduleName exports docs imports values unions aliases binops topLevelComments comments effects) =
+formatModule (Src.Module moduleName exports docs imports values unions aliases (commentsBeforeBinops, binops) topLevelComments comments effects) =
   Block.stack $
     NonEmpty.fromList $
       catMaybes
@@ -279,10 +279,21 @@ formatModule (Src.Module moduleName exports docs imports values unions aliases b
         Nothing -> Nothing
         Just some ->
           Just $
-            Block.stack
-              [ Block.blankLine,
-                Block.stack $ fmap (formatInfix . A.toValue) some
-              ]
+            Block.stack $
+              NonEmpty.fromList $
+                mconcat
+                  [ case formatCommentBlock commentsBeforeBinops of
+                      Just comments_ ->
+                        [ Block.blankLine,
+                          Block.blankLine,
+                          comments_,
+                          Block.blankLine
+                        ]
+                      Nothing -> [],
+                    [ Block.blankLine,
+                      Block.stack $ fmap (formatInfix . A.toValue) some
+                    ]
+                  ]
 
 formatTopLevelCommentBlock :: NonEmpty Src.Comment -> Block
 formatTopLevelCommentBlock comments =

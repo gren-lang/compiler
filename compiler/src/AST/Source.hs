@@ -158,7 +158,7 @@ data Module = Module
     _values :: [(SourceOrder, A.Located Value)],
     _unions :: [(SourceOrder, A.Located Union)],
     _aliases :: [(SourceOrder, A.Located Alias)],
-    _binops :: [A.Located Infix],
+    _binops :: ([Comment], [A.Located Infix]),
     _topLevelComments :: [(SourceOrder, NonEmpty Comment)],
     _headerComments :: SC.HeaderComments,
     _effects :: Effects

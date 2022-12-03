@@ -234,7 +234,7 @@ portDecl maybeDocs =
 
 -- INVARIANT: always chomps to a freshline
 --
-infix_ :: Parser E.Module (A.Located Src.Infix)
+infix_ :: Parser E.Module (A.Located Src.Infix, [Src.Comment])
 infix_ =
   let err = E.Infix
       _err = \_ -> E.Infix
@@ -260,6 +260,6 @@ infix_ =
         Space.chompAndCheckIndent _err err
         name <- Var.lower err
         end <- getPosition
-        Space.chomp _err
+        commentsAfter <- Space.chomp _err
         Space.checkFreshLine err
-        return (A.at start end (Src.Infix op associativity precedence name))
+        return (A.at start end (Src.Infix op associativity precedence name), commentsAfter)
