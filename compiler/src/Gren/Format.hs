@@ -352,7 +352,8 @@ formatExposing commentsAfterKeyword commentsAfterListing = \case
 formatExposed :: Src.Exposed -> Block
 formatExposed = \case
   Src.Lower name -> Block.line $ utf8 $ A.toValue name
-  Src.Upper name privacy -> Block.line $ utf8 $ A.toValue name
+  Src.Upper name Src.Private -> Block.line $ utf8 (A.toValue name)
+  Src.Upper name (Src.Public _) -> Block.line $ utf8 (A.toValue name) <> Block.string7 "(..)"
   Src.Operator _ name -> Block.line $ Block.char7 '(' <> utf8 name <> Block.char7 ')'
 
 formatImport :: ([Src.Comment], Src.Import) -> Block

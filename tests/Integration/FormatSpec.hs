@@ -127,6 +127,14 @@ spec = do
                            formattedModuleBody
                          ]
 
+    describe "import listings" $ do
+      it "formats" $
+        assertFormatted
+          [ formattedModuleHeader,
+            "import Module1 exposing ( (+), f, T1, T2(..), T3 )",
+            formattedModuleBody
+          ]
+
   describe "top-level definitions" $ do
     it "formats already formatted" $
       assertFormattedModuleBody
