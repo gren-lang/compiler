@@ -359,17 +359,23 @@ formatExposed = \case
 formatImport :: ([Src.Comment], Src.Import) -> Block
 formatImport (commentsBefore, Src.Import name alias exposing exposingComments comments) =
   let (SC.ImportComments commentsAfterKeyword commentsAfterName) = comments
-   in spaceOrIndent $
+   in Block.stack $
         NonEmpty.fromList $
           catMaybes
-            [ Just $ Block.line $ Block.string7 "import",
-              Just $ withCommentsBefore commentsAfterKeyword $ Block.line $ utf8 $ A.toValue name,
-              (spaceOrStack . fmap formatComment) <$> NonEmpty.nonEmpty commentsAfterName,
-              fmap formatImportAlias alias,
-              formatExposing
-                (maybe [] SC._afterExposing exposingComments)
-                (maybe [] SC._afterExposingListing exposingComments)
-                exposing
+            [ fmap (\b -> Block.stack [Block.blankLine, b]) $ formatCommentBlock commentsBefore,
+              Just $
+                spaceOrIndent $
+                  NonEmpty.fromList $
+                    catMaybes
+                      [ Just $ Block.line $ Block.string7 "import",
+                        Just $ withCommentsBefore commentsAfterKeyword $ Block.line $ utf8 $ A.toValue name,
+                        (spaceOrStack . fmap formatComment) <$> NonEmpty.nonEmpty commentsAfterName,
+                        fmap formatImportAlias alias,
+                        formatExposing
+                          (maybe [] SC._afterExposing exposingComments)
+                          (maybe [] SC._afterExposingListing exposingComments)
+                          exposing
+                      ]
             ]
 
 formatImportAlias :: (Name, SC.ImportAliasComments) -> Block

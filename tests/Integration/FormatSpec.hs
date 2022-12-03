@@ -103,7 +103,6 @@ spec = do
                            formattedModuleBody
                          ]
     it "does not attach unindented comments to the import line" $
-      -- TODO: eventually all these comments should be retained instead of dropped
       [ formattedModuleHeader,
         "import Module1",
         "{-A-}",
@@ -117,8 +116,14 @@ spec = do
       ]
         `shouldFormatAs` [ formattedModuleHeader,
                            "import Module1",
+                           "",
+                           "{- A -}",
                            "import Module2WithAs as M2",
+                           "",
+                           "{- B -}",
                            "import Module3WithExposing exposing (..)",
+                           "",
+                           "{- C -}",
                            "import Module4WithAsAndExposing as M4 exposing (..)",
                            "",
                            "",
