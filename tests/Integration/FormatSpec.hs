@@ -729,7 +729,7 @@ shouldFormatModuleBodyAs_ projectType inputLines expectedOutputLines =
         Left err ->
           expectationFailure ("shouldFormatModuleBodyAs: failed to format" <> show err)
         Right Nothing ->
-          expectationFailure "shouldFormatModuleBodyAs: internal error: could not strip module header"
+          expectationFailure ("shouldFormatModuleBodyAs: internal error: could not strip module header: " <> show actualOutput)
         Right (Just actualModuleBody) ->
           actualModuleBody `shouldBe` expectedOutput
 
