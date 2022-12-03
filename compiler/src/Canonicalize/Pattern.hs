@@ -78,7 +78,7 @@ canonicalize env (A.At region pattern) =
         Result.ok (Can.PChr chr)
       Src.PStr str ->
         Result.ok (Can.PStr str)
-      Src.PInt int ->
+      Src.PInt int _ ->
         Result.ok (Can.PInt int)
 
 canonicalizeRecordFields :: Env.Env -> [Src.RecordFieldPattern] -> Result DupsDict w [Can.PatternRecordField]

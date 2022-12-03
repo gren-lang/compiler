@@ -347,6 +347,12 @@ spec = do
                                            ]
 
   describe "expressions" $ do
+    describe "int literals" $ do
+      it "formats decimal integers" $
+        ["234"] `shouldFormatExpressionAs` ["234"]
+      it "formats hex integers" $
+        ["0xfa234"] `shouldFormatExpressionAs` ["0xFA234"]
+
     describe "array literals" $ do
       it "formats" $
         ["[1,2,3]"]

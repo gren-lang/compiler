@@ -22,10 +22,12 @@ import Data.Maybe qualified as Maybe
 import Data.Name (Name)
 import Data.Semigroup (sconcat)
 import Data.Utf8 qualified as Utf8
+import Gren.Int qualified as GI
 import Parse.Primitives qualified as P
 import Reporting.Annotation qualified as A
 import Text.PrettyPrint.Avh4.Block (Block)
 import Text.PrettyPrint.Avh4.Block qualified as Block
+import Text.Printf qualified
 
 toByteStringBuilder :: Src.Module -> B.Builder
 toByteStringBuilder module_ =
@@ -557,10 +559,8 @@ formatExpr = \case
   Src.Str string ->
     NoExpressionParens $
       formatString StringStyleSingleQuoted string
-  Src.Int int ->
-    NoExpressionParens $
-      Block.line $
-        Block.string7 (show int)
+  Src.Int int intFormat ->
+    NoExpressionParens $ formatInt intFormat int
   Src.Float float ->
     NoExpressionParens $
       Block.line $
@@ -787,6 +787,16 @@ formatExpr = \case
       parensComments commentsBefore commentsAfter $
         exprParensNone $
           formatExpr (A.toValue expr)
+
+formatInt :: GI.IntFormat -> Int -> Block
+formatInt intFormat int =
+  case intFormat of
+    GI.DecimalInt ->
+      Block.line $
+        Block.string7 (show int)
+    GI.HexInt ->
+      Block.line $
+        Block.string7 (Text.Printf.printf "0x%X" int)
 
 parensComments :: [Src.Comment] -> [Src.Comment] -> Block -> Block
 parensComments [] [] inner = inner
@@ -1023,10 +1033,8 @@ formatPattern = \case
   Src.PStr string ->
     NoPatternParens $
       formatString StringStyleSingleQuoted string
-  Src.PInt int ->
-    NoPatternParens $
-      Block.line $
-        Block.string7 (show int)
+  Src.PInt int intFormat ->
+    NoPatternParens $ formatInt intFormat int
 
 formatPatternConstructorArg :: ([Src.Comment], Src.Pattern) -> PatternBlock
 formatPatternConstructorArg (commentsBefore, pat) =
