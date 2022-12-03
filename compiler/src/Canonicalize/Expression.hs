@@ -50,7 +50,7 @@ canonicalize :: Env.Env -> Src.Expr -> Result FreeLocals [W.Warning] Can.Expr
 canonicalize env (A.At region expression) =
   A.At region
     <$> case expression of
-      Src.Str string ->
+      Src.Str string _ ->
         Result.ok (Can.Str string)
       Src.Chr char ->
         Result.ok (Can.Chr char)

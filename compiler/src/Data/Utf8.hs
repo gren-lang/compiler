@@ -23,6 +23,7 @@ module Data.Utf8
     putVeryLong,
     --
     toChars,
+    toText,
     toBuilder,
     toEscapedBuilder,
     --
@@ -46,6 +47,7 @@ import Data.ByteString.Builder.Internal qualified as B
 import Data.ByteString.Internal qualified as B
 import Data.Char qualified as Char
 import Data.List qualified as List
+import Data.Text qualified as Text
 import Foreign.ForeignPtr (touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (minusPtr, plusPtr)
@@ -329,6 +331,13 @@ chr4 ba# offset# firstWord# =
 word8ToInt# :: Word8# -> Int#
 word8ToInt# word8 =
   int8ToInt# (word8ToInt8# word8)
+
+-- TO TEXT
+
+toText :: Utf8 t -> Text.Text
+toText =
+  -- This could most certainly be optimized for better performance
+  Text.pack . toChars
 
 -- TO BUILDER
 

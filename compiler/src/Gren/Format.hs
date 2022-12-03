@@ -1,5 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Werror=incomplete-patterns #-}
 {-# OPTIONS_GHC -Wno-error=unused-matches #-}
@@ -21,8 +22,11 @@ import Data.Maybe (catMaybes, maybeToList)
 import Data.Maybe qualified as Maybe
 import Data.Name (Name)
 import Data.Semigroup (sconcat)
+import Data.Text qualified as Text
+import Data.Text.Encoding (encodeUtf8Builder)
 import Data.Utf8 qualified as Utf8
 import Gren.Int qualified as GI
+import Gren.String qualified as GS
 import Parse.Primitives qualified as P
 import Reporting.Annotation qualified as A
 import Text.PrettyPrint.Avh4.Block (Block)
@@ -556,9 +560,12 @@ formatExpr = \case
   Src.Chr char ->
     NoExpressionParens $
       formatString StringStyleChar char
-  Src.Str string ->
+  Src.Str string GS.SingleLineString ->
     NoExpressionParens $
       formatString StringStyleSingleQuoted string
+  Src.Str string GS.MultilineString ->
+    NoExpressionParens $
+      formatString StringStyleTripleQuoted string
   Src.Int int intFormat ->
     NoExpressionParens $ formatInt intFormat int
   Src.Float float ->
@@ -1054,7 +1061,13 @@ formatString style str =
     StringStyleSingleQuoted ->
       stringBox (Block.char7 '"')
     StringStyleTripleQuoted ->
-      stringBox (Block.string7 "\"\"\"")
+      Block.stack $
+        NonEmpty.fromList $
+          mconcat
+            [ [Block.line (Block.string7 "\"\"\"")],
+              fmap (Block.line . Block.lineFromBuilder . encodeUtf8Builder) $ Text.splitOn "\\n" $ (Utf8.toText str),
+              [Block.line (Block.string7 "\"\"\"")]
+            ]
   where
     stringBox :: Block.Line -> Block
     stringBox quotes =

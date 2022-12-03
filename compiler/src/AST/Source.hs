@@ -61,7 +61,7 @@ type Expr = A.Located Expr_
 
 data Expr_
   = Chr ES.String
-  | Str ES.String
+  | Str ES.String ES.StringFormat
   | Int Int GI.IntFormat
   | Float EF.Float
   | Var VarType Name

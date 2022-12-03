@@ -73,7 +73,7 @@ termHelp start =
               let width = fromIntegral (Utf8.size float)
                in cerr row (col - width) (E.PFloat width),
       do
-        str <- String.string E.PStart E.PString
+        (str, _) <- String.string E.PStart E.PString
         addEnd start (Src.PStr str),
       do
         chr <- String.character E.PStart E.PChar

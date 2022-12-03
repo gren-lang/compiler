@@ -44,8 +44,8 @@ term =
 string :: A.Position -> Parser E.Expr Src.Expr
 string start =
   do
-    str <- String.string E.Start E.String
-    addEnd start (Src.Str str)
+    (str, stringFormat) <- String.string E.Start E.String
+    addEnd start (Src.Str str stringFormat)
 
 character :: A.Position -> Parser E.Expr Src.Expr
 character start =

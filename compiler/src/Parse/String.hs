@@ -75,7 +75,7 @@ chompChar pos end row col numChars mostRecent =
 
 -- STRINGS
 
-string :: (Row -> Col -> x) -> (E.String -> Row -> Col -> x) -> Parser x ES.String
+string :: (Row -> Col -> x) -> (E.String -> Row -> Col -> x) -> Parser x (ES.String, ES.StringFormat)
 string toExpectation toError =
   P.Parser $ \(P.State src pos end indent row col) cok _ cerr eerr ->
     if isDoubleQuote pos end
@@ -89,12 +89,12 @@ string toExpectation toError =
                         let !pos3 = plusPtr pos 3
                             !col3 = col + 3
                          in multiString pos3 end row col3 pos3 row col
-                      else Ok pos2 row (col + 2) Utf8.empty
+                      else Ok pos2 row (col + 2) ES.SingleLineString Utf8.empty
               else singleString pos1 end row (col + 1) pos1 mempty of
-              Ok newPos newRow newCol utf8 ->
+              Ok newPos newRow newCol stringFormat utf8 ->
                 let !newState =
                       P.State src newPos end indent newRow newCol
-                 in cok utf8 newState
+                 in cok (utf8, stringFormat) newState
               Err r c x ->
                 cerr r c (toError x)
       else eerr row col toExpectation
@@ -104,7 +104,7 @@ isDoubleQuote pos end =
   pos < end && P.unsafeIndex pos == 0x22 {- " -}
 
 data StringResult
-  = Ok (Ptr Word8) Row Col !ES.String
+  = Ok (Ptr Word8) Row Col ES.StringFormat !ES.String
   | Err Row Col E.String
 
 finalize :: Ptr Word8 -> Ptr Word8 -> [ES.Chunk] -> ES.String
@@ -139,7 +139,7 @@ singleString pos end row col initialPos revChunks =
       let !word = P.unsafeIndex pos
        in if word == 0x22 {- " -}
             then
-              Ok (plusPtr pos 1) row (col + 1) $
+              Ok (plusPtr pos 1) row (col + 1) ES.SingleLineString $
                 finalize initialPos pos revChunks
             else
               if word == 0x0A {- \n -}
@@ -213,7 +213,7 @@ multiStringBody leadingWhitespace pos end row col initialPos sr sc revChunks =
       let !word = P.unsafeIndex pos
        in if word == 0x22 {- " -} && isDoubleQuote (plusPtr pos 1) end && isDoubleQuote (plusPtr pos 2) end
             then
-              Ok (plusPtr pos 3) row (col + 3) $
+              Ok (plusPtr pos 3) row (col + 3) ES.MultilineString $
                 finalize initialPos pos $
                   dropMultiStringEndingNewline revChunks
             else

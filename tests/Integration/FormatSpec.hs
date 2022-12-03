@@ -347,6 +347,31 @@ spec = do
                                            ]
 
   describe "expressions" $ do
+    describe "string literals" $ do
+      it "formats strings" $
+        assertFormattedExpression
+          ["a"]
+      it "formats multiline strings with trimmed whitespace" $
+        assertFormattedModuleBody
+          [ "str =",
+            "    \"\"\"",
+            "    # String",
+            "      - indented more",
+            "    \"\"\""
+          ]
+      it "formats multiline strings" $
+        [ "str = \"\"\"",
+          "  1",
+          "    2",
+          "\"\"\""
+        ]
+          `shouldFormatModuleBodyAs` [ "str =",
+                                       "    \"\"\"",
+                                       "    1",
+                                       "      2",
+                                       "    \"\"\""
+                                     ]
+
     describe "int literals" $ do
       it "formats decimal integers" $
         ["234"] `shouldFormatExpressionAs` ["234"]

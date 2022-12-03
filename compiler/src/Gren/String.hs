@@ -5,6 +5,7 @@
 
 module Gren.String
   ( String,
+    StringFormat (..),
     toChars,
     fromChars,
     toBuilder,
@@ -30,6 +31,11 @@ type String =
   Utf8.Utf8 GREN_STRING
 
 data GREN_STRING
+
+data StringFormat
+  = SingleLineString
+  | MultilineString
+  deriving (Show)
 
 -- HELPERS
 
