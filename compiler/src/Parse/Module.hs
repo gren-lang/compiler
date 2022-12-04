@@ -15,6 +15,7 @@ where
 
 import AST.Source qualified as Src
 import AST.SourceComments qualified as SC
+import Data.Bifunctor (first)
 import Data.ByteString qualified as BS
 import Data.List.NonEmpty (NonEmpty, nonEmpty)
 import Data.Name qualified as Name
@@ -61,7 +62,7 @@ isKernel projectType =
 data Module = Module
   { _header :: Maybe Header,
     _imports :: [([Src.Comment], Src.Import)],
-    _infixes :: [A.Located Src.Infix],
+    _infixes :: ([Src.Comment], [A.Located Src.Infix]),
     _decls :: [Decl.Decl]
   }
 
@@ -71,9 +72,12 @@ chompModule projectType =
     header <- chompHeader
     let defaultImports = (if isCore projectType then [] else Imports.defaults)
     (imports, commentsAfterImports) <- chompImports (fmap ([],) defaultImports) []
-    infixes <- if isKernel projectType then chompInfixes [] else return []
+    (infixes, commentsBeforeDecls) <-
+      if isKernel projectType
+        then fmap (first (commentsAfterImports,)) $ chompInfixes [] []
+        else return (([], []), commentsAfterImports)
     let initialDecls =
-          case nonEmpty commentsAfterImports of
+          case nonEmpty commentsBeforeDecls of
             Nothing -> []
             Just comments -> [Decl.TopLevelComments comments]
     decls <- specialize E.Declarations $ chompDecls initialDecls
@@ -203,14 +207,15 @@ chompDecls decls =
       ]
       (reverse newDecls)
 
-chompInfixes :: [A.Located Src.Infix] -> Parser E.Module [A.Located Src.Infix]
-chompInfixes infixes =
+chompInfixes :: [A.Located Src.Infix] -> [Src.Comment] -> Parser E.Module ([A.Located Src.Infix], [Src.Comment])
+chompInfixes infixes commentsBefore =
   oneOfWithFallback
     [ do
-        binop <- Decl.infix_
-        chompInfixes (binop : infixes)
+        -- TODO: use commentsBefore
+        (binop, commentsAfter) <- Decl.infix_
+        chompInfixes (binop : infixes) commentsAfter
     ]
-    (reverse infixes)
+    (reverse infixes, commentsBefore)
 
 -- MODULE DOC COMMENT
 

@@ -50,6 +50,7 @@ import Data.List.NonEmpty (NonEmpty)
 import Data.Name (Name)
 import Data.Name qualified as Name
 import Gren.Float qualified as EF
+import Gren.Int qualified as GI
 import Gren.String qualified as ES
 import Parse.Primitives qualified as P
 import Reporting.Annotation qualified as A
@@ -60,8 +61,8 @@ type Expr = A.Located Expr_
 
 data Expr_
   = Chr ES.String
-  | Str ES.String
-  | Int Int
+  | Str ES.String ES.StringFormat
+  | Int Int GI.IntFormat
   | Float EF.Float
   | Var VarType Name
   | VarQual VarType Name Name
@@ -120,7 +121,7 @@ data Pattern_
   | PArray [PArrayEntry]
   | PChr ES.String
   | PStr ES.String
-  | PInt Int
+  | PInt Int GI.IntFormat
   deriving (Show)
 
 type RecordFieldPattern = A.Located RecordFieldPattern_
@@ -158,7 +159,7 @@ data Module = Module
     _values :: [(SourceOrder, A.Located Value)],
     _unions :: [(SourceOrder, A.Located Union)],
     _aliases :: [(SourceOrder, A.Located Alias)],
-    _binops :: [A.Located Infix],
+    _binops :: ([Comment], [A.Located Infix]),
     _topLevelComments :: [(SourceOrder, NonEmpty Comment)],
     _headerComments :: SC.HeaderComments,
     _effects :: Effects

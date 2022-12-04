@@ -103,7 +103,6 @@ spec = do
                            formattedModuleBody
                          ]
     it "does not attach unindented comments to the import line" $
-      -- TODO: eventually all these comments should be retained instead of dropped
       [ formattedModuleHeader,
         "import Module1",
         "{-A-}",
@@ -117,8 +116,14 @@ spec = do
       ]
         `shouldFormatAs` [ formattedModuleHeader,
                            "import Module1",
+                           "",
+                           "{- A -}",
                            "import Module2WithAs as M2",
+                           "",
+                           "{- B -}",
                            "import Module3WithExposing exposing (..)",
+                           "",
+                           "{- C -}",
                            "import Module4WithAsAndExposing as M4 exposing (..)",
                            "",
                            "",
@@ -126,6 +131,14 @@ spec = do
                            "{- D -}",
                            formattedModuleBody
                          ]
+
+    describe "import listings" $ do
+      it "formats" $
+        assertFormatted
+          [ formattedModuleHeader,
+            "import Module1 exposing ( (+), f, T1, T2(..), T3 )",
+            formattedModuleBody
+          ]
 
   describe "top-level definitions" $ do
     it "formats already formatted" $
@@ -334,6 +347,37 @@ spec = do
                                            ]
 
   describe "expressions" $ do
+    describe "string literals" $ do
+      it "formats strings" $
+        assertFormattedExpression
+          ["a"]
+      it "formats multiline strings with trimmed whitespace" $
+        assertFormattedModuleBody
+          [ "str =",
+            "    \"\"\"",
+            "    # String",
+            "      - indented more",
+            "    \"\"\""
+          ]
+      it "formats multiline strings" $
+        [ "str = \"\"\"",
+          "  1",
+          "    2",
+          "\"\"\""
+        ]
+          `shouldFormatModuleBodyAs` [ "str =",
+                                       "    \"\"\"",
+                                       "    1",
+                                       "      2",
+                                       "    \"\"\""
+                                     ]
+
+    describe "int literals" $ do
+      it "formats decimal integers" $
+        ["234"] `shouldFormatExpressionAs` ["234"]
+      it "formats hex integers" $
+        ["0xfa234"] `shouldFormatExpressionAs` ["0xFA234"]
+
     describe "array literals" $ do
       it "formats" $
         ["[1,2,3]"]
@@ -716,7 +760,7 @@ shouldFormatModuleBodyAs_ projectType inputLines expectedOutputLines =
         Left err ->
           expectationFailure ("shouldFormatModuleBodyAs: failed to format" <> show err)
         Right Nothing ->
-          expectationFailure "shouldFormatModuleBodyAs: internal error: could not strip module header"
+          expectationFailure ("shouldFormatModuleBodyAs: internal error: could not strip module header: " <> show actualOutput)
         Right (Just actualModuleBody) ->
           actualModuleBody `shouldBe` expectedOutput
 

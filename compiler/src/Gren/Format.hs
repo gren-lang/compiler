@@ -1,5 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Werror=incomplete-patterns #-}
 {-# OPTIONS_GHC -Wno-error=unused-matches #-}
@@ -21,11 +22,16 @@ import Data.Maybe (catMaybes, maybeToList)
 import Data.Maybe qualified as Maybe
 import Data.Name (Name)
 import Data.Semigroup (sconcat)
+import Data.Text qualified as Text
+import Data.Text.Encoding (encodeUtf8Builder)
 import Data.Utf8 qualified as Utf8
+import Gren.Int qualified as GI
+import Gren.String qualified as GS
 import Parse.Primitives qualified as P
 import Reporting.Annotation qualified as A
 import Text.PrettyPrint.Avh4.Block (Block)
 import Text.PrettyPrint.Avh4.Block qualified as Block
+import Text.Printf qualified
 
 toByteStringBuilder :: Src.Module -> B.Builder
 toByteStringBuilder module_ =
@@ -202,7 +208,7 @@ formatCommentBlockNonEmpty =
   spaceOrStack . fmap formatComment
 
 formatModule :: Src.Module -> Block
-formatModule (Src.Module moduleName exports docs imports values unions aliases binops topLevelComments comments effects) =
+formatModule (Src.Module moduleName exports docs imports values unions aliases (commentsBeforeBinops, binops) topLevelComments comments effects) =
   Block.stack $
     NonEmpty.fromList $
       catMaybes
@@ -279,10 +285,21 @@ formatModule (Src.Module moduleName exports docs imports values unions aliases b
         Nothing -> Nothing
         Just some ->
           Just $
-            Block.stack
-              [ Block.blankLine,
-                Block.stack $ fmap (formatInfix . A.toValue) some
-              ]
+            Block.stack $
+              NonEmpty.fromList $
+                mconcat
+                  [ case formatCommentBlock commentsBeforeBinops of
+                      Just comments_ ->
+                        [ Block.blankLine,
+                          Block.blankLine,
+                          comments_,
+                          Block.blankLine
+                        ]
+                      Nothing -> [],
+                    [ Block.blankLine,
+                      Block.stack $ fmap (formatInfix . A.toValue) some
+                    ]
+                  ]
 
 formatTopLevelCommentBlock :: NonEmpty Src.Comment -> Block
 formatTopLevelCommentBlock comments =
@@ -352,23 +369,30 @@ formatExposing commentsAfterKeyword commentsAfterListing = \case
 formatExposed :: Src.Exposed -> Block
 formatExposed = \case
   Src.Lower name -> Block.line $ utf8 $ A.toValue name
-  Src.Upper name privacy -> Block.line $ utf8 $ A.toValue name
+  Src.Upper name Src.Private -> Block.line $ utf8 (A.toValue name)
+  Src.Upper name (Src.Public _) -> Block.line $ utf8 (A.toValue name) <> Block.string7 "(..)"
   Src.Operator _ name -> Block.line $ Block.char7 '(' <> utf8 name <> Block.char7 ')'
 
 formatImport :: ([Src.Comment], Src.Import) -> Block
 formatImport (commentsBefore, Src.Import name alias exposing exposingComments comments) =
   let (SC.ImportComments commentsAfterKeyword commentsAfterName) = comments
-   in spaceOrIndent $
+   in Block.stack $
         NonEmpty.fromList $
           catMaybes
-            [ Just $ Block.line $ Block.string7 "import",
-              Just $ withCommentsBefore commentsAfterKeyword $ Block.line $ utf8 $ A.toValue name,
-              (spaceOrStack . fmap formatComment) <$> NonEmpty.nonEmpty commentsAfterName,
-              fmap formatImportAlias alias,
-              formatExposing
-                (maybe [] SC._afterExposing exposingComments)
-                (maybe [] SC._afterExposingListing exposingComments)
-                exposing
+            [ fmap (\b -> Block.stack [Block.blankLine, b]) $ formatCommentBlock commentsBefore,
+              Just $
+                spaceOrIndent $
+                  NonEmpty.fromList $
+                    catMaybes
+                      [ Just $ Block.line $ Block.string7 "import",
+                        Just $ withCommentsBefore commentsAfterKeyword $ Block.line $ utf8 $ A.toValue name,
+                        (spaceOrStack . fmap formatComment) <$> NonEmpty.nonEmpty commentsAfterName,
+                        fmap formatImportAlias alias,
+                        formatExposing
+                          (maybe [] SC._afterExposing exposingComments)
+                          (maybe [] SC._afterExposingListing exposingComments)
+                          exposing
+                      ]
             ]
 
 formatImportAlias :: (Name, SC.ImportAliasComments) -> Block
@@ -536,13 +560,14 @@ formatExpr = \case
   Src.Chr char ->
     NoExpressionParens $
       formatString StringStyleChar char
-  Src.Str string ->
+  Src.Str string GS.SingleLineString ->
     NoExpressionParens $
       formatString StringStyleSingleQuoted string
-  Src.Int int ->
+  Src.Str string GS.MultilineString ->
     NoExpressionParens $
-      Block.line $
-        Block.string7 (show int)
+      formatString StringStyleTripleQuoted string
+  Src.Int int intFormat ->
+    NoExpressionParens $ formatInt intFormat int
   Src.Float float ->
     NoExpressionParens $
       Block.line $
@@ -769,6 +794,16 @@ formatExpr = \case
       parensComments commentsBefore commentsAfter $
         exprParensNone $
           formatExpr (A.toValue expr)
+
+formatInt :: GI.IntFormat -> Int -> Block
+formatInt intFormat int =
+  case intFormat of
+    GI.DecimalInt ->
+      Block.line $
+        Block.string7 (show int)
+    GI.HexInt ->
+      Block.line $
+        Block.string7 (Text.Printf.printf "0x%X" int)
 
 parensComments :: [Src.Comment] -> [Src.Comment] -> Block -> Block
 parensComments [] [] inner = inner
@@ -1005,10 +1040,8 @@ formatPattern = \case
   Src.PStr string ->
     NoPatternParens $
       formatString StringStyleSingleQuoted string
-  Src.PInt int ->
-    NoPatternParens $
-      Block.line $
-        Block.string7 (show int)
+  Src.PInt int intFormat ->
+    NoPatternParens $ formatInt intFormat int
 
 formatPatternConstructorArg :: ([Src.Comment], Src.Pattern) -> PatternBlock
 formatPatternConstructorArg (commentsBefore, pat) =
@@ -1028,7 +1061,13 @@ formatString style str =
     StringStyleSingleQuoted ->
       stringBox (Block.char7 '"')
     StringStyleTripleQuoted ->
-      stringBox (Block.string7 "\"\"\"")
+      Block.stack $
+        NonEmpty.fromList $
+          mconcat
+            [ [Block.line (Block.string7 "\"\"\"")],
+              fmap (Block.line . Block.lineFromBuilder . encodeUtf8Builder) $ Text.splitOn "\\n" $ (Utf8.toText str),
+              [Block.line (Block.string7 "\"\"\"")]
+            ]
   where
     stringBox :: Block.Line -> Block
     stringBox quotes =

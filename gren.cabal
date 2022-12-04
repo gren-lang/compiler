@@ -97,6 +97,7 @@ Common gren-common
         Gren.Compiler.Type.Extract
         Gren.Constraint
         Gren.Docs
+        Gren.Int
         Gren.Float
         Gren.Format
         Gren.Format.Normalize

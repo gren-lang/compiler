@@ -16,6 +16,7 @@ import AST.Utils.Binop qualified as Binop
 import Data.Word (Word8)
 import Foreign.Ptr (Ptr, minusPtr, plusPtr)
 import Gren.Float qualified as EF
+import Gren.Int qualified as GI
 import Parse.Primitives (Col, Parser, Row)
 import Parse.Primitives qualified as P
 import Parse.Variable qualified as Var
@@ -34,7 +35,7 @@ isDecimalDigit word =
 -- NUMBERS
 
 data Number
-  = Int Int
+  = Int Int GI.IntFormat
   | Float EF.Float
 
 number :: (Row -> Col -> x) -> (E.Number -> Row -> Col -> x) -> Parser x Number
@@ -55,9 +56,9 @@ number toExpectation toError =
                       Err newPos problem ->
                         let !newCol = col + fromIntegral (minusPtr newPos pos)
                          in cerr row newCol (toError problem)
-                      OkInt newPos n ->
+                      OkInt newPos intFormat n ->
                         let !newCol = col + fromIntegral (minusPtr newPos pos)
-                            !integer = Int n
+                            !integer = Int n intFormat
                             !newState = P.State src newPos end indent row newCol
                          in cok integer newState
                       OkFloat newPos ->
@@ -73,7 +74,7 @@ number toExpectation toError =
 --
 data Outcome
   = Err (Ptr Word8) E.Number
-  | OkInt (Ptr Word8) Int
+  | OkInt (Ptr Word8) GI.IntFormat Int
   | OkFloat (Ptr Word8)
 
 -- CHOMP INT
@@ -81,7 +82,7 @@ data Outcome
 chompInt :: Ptr Word8 -> Ptr Word8 -> Int -> Outcome
 chompInt !pos end !n =
   if pos >= end
-    then OkInt pos n
+    then OkInt pos GI.DecimalInt n
     else
       let !word = P.unsafeIndex pos
        in if isDecimalDigit word
@@ -95,7 +96,7 @@ chompInt !pos end !n =
                     else
                       if isDirtyEnd pos end word
                         then Err pos E.NumberEnd
-                        else OkInt pos n
+                        else OkInt pos GI.DecimalInt n
 
 -- CHOMP FRACTION
 
@@ -158,7 +159,7 @@ chompExponentHelp pos end =
 chompZero :: Ptr Word8 -> Ptr Word8 -> Outcome
 chompZero pos end =
   if pos >= end
-    then OkInt pos 0
+    then OkInt pos GI.DecimalInt 0
     else
       let !word = P.unsafeIndex pos
        in if word == 0x78 {-x-}
@@ -172,14 +173,14 @@ chompZero pos end =
                     else
                       if isDirtyEnd pos end word
                         then Err pos E.NumberEnd
-                        else OkInt pos 0
+                        else OkInt pos GI.DecimalInt 0
 
 chompHexInt :: Ptr Word8 -> Ptr Word8 -> Outcome
 chompHexInt pos end =
   let (# newPos, answer #) = chompHex pos end
    in if answer < 0
         then Err newPos E.NumberHexDigit
-        else OkInt newPos answer
+        else OkInt newPos GI.HexInt answer
 
 -- CHOMP HEX
 
