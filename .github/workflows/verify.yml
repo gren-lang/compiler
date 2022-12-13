@@ -25,8 +25,11 @@ jobs:
     - name: Install Haskell
       run: ghcup install ghc ${{ matrix.ghc }} --set && ghcup install cabal ${{ matrix.cabal }} --set
 
+    - name: View PATH
+      run: echo "$PATH:$HOME/.ghcup/bin"
+
     - name: Update PATH
-      run: export PATH="${PATH}:/root/.ghcup/bin"
+      run: export PATH="$PATH:$HOME/.ghcup/bin"
 
     - name: Cabal update
       run: cabal update
