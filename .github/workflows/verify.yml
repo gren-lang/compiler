@@ -24,3 +24,12 @@ jobs:
 
     - name: Install Haskell
       run: ghcup install ghc ${{ matrix.ghc }} --set && ghcup install cabal ${{ matrix.cabal }} --set
+
+    - name: Update PATH
+      run: export PATH="${PATH}:/root/.ghcup/bin"
+
+    - name: Cabal update
+      run: cabal update
+
+    - name: Build
+      run: cabal build --ghc-option=-optl=-static --ghc-option=-split-sections -O2
