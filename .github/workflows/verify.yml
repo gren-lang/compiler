@@ -4,10 +4,6 @@ on:
   pull_request:
     branches: [ main ]
 
-defaults:
-  run:
-    shell: bash
-
 jobs:
   linux:
     runs-on: ubuntu-latest
