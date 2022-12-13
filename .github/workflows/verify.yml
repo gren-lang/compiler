@@ -18,73 +18,9 @@ jobs:
         cabal: ["3.8.1.0"]
 
     steps:
+    - name: Install deps
+      run: apk add --no-cache alpine-sdk autoconf gcc gmp gmp-dev libffi libffi-dev llvm10 make musl-dev ncurses-dev ncurses-static tree wget zlib-dev zlib-static curl
+
     - uses: actions/checkout@v3
 
-    - uses: mrkkrp/ormolu-action@v8
 
-    - uses: haskell/actions/setup@v2
-      id: setup-haskell
-      with:
-        ghc-version: ${{ matrix.ghc }}
-        cabal-version: ${{ matrix.cabal }}
-
-    - name: Cache
-      uses: actions/cache@v2
-      with:
-        path: ${{ steps.setup-haskell.outputs.cabal-store }}
-        key: deps-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('cabal.project.freeze') }}
-        restore-keys: deps-${{ runner.os }}-${{ matrix.ghc }}-
-
-    - name: Cache
-      uses: actions/cache@v2
-      with:
-        path: dist-newstyle
-        key: dist-${{ runner.os }}-${{ matrix.ghc }}-${{ github.sha }}
-        restore-keys: dist-${{ runner.os }}-${{ matrix.ghc }}-
-
-    - name: Build
-      run: cabal build --enable-tests
-
-    - name: Tests
-      run: cabal test
-  other:
-    name: build-${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        ghc: ["9.4.2"]
-        cabal: ["3.8.1.0"]
-        os:
-        - macOS-latest
-        - windows-latest
-
-    steps:
-    - uses: actions/checkout@v3
-
-    - uses: mrkkrp/ormolu-action@v8
-
-    - uses: haskell/actions/setup@v2
-      id: setup-haskell
-      with:
-        ghc-version: ${{ matrix.ghc }}
-        cabal-version: ${{ matrix.cabal }}
-
-    - name: Cache
-      uses: actions/cache@v2
-      with:
-        path: ${{ steps.setup-haskell.outputs.cabal-store }}
-        key: deps-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('cabal.project.freeze') }}
-        restore-keys: deps-${{ runner.os }}-${{ matrix.ghc }}-
-
-    - name: Cache
-      uses: actions/cache@v2
-      with:
-        path: dist-newstyle
-        key: dist-${{ runner.os }}-${{ matrix.ghc }}-${{ github.sha }}
-        restore-keys: dist-${{ runner.os }}-${{ matrix.ghc }}-
-
-    - name: Build
-      run: cabal build --enable-tests
-
-    - name: Tests
-      run: cabal test
