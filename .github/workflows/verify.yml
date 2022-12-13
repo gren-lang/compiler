@@ -19,4 +19,8 @@ jobs:
 
     - uses: actions/checkout@v3
 
+    - name: Install GHCup
+      run: curl https://downloads.haskell.org/~ghcup/0.1.18.0/x86_64-linux-ghcup-0.1.18.0 -o /usr/local/bin/ghcup && chmod a+x /usr/local/bin/ghcup
 
+    - name: Install Haskell
+      run: ghcup install ghc #{{ matrix.ghc }} --set && ghcup install cabal ${{ matrix.cabal }} --set
