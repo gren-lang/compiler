@@ -64,4 +64,4 @@ jobs:
       with:
         name: gren_linux
         path: gren_linux
-        retention-days: 30
+        retention-days: 14
