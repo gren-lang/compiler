@@ -26,8 +26,8 @@ jobs:
       uses: actions/cache@v2
       with:
         path: $HOME/.ghcup
-        key: deps-linux-${{ matrix.ghc }}-${{ hashFiles('cabal.project.freeze') }}
-        restore-keys: deps-linux-${{ matrix.ghc }}-
+        key: ghcup-linux-${{ matrix.ghc }}
+        restore-keys: ghcup-linux-${{ matrix.ghc }}
 
     - name: Install Haskell
       run: ghcup install ghc ${{ matrix.ghc }} --set && ghcup install cabal ${{ matrix.cabal }} --set
