@@ -15,7 +15,7 @@ jobs:
 
     steps:
     - name: Install deps
-      run: apk add alpine-sdk autoconf gcc gmp gmp-dev libffi libffi-dev llvm10 make musl-dev ncurses-dev ncurses-static tree wget zlib-dev zlib-static curl
+      run: apk add alpine-sdk autoconf gcc gmp gmp-dev libffi libffi-dev llvm15 make musl-dev ncurses-dev ncurses-static tree wget zlib-dev zlib-static curl
 
     - uses: actions/checkout@v3
 
