@@ -15,7 +15,7 @@ jobs:
 
     steps:
     - name: Install deps
-      run: apk add --no-cache alpine-sdk autoconf gcc gmp gmp-dev libffi libffi-dev llvm10 make musl-dev ncurses-dev ncurses-static tree wget zlib-dev zlib-static curl
+      run: apk add alpine-sdk autoconf gcc gmp gmp-dev libffi libffi-dev llvm10 make musl-dev ncurses-dev ncurses-static tree wget zlib-dev zlib-static curl
 
     - uses: actions/checkout@v3
 
@@ -25,17 +25,37 @@ jobs:
     - name: Install Haskell
       run: ghcup install ghc ${{ matrix.ghc }} --set && ghcup install cabal ${{ matrix.cabal }} --set
 
-    - name: View PATH
-      run: echo "$PATH:$HOME/.ghcup/bin"
-
     - name: Update PATH
       run: echo "$HOME/.ghcup/bin" >> $GITHUB_PATH
-
-    - name: View PATH again
-      run: echo "$PATH"
 
     - name: Cabal update
       run: cabal update
 
+    - name: Cache
+      uses: actions/cache@v2
+      with:
+        path: ${{ steps.setup-haskell.outputs.cabal-store }}
+        key: deps-linux-${{ matrix.ghc }}-${{ hashFiles('cabal.project.freeze') }}
+        restore-keys: deps-linux-${{ matrix.ghc }}-
+
+    - name: Cache
+      uses: actions/cache@v2
+      with:
+        path: dist-newstyle
+        key: dist-linux-${{ matrix.ghc }}-${{ github.sha }}
+        restore-keys: dist-linux-${{ matrix.ghc }}-
+
     - name: Build
       run: cabal build --ghc-option=-optl=-static --ghc-option=-split-sections -O2
+
+    - name: Move binary
+      run: cp `cabal list-bin .` ./gren_linux
+
+    - name: Strip
+      run: strip gren_linux
+
+    - uses: actions/upload-artifact@v3
+      with:
+        name: gren_linux
+        path: gren_linux
+        retention-days: 30
