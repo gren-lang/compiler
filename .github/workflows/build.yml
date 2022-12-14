@@ -114,7 +114,7 @@ jobs:
         key: dist-mac-${{ env.ghc }}-${{ github.sha }}
         restore-keys: dist-mac-${{ env.ghc }}-
 
-    - name: Build
+    - name: Configure
       run: cabal configure --enable-tests -O2
 
     - name: Build
@@ -167,7 +167,7 @@ jobs:
         restore-keys: dist-win-${{ env.ghc }}-
 
     - name: Configure
-      run: cabal build --enable-tests --ghc-option=-split-sections -O2
+      run: cabal configure --enable-tests --ghc-option=-split-sections -O2
 
     - name: Build
       run: cabal build
