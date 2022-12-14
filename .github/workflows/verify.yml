@@ -56,7 +56,7 @@ jobs:
       run: cabal build --ghc-option=-optl=-static --ghc-option=-split-sections -O2
 
     - name: Move binary
-      run: cp `cabal list-bin .` ./gren_linux
+      run: cp `cabal list-bin -O2 .` ./gren_linux
 
     - name: Strip
       run: strip gren_linux
