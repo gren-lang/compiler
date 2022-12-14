@@ -5,9 +5,16 @@ on:
     branches: [ main ]
 
 jobs:
+  validate-format:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - uses: mrkkrp/ormolu-action@v8
   linux:
     runs-on: ubuntu-latest
     container: alpine:3.17
+    needs: validate-format
+
     strategy:
       matrix:
         ghc: ["9.4.2"]
@@ -52,7 +59,10 @@ jobs:
         restore-keys: dist-linux-${{ matrix.ghc }}-
 
     - name: Build
-      run: cabal build --ghc-option=-optl=-static --ghc-option=-split-sections -O2
+      run: cabal build --enable-tests --ghc-option=-optl=-static --ghc-option=-split-sections -O2
+
+    - name: Tests
+      run: cabal test
 
     - name: Move binary
       run: cp `cabal list-bin -O2 .` ./gren_linux
