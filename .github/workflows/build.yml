@@ -127,3 +127,53 @@ jobs:
         name: gren_mac
         path: gren
         retention-days: 14
+
+  windows:
+    runs-on: windows-latest
+    needs: validate-code-formatting
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Cache ghcup
+      uses: actions/cache@v3
+      with:
+        path: ~/.ghcup
+        key: ghcup-win-${{ env.ghc }}
+
+    - name: Cache cabal
+      uses: actions/cache@v3
+      with:
+        path: ~/.cabal
+        key: deps-win-${{ env.ghc }}-${{ hashFiles('cabal.project.freeze') }}
+        restore-keys: deps-win-${{ env.ghc }}-
+
+    - uses: haskell/actions/setup@v2
+      with:
+        ghc-version: ${{ env.ghc }}
+        cabal-version: ${{ env.cabal }}
+
+    - name: Cache build artifacts
+      uses: actions/cache@v3
+      with:
+        path: dist-newstyle
+        key: dist-win-${{ env.ghc }}-${{ github.sha }}
+        restore-keys: dist-win-${{ env.ghc }}-
+
+    - name: Build
+      run: cabal build -O2
+
+    - name: Tests
+      run: cabal test
+
+    - name: Move binary
+      run: cp `cabal list-bin -O2 .` ./gren
+
+    - name: Strip
+      run: strip gren
+
+    - uses: actions/upload-artifact@v3
+      with:
+        name: gren.exe
+        path: gren
+        retention-days: 14
