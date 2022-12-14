@@ -7,7 +7,7 @@ on:
 jobs:
   linux:
     runs-on: ubuntu-latest
-    container: alpine:3.15
+    container: alpine:3.17
     strategy:
       matrix:
         ghc: ["9.4.2"]
