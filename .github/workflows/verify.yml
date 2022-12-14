@@ -22,6 +22,13 @@ jobs:
     - name: Install GHCup
       run: curl https://downloads.haskell.org/~ghcup/0.1.18.0/x86_64-linux-ghcup-0.1.18.0 -o /usr/local/bin/ghcup && chmod a+x /usr/local/bin/ghcup
 
+    - name: Cache ghcup
+      uses: actions/cache@v2
+      with:
+        path: $HOME/.ghcup
+        key: deps-linux-${{ matrix.ghc }}-${{ hashFiles('cabal.project.freeze') }}
+        restore-keys: deps-linux-${{ matrix.ghc }}-
+
     - name: Install Haskell
       run: ghcup install ghc ${{ matrix.ghc }} --set && ghcup install cabal ${{ matrix.cabal }} --set
 
@@ -31,14 +38,14 @@ jobs:
     - name: Cabal update
       run: cabal update
 
-    - name: Cache
+    - name: Cache cabal store
       uses: actions/cache@v2
       with:
-        path: ${{ steps.setup-haskell.outputs.cabal-store }}
+        path: $HOME/.cabal/store
         key: deps-linux-${{ matrix.ghc }}-${{ hashFiles('cabal.project.freeze') }}
         restore-keys: deps-linux-${{ matrix.ghc }}-
 
-    - name: Cache
+    - name: Cache build artifacts
       uses: actions/cache@v2
       with:
         path: dist-newstyle
