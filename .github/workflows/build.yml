@@ -91,7 +91,8 @@ jobs:
         path: ~/.ghcup
         key: ghcup-mac-${{ env.ghc }}
 
-    - uses: haskell/actions/setup@v2
+    - id: setup-haskell
+      uses: haskell/actions/setup@v2
       with:
         ghc-version: ${{ env.ghc }}
         cabal-version: ${{ env.cabal }}
@@ -99,7 +100,7 @@ jobs:
     - name: Cache cabal store
       uses: actions/cache@v3
       with:
-        path: ~/.cabal/store
+        path: ${{ steps.setup-haskell.outputs.cabal-store }}
         key: deps-mac-${{ env.ghc }}-${{ hashFiles('cabal.project.freeze') }}
         restore-keys: deps-mac-${{ env.ghc }}-
 
@@ -139,13 +140,8 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
-    - name: Cache ghcup
-      uses: actions/cache@v3
-      with:
-        path: ~/.ghcup
-        key: ghcup-win-${{ env.ghc }}
-
-    - uses: haskell/actions/setup@v2
+    - id: setup-haskell
+      uses: haskell/actions/setup@v2
       with:
         ghc-version: ${{ env.ghc }}
         cabal-version: ${{ env.cabal }}
@@ -153,7 +149,7 @@ jobs:
     - name: Cache cabal store
       uses: actions/cache@v3
       with:
-        path: ~/.cabal/store
+        path: ${{ steps.setup-haskell.outputs.cabal-store }}
         key: deps-win-${{ env.ghc }}-${{ hashFiles('cabal.project.freeze') }}
         restore-keys: deps-win-${{ env.ghc }}-
 
