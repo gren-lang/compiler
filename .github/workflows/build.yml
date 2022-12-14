@@ -11,7 +11,7 @@ env:
   cabal: "3.8.1.0"
 
 jobs:
-  validate-format:
+  validate-code-formatting:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -20,7 +20,7 @@ jobs:
   linux:
     runs-on: ubuntu-latest
     container: alpine:3.17
-    needs: validate-format
+    needs: validate-code-formatting
 
     steps:
     - name: Install deps
@@ -37,6 +37,13 @@ jobs:
         path: ~/.ghcup
         key: ghcup-linux-${{ env.ghc }}
 
+    - name: Cache cabal store
+      uses: actions/cache@v3
+      with:
+        path: ~/.cabal
+        key: deps-linux-${{ env.ghc }}-${{ hashFiles('cabal.project.freeze') }}
+        restore-keys: deps-linux-${{ env.ghc }}-
+
     - name: Install Haskell
       run: ghcup install ghc ${{ env.ghc }} --set && ghcup install cabal ${{ env.cabal }} --set
 
@@ -45,13 +52,6 @@ jobs:
 
     - name: Cabal update
       run: cabal update
-
-    - name: Cache cabal store
-      uses: actions/cache@v3
-      with:
-        path: ~/.cabal/store
-        key: deps-linux-${{ env.ghc }}-${{ hashFiles('cabal.project.freeze') }}
-        restore-keys: deps-linux-${{ env.ghc }}-
 
     - name: Cache build artifacts
       uses: actions/cache@v3
@@ -67,13 +67,63 @@ jobs:
       run: cabal test
 
     - name: Move binary
-      run: cp `cabal list-bin -O2 .` ./gren_linux
+      run: cp `cabal list-bin -O2 .` ./gren
 
     - name: Strip
-      run: strip gren_linux
+      run: strip gren
 
     - uses: actions/upload-artifact@v3
       with:
         name: gren_linux
-        path: gren_linux
+        path: gren
+        retention-days: 14
+
+  mac:
+    runs-on: macos-latest
+    needs: validate-code-formatting
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Cache ghcup
+      uses: actions/cache@v3
+      with:
+        path: ~/.ghcup
+        key: ghcup-mac-${{ env.ghc }}
+
+    - name: Cache cabal
+      uses: actions/cache@v3
+      with:
+        path: ~/.cabal
+        key: deps-mac-${{ env.ghc }}-${{ hashFiles('cabal.project.freeze') }}
+        restore-keys: deps-mac-${{ env.ghc }}-
+
+    - uses: haskell/actions/setup@v2
+      with:
+        ghc-version: ${{ env.ghc }}
+        cabal-version: ${{ env.cabal }}
+
+    - name: Cache build artifacts
+      uses: actions/cache@v3
+      with:
+        path: dist-newstyle
+        key: dist-mac-${{ env.ghc }}-${{ github.sha }}
+        restore-keys: dist-mac-${{ env.ghc }}-
+
+    - name: Build
+      run: cabal build -O2
+
+    - name: Tests
+      run: cabal test
+
+    - name: Move binary
+      run: cp `cabal list-bin -O2 .` ./gren
+
+    - name: Strip
+      run: strip gren
+
+    - uses: actions/upload-artifact@v3
+      with:
+        name: gren_mac
+        path: gren
         retention-days: 14
