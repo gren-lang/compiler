@@ -6,6 +6,10 @@ on:
   push:
     branches: [ main ]
 
+env:
+  ghc: "9.4.2"
+  cabal: "3.8.1.0"
+
 jobs:
   validate-format:
     runs-on: ubuntu-latest
@@ -17,11 +21,6 @@ jobs:
     runs-on: ubuntu-latest
     container: alpine:3.17
     needs: validate-format
-
-    strategy:
-      matrix:
-        ghc: ["9.4.2"]
-        cabal: ["3.8.1.0"]
 
     steps:
     - name: Install deps
@@ -36,10 +35,10 @@ jobs:
       uses: actions/cache@v3
       with:
         path: ~/.ghcup
-        key: ghcup-linux-${{ matrix.ghc }}
+        key: ghcup-linux-${{ env.ghc }}
 
     - name: Install Haskell
-      run: ghcup install ghc ${{ matrix.ghc }} --set && ghcup install cabal ${{ matrix.cabal }} --set
+      run: ghcup install ghc ${{ env.ghc }} --set && ghcup install cabal ${{ env.cabal }} --set
 
     - name: Update PATH
       run: echo "$HOME/.ghcup/bin" >> $GITHUB_PATH
@@ -51,15 +50,15 @@ jobs:
       uses: actions/cache@v3
       with:
         path: ~/.cabal/store
-        key: deps-linux-${{ matrix.ghc }}-${{ hashFiles('cabal.project.freeze') }}
-        restore-keys: deps-linux-${{ matrix.ghc }}-
+        key: deps-linux-${{ env.ghc }}-${{ hashFiles('cabal.project.freeze') }}
+        restore-keys: deps-linux-${{ env.ghc }}-
 
     - name: Cache build artifacts
       uses: actions/cache@v3
       with:
         path: dist-newstyle
-        key: dist-linux-${{ matrix.ghc }}-${{ github.sha }}
-        restore-keys: dist-linux-${{ matrix.ghc }}-
+        key: dist-linux-${{ env.ghc }}-${{ github.sha }}
+        restore-keys: dist-linux-${{ env.ghc }}-
 
     - name: Build
       run: cabal build --ghc-option=-optl=-static --ghc-option=-split-sections -O2
