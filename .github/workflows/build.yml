@@ -60,14 +60,17 @@ jobs:
         key: dist-linux-${{ env.ghc }}-${{ github.sha }}
         restore-keys: dist-linux-${{ env.ghc }}-
 
+    - name: Configure
+      run: cabal configure --enable-tests --enable-executable-static --ghc-option=-split-sections -O2
+
     - name: Build
-      run: cabal build --ghc-option=-optl=-static --ghc-option=-split-sections -O2
+      run: cabal build
 
     - name: Tests
       run: cabal test
 
     - name: Move binary
-      run: cp `cabal list-bin -O2 .` ./gren
+      run: cp `cabal list-bin .` ./gren
 
     - name: Strip
       run: strip gren
@@ -112,13 +115,16 @@ jobs:
         restore-keys: dist-mac-${{ env.ghc }}-
 
     - name: Build
-      run: cabal build -O2
+      run: cabal configure --enable-tests -O2
+
+    - name: Build
+      run: cabal build
 
     - name: Tests
       run: cabal test
 
     - name: Move binary
-      run: cp `cabal list-bin -O2 .` ./gren
+      run: cp `cabal list-bin .` ./gren
 
     - name: Strip
       run: strip gren
@@ -160,14 +166,17 @@ jobs:
         key: dist-win-${{ env.ghc }}-${{ github.sha }}
         restore-keys: dist-win-${{ env.ghc }}-
 
+    - name: Configure
+      run: cabal build --enable-tests --ghc-option=-split-sections -O2
+
     - name: Build
-      run: cabal build -O2
+      run: cabal build
 
     - name: Tests
       run: cabal test
 
     - name: Move binary
-      run: cp `cabal list-bin -O2 .` ./gren
+      run: cp `cabal list-bin .` ./gren
 
     - name: Strip
       run: strip gren
