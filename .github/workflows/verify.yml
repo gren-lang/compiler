@@ -59,7 +59,7 @@ jobs:
         restore-keys: dist-linux-${{ matrix.ghc }}-
 
     - name: Build
-      run: cabal build --enable-tests --ghc-option=-optl=-static --ghc-option=-split-sections -O2
+      run: cabal build --ghc-option=-optl=-static --ghc-option=-split-sections -O2
 
     - name: Tests
       run: cabal test
