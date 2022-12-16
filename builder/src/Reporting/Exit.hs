@@ -28,6 +28,7 @@ module Reporting.Exit
     Solver (..),
     Outline (..),
     OutlineProblem (..),
+    PossibleFilePath (..),
     Details (..),
     DetailsBadDep (..),
     BuildProblem (..),
@@ -1133,8 +1134,8 @@ data Outline
 data OutlineProblem
   = OP_BadType
   | OP_BadPkgName Row Col
-  | OP_BadVersion Row Col
-  | OP_BadConstraint C.Error
+  | OP_BadVersion (PossibleFilePath (Row, Col))
+  | OP_BadConstraint (PossibleFilePath C.Error)
   | OP_BadModuleName Row Col
   | OP_BadModuleHeaderTooLong
   | OP_BadDependencyName Row Col
@@ -1142,6 +1143,10 @@ data OutlineProblem
   | OP_BadSummaryTooLong
   | OP_NoSrcDirs
   | OP_BadPlatform
+
+data PossibleFilePath otherError
+  = OP_AttemptedFilePath (Row, Col)
+  | OP_AttemptedOther otherError
 
 toOutlineReport :: Outline -> Help.Report
 toOutlineReport problem =
@@ -1302,7 +1307,31 @@ toOutlineProblemReport path source _ region problem =
                     \ to change your GitHub name!"
                 ]
             )
-        OP_BadVersion row col ->
+        OP_BadVersion (OP_AttemptedFilePath (row, col)) ->
+          toSnippet
+            "PROBLEM WITH DEPENDENCY FILE PATH"
+            (toHighlight row col)
+            ( D.reflow $
+                "I got stuck while reading your gren.json file. I was expecting a file path here:",
+              D.fillSep
+                [ "I",
+                  "need",
+                  "something",
+                  "like",
+                  D.green "\"file:..\"",
+                  "or",
+                  D.green "\"file:/absolute/path/to/project\"",
+                  "that",
+                  "explicitly",
+                  "states",
+                  "where",
+                  "to",
+                  "find",
+                  "the",
+                  "dependency."
+                ]
+            )
+        OP_BadVersion (OP_AttemptedOther (row, col)) ->
           toSnippet
             "PROBLEM WITH VERSION"
             (toHighlight row col)
@@ -1324,7 +1353,31 @@ toOutlineProblemReport path source _ region problem =
                   "numbers!"
                 ]
             )
-        OP_BadConstraint constraintError ->
+        OP_BadConstraint (OP_AttemptedFilePath (row, col)) ->
+          toSnippet
+            "PROBLEM WITH DEPENDENCY FILE PATH"
+            (toHighlight row col)
+            ( D.reflow $
+                "I got stuck while reading your gren.json file. I was expecting a file path here:",
+              D.fillSep
+                [ "I",
+                  "need",
+                  "something",
+                  "like",
+                  D.green "\"file:..\"",
+                  "or",
+                  D.green "\"file:/absolute/path/to/project\"",
+                  "that",
+                  "explicitly",
+                  "states",
+                  "where",
+                  "to",
+                  "find",
+                  "the",
+                  "dependency."
+                ]
+            )
+        OP_BadConstraint (OP_AttemptedOther constraintError) ->
           case constraintError of
             C.BadFormat row col ->
               toSnippet
