@@ -326,8 +326,6 @@ chompOperator =
     word1 0x29 {-)-} E.Op
     return op
 
--- TODO add rule that @docs must be after newline in 0.20
---
 chompUntilDocs :: Parser Bool
 chompUntilDocs =
   P.Parser $ \(P.State src pos end indent row col) cok _ _ _ ->
