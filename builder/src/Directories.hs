@@ -6,7 +6,6 @@ module Directories
     objects,
     greni,
     greno,
-    temp,
     findRoot,
     withRootLock,
     withRegistryLock,
@@ -62,12 +61,6 @@ greno root name =
 toArtifactPath :: FilePath -> ModuleName.Raw -> String -> FilePath
 toArtifactPath root name ext =
   projectCache root </> ModuleName.toHyphenPath name <.> ext
-
--- TEMP
-
-temp :: FilePath -> String -> FilePath
-temp root ext =
-  projectCache root </> "temp" <.> ext
 
 -- ROOT
 
