@@ -91,6 +91,7 @@ Common gren-common
         Gren.Outline
         Gren.Platform
         Gren.Details
+        Gren.PossibleFilePath
         --
         Gren.Compiler.Imports
         Gren.Compiler.Type

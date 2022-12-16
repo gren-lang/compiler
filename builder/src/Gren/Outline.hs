@@ -28,9 +28,10 @@ import AbsoluteSrcDir qualified
 import Control.Monad (filterM, liftM)
 import Data.Binary (Binary, get, getWord8, put, putWord8)
 import Data.Map qualified as Map
+import Gren.PossibleFilePath (PossibleFilePath)
+import Gren.PossibleFilePath qualified as PossibleFilePath
 import Data.NonEmptyList qualified as NE
 import Data.OneOrMore qualified as OneOrMore
-import Data.Utf8 qualified as Utf8
 import File qualified
 import Foreign.Ptr (minusPtr)
 import Gren.Constraint qualified as Con
@@ -114,15 +115,9 @@ dependencyConstraints outline =
       let direct = _app_deps_direct appOutline
           indirect = _app_deps_indirect appOutline
           appDeps = Map.union direct indirect
-       in Map.map (mapPossibleFilePath Con.exactly) appDeps
+       in Map.map (PossibleFilePath.mapWith Con.exactly) appDeps
     Pkg pkgOutline ->
       _pkg_deps pkgOutline
-
-mapPossibleFilePath :: (a -> b) -> PossibleFilePath a -> PossibleFilePath b
-mapPossibleFilePath fn pfp =
-  case pfp of
-    IsFilePath fp -> IsFilePath fp
-    IsOther a -> IsOther (fn a)
 
 -- WRITE
 
@@ -174,7 +169,7 @@ encodeModule name =
 
 encodeDeps :: (a -> E.Value) -> Map.Map Pkg.Name (PossibleFilePath a) -> E.Value
 encodeDeps encodeValue deps =
-  E.dict Pkg.toJsonString (encodePossibleFilePath encodeValue) deps
+  E.dict Pkg.toJsonString (PossibleFilePath.encodeJson encodeValue) deps
 
 encodeSrcDir :: SrcDir -> E.Value
 encodeSrcDir srcDir =
@@ -182,13 +177,6 @@ encodeSrcDir srcDir =
     AbsoluteSrcDir dir -> E.chars dir
     RelativeSrcDir dir -> E.chars dir
 
-encodePossibleFilePath :: (a -> E.Value) -> PossibleFilePath a -> E.Value
-encodePossibleFilePath encoderForNonFP possibleFP =
-  case possibleFP of
-    IsFilePath filePath ->
-      E.string $ Utf8.fromChars $ "file:" ++ filePath
-    IsOther other ->
-      encoderForNonFP other
 
 -- PARSE AND VERIFY
 
@@ -322,10 +310,6 @@ summaryDecoder =
     (boundParser 80 Exit.OP_BadSummaryTooLong)
     (\_ _ -> Exit.OP_BadSummaryTooLong)
 
-data PossibleFilePath a
-  = IsFilePath FilePath
-  | IsOther a
-
 versionDecoder :: Decoder V.Version
 versionDecoder =
   D.mapError (Exit.OP_BadVersion . Exit.OP_AttemptedOther) V.decoder
@@ -335,7 +319,7 @@ versionOrFilePathDecoder =
   D.oneOf
     [ do
         vsn <- D.mapError (Exit.OP_BadVersion . Exit.OP_AttemptedOther) V.decoder
-        D.succeed (IsOther vsn),
+        D.succeed (PossibleFilePath.Other vsn),
       D.customString (filePathDecoder (Exit.OP_BadVersion . Exit.OP_AttemptedFilePath)) $
         (\row col -> Exit.OP_BadVersion (Exit.OP_AttemptedFilePath (row, col)))
     ]
@@ -349,7 +333,7 @@ constraintOrFilePathDecoder =
   D.oneOf
     [ do
         con <- D.mapError (Exit.OP_BadConstraint . Exit.OP_AttemptedOther) Con.decoder
-        D.succeed (IsOther con),
+        D.succeed (PossibleFilePath.Other con),
       D.customString (filePathDecoder (Exit.OP_BadConstraint . Exit.OP_AttemptedFilePath)) $
         (\row col -> Exit.OP_BadConstraint (Exit.OP_AttemptedFilePath (row, col)))
     ]
@@ -362,7 +346,7 @@ filePathDecoder toErrTuple =
     P.word1 0x20 {- -} toErr
     P.Parser $ \state@(P.State _ _ _ _ row col) _ eok _ eerr ->
       if True
-        then eok (IsFilePath "") state
+        then eok (PossibleFilePath.Is "") state
         else eerr row col toErr
 
 depsDecoder :: Decoder a -> Decoder (Map.Map Pkg.Name a)
