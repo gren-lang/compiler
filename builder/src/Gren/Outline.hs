@@ -28,8 +28,6 @@ import AbsoluteSrcDir qualified
 import Control.Monad (filterM, liftM)
 import Data.Binary (Binary, get, getWord8, put, putWord8)
 import Data.Map qualified as Map
-import Gren.PossibleFilePath (PossibleFilePath)
-import Gren.PossibleFilePath qualified as PossibleFilePath
 import Data.NonEmptyList qualified as NE
 import Data.OneOrMore qualified as OneOrMore
 import File qualified
@@ -39,6 +37,8 @@ import Gren.Licenses qualified as Licenses
 import Gren.ModuleName qualified as ModuleName
 import Gren.Package qualified as Pkg
 import Gren.Platform qualified as Platform
+import Gren.PossibleFilePath (PossibleFilePath)
+import Gren.PossibleFilePath qualified as PossibleFilePath
 import Gren.Version qualified as V
 import Json.Decode qualified as D
 import Json.Encode ((==>))
@@ -176,7 +176,6 @@ encodeSrcDir srcDir =
   case srcDir of
     AbsoluteSrcDir dir -> E.chars dir
     RelativeSrcDir dir -> E.chars dir
-
 
 -- PARSE AND VERIFY
 

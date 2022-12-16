@@ -988,6 +988,7 @@ outdatedToReport exit =
 
 data Solver
   = SolverBadCacheData Pkg.Name V.Version
+  | SolverBadLocalDep Pkg.Name
   | SolverBadGitOperationUnversionedPkg Pkg.Name Git.Error
   | SolverBadGitOperationVersionedPkg Pkg.Name V.Version Git.Error
   | SolverIncompatibleSolvedVersion Pkg.Name Pkg.Name C.Constraint V.Version
@@ -1013,6 +1014,19 @@ toSolverReport problem =
             "I deleted the cached version, so the next run should download a fresh copy.\
             \ Hopefully that will get you unstuck, but it will not resolve the root\
             \ problem if a 3rd party tool is modifing cached files for some reason."
+        ]
+    SolverBadLocalDep pkg ->
+      Help.report
+        "PROBLEM SOLVING PACKAGE CONSTRAINTS"
+        Nothing
+        ( "I need the gren.json of "
+            ++ Pkg.toChars pkg
+            ++ " to\
+               \ help me search for a set of compatible packages. It seems to be a dependency\
+               \ that resides on your disk."
+        )
+        [ D.reflow
+            "Verify that the path is correct, that it is defined as a package and that it compiles."
         ]
     SolverBadGitOperationUnversionedPkg pkg gitError ->
       toGitErrorReport "PROBLEM SOLVING PACKAGE CONSTRAINTS" gitError $

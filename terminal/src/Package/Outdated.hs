@@ -13,6 +13,8 @@ import Directories qualified as Dirs
 import Gren.Constraint qualified as C
 import Gren.Outline qualified as Outline
 import Gren.Package qualified as Pkg
+import Gren.PossibleFilePath (PossibleFilePath)
+import Gren.PossibleFilePath qualified as PossibleFilePath
 import Gren.Version qualified as V
 import Reporting qualified
 import Reporting.Exit qualified as Exit
@@ -56,15 +58,16 @@ listOutdatedAppDeps appOutline =
           (Outline._app_deps_direct appOutline)
           (Outline._app_deps_indirect appOutline)
 
-      asConstraints = Map.map C.exactly deps
+      asConstraints = Map.map (PossibleFilePath.mapWith C.exactly) deps
    in listOutdatedDeps asConstraints
 
 listOutdatedPkgDeps :: Outline.PkgOutline -> Task ()
 listOutdatedPkgDeps pkgOutline =
   listOutdatedDeps $ Outline._pkg_deps pkgOutline
 
-listOutdatedDeps :: Map.Map Pkg.Name C.Constraint -> Task ()
-listOutdatedDeps cons = do
+listOutdatedDeps :: Map.Map Pkg.Name (PossibleFilePath C.Constraint) -> Task ()
+listOutdatedDeps filePathsOrConstraints = do
+  let cons = Map.mapMaybe PossibleFilePath.other filePathsOrConstraints
   allHigherVersions <- Map.traverseWithKey higherVersions cons
   let interestingVersions = Map.mapMaybe toDisplayStrings allHigherVersions
   let report = finalizeReport $ Map.foldrWithKey buildReport [] interestingVersions

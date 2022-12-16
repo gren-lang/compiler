@@ -45,6 +45,8 @@ import Gren.Outline qualified as Outline
 import Gren.Package qualified as Pkg
 import Gren.Platform qualified as P
 import Gren.Platform qualified as Platform
+import Gren.PossibleFilePath (PossibleFilePath)
+import Gren.PossibleFilePath qualified as PossibleFilePath
 import Gren.Version qualified as V
 import Json.Encode qualified as E
 import Parse.Module qualified as Parse
@@ -190,18 +192,22 @@ verifyPkg env@(Env reportKey _ _ _) time (Outline.PkgOutline pkg _ _ _ exposed d
   if Con.goodGren gren
     then do
       _ <- Task.io $ Reporting.report reportKey $ Reporting.DStart $ Map.size direct
-      solution <- verifyConstraints env rootPlatform (Map.map (Con.exactly . Con.lowerBound) direct)
+      solution <-
+        verifyConstraints
+          env
+          rootPlatform
+          (Map.map (PossibleFilePath.mapWith (Con.exactly . Con.lowerBound)) direct)
       let exposedList = Outline.flattenExposed exposed
       verifyDependencies env time (ValidPkg rootPlatform pkg exposedList) solution direct
     else Task.throw $ Exit.DetailsBadGrenInPkg gren
 
 verifyApp :: Env -> File.Time -> Outline.AppOutline -> Task Details
-verifyApp env@(Env reportKey _ _ _) time outline@(Outline.AppOutline grenVersion rootPlatform srcDirs direct _) =
+verifyApp env@(Env reportKey _ _ _) time (Outline.AppOutline grenVersion rootPlatform srcDirs direct indirect) =
   if grenVersion == V.compiler
     then do
-      stated <- checkAppDeps outline
+      stated <- union noDups direct indirect
       _ <- Task.io $ Reporting.report reportKey $ Reporting.DStart (Map.size stated)
-      actual <- verifyConstraints env rootPlatform (Map.map Con.exactly stated)
+      actual <- verifyConstraints env rootPlatform (Map.map (PossibleFilePath.mapWith Con.exactly) stated)
       if Map.size stated == Map.size actual
         then verifyDependencies env time (ValidApp rootPlatform srcDirs) actual direct
         else
@@ -212,16 +218,12 @@ verifyApp env@(Env reportKey _ _ _) time outline@(Outline.AppOutline grenVersion
                     Map.difference actualVersions stated
     else Task.throw $ Exit.DetailsBadGrenInAppOutline grenVersion
 
-checkAppDeps :: Outline.AppOutline -> Task (Map.Map Pkg.Name V.Version)
-checkAppDeps (Outline.AppOutline _ _ _ direct indirect) =
-  union noDups direct indirect
-
 -- VERIFY CONSTRAINTS
 
 verifyConstraints ::
   Env ->
   Platform.Platform ->
-  Map.Map Pkg.Name Con.Constraint ->
+  Map.Map Pkg.Name (PossibleFilePath Con.Constraint) ->
   Task (Map.Map Pkg.Name Solver.Details)
 verifyConstraints (Env reportKey _ _ cache) rootPlatform constraints =
   do
