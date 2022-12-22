@@ -15,6 +15,8 @@ import Gren.Constraint qualified as C
 import Gren.Details qualified as Details
 import Gren.Outline qualified as Outline
 import Gren.Package qualified as Pkg
+import Gren.PossibleFilePath (PossibleFilePath)
+import Gren.PossibleFilePath qualified as PossibleFilePath
 import Gren.Version qualified as V
 import Reporting qualified
 import Reporting.Doc ((<+>))
@@ -50,11 +52,11 @@ run args (Flags _skipPrompts) =
                     Outline.App outline ->
                       do
                         changes <- makeAppPlan env pkg outline
-                        attemptChanges root env _skipPrompts oldOutline V.toChars changes
+                        attemptChanges root env _skipPrompts oldOutline (PossibleFilePath.toChars V.toChars) changes
                     Outline.Pkg outline ->
                       do
                         changes <- makePkgPlan env pkg outline
-                        attemptChanges root env _skipPrompts oldOutline C.toChars changes
+                        attemptChanges root env _skipPrompts oldOutline (PossibleFilePath.toChars C.toChars) changes
 
 -- ATTEMPT CHANGES
 
@@ -147,7 +149,7 @@ attemptChangesHelp root env skipPrompt oldOutline newOutline question =
 
 -- MAKE APP PLAN
 
-makeAppPlan :: Solver.Env -> Pkg.Name -> Outline.AppOutline -> Task (Changes V.Version)
+makeAppPlan :: Solver.Env -> Pkg.Name -> Outline.AppOutline -> Task (Changes (PossibleFilePath V.Version))
 makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ rootPlatform _ direct indirect) =
   case Map.lookup pkg direct of
     Just vsn -> do
@@ -157,7 +159,7 @@ makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ rootPlatform _ 
       case result of
         Solver.Ok solution ->
           let old = Map.union direct indirect
-              new = Map.map (\(Solver.Details v _) -> v) solution
+              new = Map.map (\(Solver.Details v _) -> PossibleFilePath.Other v) solution
            in if Map.member pkg new
                 then
                   return $
@@ -188,7 +190,7 @@ makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ rootPlatform _ 
           case result of
             Solver.Ok solution ->
               let old = Map.union direct indirect
-                  new = Map.map (\(Solver.Details v _) -> v) solution
+                  new = Map.map (\(Solver.Details v _) -> PossibleFilePath.Other v) solution
                in if Map.member pkg new
                     then return $ PackageIsRequired (packagesDependingOn pkg solution)
                     else
@@ -206,9 +208,9 @@ makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ rootPlatform _ 
         Nothing ->
           return NoSuchPackage
 
-toConstraints :: Map.Map Pkg.Name V.Version -> Map.Map Pkg.Name V.Version -> Map.Map Pkg.Name C.Constraint
+toConstraints :: Map.Map Pkg.Name (PossibleFilePath V.Version) -> Map.Map Pkg.Name (PossibleFilePath V.Version) -> Map.Map Pkg.Name (PossibleFilePath C.Constraint)
 toConstraints direct indirect =
-  Map.map C.exactly $ Map.union direct indirect
+  Map.map (PossibleFilePath.mapWith C.exactly) $ Map.union direct indirect
 
 packagesDependingOn :: Pkg.Name -> Map.Map Pkg.Name Solver.Details -> [Pkg.Name]
 packagesDependingOn targetPkg solution =
@@ -223,7 +225,7 @@ packagesDependingOn targetPkg solution =
 
 -- MAKE PACKAGE PLAN
 
-makePkgPlan :: Solver.Env -> Pkg.Name -> Outline.PkgOutline -> Task (Changes C.Constraint)
+makePkgPlan :: Solver.Env -> Pkg.Name -> Outline.PkgOutline -> Task (Changes (PossibleFilePath C.Constraint))
 makePkgPlan (Solver.Env cache) pkg outline@(Outline.PkgOutline _ _ _ _ _ deps _ rootPlatform) =
   if not $ Map.member pkg deps
     then return NoSuchPackage

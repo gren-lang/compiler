@@ -18,6 +18,8 @@ import Gren.Constraint qualified as C
 import Gren.Details qualified as Details
 import Gren.Outline qualified as Outline
 import Gren.Package qualified as Pkg
+import Gren.PossibleFilePath (PossibleFilePath)
+import Gren.PossibleFilePath qualified as PossibleFilePath
 import Gren.Version qualified as V
 import Reporting qualified
 import Reporting.Doc ((<+>))
@@ -55,11 +57,11 @@ run args (Flags _skipPrompts) =
                     Outline.App outline ->
                       do
                         changes <- makeAppPlan env pkg outline
-                        attemptChanges root env _skipPrompts oldOutline V.toChars changes
+                        attemptChanges root env _skipPrompts oldOutline (PossibleFilePath.toChars V.toChars) changes
                     Outline.Pkg outline ->
                       do
                         changes <- makePkgPlan env pkg outline
-                        attemptChanges root env _skipPrompts oldOutline C.toChars changes
+                        attemptChanges root env _skipPrompts oldOutline (PossibleFilePath.toChars C.toChars) changes
 
 -- ATTEMPT CHANGES
 
@@ -160,7 +162,7 @@ installDependencies path =
 
 -- MAKE APP PLAN
 
-makeAppPlan :: Solver.Env -> Pkg.Name -> Outline.AppOutline -> Task (Changes V.Version)
+makeAppPlan :: Solver.Env -> Pkg.Name -> Outline.AppOutline -> Task (Changes (PossibleFilePath V.Version))
 makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ _ _ direct indirect) =
   if Map.member pkg direct
     then return AlreadyInstalled
@@ -197,7 +199,7 @@ makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ _ _ direct indi
 
 -- MAKE PACKAGE PLAN
 
-makePkgPlan :: Solver.Env -> Pkg.Name -> Outline.PkgOutline -> Task (Changes C.Constraint)
+makePkgPlan :: Solver.Env -> Pkg.Name -> Outline.PkgOutline -> Task (Changes (PossibleFilePath C.Constraint))
 makePkgPlan (Solver.Env cache) pkg outline@(Outline.PkgOutline _ _ _ _ _ deps _ rootPlatform) =
   if Map.member pkg deps
     then return AlreadyInstalled
@@ -215,14 +217,14 @@ makePkgPlan (Solver.Env cache) pkg outline@(Outline.PkgOutline _ _ _ _ _ deps _ 
               Exit.SolverBadGitOperationUnversionedPkg pkg gitError
         Right compatibleVersion -> do
           let old = deps
-          let cons = Map.insert pkg (C.untilNextMajor compatibleVersion) old
+          let cons = Map.insert pkg (PossibleFilePath.Other (C.untilNextMajor compatibleVersion)) old
           result <- Task.io $ Solver.verify Reporting.ignorer cache rootPlatform cons
           case result of
             Solver.Ok solution ->
               let (Solver.Details vsn _) = solution ! pkg
 
                   con = C.untilNextMajor vsn
-                  new = Map.insert pkg con old
+                  new = Map.insert pkg (PossibleFilePath.Other con) old
                   changes = detectChanges old new
                   news = Map.mapMaybe keepNew changes
                in return $
@@ -236,7 +238,7 @@ makePkgPlan (Solver.Env cache) pkg outline@(Outline.PkgOutline _ _ _ _ _ deps _ 
             Solver.Err exit ->
               Task.throw $ Exit.InstallHadSolverTrouble exit
 
-addNews :: Maybe Pkg.Name -> Map.Map Pkg.Name C.Constraint -> Map.Map Pkg.Name C.Constraint -> Map.Map Pkg.Name C.Constraint
+addNews :: Maybe Pkg.Name -> Map.Map Pkg.Name (PossibleFilePath C.Constraint) -> Map.Map Pkg.Name (PossibleFilePath C.Constraint) -> Map.Map Pkg.Name (PossibleFilePath C.Constraint)
 addNews pkg new old =
   Map.merge
     Map.preserveMissing
