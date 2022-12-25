@@ -321,14 +321,22 @@ versionOrFilePathDecoder =
     [ do
         vsn <- D.mapError (Exit.OP_BadVersion . Exit.OP_AttemptedOther) V.decoder
         D.succeed (PossibleFilePath.Other vsn),
-      do
-        jsonStr <- D.string
-        D.Decoder $ \(A.At errRegion@(A.Region (A.Position row col) _) _) ok err ->
-          let filePath = Json.toChars jsonStr
-           in if List.isPrefixOf "file:" filePath
-                then ok (PossibleFilePath.Is filePath)
-                else err (D.Failure errRegion $ Exit.OP_BadVersion $ Exit.OP_AttemptedFilePath (row, col))
+      filePathDecoder Exit.OP_BadVersion
     ]
+
+filePathDecoder :: (Exit.PossibleFilePath err -> Exit.OutlineProblem) -> Decoder (PossibleFilePath val)
+filePathDecoder errorMapper =
+  do
+    jsonStr <- D.string
+    D.Decoder $ \(A.At errRegion@(A.Region (A.Position row col) _) _) ok err ->
+      let filePath = Json.toChars jsonStr
+       in if List.isPrefixOf filePathPrefix filePath
+            then ok (PossibleFilePath.Is $ List.drop (List.length filePathPrefix) filePath)
+            else err (D.Failure errRegion $ errorMapper $ Exit.OP_AttemptedFilePath (row, col))
+
+filePathPrefix :: String
+filePathPrefix =
+  "file:"
 
 constraintDecoder :: Decoder Con.Constraint
 constraintDecoder =
@@ -340,13 +348,7 @@ constraintOrFilePathDecoder =
     [ do
         con <- D.mapError (Exit.OP_BadConstraint . Exit.OP_AttemptedOther) Con.decoder
         D.succeed (PossibleFilePath.Other con),
-      do
-        jsonStr <- D.string
-        D.Decoder $ \(A.At errRegion@(A.Region (A.Position row col) _) _) ok err ->
-          let filePath = Json.toChars jsonStr
-           in if List.isPrefixOf "file:" filePath
-                then ok (PossibleFilePath.Is filePath)
-                else err (D.Failure errRegion $ Exit.OP_BadConstraint $ Exit.OP_AttemptedFilePath (row, col))
+      filePathDecoder Exit.OP_BadConstraint
     ]
 
 depsDecoder :: Decoder a -> Decoder (Map.Map Pkg.Name a)
