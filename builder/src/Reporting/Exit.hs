@@ -988,7 +988,7 @@ outdatedToReport exit =
 
 data Solver
   = SolverBadCacheData Pkg.Name V.Version
-  | SolverBadLocalDep Pkg.Name
+  | SolverBadLocalDep Pkg.Name String
   | SolverBadGitOperationUnversionedPkg Pkg.Name Git.Error
   | SolverBadGitOperationVersionedPkg Pkg.Name V.Version Git.Error
   | SolverIncompatibleSolvedVersion Pkg.Name Pkg.Name C.Constraint V.Version
@@ -1015,14 +1015,15 @@ toSolverReport problem =
             \ Hopefully that will get you unstuck, but it will not resolve the root\
             \ problem if a 3rd party tool is modifing cached files for some reason."
         ]
-    SolverBadLocalDep pkg ->
+    SolverBadLocalDep pkg filePath ->
       Help.report
         "PROBLEM SOLVING PACKAGE CONSTRAINTS"
         Nothing
         ( "I need the gren.json of "
             ++ Pkg.toChars pkg
-            ++ " to\
-               \ help me search for a set of compatible packages. It seems to be a dependency\
+            ++ " (located at "
+            ++ filePath
+            ++ ") to help me search for a set of compatible packages. It seems to be a dependency\
                \ that resides on your disk."
         )
         [ D.reflow

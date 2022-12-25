@@ -187,10 +187,10 @@ resolveToConstraintSource pkgName possibleFP =
                 Right (Outline.Pkg (Outline.PkgOutline _ _ _ version _ _ _ _)) ->
                   ok state (Local (C.exactly version) fp) back
                 Right _ ->
-                  err $ Exit.SolverBadLocalDep pkgName
+                  err $ Exit.SolverBadLocalDep pkgName fp
                 Left _ ->
-                  err $ Exit.SolverBadLocalDep pkgName
-            else err $ Exit.SolverBadLocalDep pkgName
+                  err $ Exit.SolverBadLocalDep pkgName fp
+            else err $ Exit.SolverBadLocalDep pkgName fp
 
 constraintFromCS :: ConstraintSource -> C.Constraint
 constraintFromCS source =
