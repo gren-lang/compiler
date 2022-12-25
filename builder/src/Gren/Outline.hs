@@ -27,6 +27,7 @@ import AbsoluteSrcDir (AbsoluteSrcDir)
 import AbsoluteSrcDir qualified
 import Control.Monad (filterM, liftM)
 import Data.Binary (Binary, get, getWord8, put, putWord8)
+import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.NonEmptyList qualified as NE
 import Data.OneOrMore qualified as OneOrMore
@@ -45,6 +46,7 @@ import Json.Encode ((==>))
 import Json.Encode qualified as E
 import Json.String qualified as Json
 import Parse.Primitives qualified as P
+import Reporting.Annotation qualified as A
 import Reporting.Exit qualified as Exit
 import System.Directory qualified as Dir
 import System.FilePath ((</>))
@@ -319,8 +321,13 @@ versionOrFilePathDecoder =
     [ do
         vsn <- D.mapError (Exit.OP_BadVersion . Exit.OP_AttemptedOther) V.decoder
         D.succeed (PossibleFilePath.Other vsn),
-      D.customString (filePathDecoder (Exit.OP_BadVersion . Exit.OP_AttemptedFilePath)) $
-        (\row col -> Exit.OP_BadVersion (Exit.OP_AttemptedFilePath (row, col)))
+      do
+        jsonStr <- D.string
+        D.Decoder $ \(A.At errRegion@(A.Region (A.Position row col) _) _) ok err ->
+          let filePath = Json.toChars jsonStr
+           in if List.isPrefixOf "file:" filePath
+                then ok (PossibleFilePath.Is filePath)
+                else err (D.Failure errRegion $ Exit.OP_BadVersion $ Exit.OP_AttemptedFilePath (row, col))
     ]
 
 constraintDecoder :: Decoder Con.Constraint
@@ -333,20 +340,14 @@ constraintOrFilePathDecoder =
     [ do
         con <- D.mapError (Exit.OP_BadConstraint . Exit.OP_AttemptedOther) Con.decoder
         D.succeed (PossibleFilePath.Other con),
-      D.customString (filePathDecoder (Exit.OP_BadConstraint . Exit.OP_AttemptedFilePath)) $
-        (\row col -> Exit.OP_BadConstraint (Exit.OP_AttemptedFilePath (row, col)))
+      do
+        jsonStr <- D.string
+        D.Decoder $ \(A.At errRegion@(A.Region (A.Position row col) _) _) ok err ->
+          let filePath = Json.toChars jsonStr
+           in if List.isPrefixOf "file:" filePath
+                then ok (PossibleFilePath.Is filePath)
+                else err (D.Failure errRegion $ Exit.OP_BadConstraint $ Exit.OP_AttemptedFilePath (row, col))
     ]
-
--- TODO: write actual implementation
-filePathDecoder :: ((P.Row, P.Col) -> err) -> P.Parser err (PossibleFilePath a)
-filePathDecoder toErrTuple =
-  do
-    let toErr = curry toErrTuple
-    P.word1 0x20 {- -} toErr
-    P.Parser $ \state@(P.State _ _ _ _ row col) _ eok _ eerr ->
-      if True
-        then eok (PossibleFilePath.Is "") state
-        else eerr row col toErr
 
 depsDecoder :: Decoder a -> Decoder (Map.Map Pkg.Name a)
 depsDecoder valueDecoder =
