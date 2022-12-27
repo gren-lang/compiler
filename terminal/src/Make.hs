@@ -24,6 +24,7 @@ import Generate.Node qualified as Node
 import Gren.Details qualified as Details
 import Gren.ModuleName qualified as ModuleName
 import Gren.Platform qualified as Platform
+import Parse.Module qualified as Parse
 import Reporting qualified
 import Reporting.Exit qualified as Exit
 import Reporting.Task qualified as Task
@@ -74,64 +75,74 @@ runHelp root paths style (Flags debug optimize maybeOutput _) =
           desiredMode <- getMode debug optimize
           details <- Task.eio Exit.MakeBadDetails (Details.load style scope root)
           let platform = getPlatform details
-          case paths of
-            [] ->
-              do
-                exposed <- getExposed details
-                buildExposed style root details exposed
-            p : ps ->
-              do
-                artifacts <- buildPaths style root details (NE.List p ps)
-                case maybeOutput of
-                  Nothing ->
-                    case (platform, getMains artifacts) of
-                      (_, []) ->
-                        return ()
-                      (Platform.Browser, [name]) ->
-                        do
-                          builder <- toBuilder root details desiredMode artifacts
-                          generate style "index.html" (Html.sandwich name builder) (NE.List name [])
-                      (Platform.Node, [name]) ->
-                        do
-                          builder <- toBuilder root details desiredMode artifacts
-                          generate style "app" (Node.sandwich name builder) (NE.List name [])
-                      (_, name : names) ->
-                        do
-                          builder <- toBuilder root details desiredMode artifacts
-                          generate style "index.js" builder (NE.List name names)
-                  Just DevStdOut ->
-                    case getMains artifacts of
-                      [] ->
-                        return ()
+          let projectType = getProjectType details
+          case (projectType, maybeOutput) of
+            (Parse.Package _, Just _) ->
+              Task.throw Exit.MakeCannotOutputForPackage
+            _ ->
+              case paths of
+                [] ->
+                  do
+                    exposed <- getExposed details
+                    buildExposed style root details exposed
+                p : ps ->
+                  do
+                    artifacts <- buildPaths style root details (NE.List p ps)
+                    let mains = getMains artifacts
+                    case (projectType, mains) of
+                      (Parse.Package _, m : ms) ->
+                        Task.throw $ Exit.MakeCannotOutputMainForPackage m ms
                       _ ->
-                        do
-                          builder <- toBuilder root details desiredMode artifacts
-                          Task.io $ B.hPutBuilder IO.stdout builder
-                  Just DevNull ->
-                    return ()
-                  Just (Exe target) ->
-                    case platform of
-                      Platform.Node -> do
-                        name <- hasOneMain artifacts
-                        builder <- toBuilder root details desiredMode artifacts
-                        generate style target (Node.sandwich name builder) (NE.List name [])
-                      _ -> do
-                        Task.throw Exit.MakeExeOnlyForNodePlatform
-                  Just (JS target) ->
-                    case getNoMains artifacts of
-                      [] -> do
-                        builder <- toBuilder root details desiredMode artifacts
-                        generate style target builder (Build.getRootNames artifacts)
-                      name : names ->
-                        Task.throw (Exit.MakeNonMainFilesIntoJavaScript name names)
-                  Just (Html target) ->
-                    case platform of
-                      Platform.Browser -> do
-                        name <- hasOneMain artifacts
-                        builder <- toBuilder root details desiredMode artifacts
-                        generate style target (Html.sandwich name builder) (NE.List name [])
-                      _ -> do
-                        Task.throw Exit.MakeHtmlOnlyForBrowserPlatform
+                        case maybeOutput of
+                          Nothing ->
+                            case (platform, mains) of
+                              (_, []) ->
+                                return ()
+                              (Platform.Browser, [name]) ->
+                                do
+                                  builder <- toBuilder root details desiredMode artifacts
+                                  generate style "index.html" (Html.sandwich name builder) (NE.List name [])
+                              (Platform.Node, [name]) ->
+                                do
+                                  builder <- toBuilder root details desiredMode artifacts
+                                  generate style "app" (Node.sandwich name builder) (NE.List name [])
+                              (_, name : names) ->
+                                do
+                                  builder <- toBuilder root details desiredMode artifacts
+                                  generate style "index.js" builder (NE.List name names)
+                          Just DevStdOut ->
+                            case getMains artifacts of
+                              [] ->
+                                return ()
+                              _ ->
+                                do
+                                  builder <- toBuilder root details desiredMode artifacts
+                                  Task.io $ B.hPutBuilder IO.stdout builder
+                          Just DevNull ->
+                            return ()
+                          Just (Exe target) ->
+                            case platform of
+                              Platform.Node -> do
+                                name <- hasOneMain artifacts
+                                builder <- toBuilder root details desiredMode artifacts
+                                generate style target (Node.sandwich name builder) (NE.List name [])
+                              _ -> do
+                                Task.throw Exit.MakeExeOnlyForNodePlatform
+                          Just (JS target) ->
+                            case getNoMains artifacts of
+                              [] -> do
+                                builder <- toBuilder root details desiredMode artifacts
+                                generate style target builder (Build.getRootNames artifacts)
+                              name : names ->
+                                Task.throw (Exit.MakeNonMainFilesIntoJavaScript name names)
+                          Just (Html target) ->
+                            case platform of
+                              Platform.Browser -> do
+                                name <- hasOneMain artifacts
+                                builder <- toBuilder root details desiredMode artifacts
+                                generate style target (Html.sandwich name builder) (NE.List name [])
+                              _ -> do
+                                Task.throw Exit.MakeHtmlOnlyForBrowserPlatform
 
 -- GET INFORMATION
 
@@ -167,6 +178,14 @@ getPlatform (Details.Details _ validOutline _ _ _ _) = do
       platform
     Details.ValidPkg platform _ _ ->
       platform
+
+getProjectType :: Details.Details -> Parse.ProjectType
+getProjectType (Details.Details _ validOutline _ _ _ _) = do
+  case validOutline of
+    Details.ValidApp _ _ ->
+      Parse.Application
+    Details.ValidPkg _ name _ ->
+      Parse.Package name
 
 -- BUILD PROJECTS
 
