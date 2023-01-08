@@ -18,6 +18,7 @@ import Control.Monad (zipWithM)
 import Data.Function (on)
 import Data.List qualified as List
 import Data.Map qualified as Map
+import Data.Monoid qualified as Monoid
 import Data.Name qualified as Name
 import Data.NonEmptyList qualified as NE
 import Data.Set qualified as Set
@@ -253,20 +254,35 @@ toMagnitude (PackageChanges added changed removed) =
 moduleChangeMagnitude :: ModuleChanges -> M.Magnitude
 moduleChangeMagnitude (ModuleChanges unions aliases values binops) =
   maximum
-    [ changeMagnitude unions,
+    [ unionChangeMagnitude unions,
       changeMagnitude aliases,
       changeMagnitude values,
       changeMagnitude binops
     ]
 
 changeMagnitude :: Changes k v -> M.Magnitude
-changeMagnitude (Changes added changed removed) =
-  if Map.size removed > 0 || Map.size changed > 0
-    then M.MAJOR
-    else
-      if Map.size added > 0
-        then M.MINOR
-        else M.PATCH
+changeMagnitude (Changes added changed removed)
+  | Map.size removed > 0 || Map.size changed > 0 = M.MAJOR
+  | Map.size added > 0 = M.MINOR
+  | otherwise = M.PATCH
+
+unionChangeMagnitude :: Changes Name.Name Docs.Union -> M.Magnitude
+unionChangeMagnitude (Changes added changed removed)
+  | Map.size removed > 0 = M.MAJOR
+  | Map.size changed > 0 = unionChangesMagnitude changed
+  | Map.size added > 0 = M.MINOR
+  | otherwise = M.PATCH
+
+unionChangesMagnitude :: Map.Map Name.Name (Docs.Union, Docs.Union) -> M.Magnitude
+unionChangesMagnitude unionChanges =
+  if Monoid.getAll $
+    Map.foldMapWithKey
+      ( \_ (Docs.Union _ _ oldConstructors, Docs.Union _ _ newConstructors) ->
+          Monoid.All (List.null oldConstructors && not (List.null newConstructors))
+      )
+      unionChanges
+    then M.MINOR
+    else M.MAJOR
 
 -- GET DOCS
 
