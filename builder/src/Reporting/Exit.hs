@@ -1869,6 +1869,8 @@ toGitErrorReport title err context =
 data Make
   = MakeNoOutline
   | MakeCannotOptimizeAndDebug
+  | MakeCannotOutputForPackage
+  | MakeCannotOutputMainForPackage ModuleName.Raw [ModuleName.Raw]
   | MakeBadDetails Details
   | MakeAppNeedsFileNames
   | MakePkgNeedsExposing
@@ -1914,6 +1916,75 @@ makeToReport make =
             "I need to take away information to optimize things, and I need to\
             \ add information to add the debugger. It is impossible to do both\
             \ at once though! Pick just one of those flags and it should work!"
+        ]
+    MakeCannotOutputForPackage ->
+      Help.docReport
+        "IMPOSSIBLE TO PRODUCE OUTPUT FOR A PACKAGE"
+        Nothing
+        ( D.fillSep
+            [ "I",
+              "cannot",
+              "produce",
+              "output",
+              "requested",
+              "by",
+              "the",
+              D.dullyellow "--output",
+              "flag",
+              "for",
+              "a",
+              "project",
+              "of",
+              "type",
+              D.dullyellow "package."
+            ]
+        )
+        [ D.reflow $
+            "If you only wanted to verify that your package builds correctly, try to remove the `--output` flag\
+            \ from your `gren make` command.",
+          D.reflow $
+            "Your project is defined as `\"type\": \"package\"` in your `gren.json`. This means that your project\
+            \ is meant to be used as a Gren package and cannot be compiled to any kind of output. Instead, it's \
+            \ meant to be consumed in its source form by another package or application. If you want to test your \
+            \ package with an application, simply create a separate project of type `application` and include this \
+            \ project in the \"source-directories\" property of the application's `gren.json`."
+        ]
+    MakeCannotOutputMainForPackage m ms ->
+      Help.report
+        "IMPOSSIBLE TO PRODUCE OUTPUT FOR MAIN IN A PACKAGE"
+        Nothing
+        "I cannot produce output by compiling the given modules:"
+        [ D.indent 4 $ D.red $ D.vcat $ map D.fromName (m : ms),
+          D.fillSep
+            [ "They",
+              "contain",
+              "definitions",
+              "for",
+              D.dullyellow "main",
+              "functions,",
+              "which",
+              "would",
+              "normally",
+              "produce",
+              "html",
+              "output",
+              "but",
+              "your",
+              "project",
+              "is",
+              "of",
+              "type",
+              D.dullyellow "package."
+            ],
+          D.reflow $
+            "If you only wanted to verify that your package builds correctly, try to remove the output paths to\
+            \ these modules from your `gren make` command or remove the main functions from the mentioned modules.",
+          D.reflow $
+            "Your project is defined as `\"type\": \"package\"` in your `gren.json`. This means that your project\
+            \ is meant to be used as a Gren package and cannot be compiled to any kind of output. Instead, it's \
+            \ meant to be consumed in its source form by another package or application. If you want to test your\
+            \ package with an application, simply create a separate project of type `application` and include this\
+            \ project in the \"source-directories\" property of the application's `gren.json`."
         ]
     MakeBadDetails detailsProblem ->
       toDetailsReport detailsProblem
