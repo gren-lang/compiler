@@ -230,7 +230,7 @@ verifyConstraints (Env reportKey _ _ cache) rootPlatform constraints =
     result <- Task.io $ Solver.verify reportKey cache rootPlatform constraints
     case result of
       Solver.Ok details -> return details
-      Solver.NoSolution -> Task.throw $ Exit.DetailsNoSolution
+      Solver.NoSolution -> Task.throw Exit.DetailsNoSolution
       Solver.Err exit -> Task.throw $ Exit.DetailsSolverProblem exit
 
 -- UNION
@@ -343,7 +343,8 @@ type Fingerprint =
 build :: Reporting.DKey -> Dirs.PackageCache -> MVar (Map.Map Pkg.Name (MVar Dep)) -> Pkg.Name -> Solver.Details -> Fingerprint -> Set.Set Fingerprint -> IO Dep
 build key cache depsMVar pkg (Solver.Details vsn maybeLocalPath _) f fs =
   do
-    eitherOutline <- Outline.read $ Maybe.fromMaybe (Dirs.package cache pkg vsn) maybeLocalPath
+    let packageDir = Maybe.fromMaybe (Dirs.package cache pkg vsn) maybeLocalPath
+    eitherOutline <- Outline.read packageDir
     case eitherOutline of
       Left _ ->
         do
@@ -364,10 +365,10 @@ build key cache depsMVar pkg (Solver.Details vsn maybeLocalPath _) f fs =
                 return $ Left Nothing
             Right directArtifacts ->
               do
-                let src = Dirs.package cache pkg vsn </> "src"
+                let src = packageDir </> "src"
                 let foreignDeps = gatherForeignInterfaces directArtifacts
                 let exposedDict = Map.fromKeys (const ()) (Outline.flattenExposed exposed)
-                docsStatus <- getDocsStatus cache pkg vsn
+                docsStatus <- getDocsStatus packageDir
                 mvar <- newEmptyMVar
                 mvars <- Map.traverseWithKey (const . fork . crawlModule foreignDeps mvar pkg src docsStatus) exposedDict
                 putMVar mvar mvars
@@ -390,13 +391,13 @@ build key cache depsMVar pkg (Solver.Details vsn maybeLocalPath _) f fs =
                             Reporting.report key Reporting.DBroken
                             return $ Left $ Just $ Exit.BD_BadBuild pkg vsn f
                         Just results ->
-                          let path = Dirs.package cache pkg vsn </> "artifacts.dat"
+                          let path = packageDir </> "artifacts.dat"
                               ifaces = gatherInterfaces exposedDict results
                               objects = gatherObjects results
                               artifacts = Artifacts ifaces objects
                               fingerprints = Set.insert f fs
                            in do
-                                writeDocs cache pkg vsn docsStatus results
+                                writeDocs packageDir docsStatus results
                                 File.writeBinary path (ArtifactCache fingerprints artifacts)
                                 Reporting.report key Reporting.DBuilt
                                 return (Right artifacts)
@@ -581,10 +582,10 @@ data DocsStatus
   = DocsNeeded
   | DocsNotNeeded
 
-getDocsStatus :: Dirs.PackageCache -> Pkg.Name -> V.Version -> IO DocsStatus
-getDocsStatus cache pkg vsn =
+getDocsStatus :: FilePath -> IO DocsStatus
+getDocsStatus packageDir =
   do
-    exists <- File.exists (Dirs.package cache pkg vsn </> "docs.json")
+    exists <- File.exists (packageDir </> "docs.json")
     if exists
       then return DocsNotNeeded
       else return DocsNeeded
@@ -599,11 +600,11 @@ makeDocs status modul =
     DocsNotNeeded ->
       Nothing
 
-writeDocs :: Dirs.PackageCache -> Pkg.Name -> V.Version -> DocsStatus -> Map.Map ModuleName.Raw Result -> IO ()
-writeDocs cache pkg vsn status results =
+writeDocs :: FilePath -> DocsStatus -> Map.Map ModuleName.Raw Result -> IO ()
+writeDocs packageDir status results =
   case status of
     DocsNeeded ->
-      E.writeUgly (Dirs.package cache pkg vsn </> "docs.json") $
+      E.writeUgly (packageDir </> "docs.json") $
         Docs.encode $
           Map.mapMaybe toDocs results
     DocsNotNeeded ->
