@@ -31,7 +31,7 @@ encodeJson :: (a -> E.Value) -> PossibleFilePath a -> E.Value
 encodeJson encoderForNonFP possibleFP =
   case possibleFP of
     Is filePath ->
-      E.string $ Utf8.fromChars $ "file:" ++ filePath
+      E.string $ Utf8.fromChars $ "local:" ++ filePath
     Other a ->
       encoderForNonFP a
 
