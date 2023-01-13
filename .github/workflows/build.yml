@@ -46,6 +46,9 @@ jobs:
     - name: Cabal update
       run: cabal update
 
+    - name: List exact cabal deps
+      run: cabal freeze
+
     - name: Cache cabal store
       uses: actions/cache@v3
       with:
@@ -100,6 +103,9 @@ jobs:
         ghc-version: ${{ env.ghc }}
         cabal-version: ${{ env.cabal }}
 
+    - name: List exact cabal deps
+      run: cabal freeze
+
     - name: Cache cabal store
       uses: actions/cache@v3
       with:
@@ -151,6 +157,9 @@ jobs:
       with:
         ghc-version: ${{ env.ghc }}
         cabal-version: ${{ env.cabal }}
+
+    - name: List exact cabal deps
+      run: cabal freeze
 
     - name: Cache cabal store
       uses: actions/cache@v3
