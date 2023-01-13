@@ -178,10 +178,10 @@ resolveToConstraintSource pkgName possibleFP =
         ok state (Remote cons) back
       PossibleFilePath.Is fp ->
         do
-          let outlinePath = fp </> "gren.json"
-          outlineExists <- Dir.doesDirectoryExist outlinePath
+          outlineExists <- Dir.doesDirectoryExist fp
           if outlineExists
             then do
+              let outlinePath = fp </> "gren.json"
               bytes <- File.readUtf8 outlinePath
               case D.fromByteString Outline.decoder bytes of
                 Right (Outline.Pkg (Outline.PkgOutline _ _ _ version _ _ _ _)) ->
@@ -216,8 +216,7 @@ try :: Reporting.DKey -> Platform.Platform -> Map.Map Pkg.Name (PossibleFilePath
 try key rootPlatform constraints =
   do
     constraintSources <- Map.traverseWithKey resolveToConstraintSource constraints
-    exploration <- exploreGoals key (Goals rootPlatform constraintSources Map.empty)
-    return exploration
+    exploreGoals key (Goals rootPlatform constraintSources Map.empty)
 
 -- EXPLORE GOALS
 
