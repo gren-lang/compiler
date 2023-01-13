@@ -330,13 +330,13 @@ filePathDecoder errorMapper =
     jsonStr <- D.string
     D.Decoder $ \(A.At errRegion@(A.Region (A.Position row col) _) _) ok err ->
       let filePath = Json.toChars jsonStr
-       in if List.isPrefixOf filePathPrefix filePath
-            then ok (PossibleFilePath.Is $ List.drop (List.length filePathPrefix) filePath)
+       in if List.isPrefixOf localDepPrefix filePath
+            then ok (PossibleFilePath.Is $ List.drop (List.length localDepPrefix) filePath)
             else err (D.Failure errRegion $ errorMapper $ Exit.OP_AttemptedFilePath (row, col))
 
-filePathPrefix :: String
-filePathPrefix =
-  "file:"
+localDepPrefix :: String
+localDepPrefix =
+  "local:"
 
 constraintDecoder :: Decoder Con.Constraint
 constraintDecoder =
