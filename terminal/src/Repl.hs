@@ -44,6 +44,7 @@ import Gren.ModuleName qualified as ModuleName
 import Gren.Outline qualified as Outline
 import Gren.Package qualified as Pkg
 import Gren.Platform qualified as Platform
+import Gren.PossibleFilePath as PossibleFilePath
 import Gren.Version qualified as V
 import Parse.Declaration qualified as PD
 import Parse.Expression qualified as PE
@@ -535,7 +536,7 @@ getRoot =
                     Licenses.bsd3
                     V.one
                     (Outline.ExposedList [])
-                    compatibleDeps
+                    (Map.map PossibleFilePath.Other compatibleDeps)
                     C.defaultGren
                     Platform.Common
 

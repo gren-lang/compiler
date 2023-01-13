@@ -16,8 +16,9 @@ import Gren.Licenses qualified as Licenses
 import Gren.Outline qualified as Outline
 import Gren.Package qualified as Pkg
 import Gren.Platform qualified as Platform
+import Gren.PossibleFilePath (PossibleFilePath)
+import Gren.PossibleFilePath qualified as PossibleFilePath
 import Gren.Version qualified as V
-import Json.String qualified as Json
 import Reporting qualified
 import Reporting.Doc qualified as D
 import Reporting.Exit qualified as Exit
@@ -83,7 +84,8 @@ init flags =
         return $ Left $ Exit.InitNoCompatibleDependencies Nothing
       Left (DPkg.GitError gitError) ->
         return $ Left $ Exit.InitNoCompatibleDependencies $ Just gitError
-      Right deps -> do
+      Right resolvedDeps -> do
+        let deps = Map.map PossibleFilePath.Other resolvedDeps
         result <- Solver.verify Reporting.ignorer cache platform deps
         case result of
           Solver.Err exit ->
@@ -101,12 +103,12 @@ init flags =
                   putStrLn "Okay, I created it."
                   return (Right ())
 
-pkgOutline :: Platform.Platform -> Map.Map Pkg.Name Con.Constraint -> Outline.Outline
+pkgOutline :: Platform.Platform -> Map.Map Pkg.Name (PossibleFilePath Con.Constraint) -> Outline.Outline
 pkgOutline platform deps =
   Outline.Pkg $
     Outline.PkgOutline
       Pkg.dummyName
-      (Json.fromChars "")
+      Outline.defaultSummary
       Licenses.bsd3
       V.one
       (Outline.ExposedList [])
@@ -117,10 +119,10 @@ pkgOutline platform deps =
 appOutlineFromSolverDetails ::
   Platform.Platform ->
   [Pkg.Name] ->
-  (Map.Map Pkg.Name Solver.Details) ->
+  Map.Map Pkg.Name Solver.Details ->
   Outline.Outline
 appOutlineFromSolverDetails platform initialDeps details =
-  let solution = Map.map (\(Solver.Details vsn _) -> vsn) details
+  let solution = Map.map (\(Solver.Details vsn _ _) -> vsn) details
       defaultDeps = Map.fromList $ map (\dep -> (dep, Con.exactly V.one)) initialDeps
       directs = Map.intersection solution defaultDeps
       indirects = Map.difference solution defaultDeps
@@ -129,8 +131,8 @@ appOutlineFromSolverDetails platform initialDeps details =
           V.compiler
           platform
           (NE.List (Outline.RelativeSrcDir "src") [])
-          directs
-          indirects
+          (Map.map PossibleFilePath.Other directs)
+          (Map.map PossibleFilePath.Other indirects)
 
 selectPlatform :: Flags -> Platform.Platform
 selectPlatform flags =

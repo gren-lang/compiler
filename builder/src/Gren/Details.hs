@@ -45,6 +45,8 @@ import Gren.Outline qualified as Outline
 import Gren.Package qualified as Pkg
 import Gren.Platform qualified as P
 import Gren.Platform qualified as Platform
+import Gren.PossibleFilePath (PossibleFilePath)
+import Gren.PossibleFilePath qualified as PossibleFilePath
 import Gren.Version qualified as V
 import Json.Encode qualified as E
 import Parse.Module qualified as Parse
@@ -190,45 +192,45 @@ verifyPkg env@(Env reportKey _ _ _) time (Outline.PkgOutline pkg _ _ _ exposed d
   if Con.goodGren gren
     then do
       _ <- Task.io $ Reporting.report reportKey $ Reporting.DStart $ Map.size direct
-      solution <- verifyConstraints env rootPlatform (Map.map (Con.exactly . Con.lowerBound) direct)
+      solution <-
+        verifyConstraints
+          env
+          rootPlatform
+          (Map.map (PossibleFilePath.mapWith (Con.exactly . Con.lowerBound)) direct)
       let exposedList = Outline.flattenExposed exposed
       verifyDependencies env time (ValidPkg rootPlatform pkg exposedList) solution direct
     else Task.throw $ Exit.DetailsBadGrenInPkg gren
 
 verifyApp :: Env -> File.Time -> Outline.AppOutline -> Task Details
-verifyApp env@(Env reportKey _ _ _) time outline@(Outline.AppOutline grenVersion rootPlatform srcDirs direct _) =
+verifyApp env@(Env reportKey _ _ _) time (Outline.AppOutline grenVersion rootPlatform srcDirs direct indirect) =
   if grenVersion == V.compiler
     then do
-      stated <- checkAppDeps outline
+      stated <- union noDups direct indirect
       _ <- Task.io $ Reporting.report reportKey $ Reporting.DStart (Map.size stated)
-      actual <- verifyConstraints env rootPlatform (Map.map Con.exactly stated)
+      actual <- verifyConstraints env rootPlatform (Map.map (PossibleFilePath.mapWith Con.exactly) stated)
       if Map.size stated == Map.size actual
         then verifyDependencies env time (ValidApp rootPlatform srcDirs) actual direct
         else
-          let actualVersions = Map.map (\(Solver.Details vsn _) -> vsn) actual
+          let actualVersions = Map.map (\(Solver.Details vsn _ _) -> vsn) actual
            in Task.throw $
                 Exit.DetailsMissingDeps $
                   Map.toList $
                     Map.difference actualVersions stated
     else Task.throw $ Exit.DetailsBadGrenInAppOutline grenVersion
 
-checkAppDeps :: Outline.AppOutline -> Task (Map.Map Pkg.Name V.Version)
-checkAppDeps (Outline.AppOutline _ _ _ direct indirect) =
-  union noDups direct indirect
-
 -- VERIFY CONSTRAINTS
 
 verifyConstraints ::
   Env ->
   Platform.Platform ->
-  Map.Map Pkg.Name Con.Constraint ->
+  Map.Map Pkg.Name (PossibleFilePath Con.Constraint) ->
   Task (Map.Map Pkg.Name Solver.Details)
 verifyConstraints (Env reportKey _ _ cache) rootPlatform constraints =
   do
     result <- Task.io $ Solver.verify reportKey cache rootPlatform constraints
     case result of
       Solver.Ok details -> return details
-      Solver.NoSolution -> Task.throw $ Exit.DetailsNoSolution
+      Solver.NoSolution -> Task.throw Exit.DetailsNoSolution
       Solver.Err exit -> Task.throw $ Exit.DetailsSolverProblem exit
 
 -- UNION
@@ -314,9 +316,9 @@ type Dep =
   Either (Maybe Exit.DetailsBadDep) Artifacts
 
 verifyDep :: Env -> MVar (Map.Map Pkg.Name (MVar Dep)) -> Map.Map Pkg.Name Solver.Details -> Pkg.Name -> Solver.Details -> IO Dep
-verifyDep (Env key _ _ cache) depsMVar solution pkg details@(Solver.Details vsn directDeps) =
+verifyDep (Env key _ _ cache) depsMVar solution pkg details@(Solver.Details vsn _ directDeps) =
   do
-    let fingerprint = Map.intersectionWith (\(Solver.Details v _) _ -> v) solution directDeps
+    let fingerprint = Map.intersectionWith (\(Solver.Details v _ _) _ -> v) solution directDeps
     maybeCache <- File.readBinary (Dirs.package cache pkg vsn </> "artifacts.dat")
     case maybeCache of
       Nothing ->
@@ -339,9 +341,10 @@ type Fingerprint =
 -- BUILD
 
 build :: Reporting.DKey -> Dirs.PackageCache -> MVar (Map.Map Pkg.Name (MVar Dep)) -> Pkg.Name -> Solver.Details -> Fingerprint -> Set.Set Fingerprint -> IO Dep
-build key cache depsMVar pkg (Solver.Details vsn _) f fs =
+build key cache depsMVar pkg (Solver.Details vsn maybeLocalPath _) f fs =
   do
-    eitherOutline <- Outline.read (Dirs.package cache pkg vsn)
+    let packageDir = Maybe.fromMaybe (Dirs.package cache pkg vsn) maybeLocalPath
+    eitherOutline <- Outline.read packageDir
     case eitherOutline of
       Left _ ->
         do
@@ -359,13 +362,13 @@ build key cache depsMVar pkg (Solver.Details vsn _) f fs =
             Left _ ->
               do
                 Reporting.report key Reporting.DBroken
-                return $ Left $ Nothing
+                return $ Left Nothing
             Right directArtifacts ->
               do
-                let src = Dirs.package cache pkg vsn </> "src"
+                let src = packageDir </> "src"
                 let foreignDeps = gatherForeignInterfaces directArtifacts
-                let exposedDict = Map.fromKeys (\_ -> ()) (Outline.flattenExposed exposed)
-                docsStatus <- getDocsStatus cache pkg vsn
+                let exposedDict = Map.fromKeys (const ()) (Outline.flattenExposed exposed)
+                docsStatus <- getDocsStatus packageDir
                 mvar <- newEmptyMVar
                 mvars <- Map.traverseWithKey (const . fork . crawlModule foreignDeps mvar pkg src docsStatus) exposedDict
                 putMVar mvar mvars
@@ -388,13 +391,13 @@ build key cache depsMVar pkg (Solver.Details vsn _) f fs =
                             Reporting.report key Reporting.DBroken
                             return $ Left $ Just $ Exit.BD_BadBuild pkg vsn f
                         Just results ->
-                          let path = Dirs.package cache pkg vsn </> "artifacts.dat"
+                          let path = packageDir </> "artifacts.dat"
                               ifaces = gatherInterfaces exposedDict results
                               objects = gatherObjects results
                               artifacts = Artifacts ifaces objects
                               fingerprints = Set.insert f fs
                            in do
-                                writeDocs cache pkg vsn docsStatus results
+                                writeDocs packageDir docsStatus results
                                 File.writeBinary path (ArtifactCache fingerprints artifacts)
                                 Reporting.report key Reporting.DBuilt
                                 return (Right artifacts)
@@ -579,10 +582,10 @@ data DocsStatus
   = DocsNeeded
   | DocsNotNeeded
 
-getDocsStatus :: Dirs.PackageCache -> Pkg.Name -> V.Version -> IO DocsStatus
-getDocsStatus cache pkg vsn =
+getDocsStatus :: FilePath -> IO DocsStatus
+getDocsStatus packageDir =
   do
-    exists <- File.exists (Dirs.package cache pkg vsn </> "docs.json")
+    exists <- File.exists (packageDir </> "docs.json")
     if exists
       then return DocsNotNeeded
       else return DocsNeeded
@@ -597,11 +600,11 @@ makeDocs status modul =
     DocsNotNeeded ->
       Nothing
 
-writeDocs :: Dirs.PackageCache -> Pkg.Name -> V.Version -> DocsStatus -> Map.Map ModuleName.Raw Result -> IO ()
-writeDocs cache pkg vsn status results =
+writeDocs :: FilePath -> DocsStatus -> Map.Map ModuleName.Raw Result -> IO ()
+writeDocs packageDir status results =
   case status of
     DocsNeeded ->
-      E.writeUgly (Dirs.package cache pkg vsn </> "docs.json") $
+      E.writeUgly (packageDir </> "docs.json") $
         Docs.encode $
           Map.mapMaybe toDocs results
     DocsNotNeeded ->

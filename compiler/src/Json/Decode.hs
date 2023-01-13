@@ -6,7 +6,7 @@
 
 module Json.Decode
   ( fromByteString,
-    Decoder,
+    Decoder (..),
     string,
     customString,
     bool,

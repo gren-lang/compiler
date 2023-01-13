@@ -4,10 +4,8 @@ module Directories
   ( details,
     interfaces,
     objects,
-    prepublishDir,
     greni,
     greno,
-    temp,
     findRoot,
     withRootLock,
     withRegistryLock,
@@ -46,10 +44,6 @@ objects :: FilePath -> FilePath
 objects root =
   projectCache root </> "o.dat"
 
-prepublishDir :: FilePath -> FilePath
-prepublishDir root =
-  projectCache root </> "prepublish"
-
 compilerVersion :: FilePath
 compilerVersion =
   V.toChars V.compiler
@@ -67,12 +61,6 @@ greno root name =
 toArtifactPath :: FilePath -> ModuleName.Raw -> String -> FilePath
 toArtifactPath root name ext =
   projectCache root </> ModuleName.toHyphenPath name <.> ext
-
--- TEMP
-
-temp :: FilePath -> String -> FilePath
-temp root ext =
-  projectCache root </> "temp" <.> ext
 
 -- ROOT
 

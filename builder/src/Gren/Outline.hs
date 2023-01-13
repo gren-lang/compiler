@@ -8,6 +8,7 @@ module Gren.Outline
     PkgOutline (..),
     Exposed (..),
     SrcDir (..),
+    PossibleFilePath (..),
     read,
     write,
     encode,
@@ -26,6 +27,7 @@ import AbsoluteSrcDir (AbsoluteSrcDir)
 import AbsoluteSrcDir qualified
 import Control.Monad (filterM, liftM)
 import Data.Binary (Binary, get, getWord8, put, putWord8)
+import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.NonEmptyList qualified as NE
 import Data.OneOrMore qualified as OneOrMore
@@ -36,12 +38,15 @@ import Gren.Licenses qualified as Licenses
 import Gren.ModuleName qualified as ModuleName
 import Gren.Package qualified as Pkg
 import Gren.Platform qualified as Platform
+import Gren.PossibleFilePath (PossibleFilePath)
+import Gren.PossibleFilePath qualified as PossibleFilePath
 import Gren.Version qualified as V
 import Json.Decode qualified as D
 import Json.Encode ((==>))
 import Json.Encode qualified as E
 import Json.String qualified as Json
 import Parse.Primitives qualified as P
+import Reporting.Annotation qualified as A
 import Reporting.Exit qualified as Exit
 import System.Directory qualified as Dir
 import System.FilePath ((</>))
@@ -58,8 +63,8 @@ data AppOutline = AppOutline
   { _app_gren_version :: V.Version,
     _app_platform :: Platform.Platform,
     _app_source_dirs :: NE.List SrcDir,
-    _app_deps_direct :: Map.Map Pkg.Name V.Version,
-    _app_deps_indirect :: Map.Map Pkg.Name V.Version
+    _app_deps_direct :: Map.Map Pkg.Name (PossibleFilePath V.Version),
+    _app_deps_indirect :: Map.Map Pkg.Name (PossibleFilePath V.Version)
   }
 
 data PkgOutline = PkgOutline
@@ -68,7 +73,7 @@ data PkgOutline = PkgOutline
     _pkg_license :: Licenses.License,
     _pkg_version :: V.Version,
     _pkg_exposed :: Exposed,
-    _pkg_deps :: Map.Map Pkg.Name Con.Constraint,
+    _pkg_deps :: Map.Map Pkg.Name (PossibleFilePath Con.Constraint),
     _pkg_gren_version :: Con.Constraint,
     _pkg_platform :: Platform.Platform
   }
@@ -105,14 +110,14 @@ platform outline =
     Pkg (PkgOutline _ _ _ _ _ _ _ pltform) ->
       pltform
 
-dependencyConstraints :: Outline -> Map.Map Pkg.Name Con.Constraint
+dependencyConstraints :: Outline -> Map.Map Pkg.Name (PossibleFilePath Con.Constraint)
 dependencyConstraints outline =
   case outline of
     App appOutline ->
       let direct = _app_deps_direct appOutline
           indirect = _app_deps_indirect appOutline
           appDeps = Map.union direct indirect
-       in Map.map (\vsn -> Con.exactly vsn) appDeps
+       in Map.map (PossibleFilePath.mapWith Con.exactly) appDeps
     Pkg pkgOutline ->
       _pkg_deps pkgOutline
 
@@ -164,9 +169,9 @@ encodeModule :: ModuleName.Raw -> E.Value
 encodeModule name =
   E.name name
 
-encodeDeps :: (a -> E.Value) -> Map.Map Pkg.Name a -> E.Value
+encodeDeps :: (a -> E.Value) -> Map.Map Pkg.Name (PossibleFilePath a) -> E.Value
 encodeDeps encodeValue deps =
-  E.dict Pkg.toJsonString encodeValue deps
+  E.dict Pkg.toJsonString (PossibleFilePath.encodeJson encodeValue) deps
 
 encodeSrcDir :: SrcDir -> E.Value
 encodeSrcDir srcDir =
@@ -279,8 +284,8 @@ appDecoder =
     <$> D.field "gren-version" versionDecoder
     <*> D.field "platform" (Platform.decoder Exit.OP_BadPlatform)
     <*> D.field "source-directories" dirsDecoder
-    <*> D.field "dependencies" (D.field "direct" (depsDecoder versionDecoder))
-    <*> D.field "dependencies" (D.field "indirect" (depsDecoder versionDecoder))
+    <*> D.field "dependencies" (D.field "direct" (depsDecoder versionOrFilePathDecoder))
+    <*> D.field "dependencies" (D.field "indirect" (depsDecoder versionOrFilePathDecoder))
 
 pkgDecoder :: Decoder PkgOutline
 pkgDecoder =
@@ -290,7 +295,7 @@ pkgDecoder =
     <*> D.field "license" (Licenses.decoder Exit.OP_BadLicense)
     <*> D.field "version" versionDecoder
     <*> D.field "exposed-modules" exposedDecoder
-    <*> D.field "dependencies" (depsDecoder constraintDecoder)
+    <*> D.field "dependencies" (depsDecoder constraintOrFilePathDecoder)
     <*> D.field "gren-version" constraintDecoder
     <*> D.field "platform" (Platform.decoder Exit.OP_BadPlatform)
 
@@ -308,11 +313,43 @@ summaryDecoder =
 
 versionDecoder :: Decoder V.Version
 versionDecoder =
-  D.mapError (uncurry Exit.OP_BadVersion) V.decoder
+  D.mapError (Exit.OP_BadVersion . Exit.OP_AttemptedOther) V.decoder
+
+versionOrFilePathDecoder :: Decoder (PossibleFilePath V.Version)
+versionOrFilePathDecoder =
+  D.oneOf
+    [ do
+        vsn <- D.mapError (Exit.OP_BadVersion . Exit.OP_AttemptedOther) V.decoder
+        D.succeed (PossibleFilePath.Other vsn),
+      filePathDecoder Exit.OP_BadVersion
+    ]
+
+filePathDecoder :: (Exit.PossibleFilePath err -> Exit.OutlineProblem) -> Decoder (PossibleFilePath val)
+filePathDecoder errorMapper =
+  do
+    jsonStr <- D.string
+    D.Decoder $ \(A.At errRegion@(A.Region (A.Position row col) _) _) ok err ->
+      let filePath = Json.toChars jsonStr
+       in if List.isPrefixOf localDepPrefix filePath
+            then ok (PossibleFilePath.Is $ List.drop (List.length localDepPrefix) filePath)
+            else err (D.Failure errRegion $ errorMapper $ Exit.OP_AttemptedFilePath (row, col))
+
+localDepPrefix :: String
+localDepPrefix =
+  "local:"
 
 constraintDecoder :: Decoder Con.Constraint
 constraintDecoder =
-  D.mapError Exit.OP_BadConstraint Con.decoder
+  D.mapError (Exit.OP_BadConstraint . Exit.OP_AttemptedOther) Con.decoder
+
+constraintOrFilePathDecoder :: Decoder (PossibleFilePath Con.Constraint)
+constraintOrFilePathDecoder =
+  D.oneOf
+    [ do
+        con <- D.mapError (Exit.OP_BadConstraint . Exit.OP_AttemptedOther) Con.decoder
+        D.succeed (PossibleFilePath.Other con),
+      filePathDecoder Exit.OP_BadConstraint
+    ]
 
 depsDecoder :: Decoder a -> Decoder (Map.Map Pkg.Name a)
 depsDecoder valueDecoder =

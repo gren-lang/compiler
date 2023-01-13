@@ -19,6 +19,7 @@ where
 import Control.Monad (foldM)
 import Data.Map ((!))
 import Data.Map qualified as Map
+import Data.Maybe qualified as Maybe
 import Deps.Package qualified as Package
 import Directories qualified as Dirs
 import File qualified
@@ -26,10 +27,13 @@ import Gren.Constraint qualified as C
 import Gren.Outline qualified as Outline
 import Gren.Package qualified as Pkg
 import Gren.Platform qualified as Platform
+import Gren.PossibleFilePath (PossibleFilePath)
+import Gren.PossibleFilePath qualified as PossibleFilePath
 import Gren.Version qualified as V
 import Json.Decode qualified as D
 import Reporting qualified
 import Reporting.Exit qualified as Exit
+import System.Directory qualified as Dir
 import System.FilePath ((</>))
 
 -- SOLVER
@@ -52,7 +56,7 @@ data State = State
 data Constraints = Constraints
   { _gren :: C.Constraint,
     _platform :: Platform.Platform,
-    _deps :: Map.Map Pkg.Name C.Constraint
+    _deps :: Map.Map Pkg.Name (PossibleFilePath C.Constraint)
   }
 
 -- RESULT
@@ -65,13 +69,13 @@ data Result a
 -- VERIFY -- used by Gren.Details
 
 data Details
-  = Details V.Version (Map.Map Pkg.Name C.Constraint)
+  = Details V.Version (Maybe FilePath) (Map.Map Pkg.Name (PossibleFilePath C.Constraint))
 
 verify ::
   Reporting.DKey ->
   Dirs.PackageCache ->
   Platform.Platform ->
-  Map.Map Pkg.Name C.Constraint ->
+  Map.Map Pkg.Name (PossibleFilePath C.Constraint) ->
   IO (Result (Map.Map Pkg.Name Details))
 verify key cache rootPlatform constraints =
   Dirs.withRegistryLock cache $
@@ -83,17 +87,18 @@ verify key cache rootPlatform constraints =
           (\_ -> return NoSolution)
           (\e -> return $ Err e)
 
-addDeps :: State -> Pkg.Name -> V.Version -> Details
-addDeps (State _ constraints) name vsn =
-  case Map.lookup (name, vsn) constraints of
-    Just (Constraints _ _ deps) -> Details vsn deps
-    Nothing -> error "compiler bug manifesting in Deps.Solver.addDeps"
+addDeps :: State -> Pkg.Name -> ConstraintSource -> Details
+addDeps (State _ constraints) name constraintSource =
+  let vsn = C.lowerBound $ constraintFromCS constraintSource
+   in case Map.lookup (name, vsn) constraints of
+        Just (Constraints _ _ deps) -> Details vsn (filePathFromCS constraintSource) deps
+        Nothing -> error "compiler bug manifesting in Deps.Solver.addDeps"
 
 -- ADD TO APP - used in Install
 
 data AppSolution = AppSolution
-  { _old :: Map.Map Pkg.Name V.Version,
-    _new :: Map.Map Pkg.Name V.Version,
+  { _old :: Map.Map Pkg.Name (PossibleFilePath V.Version),
+    _new :: Map.Map Pkg.Name (PossibleFilePath V.Version),
     _app :: Outline.AppOutline
   }
 
@@ -108,11 +113,13 @@ addToApp key cache pkg compatibleVsn outline@(Outline.AppOutline _ rootPlatform 
   Dirs.withRegistryLock cache $
     let allDeps = Map.union direct indirect
 
+        insertableVsn = PossibleFilePath.Other (C.untilNextMajor compatibleVsn)
+
         attempt toConstraint deps =
           try
             key
             rootPlatform
-            (Map.insert pkg (C.untilNextMajor compatibleVsn) (Map.map toConstraint deps))
+            (Map.insert pkg insertableVsn (Map.map (PossibleFilePath.mapWith toConstraint) deps))
      in case oneOf
           (attempt C.exactly allDeps)
           [ attempt C.exactly direct,
@@ -126,95 +133,159 @@ addToApp key cache pkg compatibleVsn outline@(Outline.AppOutline _ rootPlatform 
               (\_ -> return $ NoSolution)
               (\e -> return $ Err e)
 
-toApp :: State -> Pkg.Name -> Outline.AppOutline -> Map.Map Pkg.Name V.Version -> Map.Map Pkg.Name V.Version -> AppSolution
+toApp :: State -> Pkg.Name -> Outline.AppOutline -> Map.Map Pkg.Name (PossibleFilePath V.Version) -> Map.Map Pkg.Name ConstraintSource -> AppSolution
 toApp (State _ constraints) pkg (Outline.AppOutline gren platform srcDirs direct _) old new =
-  let d = Map.intersection new (Map.insert pkg V.one direct)
-      i = Map.difference (getTransitive constraints new (Map.toList d) Map.empty) d
-   in AppSolution old new (Outline.AppOutline gren platform srcDirs d i)
+  let newAsPFPs = Map.map constraintToFilePath new
+      d = Map.intersection newAsPFPs (Map.insert pkg (PossibleFilePath.Other V.one) direct)
+      dCSs = filter (\(pkgName, _) -> Map.member pkgName d) $ Map.toList new
+      i = Map.map constraintToFilePath $ Map.difference (getTransitive constraints new dCSs Map.empty) d
+   in AppSolution old newAsPFPs (Outline.AppOutline gren platform srcDirs d i)
 
-getTransitive :: Map.Map (Pkg.Name, V.Version) Constraints -> Map.Map Pkg.Name V.Version -> [(Pkg.Name, V.Version)] -> Map.Map Pkg.Name V.Version -> Map.Map Pkg.Name V.Version
+constraintToFilePath :: ConstraintSource -> PossibleFilePath V.Version
+constraintToFilePath cs =
+  case cs of
+    Local _ fp -> PossibleFilePath.Is fp
+    Remote con -> PossibleFilePath.Other $ C.lowerBound con
+
+getTransitive :: Map.Map (Pkg.Name, V.Version) Constraints -> Map.Map Pkg.Name ConstraintSource -> [(Pkg.Name, ConstraintSource)] -> Map.Map Pkg.Name ConstraintSource -> Map.Map Pkg.Name ConstraintSource
 getTransitive constraints solution unvisited visited =
   case unvisited of
     [] ->
       visited
-    info@(pkg, vsn) : infos ->
+    (pkg, cs) : infos ->
       if Map.member pkg visited
         then getTransitive constraints solution infos visited
         else
-          let newDeps = _deps (constraints ! info)
+          let vsn = C.lowerBound $ constraintFromCS cs
+              newDeps = _deps (constraints ! (pkg, vsn))
               newUnvisited = Map.toList (Map.intersection solution (Map.difference newDeps visited))
-              newVisited = Map.insert pkg vsn visited
+              newVisited = Map.insert pkg cs visited
            in getTransitive constraints solution infos $
                 getTransitive constraints solution newUnvisited newVisited
 
+-- CONSTRAINT SOURCE
+
+data ConstraintSource
+  = Remote C.Constraint
+  | Local C.Constraint FilePath
+
+-- TODO: Avoid re-reading the gren.json for local dependencies
+resolveToConstraintSource :: Pkg.Name -> PossibleFilePath C.Constraint -> Solver ConstraintSource
+resolveToConstraintSource pkgName possibleFP =
+  Solver $ \state ok back err ->
+    case possibleFP of
+      PossibleFilePath.Other cons ->
+        ok state (Remote cons) back
+      PossibleFilePath.Is fp ->
+        do
+          outlineExists <- Dir.doesDirectoryExist fp
+          if outlineExists
+            then do
+              let outlinePath = fp </> "gren.json"
+              bytes <- File.readUtf8 outlinePath
+              case D.fromByteString Outline.decoder bytes of
+                Right (Outline.Pkg (Outline.PkgOutline _ _ _ version _ _ _ _)) ->
+                  ok state (Local (C.exactly version) fp) back
+                Right _ ->
+                  err $ Exit.SolverBadLocalDep pkgName fp
+                Left _ ->
+                  err $ Exit.SolverBadLocalDep pkgName fp
+            else err $ Exit.SolverBadLocalDep pkgName fp
+
+constraintFromCS :: ConstraintSource -> C.Constraint
+constraintFromCS source =
+  case source of
+    Remote c -> c
+    Local c _ -> c
+
+setConstraintInCS :: C.Constraint -> ConstraintSource -> ConstraintSource
+setConstraintInCS newCons source =
+  case source of
+    Remote _ -> Remote newCons
+    Local _ fp -> Local newCons fp
+
+filePathFromCS :: ConstraintSource -> Maybe FilePath
+filePathFromCS source =
+  case source of
+    Remote _ -> Nothing
+    Local _ fp -> Just fp
+
 -- TRY
 
-try :: Reporting.DKey -> Platform.Platform -> Map.Map Pkg.Name C.Constraint -> Solver (Map.Map Pkg.Name V.Version)
+try :: Reporting.DKey -> Platform.Platform -> Map.Map Pkg.Name (PossibleFilePath C.Constraint) -> Solver (Map.Map Pkg.Name ConstraintSource)
 try key rootPlatform constraints =
-  exploreGoals key (Goals rootPlatform constraints Map.empty)
+  do
+    constraintSources <- Map.traverseWithKey resolveToConstraintSource constraints
+    exploreGoals key (Goals rootPlatform constraintSources Map.empty)
 
 -- EXPLORE GOALS
 
 data Goals = Goals
   { _root_platform :: Platform.Platform,
-    _pending :: Map.Map Pkg.Name C.Constraint,
-    _solved :: Map.Map Pkg.Name V.Version
+    _pending :: Map.Map Pkg.Name ConstraintSource,
+    _solved :: Map.Map Pkg.Name ConstraintSource
   }
 
-exploreGoals :: Reporting.DKey -> Goals -> Solver (Map.Map Pkg.Name V.Version)
+exploreGoals :: Reporting.DKey -> Goals -> Solver (Map.Map Pkg.Name ConstraintSource)
 exploreGoals key (Goals rootPlatform pending solved) =
   case Map.minViewWithKey pending of
     Nothing ->
       return solved
-    Just ((name, constraint), otherPending) ->
+    Just ((name, constraintSource), otherPending) ->
       do
         let goals1 = Goals rootPlatform otherPending solved
-        let lowestVersion = C.lowerBound constraint
-        goals2 <- addVersion key goals1 name lowestVersion
+        goals2 <- addVersion key goals1 name constraintSource
         exploreGoals key goals2
 
-addVersion :: Reporting.DKey -> Goals -> Pkg.Name -> V.Version -> Solver Goals
-addVersion reportKey (Goals rootPlatform pending solved) name version =
+addVersion :: Reporting.DKey -> Goals -> Pkg.Name -> ConstraintSource -> Solver Goals
+addVersion reportKey (Goals rootPlatform pending solved) name source =
   do
-    (Constraints gren platform deps) <- getConstraints reportKey name version
+    let constraint = constraintFromCS source
+    let lowestVersion = C.lowerBound constraint
+    let maybeFilePath = filePathFromCS source
+    (Constraints gren platform deps) <- getConstraints reportKey name lowestVersion maybeFilePath
     if C.goodGren gren
       then
         if Platform.compatible rootPlatform platform
           then do
-            newPending <- foldM (addConstraint name solved) pending (Map.toList deps)
-            return (Goals rootPlatform newPending (Map.insert name version solved))
+            depsConstraintSources <- Map.traverseWithKey resolveToConstraintSource deps
+            newPending <- foldM (addConstraint name solved) pending (Map.toList depsConstraintSources)
+            return (Goals rootPlatform newPending (Map.insert name source solved))
           else
             solverError $
               Exit.SolverIncompatiblePlatforms name rootPlatform platform
       else backtrack
 
-addConstraint :: Pkg.Name -> Map.Map Pkg.Name V.Version -> Map.Map Pkg.Name C.Constraint -> (Pkg.Name, C.Constraint) -> Solver (Map.Map Pkg.Name C.Constraint)
-addConstraint sourcePkg solved unsolved (name, newConstraint) =
-  case Map.lookup name solved of
-    Just version ->
-      if C.satisfies newConstraint version
-        then return unsolved
-        else
-          solverError $
-            Exit.SolverIncompatibleSolvedVersion sourcePkg name newConstraint version
-    Nothing ->
-      case Map.lookup name unsolved of
-        Nothing ->
-          return $ Map.insert name newConstraint unsolved
-        Just oldConstraint ->
-          case C.intersect oldConstraint newConstraint of
-            Nothing ->
-              solverError $
-                Exit.SolverIncompatibleVersionRanges sourcePkg name oldConstraint newConstraint
-            Just mergedConstraint ->
-              if oldConstraint == mergedConstraint
+addConstraint :: Pkg.Name -> Map.Map Pkg.Name ConstraintSource -> Map.Map Pkg.Name ConstraintSource -> (Pkg.Name, ConstraintSource) -> Solver (Map.Map Pkg.Name ConstraintSource)
+addConstraint sourcePkg solved unsolved (name, newConstraintSource) =
+  let newConstraint = constraintFromCS newConstraintSource
+   in case Map.lookup name solved of
+        Just solvedConstraintSource ->
+          let solvedVersion = C.lowerBound $ constraintFromCS solvedConstraintSource
+           in if C.satisfies newConstraint solvedVersion
                 then return unsolved
-                else return (Map.insert name mergedConstraint unsolved)
+                else
+                  solverError $
+                    Exit.SolverIncompatibleSolvedVersion sourcePkg name newConstraint solvedVersion
+        Nothing ->
+          case Map.lookup name unsolved of
+            Nothing ->
+              return $ Map.insert name newConstraintSource unsolved
+            Just oldConstraintSource ->
+              let oldConstraint = constraintFromCS oldConstraintSource
+               in case C.intersect oldConstraint newConstraint of
+                    Nothing ->
+                      solverError $
+                        Exit.SolverIncompatibleVersionRanges sourcePkg name oldConstraint newConstraint
+                    Just mergedConstraint ->
+                      if oldConstraint == mergedConstraint
+                        then return unsolved
+                        else return (Map.insert name (setConstraintInCS mergedConstraint newConstraintSource) unsolved)
 
 -- GET CONSTRAINTS
 
-getConstraints :: Reporting.DKey -> Pkg.Name -> V.Version -> Solver Constraints
-getConstraints reportKey pkg vsn =
+getConstraints :: Reporting.DKey -> Pkg.Name -> V.Version -> Maybe FilePath -> Solver Constraints
+getConstraints reportKey pkg vsn maybeFilePath =
   Solver $ \state@(State cache cDict) ok back err ->
     do
       let key = (pkg, vsn)
@@ -223,11 +294,13 @@ getConstraints reportKey pkg vsn =
           ok state cs back
         Nothing ->
           do
-            isPackageInCache <- Package.isPackageInCache cache pkg vsn
-            if isPackageInCache
+            let packageCachePath = Dirs.package cache pkg vsn
+            let path = Maybe.fromMaybe packageCachePath maybeFilePath
+            isPackageOnDisk <- Dir.doesDirectoryExist path
+            if isPackageOnDisk
               then do
                 Reporting.report reportKey Reporting.DCached
-                constraintsDecodeResult <- getConstraintsHelper cache pkg vsn
+                constraintsDecodeResult <- getConstraintsHelper path pkg vsn
                 case constraintsDecodeResult of
                   Left exitMsg ->
                     err exitMsg
@@ -243,17 +316,17 @@ getConstraints reportKey pkg vsn =
                       err $ Exit.SolverBadGitOperationVersionedPkg pkg vsn gitErr
                   Right () -> do
                     Reporting.report reportKey $ Reporting.DReceived pkg vsn
-                    constraintsDecodeResult <- getConstraintsHelper cache pkg vsn
+                    constraintsDecodeResult <- getConstraintsHelper packageCachePath pkg vsn
                     case constraintsDecodeResult of
                       Left exitMsg ->
                         err exitMsg
                       Right cs ->
                         ok (State cache (Map.insert key cs cDict)) cs back
 
-getConstraintsHelper :: Dirs.PackageCache -> Pkg.Name -> V.Version -> IO (Either Exit.Solver Constraints)
-getConstraintsHelper cache pkg vsn =
+getConstraintsHelper :: FilePath -> Pkg.Name -> V.Version -> IO (Either Exit.Solver Constraints)
+getConstraintsHelper projectRoot pkg vsn =
   do
-    let path = Dirs.package cache pkg vsn </> "gren.json"
+    let path = projectRoot </> "gren.json"
     bytes <- File.readUtf8 path
     case D.fromByteString constraintsDecoder bytes of
       Right cs ->
