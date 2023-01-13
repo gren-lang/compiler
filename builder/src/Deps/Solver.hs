@@ -69,7 +69,7 @@ data Result a
 -- VERIFY -- used by Gren.Details
 
 data Details
-  = Details V.Version (Map.Map Pkg.Name (PossibleFilePath C.Constraint))
+  = Details V.Version (Maybe FilePath) (Map.Map Pkg.Name (PossibleFilePath C.Constraint))
 
 verify ::
   Reporting.DKey ->
@@ -91,7 +91,7 @@ addDeps :: State -> Pkg.Name -> ConstraintSource -> Details
 addDeps (State _ constraints) name constraintSource =
   let vsn = C.lowerBound $ constraintFromCS constraintSource
    in case Map.lookup (name, vsn) constraints of
-        Just (Constraints _ _ deps) -> Details vsn deps
+        Just (Constraints _ _ deps) -> Details vsn (filePathFromCS constraintSource) deps
         Nothing -> error "compiler bug manifesting in Deps.Solver.addDeps"
 
 -- ADD TO APP - used in Install

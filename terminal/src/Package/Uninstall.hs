@@ -112,9 +112,9 @@ attemptChanges root env skipPrompt oldOutline toChars changes =
             ]
     Changes changeDict newOutline ->
       let widths = Map.foldrWithKey (widen toChars) (Widths 0 0 0) changeDict
-          changeDocs = Map.foldrWithKey (addChange toChars widths) ([]) changeDict
+          changeDocs = Map.foldrWithKey (addChange toChars widths) [] changeDict
        in attemptChangesHelp root env skipPrompt oldOutline newOutline $
-            D.vcat $
+            D.vcat
               [ "Here is my plan:",
                 viewChangeDocs changeDocs,
                 "",
@@ -159,7 +159,7 @@ makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ rootPlatform _ 
       case result of
         Solver.Ok solution ->
           let old = Map.union direct indirect
-              new = Map.map (\(Solver.Details v _) -> PossibleFilePath.Other v) solution
+              new = Map.map (\(Solver.Details v _ _) -> PossibleFilePath.Other v) solution
            in if Map.member pkg new
                 then
                   return $
@@ -178,7 +178,7 @@ makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ rootPlatform _ 
                             Outline._app_deps_indirect = Map.intersection indirect new
                           }
         Solver.NoSolution ->
-          Task.throw $ Exit.UninstallNoSolverSolution
+          Task.throw Exit.UninstallNoSolverSolution
         Solver.Err exit ->
           Task.throw $ Exit.UninstallHadSolverTrouble exit
     Nothing ->
@@ -190,7 +190,7 @@ makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ rootPlatform _ 
           case result of
             Solver.Ok solution ->
               let old = Map.union direct indirect
-                  new = Map.map (\(Solver.Details v _) -> PossibleFilePath.Other v) solution
+                  new = Map.map (\(Solver.Details v _ _) -> PossibleFilePath.Other v) solution
                in if Map.member pkg new
                     then return $ PackageIsRequired (packagesDependingOn pkg solution)
                     else
@@ -202,7 +202,7 @@ makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ rootPlatform _ 
                                 Outline._app_deps_indirect = Map.intersection indirect new
                               }
             Solver.NoSolution ->
-              Task.throw $ Exit.UninstallNoSolverSolution
+              Task.throw Exit.UninstallNoSolverSolution
             Solver.Err exit ->
               Task.throw $ Exit.UninstallHadSolverTrouble exit
         Nothing ->
@@ -215,7 +215,7 @@ toConstraints direct indirect =
 packagesDependingOn :: Pkg.Name -> Map.Map Pkg.Name Solver.Details -> [Pkg.Name]
 packagesDependingOn targetPkg solution =
   Map.foldrWithKey
-    ( \pkg (Solver.Details _ deps) acc ->
+    ( \pkg (Solver.Details _ _ deps) acc ->
         if Map.member targetPkg deps
           then pkg : acc
           else acc
@@ -242,7 +242,7 @@ makePkgPlan (Solver.Env cache) pkg outline@(Outline.PkgOutline _ _ _ _ _ deps _ 
                       { Outline._pkg_deps = withMissingPkg
                       }
         Solver.NoSolution ->
-          Task.throw $ Exit.UninstallNoSolverSolution
+          Task.throw Exit.UninstallNoSolverSolution
         Solver.Err exit ->
           Task.throw $ Exit.UninstallHadSolverTrouble exit
 

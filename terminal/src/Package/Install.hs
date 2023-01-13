@@ -221,7 +221,7 @@ makePkgPlan (Solver.Env cache) pkg outline@(Outline.PkgOutline _ _ _ _ _ deps _ 
           result <- Task.io $ Solver.verify Reporting.ignorer cache rootPlatform cons
           case result of
             Solver.Ok solution ->
-              let (Solver.Details vsn _) = solution ! pkg
+              let (Solver.Details vsn _ _) = solution ! pkg
 
                   con = C.untilNextMajor vsn
                   new = Map.insert pkg (PossibleFilePath.Other con) old

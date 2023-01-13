@@ -119,10 +119,10 @@ pkgOutline platform deps =
 appOutlineFromSolverDetails ::
   Platform.Platform ->
   [Pkg.Name] ->
-  (Map.Map Pkg.Name Solver.Details) ->
+  Map.Map Pkg.Name Solver.Details ->
   Outline.Outline
 appOutlineFromSolverDetails platform initialDeps details =
-  let solution = Map.map (\(Solver.Details vsn _) -> vsn) details
+  let solution = Map.map (\(Solver.Details vsn _ _) -> vsn) details
       defaultDeps = Map.fromList $ map (\dep -> (dep, Con.exactly V.one)) initialDeps
       directs = Map.intersection solution defaultDeps
       indirects = Map.difference solution defaultDeps

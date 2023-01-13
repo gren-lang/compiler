@@ -211,7 +211,7 @@ verifyApp env@(Env reportKey _ _ _) time (Outline.AppOutline grenVersion rootPla
       if Map.size stated == Map.size actual
         then verifyDependencies env time (ValidApp rootPlatform srcDirs) actual direct
         else
-          let actualVersions = Map.map (\(Solver.Details vsn _) -> vsn) actual
+          let actualVersions = Map.map (\(Solver.Details vsn _ _) -> vsn) actual
            in Task.throw $
                 Exit.DetailsMissingDeps $
                   Map.toList $
@@ -316,9 +316,9 @@ type Dep =
   Either (Maybe Exit.DetailsBadDep) Artifacts
 
 verifyDep :: Env -> MVar (Map.Map Pkg.Name (MVar Dep)) -> Map.Map Pkg.Name Solver.Details -> Pkg.Name -> Solver.Details -> IO Dep
-verifyDep (Env key _ _ cache) depsMVar solution pkg details@(Solver.Details vsn directDeps) =
+verifyDep (Env key _ _ cache) depsMVar solution pkg details@(Solver.Details vsn _ directDeps) =
   do
-    let fingerprint = Map.intersectionWith (\(Solver.Details v _) _ -> v) solution directDeps
+    let fingerprint = Map.intersectionWith (\(Solver.Details v _ _) _ -> v) solution directDeps
     maybeCache <- File.readBinary (Dirs.package cache pkg vsn </> "artifacts.dat")
     case maybeCache of
       Nothing ->
@@ -341,9 +341,9 @@ type Fingerprint =
 -- BUILD
 
 build :: Reporting.DKey -> Dirs.PackageCache -> MVar (Map.Map Pkg.Name (MVar Dep)) -> Pkg.Name -> Solver.Details -> Fingerprint -> Set.Set Fingerprint -> IO Dep
-build key cache depsMVar pkg (Solver.Details vsn _) f fs =
+build key cache depsMVar pkg (Solver.Details vsn maybeLocalPath _) f fs =
   do
-    eitherOutline <- Outline.read (Dirs.package cache pkg vsn)
+    eitherOutline <- Outline.read $ Maybe.fromMaybe (Dirs.package cache pkg vsn) maybeLocalPath
     case eitherOutline of
       Left _ ->
         do
@@ -361,12 +361,12 @@ build key cache depsMVar pkg (Solver.Details vsn _) f fs =
             Left _ ->
               do
                 Reporting.report key Reporting.DBroken
-                return $ Left $ Nothing
+                return $ Left Nothing
             Right directArtifacts ->
               do
                 let src = Dirs.package cache pkg vsn </> "src"
                 let foreignDeps = gatherForeignInterfaces directArtifacts
-                let exposedDict = Map.fromKeys (\_ -> ()) (Outline.flattenExposed exposed)
+                let exposedDict = Map.fromKeys (const ()) (Outline.flattenExposed exposed)
                 docsStatus <- getDocsStatus cache pkg vsn
                 mvar <- newEmptyMVar
                 mvars <- Map.traverseWithKey (const . fork . crawlModule foreignDeps mvar pkg src docsStatus) exposedDict
