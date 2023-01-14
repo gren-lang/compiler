@@ -396,11 +396,15 @@ build key cache depsMVar pkg (Solver.Details vsn maybeLocalPath _) f fs =
                               objects = gatherObjects results
                               artifacts = Artifacts ifaces objects
                               fingerprints = Set.insert f fs
-                           in do
-                                writeDocs packageDir docsStatus results
-                                File.writeBinary path (ArtifactCache fingerprints artifacts)
-                                Reporting.report key Reporting.DBuilt
-                                return (Right artifacts)
+                           in if Maybe.isJust maybeLocalPath
+                                then do
+                                  Reporting.report key Reporting.DBuilt
+                                  return (Right artifacts)
+                                else do
+                                  writeDocs packageDir docsStatus results
+                                  File.writeBinary path (ArtifactCache fingerprints artifacts)
+                                  Reporting.report key Reporting.DBuilt
+                                  return (Right artifacts)
 
 -- GATHER
 
