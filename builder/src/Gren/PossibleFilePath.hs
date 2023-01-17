@@ -3,6 +3,7 @@ module Gren.PossibleFilePath
     mapWith,
     encodeJson,
     other,
+    is,
     toChars,
   )
 where
@@ -26,6 +27,12 @@ other possibleFP =
   case possibleFP of
     Is _ -> Nothing
     Other a -> Just a
+
+is :: PossibleFilePath a -> Bool
+is possibleFP =
+  case possibleFP of
+    Is _ -> True
+    Other _ -> False
 
 encodeJson :: (a -> E.Value) -> PossibleFilePath a -> E.Value
 encodeJson encoderForNonFP possibleFP =
