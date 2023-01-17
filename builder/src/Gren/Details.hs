@@ -121,35 +121,18 @@ loadInterfaces root (Details _ _ _ _ _ extras) =
 
 -- VERIFY INSTALL -- used by Install
 
-verifyInstall :: BW.Scope -> FilePath -> Solver.Env -> Outline.Outline -> IO (Either Exit.Details ())
+verifyInstall :: BW.Scope -> FilePath -> Solver.Env -> Outline.Outline -> IO (Either Exit.Details Details)
 verifyInstall scope root (Solver.Env cache) outline =
   do
     time <- File.getTime (root </> "gren.json")
     let key = Reporting.ignorer
     let env = Env key scope root cache
-    case outline of
-      Outline.Pkg pkg -> Task.run (verifyPkg env time pkg >> return ())
-      Outline.App app -> Task.run (verifyApp env time app >> return ())
+    generate env outline time
 
 -- LOAD -- used by Make, Docs, Repl
 
 load :: Reporting.Style -> BW.Scope -> FilePath -> IO (Either Exit.Details Details)
 load style scope root =
-  do
-    newTime <- File.getTime (root </> "gren.json")
-    maybeDetails <- File.readBinary (Dirs.details root)
-    case maybeDetails of
-      Nothing ->
-        generate style scope root newTime
-      Just details@(Details oldTime _ buildID _ _ _) ->
-        if oldTime == newTime
-          then return (Right details {_buildID = buildID + 1})
-          else generate style scope root newTime
-
--- GENERATE
-
-generate :: Reporting.Style -> BW.Scope -> FilePath -> File.Time -> IO (Either Exit.Details Details)
-generate style scope root time =
   Reporting.trackDetails style $ \key ->
     do
       result <- initEnv key scope root
@@ -157,9 +140,32 @@ generate style scope root time =
         Left exit ->
           return (Left exit)
         Right (env, outline) ->
-          case outline of
-            Outline.Pkg pkg -> Task.run (verifyPkg env time pkg)
-            Outline.App app -> Task.run (verifyApp env time app)
+          do
+            newTime <- File.getTime (root </> "gren.json")
+            maybeDetails <- File.readBinary (Dirs.details root)
+            case maybeDetails of
+              Nothing ->
+                generate env outline newTime
+              Just details@(Details oldTime _ buildID _ _ _) ->
+                if oldTime == newTime && not (containsLocalDeps outline)
+                  then return (Right details {_buildID = buildID + 1})
+                  else generate env outline newTime
+
+containsLocalDeps :: Outline.Outline -> Bool
+containsLocalDeps outline =
+  case outline of
+    Outline.Pkg pkg ->
+      any PossibleFilePath.is $ Map.elems (Outline._pkg_deps pkg)
+    Outline.App app ->
+      any PossibleFilePath.is $ Map.elems (Map.union (Outline._app_deps_direct app) (Outline._app_deps_indirect app))
+
+-- GENERATE
+
+generate :: Env -> Outline.Outline -> File.Time -> IO (Either Exit.Details Details)
+generate env outline time =
+  case outline of
+    Outline.Pkg pkg -> Task.run (verifyPkg env time pkg)
+    Outline.App app -> Task.run (verifyApp env time app)
 
 -- ENV
 

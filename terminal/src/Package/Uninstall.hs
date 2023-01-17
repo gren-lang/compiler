@@ -139,7 +139,7 @@ attemptChangesHelp root env skipPrompt oldOutline newOutline question =
                 do
                   Outline.write root oldOutline
                   return (Left exit)
-              Right () ->
+              Right _ ->
                 do
                   putStrLn "Success!"
                   return (Right ())
