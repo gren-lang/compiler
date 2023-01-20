@@ -8,6 +8,8 @@ module Git
     --
     hasLocalTag,
     hasLocalChangesSinceTag,
+    --
+    kernelCodeSignedByLeadDeveloper,
   )
 where
 
@@ -173,3 +175,23 @@ hasLocalChangesSinceTag vsn = do
           return $ Left $ FailedCommand ("git" : args) stderr
         Exit.ExitSuccess ->
           return $ Right ()
+
+--
+
+kernelCodeSignedByLeadDeveloper :: FilePath -> IO Bool
+kernelCodeSignedByLeadDeveloper path = do
+  maybeExec <- checkInstalledGit
+  case maybeExec of
+    Nothing ->
+      return False
+    Just git -> do
+      let args = ["diff-index", "--quiet", "HEAD", "--", "*.js"]
+      (exitCode, _, _) <-
+        Process.readCreateProcessWithExitCode
+          (Process.proc git args) {Process.cwd = Just path}
+          ""
+      case exitCode of
+        Exit.ExitFailure _ ->
+          return False
+        Exit.ExitSuccess ->
+          return True

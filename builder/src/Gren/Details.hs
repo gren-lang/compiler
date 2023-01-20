@@ -36,6 +36,7 @@ import Data.Word (Word64)
 import Deps.Solver qualified as Solver
 import Directories qualified as Dirs
 import File qualified
+import Git qualified
 import Gren.Constraint qualified as Con
 import Gren.Docs qualified as Docs
 import Gren.Interface qualified as I
@@ -414,9 +415,9 @@ build key cache depsMVar pkg (Solver.Details vsn maybeLocalPath _) f fs =
                                   return (Right artifacts)
 
 packageAuthorizedForKernelCode :: Pkg.Name -> FilePath -> IO Bool
-packageAuthorizedForKernelCode pkg _packageDir =
+packageAuthorizedForKernelCode pkg packageDir =
   if Pkg.isKernel pkg
-    then return True
+    then Git.kernelCodeSignedByLeadDeveloper packageDir
     else return False
 
 -- GATHER
