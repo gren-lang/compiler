@@ -415,10 +415,9 @@ build key cache depsMVar pkg (Solver.Details vsn maybeLocalPath _) f fs =
 
 packageAuthorizedForKernelCode :: Pkg.Name -> FilePath -> IO Bool
 packageAuthorizedForKernelCode pkg _packageDir =
-  if Pkg.isKernel pkg then
-    return True
-  else
-    return False
+  if Pkg.isKernel pkg
+    then return True
+    else return False
 
 -- GATHER
 
@@ -504,9 +503,10 @@ crawlModule foreignDeps mvar pkg src docsStatus authorizedForKernelCode name =
           then crawlFile foreignDeps mvar pkg src docsStatus authorizedForKernelCode name path
           else
             if Pkg.isKernel pkg && Name.isKernel name
-              then if authorizedForKernelCode
-                then crawlKernel foreignDeps mvar pkg src name
-                else error $ ModuleName.toChars name ++ " in " ++ Pkg.toChars pkg ++ " references kernel code which has not been signed by Gren's lead developer."
+              then
+                if authorizedForKernelCode
+                  then crawlKernel foreignDeps mvar pkg src name
+                  else error $ ModuleName.toChars name ++ " in " ++ Pkg.toChars pkg ++ " references kernel code which has not been signed by Gren's lead developer."
               else return Nothing
 
 crawlFile :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> DocsStatus -> Bool -> ModuleName.Raw -> FilePath -> IO (Maybe Status)
