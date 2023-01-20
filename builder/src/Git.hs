@@ -185,13 +185,56 @@ kernelCodeSignedByLeadDeveloper path = do
     Nothing ->
       return False
     Just git -> do
-      let args = ["diff-index", "--quiet", "HEAD", "--", "*.js"]
-      (exitCode, _, _) <-
-        Process.readCreateProcessWithExitCode
-          (Process.proc git args) {Process.cwd = Just path}
-          ""
-      case exitCode of
-        Exit.ExitFailure _ ->
-          return False
-        Exit.ExitSuccess ->
+      jsFilesUnchanged <- noChangesToJSFilesSinceHead git path
+      if not jsFilesUnchanged
+        then return False
+        else do
+          commitHash <- lastCommitWithChangesToJSFile git path
+          signature <- extractSignatureFromCommit git path commitHash
+          putStrLn signature
           return True
+
+noChangesToJSFilesSinceHead :: FilePath -> FilePath -> IO Bool
+noChangesToJSFilesSinceHead git path = do
+  let args = ["diff-index", "--quiet", "HEAD", "--", "*.js"]
+  (exitCode, _, _) <-
+    Process.readCreateProcessWithExitCode
+      (Process.proc git args) {Process.cwd = Just path}
+      ""
+  case exitCode of
+    Exit.ExitFailure _ ->
+      return False
+    Exit.ExitSuccess ->
+      return True
+
+lastCommitWithChangesToJSFile :: FilePath -> FilePath -> IO String
+lastCommitWithChangesToJSFile git path = do
+  let args = ["log", "-n 1", "--format=%H", "--", "*.js"]
+  (exitCode, stdout, _) <-
+    Process.readCreateProcessWithExitCode
+      (Process.proc git args) {Process.cwd = Just path}
+      ""
+  case exitCode of
+    Exit.ExitFailure _ ->
+      return ""
+    Exit.ExitSuccess ->
+      -- trim = unwords . words
+      return (unwords (words stdout))
+
+extractSignatureFromCommit :: FilePath -> FilePath -> String -> IO String
+extractSignatureFromCommit git path hash = do
+  let args = ["cat-file", "-p", hash]
+  (exitCode, stdout, _) <-
+    Process.readCreateProcessWithExitCode
+      (Process.proc git args) {Process.cwd = Just path}
+      ""
+  case exitCode of
+    Exit.ExitFailure _ -> do
+      return ""
+    Exit.ExitSuccess ->
+      return $
+        concatMap (dropWhile (\c -> c == ' ')) $
+          takeWhile (\line -> not $ List.isInfixOf "-----END SSH SIGNATURE-----" line) $
+            drop 1 $
+              dropWhile (\line -> not $ List.isPrefixOf "gpgsig" line) $
+                lines stdout
