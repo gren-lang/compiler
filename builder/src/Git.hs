@@ -13,6 +13,11 @@ module Git
   )
 where
 
+import Data.Binary.Get qualified as Get
+import Data.ByteString.Base64 qualified as Base64
+import Data.ByteString.Char8 qualified as BSBuilder
+import Data.ByteString.Lazy (ByteString)
+import Data.ByteString.Lazy.Char8 qualified as BSLazy
 import Data.Either qualified as Either
 import Data.List qualified as List
 import Data.Maybe qualified as Maybe
@@ -232,9 +237,25 @@ extractSignatureFromCommit git path hash = do
     Exit.ExitFailure _ -> do
       return ""
     Exit.ExitSuccess ->
-      return $
-        concatMap (dropWhile (\c -> c == ' ')) $
-          takeWhile (\line -> not $ List.isInfixOf "-----END SSH SIGNATURE-----" line) $
-            drop 1 $
-              dropWhile (\line -> not $ List.isPrefixOf "gpgsig" line) $
-                lines stdout
+      let decodedSignatureChunk =
+            Base64.decode $
+              BSBuilder.pack $
+                concatMap (dropWhile (\c -> c == ' ')) $
+                  takeWhile (\line -> not $ List.isInfixOf "-----END SSH SIGNATURE-----" line) $
+                    drop 1 $
+                      dropWhile (\line -> not $ List.isPrefixOf "gpgsig" line) $
+                        lines stdout
+       in case decodedSignatureChunk of
+            Left err ->
+              return err
+            Right decoded ->
+              return $ BSLazy.unpack $ Get.runGet decodeSignatureFromChunk $ BSLazy.fromStrict decoded
+
+decodeSignatureFromChunk :: Get.Get ByteString
+decodeSignatureFromChunk = do
+  Get.skip 10
+  _publicKey <- Get.getLazyByteStringNul
+  _namespace <- Get.getLazyByteStringNul
+  _reserved <- Get.getLazyByteStringNul
+  _hash_algorithm <- Get.getLazyByteStringNul
+  Get.getLazyByteStringNul
