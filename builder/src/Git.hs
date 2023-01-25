@@ -15,7 +15,8 @@ where
 
 import Data.Binary.Get qualified as Get
 import Data.ByteString.Base64 qualified as Base64
-import Data.ByteString.Char8 qualified as BSBuilder
+import Data.ByteString.Builder qualified as BSBuilder
+import Data.ByteString.Char8 qualified as BSStrict
 import Data.ByteString.Lazy (ByteString)
 import Data.ByteString.Lazy.Char8 qualified as BSLazy
 import Data.Either qualified as Either
@@ -183,6 +184,10 @@ hasLocalChangesSinceTag vsn = do
 
 --
 
+kernelCodePublicKey :: String
+kernelCodePublicKey =
+  "7373682d65643235353139000000204138f9d16b668718e47b4628c85a852434d79cc005fc5e7388"
+
 kernelCodeSignedByLeadDeveloper :: FilePath -> IO Bool
 kernelCodeSignedByLeadDeveloper path = do
   maybeExec <- checkInstalledGit
@@ -195,9 +200,8 @@ kernelCodeSignedByLeadDeveloper path = do
         then return False
         else do
           commitHash <- lastCommitWithChangesToJSFile git path
-          signature <- extractSignatureFromCommit git path commitHash
-          putStrLn signature
-          return True
+          publicKey <- extractPublicKeyFromCommit git path commitHash
+          return $ publicKey == kernelCodePublicKey
 
 noChangesToJSFilesSinceHead :: FilePath -> FilePath -> IO Bool
 noChangesToJSFilesSinceHead git path = do
@@ -226,8 +230,8 @@ lastCommitWithChangesToJSFile git path = do
       -- trim = unwords . words
       return (unwords (words stdout))
 
-extractSignatureFromCommit :: FilePath -> FilePath -> String -> IO String
-extractSignatureFromCommit git path hash = do
+extractPublicKeyFromCommit :: FilePath -> FilePath -> String -> IO String
+extractPublicKeyFromCommit git path hash = do
   let args = ["cat-file", "-p", hash]
   (exitCode, stdout, _) <-
     Process.readCreateProcessWithExitCode
@@ -239,7 +243,7 @@ extractSignatureFromCommit git path hash = do
     Exit.ExitSuccess ->
       let decodedSignatureChunk =
             Base64.decode $
-              BSBuilder.pack $
+              BSStrict.pack $
                 concatMap (dropWhile (\c -> c == ' ')) $
                   takeWhile (\line -> not $ List.isInfixOf "-----END SSH SIGNATURE-----" line) $
                     drop 1 $
@@ -249,13 +253,21 @@ extractSignatureFromCommit git path hash = do
             Left err ->
               return err
             Right decoded ->
-              return $ BSLazy.unpack $ Get.runGet decodeSignatureFromChunk $ BSLazy.fromStrict decoded
+              return $
+                BSLazy.unpack $
+                  BSBuilder.toLazyByteString $
+                    BSBuilder.lazyByteStringHex $
+                      Get.runGet decodePublicKeyFromChunk $
+                        BSLazy.fromStrict decoded
 
-decodeSignatureFromChunk :: Get.Get ByteString
-decodeSignatureFromChunk = do
-  Get.skip 10
-  _publicKey <- Get.getLazyByteStringNul
-  _namespace <- Get.getLazyByteStringNul
-  _reserved <- Get.getLazyByteStringNul
-  _hash_algorithm <- Get.getLazyByteStringNul
-  Get.getLazyByteStringNul
+{- Description of format at https://github.com/openssh/openssh-portable/blob/master/PROTOCOL.sshsig
+  Description of byte encoding at https://dl.acm.org/doi/pdf/10.17487/RFC4253
+-}
+decodePublicKeyFromChunk :: Get.Get ByteString
+decodePublicKeyFromChunk = do
+  Get.skip 6
+  _version <- Get.getInt32be
+  publicKeyLen <- Get.getInt32be
+  publicKeyPadding <- Get.getInt32be
+  let actualPublicKeyLen = fromIntegral (publicKeyLen - publicKeyPadding)
+  Get.getLazyByteString actualPublicKeyLen
