@@ -8,9 +8,17 @@ module Git
     --
     hasLocalTag,
     hasLocalChangesSinceTag,
+    --
+    kernelCodeSignedByLeadDeveloper,
   )
 where
 
+import Data.Binary.Get qualified as Get
+import Data.ByteString.Base64 qualified as Base64
+import Data.ByteString.Builder qualified as BSBuilder
+import Data.ByteString.Char8 qualified as BSStrict
+import Data.ByteString.Lazy (ByteString)
+import Data.ByteString.Lazy.Char8 qualified as BSLazy
 import Data.Either qualified as Either
 import Data.List qualified as List
 import Data.Maybe qualified as Maybe
@@ -173,3 +181,93 @@ hasLocalChangesSinceTag vsn = do
           return $ Left $ FailedCommand ("git" : args) stderr
         Exit.ExitSuccess ->
           return $ Right ()
+
+--
+
+kernelCodePublicKey :: String
+kernelCodePublicKey =
+  "7373682d65643235353139000000204138f9d16b668718e47b4628c85a852434d79cc005fc5e7388"
+
+kernelCodeSignedByLeadDeveloper :: FilePath -> IO Bool
+kernelCodeSignedByLeadDeveloper path = do
+  maybeExec <- checkInstalledGit
+  case maybeExec of
+    Nothing ->
+      return False
+    Just git -> do
+      jsFilesUnchanged <- noChangesToJSFilesSinceHead git path
+      if not jsFilesUnchanged
+        then return False
+        else do
+          commitHash <- lastCommitWithChangesToJSFile git path
+          publicKey <- extractPublicKeyFromCommit git path commitHash
+          return $ publicKey == kernelCodePublicKey
+
+noChangesToJSFilesSinceHead :: FilePath -> FilePath -> IO Bool
+noChangesToJSFilesSinceHead git path = do
+  let args = ["diff-index", "--quiet", "HEAD", "--", "*.js"]
+  (exitCode, _, _) <-
+    Process.readCreateProcessWithExitCode
+      (Process.proc git args) {Process.cwd = Just path}
+      ""
+  case exitCode of
+    Exit.ExitFailure _ ->
+      return False
+    Exit.ExitSuccess ->
+      return True
+
+lastCommitWithChangesToJSFile :: FilePath -> FilePath -> IO String
+lastCommitWithChangesToJSFile git path = do
+  let args = ["log", "-n 1", "--format=%H", "--", "*.js"]
+  (exitCode, stdout, _) <-
+    Process.readCreateProcessWithExitCode
+      (Process.proc git args) {Process.cwd = Just path}
+      ""
+  case exitCode of
+    Exit.ExitFailure _ ->
+      return ""
+    Exit.ExitSuccess ->
+      -- trim = unwords . words
+      return (unwords (words stdout))
+
+extractPublicKeyFromCommit :: FilePath -> FilePath -> String -> IO String
+extractPublicKeyFromCommit git path hash = do
+  let args = ["cat-file", "-p", hash]
+  (exitCode, stdout, _) <-
+    Process.readCreateProcessWithExitCode
+      (Process.proc git args) {Process.cwd = Just path}
+      ""
+  case exitCode of
+    Exit.ExitFailure _ -> do
+      return ""
+    Exit.ExitSuccess ->
+      let decodedSignatureChunk =
+            Base64.decode $
+              BSStrict.pack $
+                concatMap (dropWhile (\c -> c == ' ')) $
+                  takeWhile (\line -> not $ List.isInfixOf "-----END SSH SIGNATURE-----" line) $
+                    drop 1 $
+                      dropWhile (\line -> not $ List.isPrefixOf "gpgsig" line) $
+                        lines stdout
+       in case decodedSignatureChunk of
+            Left err ->
+              return err
+            Right decoded ->
+              return $
+                BSLazy.unpack $
+                  BSBuilder.toLazyByteString $
+                    BSBuilder.lazyByteStringHex $
+                      Get.runGet decodePublicKeyFromChunk $
+                        BSLazy.fromStrict decoded
+
+{- Description of format at https://github.com/openssh/openssh-portable/blob/master/PROTOCOL.sshsig
+  Description of byte encoding at https://dl.acm.org/doi/pdf/10.17487/RFC4253
+-}
+decodePublicKeyFromChunk :: Get.Get ByteString
+decodePublicKeyFromChunk = do
+  Get.skip 6
+  _version <- Get.getInt32be
+  publicKeyLen <- Get.getInt32be
+  publicKeyPadding <- Get.getInt32be
+  let actualPublicKeyLen = fromIntegral (publicKeyLen - publicKeyPadding)
+  Get.getLazyByteString actualPublicKeyLen

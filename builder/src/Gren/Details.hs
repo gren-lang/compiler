@@ -36,6 +36,7 @@ import Data.Word (Word64)
 import Deps.Solver qualified as Solver
 import Directories qualified as Dirs
 import File qualified
+import Git qualified
 import Gren.Constraint qualified as Con
 import Gren.Docs qualified as Docs
 import Gren.Interface qualified as I
@@ -375,8 +376,9 @@ build key cache depsMVar pkg (Solver.Details vsn maybeLocalPath _) f fs =
                 let foreignDeps = gatherForeignInterfaces directArtifacts
                 let exposedDict = Map.fromKeys (const ()) (Outline.flattenExposed exposed)
                 docsStatus <- getDocsStatus packageDir
+                authorizedForKernelCode <- packageAuthorizedForKernelCode pkg packageDir
                 mvar <- newEmptyMVar
-                mvars <- Map.traverseWithKey (const . fork . crawlModule foreignDeps mvar pkg src docsStatus) exposedDict
+                mvars <- Map.traverseWithKey (const . fork . crawlModule foreignDeps mvar pkg src docsStatus authorizedForKernelCode) exposedDict
                 putMVar mvar mvars
                 mapM_ readMVar mvars
                 maybeStatuses <- traverse readMVar =<< readMVar mvar
@@ -411,6 +413,12 @@ build key cache depsMVar pkg (Solver.Details vsn maybeLocalPath _) f fs =
                                   File.writeBinary path (ArtifactCache fingerprints artifacts)
                                   Reporting.report key Reporting.DBuilt
                                   return (Right artifacts)
+
+packageAuthorizedForKernelCode :: Pkg.Name -> FilePath -> IO Bool
+packageAuthorizedForKernelCode pkg packageDir =
+  if Pkg.isKernel pkg
+    then Git.kernelCodeSignedByLeadDeveloper packageDir
+    else return False
 
 -- GATHER
 
@@ -479,8 +487,8 @@ data Status
   | SKernelLocal [Kernel.Chunk]
   | SKernelForeign
 
-crawlModule :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> DocsStatus -> ModuleName.Raw -> IO (Maybe Status)
-crawlModule foreignDeps mvar pkg src docsStatus name =
+crawlModule :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> DocsStatus -> Bool -> ModuleName.Raw -> IO (Maybe Status)
+crawlModule foreignDeps mvar pkg src docsStatus authorizedForKernelCode name =
   do
     let path = src </> ModuleName.toFilePath name <.> "gren"
     exists <- File.exists path
@@ -493,31 +501,34 @@ crawlModule foreignDeps mvar pkg src docsStatus name =
           else return (Just (SForeign iface))
       Nothing ->
         if exists
-          then crawlFile foreignDeps mvar pkg src docsStatus name path
+          then crawlFile foreignDeps mvar pkg src docsStatus authorizedForKernelCode name path
           else
             if Pkg.isKernel pkg && Name.isKernel name
-              then crawlKernel foreignDeps mvar pkg src name
+              then
+                if authorizedForKernelCode
+                  then crawlKernel foreignDeps mvar pkg src name
+                  else error $ ModuleName.toChars name ++ " in " ++ Pkg.toChars pkg ++ " references kernel code which has not been signed by Gren's lead developer."
               else return Nothing
 
-crawlFile :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> DocsStatus -> ModuleName.Raw -> FilePath -> IO (Maybe Status)
-crawlFile foreignDeps mvar pkg src docsStatus expectedName path =
+crawlFile :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> DocsStatus -> Bool -> ModuleName.Raw -> FilePath -> IO (Maybe Status)
+crawlFile foreignDeps mvar pkg src docsStatus authorizedForKernelCode expectedName path =
   do
     bytes <- File.readUtf8 path
     case Parse.fromByteString (Parse.Package pkg) bytes of
       Right modul@(Src.Module (Just (A.At _ actualName)) _ _ imports _ _ _ _ _ _ _) | expectedName == actualName ->
         do
-          deps <- crawlImports foreignDeps mvar pkg src (fmap snd imports)
+          deps <- crawlImports foreignDeps mvar pkg authorizedForKernelCode src (fmap snd imports)
           return (Just (SLocal docsStatus deps modul))
       _ ->
         return Nothing
 
-crawlImports :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> [Src.Import] -> IO (Map.Map ModuleName.Raw ())
-crawlImports foreignDeps mvar pkg src imports =
+crawlImports :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> Bool -> FilePath -> [Src.Import] -> IO (Map.Map ModuleName.Raw ())
+crawlImports foreignDeps mvar pkg authorizedForKernelCode src imports =
   do
     statusDict <- takeMVar mvar
     let deps = Map.fromList (map (\i -> (Src.getImportName i, ())) imports)
     let news = Map.difference deps statusDict
-    mvars <- Map.traverseWithKey (const . fork . crawlModule foreignDeps mvar pkg src DocsNotNeeded) news
+    mvars <- Map.traverseWithKey (const . fork . crawlModule foreignDeps mvar pkg src DocsNotNeeded authorizedForKernelCode) news
     putMVar mvar (Map.union mvars statusDict)
     mapM_ readMVar mvars
     return deps
@@ -535,7 +546,7 @@ crawlKernel foreignDeps mvar pkg src name =
             return Nothing
           Just (Kernel.Content imports chunks) ->
             do
-              _ <- crawlImports foreignDeps mvar pkg src imports
+              _ <- crawlImports foreignDeps mvar pkg True src imports
               return (Just (SKernelLocal chunks))
       else return (Just SKernelForeign)
 
