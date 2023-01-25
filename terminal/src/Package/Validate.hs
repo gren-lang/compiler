@@ -10,17 +10,21 @@ import Build qualified
 import Control.Monad (void)
 import Data.Either qualified as Either
 import Data.List qualified as List
+import Data.Map qualified as Map
 import Data.NonEmptyList qualified as NE
 import Deps.Diff qualified as Diff
 import Deps.Package qualified as Package
 import Directories qualified as Dirs
 import File qualified
 import Git qualified
+import Gren.Constraint qualified as Con
 import Gren.Details qualified as Details
 import Gren.Docs qualified as Docs
 import Gren.Magnitude qualified as M
 import Gren.Outline qualified as Outline
 import Gren.Package qualified as Pkg
+import Gren.PossibleFilePath (PossibleFilePath)
+import Gren.PossibleFilePath qualified as PossibleFilePath
 import Gren.Version qualified as V
 import Json.String qualified as Json
 import Reporting qualified
@@ -64,7 +68,7 @@ validate env@(Env root _ outline) =
   case outline of
     Outline.App _ ->
       Task.throw Exit.ValidateApplication
-    Outline.Pkg (Outline.PkgOutline pkg summary _ vsn exposed _ _ _) ->
+    Outline.Pkg (Outline.PkgOutline pkg summary _ vsn exposed deps _ _) ->
       do
         knownVersionsResult <- Task.io $ Package.getVersions pkg
         let knownVersionsMaybe = Either.either (const Nothing) Just knownVersionsResult
@@ -75,12 +79,13 @@ validate env@(Env root _ outline) =
 
         verifyReadme root
         verifyLicense root
+        verifyNoLocalDeps deps
         docs <- verifyBuild root
         verifyVersion env pkg vsn docs knownVersionsMaybe
         verifyTag vsn
         verifyNoChanges vsn
 
-        Task.io $ putStrLn "Success!"
+        Task.io $ putStrLn "Everything looks good!"
 
 -- VERIFY SUMMARY
 
@@ -123,6 +128,16 @@ verifyLicense root =
       if exists
         then return (Right ())
         else return (Left Exit.ValidateNoLicense)
+
+-- VERIFY NO LOCAL DEPS
+
+verifyNoLocalDeps :: Map.Map Pkg.Name (PossibleFilePath Con.Constraint) -> Task.Task Exit.Validate ()
+verifyNoLocalDeps deps =
+  reportLocalDepsCheck $
+    do
+      if any PossibleFilePath.is (Map.elems deps)
+        then return (Left Exit.ValidateHasLocalDependencies)
+        else return (Right ())
 
 -- VERIFY BUILD
 
@@ -245,6 +260,13 @@ reportLicenseCheck =
     "Looking for LICENSE"
     "Found LICENSE"
     "Problem with your LICENSE"
+
+reportLocalDepsCheck :: IO (Either x a) -> Task.Task x a
+reportLocalDepsCheck =
+  reportCheck
+    "Making sure there are no local dependencies"
+    "Found no local dependencies"
+    "Problem with dependencies"
 
 reportBuildCheck :: IO (Either x a) -> Task.Task x a
 reportBuildCheck =
