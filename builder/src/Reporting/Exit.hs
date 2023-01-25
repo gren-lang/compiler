@@ -400,6 +400,7 @@ data Validate
   | ValidateNoReadme
   | ValidateShortReadme
   | ValidateNoLicense
+  | ValidateHasLocalDependencies
   | ValidateBuildProblem BuildProblem
   | ValidateCannotGetDocs V.Version V.Version DocsProblem
   | ValidateMissingTag V.Version
@@ -645,6 +646,16 @@ validateToReport validate =
             \ identifier must appear in your gren.json file. Second, the full\
             \ license text must appear in the root of your project in a file\
             \ named LICENSE. Add that file and you will be all set!"
+        ]
+    ValidateHasLocalDependencies ->
+      Help.report
+        "FOUND LOCAL DEPENDENCIES"
+        (Just "gren.json")
+        "When installing a package, all of the package's dependencies are also installed.\
+        \ Local (on-disk) dependencies cannot be installed over the network, so when you\
+        \ rely on such a package, no one else can install your package either."
+        [ D.reflow
+            "Remove all local dependencies (those prefixed with local:) from your gren.json file."
         ]
     ValidateBuildProblem buildProblem ->
       toBuildProblemReport buildProblem
