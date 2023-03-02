@@ -23,8 +23,6 @@ import Data.Maybe (catMaybes, maybeToList)
 import Data.Maybe qualified as Maybe
 import Data.Name (Name)
 import Data.Semigroup (sconcat)
-import Data.Text qualified as Text
-import Data.Text.Encoding (encodeUtf8Builder)
 import Data.Utf8 qualified as Utf8
 import Gren.Int qualified as GI
 import Gren.String qualified as GS
