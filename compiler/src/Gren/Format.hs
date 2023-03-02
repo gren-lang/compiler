@@ -13,6 +13,7 @@ import AST.Utils.Binop qualified as Binop
 import Control.Monad (join)
 import Data.Bifunctor (second)
 import Data.ByteString.Builder qualified as B
+import Data.ByteString.Short qualified as BSS
 import Data.List qualified as List
 import Data.List.NonEmpty (NonEmpty ((:|)), nonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
@@ -1065,10 +1066,41 @@ formatString style str =
         NonEmpty.fromList $
           mconcat
             [ [Block.line (Block.string7 "\"\"\"")],
-              fmap (Block.line . Block.lineFromBuilder . encodeUtf8Builder) $ Text.splitOn "\\n" $ (Utf8.toText str),
+              fmap (Block.line . Block.lineFromBuilder) $ escapeString True str,
               [Block.line (Block.string7 "\"\"\"")]
             ]
   where
     stringBox :: Block.Line -> Block
     stringBox quotes =
-      Block.line $ quotes <> utf8 str <> quotes
+      Block.line $ quotes <> Block.lineFromBuilder (mconcat $ escapeString False str) <> quotes
+
+    escapeString :: Bool -> Utf8.Utf8 t -> [B.Builder]
+    escapeString isMultiline s =
+      escapeStringHelper isMultiline mempty (Utf8.toShortByteString s)
+
+    escapeStringHelper :: Bool -> B.Builder -> BSS.ShortByteString -> [B.Builder]
+    escapeStringHelper isMultiline acc bytes =
+      case BSS.elemIndex 0x5C {- \ -} bytes of
+        Nothing -> [acc <> B.shortByteString bytes]
+        Just nextBackslashIndex ->
+          case BSS.indexMaybe bytes (nextBackslashIndex + 1) of
+            Just 0x75 {- u -} ->
+              let (pre, hexPlusRest) = BSS.splitAt (nextBackslashIndex + 2) bytes
+                  (hex, rest) = BSS.splitAt 4 hexPlusRest
+               in escapeStringHelper
+                    isMultiline
+                    ( acc
+                        <> B.shortByteString pre
+                        <> B.char7 '{'
+                        <> B.shortByteString hex
+                        <> B.char7 '}'
+                    )
+                    rest
+            Just 0x6E {- n -}
+              | isMultiline ->
+                  let (pre, rest) = BSS.splitAt nextBackslashIndex bytes
+                   in (acc <> B.shortByteString pre)
+                        : escapeStringHelper isMultiline mempty (BSS.drop 2 rest)
+            _ ->
+              let (pre, rest) = BSS.splitAt (nextBackslashIndex + 1) bytes
+               in escapeStringHelper isMultiline (acc <> B.shortByteString pre) rest

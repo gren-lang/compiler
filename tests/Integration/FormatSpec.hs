@@ -350,7 +350,13 @@ spec = do
     describe "string literals" $ do
       it "formats strings" $
         assertFormattedExpression
-          ["a"]
+          ["\"a\""]
+      it "formats escapes" $
+        assertFormattedExpression
+          ["\"\\n\\r\\t\\\"\\'\\\\\""]
+      it "formats unicode escapes" $
+        assertFormattedExpression
+          ["\"A\\u{00A0}B\\u{D83E}\\u{DDDB}C\""]
       it "formats multiline strings with trimmed whitespace" $
         assertFormattedModuleBody
           [ "str =",
@@ -371,6 +377,12 @@ spec = do
                                        "      2",
                                        "    \"\"\""
                                      ]
+      it "formats unicode escapes in multiline strings" $
+        assertFormattedExpression
+          [ "\"\"\"",
+            "A\\u{00A0}B\\u{D83E}\\u{DDDB}C",
+            "\"\"\""
+          ]
 
     describe "int literals" $ do
       it "formats decimal integers" $
