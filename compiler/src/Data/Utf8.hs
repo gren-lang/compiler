@@ -24,6 +24,7 @@ module Data.Utf8
     --
     toChars,
     toText,
+    toShortByteString,
     toBuilder,
     toEscapedBuilder,
     --
@@ -45,6 +46,7 @@ import Data.Binary.Put (putBuilder)
 import Data.Bits (shiftR, (.&.))
 import Data.ByteString.Builder.Internal qualified as B
 import Data.ByteString.Internal qualified as B
+import Data.ByteString.Short qualified as BSS
 import Data.Char qualified as Char
 import Data.List qualified as List
 import Data.Text qualified as Text
@@ -338,6 +340,12 @@ toText :: Utf8 t -> Text.Text
 toText =
   -- This could most certainly be optimized for better performance
   Text.pack . toChars
+
+-- TO BYTESTRING
+
+toShortByteString :: Utf8 t -> BSS.ShortByteString
+toShortByteString (Utf8 bytes) =
+  BSS.SBS bytes
 
 -- TO BUILDER
 
