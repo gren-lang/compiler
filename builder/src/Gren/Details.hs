@@ -323,10 +323,15 @@ type Dep =
   Either (Maybe Exit.DetailsBadDep) Artifacts
 
 verifyDep :: Env -> MVar (Map.Map Pkg.Name (MVar Dep)) -> Map.Map Pkg.Name Solver.Details -> Pkg.Name -> Solver.Details -> IO Dep
-verifyDep (Env key _ _ cache) depsMVar solution pkg details@(Solver.Details vsn _ directDeps) =
+verifyDep (Env key _ _ cache) depsMVar solution pkg details@(Solver.Details vsn maybeLocalPath directDeps) =
   do
     let fingerprint = Map.intersectionWith (\(Solver.Details v _ _) _ -> v) solution directDeps
-    maybeCache <- File.readBinary (Dirs.package cache pkg vsn </> "artifacts.dat")
+    maybeCache <-
+      case maybeLocalPath of
+        Nothing ->
+          File.readBinary (Dirs.package cache pkg vsn </> "artifacts.dat")
+        Just _ ->
+          return Nothing
     case maybeCache of
       Nothing ->
         build key cache depsMVar pkg details fingerprint Set.empty
