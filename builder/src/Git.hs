@@ -241,24 +241,27 @@ extractPublicKeyFromCommit git path hash = do
     Exit.ExitFailure _ -> do
       return ""
     Exit.ExitSuccess ->
-      let decodedSignatureChunk =
-            Base64.decode $
-              BSStrict.pack $
-                concatMap (dropWhile (\c -> c == ' ')) $
-                  takeWhile (\line -> not $ List.isInfixOf "-----END SSH SIGNATURE-----" line) $
-                    drop 1 $
-                      dropWhile (\line -> not $ List.isPrefixOf "gpgsig" line) $
-                        lines stdout
-       in case decodedSignatureChunk of
-            Left err ->
-              return err
-            Right decoded ->
-              return $
-                BSLazy.unpack $
-                  BSBuilder.toLazyByteString $
-                    BSBuilder.lazyByteStringHex $
-                      Get.runGet decodePublicKeyFromChunk $
-                        BSLazy.fromStrict decoded
+      let signatureChunk =
+            concatMap (dropWhile (\c -> c == ' ')) $
+              takeWhile (\line -> not $ List.isInfixOf "-----END SSH SIGNATURE-----" line) $
+                drop 1 $
+                  dropWhile (\line -> not $ List.isPrefixOf "gpgsig" line) $
+                    lines stdout
+       in if null signatureChunk
+            then return ""
+            else
+              let decodedSignatureChunk =
+                    Base64.decode $ BSStrict.pack signatureChunk
+               in case decodedSignatureChunk of
+                    Left err ->
+                      return err
+                    Right decoded ->
+                      return $
+                        BSLazy.unpack $
+                          BSBuilder.toLazyByteString $
+                            BSBuilder.lazyByteStringHex $
+                              Get.runGet decodePublicKeyFromChunk $
+                                BSLazy.fromStrict decoded
 
 {- Description of format at https://github.com/openssh/openssh-portable/blob/master/PROTOCOL.sshsig
   Description of byte encoding at https://dl.acm.org/doi/pdf/10.17487/RFC4253
