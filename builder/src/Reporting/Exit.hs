@@ -1757,6 +1757,7 @@ data Details
 
 data DetailsBadDep
   = BD_BadBuild Pkg.Name V.Version (Map.Map Pkg.Name V.Version)
+  | BD_UnsignedBuild Pkg.Name V.Version
 
 toDetailsReport :: Details -> Help.Report
 toDetailsReport details =
@@ -1857,22 +1858,36 @@ toDetailsReport details =
                 Nothing
                 "I ran into a compilation error when trying to build the following package:"
                 [ D.indent 4 $ D.red $ D.fromChars $ Pkg.toChars pkg ++ " " ++ V.toChars vsn,
-                  D.reflow $
+                  D.reflow
                     "This probably means it has package constraints that are too wide. It may be\
                     \ possible to tweak your gren.json to avoid the root problem as a stopgap. Head\
                     \ over to https://gren-lang.org/community to get help figuring out how to take\
                     \ this path!",
-                  D.toSimpleNote $
+                  D.toSimpleNote
                     "To help with the root problem, please report this to the package author along\
                     \ with the following information:",
                   D.indent 4 $
                     D.vcat $
                       map (\(p, v) -> D.fromChars $ Pkg.toChars p ++ " " ++ V.toChars v) $
                         Map.toList fingerprint,
-                  D.reflow $
+                  D.reflow
                     "If you want to help out even more, try building the package locally. That should\
                     \ give you much more specific information about why this package is failing to\
                     \ build, which will in turn make it easier for the package author to fix it!"
+                ]
+
+            BD_UnsignedBuild pkg vsn ->
+              Help.report
+                "PROBLEM BUILDING DEPENDENCIES (UNSIGNED KERNEL CODE)"
+                Nothing
+                "I ran into a compilation error when trying to build the following package:"
+                [ D.indent 4 $ D.red $ D.fromChars $ Pkg.toChars pkg ++ " " ++ V.toChars vsn,
+                  D.reflow
+                    "This package contains kernel code which has not been signed by the lead\
+                    \ developer of Gren. Kernel code can violate all the guarantees that Gren\
+                    \ provide, and is therefore carefully managed.",
+                  D.toSimpleNote $
+                    "To help with the root problem, please report this to the package author."
                 ]
     DetailsDuplicatedDep pkg ->
       Help.report

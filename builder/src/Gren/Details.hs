@@ -383,11 +383,15 @@ build key cache depsMVar pkg (Solver.Details vsn maybeLocalPath _) f fs =
                 mapM_ readMVar mvars
                 maybeStatuses <- traverse readMVar =<< readMVar mvar
                 case sequence maybeStatuses of
-                  Nothing ->
+                  Left CrawlCorruption ->
                     do
                       Reporting.report key Reporting.DBroken
                       return $ Left $ Just $ Exit.BD_BadBuild pkg vsn f
-                  Just statuses ->
+                  Left CrawlUnsignedKernelCode ->
+                    do
+                      Reporting.report key Reporting.DBroken
+                      return $ Left $ Just $ Exit.BD_UnsignedBuild pkg vsn
+                  Right statuses ->
                     do
                       rmvar <- newEmptyMVar
                       rmvars <- traverse (fork . compile platform pkg rmvar) statuses
@@ -479,7 +483,7 @@ gatherForeignInterfaces directArtifacts =
 -- CRAWL
 
 type StatusDict =
-  Map.Map ModuleName.Raw (MVar (Maybe Status))
+  Map.Map ModuleName.Raw (MVar (Either CrawlError Status))
 
 data Status
   = SLocal DocsStatus (Map.Map ModuleName.Raw ()) Src.Module
@@ -487,18 +491,22 @@ data Status
   | SKernelLocal [Kernel.Chunk]
   | SKernelForeign
 
-crawlModule :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> DocsStatus -> Bool -> ModuleName.Raw -> IO (Maybe Status)
+data CrawlError
+  = CrawlUnsignedKernelCode
+  | CrawlCorruption
+
+crawlModule :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> DocsStatus -> Bool -> ModuleName.Raw -> IO (Either CrawlError Status)
 crawlModule foreignDeps mvar pkg src docsStatus authorizedForKernelCode name =
   do
     let path = src </> ModuleName.toFilePath name <.> "gren"
     exists <- File.exists path
     case Map.lookup name foreignDeps of
       Just ForeignAmbiguous ->
-        return Nothing
+        return $ Left CrawlCorruption
       Just (ForeignSpecific iface) ->
         if exists
-          then return Nothing
-          else return (Just (SForeign iface))
+          then return $ Left CrawlCorruption
+          else return (Right (SForeign iface))
       Nothing ->
         if exists
           then crawlFile foreignDeps mvar pkg src docsStatus authorizedForKernelCode name path
@@ -507,10 +515,10 @@ crawlModule foreignDeps mvar pkg src docsStatus authorizedForKernelCode name =
               then
                 if authorizedForKernelCode
                   then crawlKernel foreignDeps mvar pkg src name
-                  else error $ ModuleName.toChars name ++ " in " ++ Pkg.toChars pkg ++ " references kernel code which has not been signed by Gren's lead developer."
-              else return Nothing
+                  else return $ Left CrawlUnsignedKernelCode
+              else return $ Left CrawlCorruption
 
-crawlFile :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> DocsStatus -> Bool -> ModuleName.Raw -> FilePath -> IO (Maybe Status)
+crawlFile :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> DocsStatus -> Bool -> ModuleName.Raw -> FilePath -> IO (Either CrawlError Status)
 crawlFile foreignDeps mvar pkg src docsStatus authorizedForKernelCode expectedName path =
   do
     bytes <- File.readUtf8 path
@@ -518,9 +526,9 @@ crawlFile foreignDeps mvar pkg src docsStatus authorizedForKernelCode expectedNa
       Right modul@(Src.Module (Just (A.At _ actualName)) _ _ imports _ _ _ _ _ _ _) | expectedName == actualName ->
         do
           deps <- crawlImports foreignDeps mvar pkg authorizedForKernelCode src (fmap snd imports)
-          return (Just (SLocal docsStatus deps modul))
+          return (Right (SLocal docsStatus deps modul))
       _ ->
-        return Nothing
+        return $ Left CrawlCorruption
 
 crawlImports :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> Bool -> FilePath -> [Src.Import] -> IO (Map.Map ModuleName.Raw ())
 crawlImports foreignDeps mvar pkg authorizedForKernelCode src imports =
@@ -533,7 +541,7 @@ crawlImports foreignDeps mvar pkg authorizedForKernelCode src imports =
     mapM_ readMVar mvars
     return deps
 
-crawlKernel :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> ModuleName.Raw -> IO (Maybe Status)
+crawlKernel :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> ModuleName.Raw -> IO (Either CrawlError Status)
 crawlKernel foreignDeps mvar pkg src name =
   do
     let path = src </> ModuleName.toFilePath name <.> "js"
@@ -543,12 +551,12 @@ crawlKernel foreignDeps mvar pkg src name =
         bytes <- File.readUtf8 path
         case Kernel.fromByteString pkg (Map.mapMaybe getDepHome foreignDeps) bytes of
           Nothing ->
-            return Nothing
+            return $ Left CrawlCorruption
           Just (Kernel.Content imports chunks) ->
             do
               _ <- crawlImports foreignDeps mvar pkg True src imports
-              return (Just (SKernelLocal chunks))
-      else return (Just SKernelForeign)
+              return (Right (SKernelLocal chunks))
+      else return (Right SKernelForeign)
 
 getDepHome :: ForeignInterface -> Maybe Pkg.Name
 getDepHome fi =
