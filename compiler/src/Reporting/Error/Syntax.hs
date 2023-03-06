@@ -609,18 +609,18 @@ toReport source err =
           region
           Nothing
           ( D.reflow $
-              "It is not possible to declare an `effect module` outside the @gren organization,\
+              "It is not possible to declare an `effect module` outside the gren-lang organization,\
               \ so I am getting stuck here:",
             D.stack
               [ D.reflow $
                   "Switch to a normal module declaration.",
                 D.toSimpleNote $
                   "Effect modules are designed to allow certain core functionality to be\
-                  \ defined separately from the compiler. So the @gren organization has access to\
+                  \ defined separately from the compiler. So the gren-lang organization has access to\
                   \ this so that certain changes, extensions, and fixes can be introduced without\
                   \ needing to release new Gren binaries. For example, we want to make it possible\
                   \ to test effects, but this may require changes to the design of effect modules.\
-                  \ By only having them defined in the @gren organization, that kind of design work\
+                  \ By only having them defined in the gren-lang organization, that kind of design work\
                   \ can proceed much more smoothly."
               ]
           )
@@ -758,7 +758,7 @@ toParseErrorReport source modul =
               ( D.reflow $
                   "I cannot parse this module declaration:",
                 D.reflow $
-                  "This type of module is reserved for the @gren organization. It is used to\
+                  "This type of module is reserved for the gren-lang organization. It is used to\
                   \ define certain effects, avoiding building them into the compiler."
               )
     FreshLine row col ->
@@ -900,7 +900,7 @@ toParseErrorReport source modul =
               ( D.reflow $
                   "Something went wrong in this infix operator declaration:",
                 D.reflow $
-                  "This feature is used by the @gren organization to define the\
+                  "This feature is used by the gren-lang organization to define the\
                   \ languages built-in operators."
               )
     Declarations decl _ _ ->
