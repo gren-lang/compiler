@@ -1875,7 +1875,6 @@ toDetailsReport details =
                     \ give you much more specific information about why this package is failing to\
                     \ build, which will in turn make it easier for the package author to fix it!"
                 ]
-
             BD_UnsignedBuild pkg vsn ->
               Help.report
                 "PROBLEM BUILDING DEPENDENCIES (UNSIGNED KERNEL CODE)"
