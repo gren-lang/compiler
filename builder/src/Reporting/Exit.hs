@@ -992,14 +992,19 @@ outdatedToReport exit =
     OutdatedBadOutline outline ->
       toOutlineReport outline
     OutdatedGitTrouble gitError ->
-      toGitErrorReport "PROBLEM FINDING OUTDATED PACKAGE VERSIONS" gitError $
+      toGitErrorReport
+        "PROBLEM FINDING OUTDATED PACKAGE VERSIONS"
+        gitError
         "I tried to find newer versions of the dependencies specified in your gren.json file."
 
 -- SOLVER
 
 data Solver
   = SolverBadCacheData Pkg.Name V.Version
-  | SolverBadLocalDep Pkg.Name String
+  | SolverBadLocalDepWrongName FilePath Pkg.Name Pkg.Name
+  | SolverBadLocalDepExpectedPkg FilePath Pkg.Name
+  | SolverBadLocalDepInvalidGrenJson FilePath Pkg.Name
+  | SolverLocalDepNotFound FilePath Pkg.Name
   | SolverBadGitOperationUnversionedPkg Pkg.Name Git.Error
   | SolverBadGitOperationVersionedPkg Pkg.Name V.Version Git.Error
   | SolverIncompatibleSolvedVersion Pkg.Name Pkg.Name C.Constraint V.Version
@@ -1026,19 +1031,60 @@ toSolverReport problem =
             \ Hopefully that will get you unstuck, but it will not resolve the root\
             \ problem if a 3rd party tool is modifing cached files for some reason."
         ]
-    SolverBadLocalDep pkg filePath ->
+    SolverBadLocalDepWrongName filePath expectedPkgName actualPkgName ->
       Help.report
         "PROBLEM SOLVING PACKAGE CONSTRAINTS"
         Nothing
-        ( "I need the gren.json of "
-            ++ Pkg.toChars pkg
-            ++ " (located at "
+        ( "You have included "
+            ++ Pkg.toChars expectedPkgName
+            ++ " as a local dependency (located at "
             ++ filePath
-            ++ ") to help me search for a set of compatible packages. It seems to be a dependency\
-               \ that resides on your disk."
+            ++ ") but the gren.json file says that the package name is "
+            ++ Pkg.toChars actualPkgName
+            ++ "."
         )
         [ D.reflow
-            "Verify that the path is correct, that it is defined as a package and that it compiles."
+            "Verify that the path is correct, and that the name is set correctly."
+        ]
+    SolverBadLocalDepExpectedPkg filePath expectedPkgName ->
+      Help.report
+        "PROBLEM SOLVING PACKAGE CONSTRAINTS"
+        Nothing
+        ( "You have included "
+            ++ Pkg.toChars expectedPkgName
+            ++ " as a local dependency (located at "
+            ++ filePath
+            ++ ") but the gren.json file says that it is an application, and not a package."
+        )
+        [ D.reflow
+            "Verify that the path is correct, and that the project is setup correctly."
+        ]
+    SolverBadLocalDepInvalidGrenJson filePath expectedPkgName ->
+      Help.report
+        "PROBLEM SOLVING PACKAGE CONSTRAINTS"
+        Nothing
+        ( "You have included "
+            ++ Pkg.toChars expectedPkgName
+            ++ " as a local dependency (located at "
+            ++ filePath
+            ++ ") but I'm having trouble parsing its gren.json file."
+        )
+        [ D.reflow
+            "Verify that the path is correct, and that the project is setup correctly. \
+            \It might help to run gren make at this location."
+        ]
+    SolverLocalDepNotFound filePath expectedPkgName ->
+      Help.report
+        "PROBLEM SOLVING PACKAGE CONSTRAINTS"
+        Nothing
+        ( "You have included "
+            ++ Pkg.toChars expectedPkgName
+            ++ " as a local dependency (located at "
+            ++ filePath
+            ++ ") but I cannot find a gren.json file at that location."
+        )
+        [ D.reflow
+            "Verify that the path is correct."
         ]
     SolverBadGitOperationUnversionedPkg pkg gitError ->
       toGitErrorReport "PROBLEM SOLVING PACKAGE CONSTRAINTS" gitError $
