@@ -184,8 +184,10 @@ resolveToConstraintSource pkgName possibleFP =
               let outlinePath = fp </> "gren.json"
               bytes <- File.readUtf8 outlinePath
               case D.fromByteString Outline.decoder bytes of
-                Right (Outline.Pkg (Outline.PkgOutline _ _ _ version _ _ _ _)) ->
-                  ok state (Local (C.exactly version) fp) back
+                Right (Outline.Pkg (Outline.PkgOutline outlineName _ _ version _ _ _ _)) ->
+                  if outlineName /= pkgName 
+                    then err $ Exit.SolverBadLocalDep pkgName fp
+                    else ok state (Local (C.exactly version) fp) back
                 Right _ ->
                   err $ Exit.SolverBadLocalDep pkgName fp
                 Left _ ->
