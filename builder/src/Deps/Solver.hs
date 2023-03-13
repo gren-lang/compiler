@@ -171,7 +171,7 @@ data ConstraintSource
 
 -- TODO: Avoid re-reading the gren.json for local dependencies
 resolveToConstraintSource :: Pkg.Name -> PossibleFilePath C.Constraint -> Solver ConstraintSource
-resolveToConstraintSource pkgName possibleFP =
+resolveToConstraintSource expectedPkgName possibleFP =
   Solver $ \state ok back err ->
     case possibleFP of
       PossibleFilePath.Other cons ->
@@ -184,15 +184,15 @@ resolveToConstraintSource pkgName possibleFP =
               let outlinePath = fp </> "gren.json"
               bytes <- File.readUtf8 outlinePath
               case D.fromByteString Outline.decoder bytes of
-                Right (Outline.Pkg (Outline.PkgOutline outlineName _ _ version _ _ _ _)) ->
-                  if outlineName /= pkgName 
-                    then err $ Exit.SolverBadLocalDep pkgName fp
+                Right (Outline.Pkg (Outline.PkgOutline pkgName _ _ version _ _ _ _)) ->
+                  if expectedPkgName /= pkgName
+                    then err $ Exit.SolverBadLocalDepWrongName fp expectedPkgName pkgName
                     else ok state (Local (C.exactly version) fp) back
-                Right _ ->
-                  err $ Exit.SolverBadLocalDep pkgName fp
+                Right (Outline.App _) ->
+                  err $ Exit.SolverBadLocalDepExpectedPkg fp expectedPkgName
                 Left _ ->
-                  err $ Exit.SolverBadLocalDep pkgName fp
-            else err $ Exit.SolverBadLocalDep pkgName fp
+                  err $ Exit.SolverBadLocalDepInvalidGrenJson fp expectedPkgName
+            else err $ Exit.SolverLocalDepNotFound fp expectedPkgName
 
 constraintFromCS :: ConstraintSource -> C.Constraint
 constraintFromCS source =
