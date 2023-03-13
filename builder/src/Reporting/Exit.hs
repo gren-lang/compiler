@@ -1005,6 +1005,7 @@ data Solver
   | SolverBadLocalDepExpectedPkg FilePath Pkg.Name
   | SolverBadLocalDepInvalidGrenJson FilePath Pkg.Name
   | SolverLocalDepNotFound FilePath Pkg.Name
+  | SolverTransientLocalDep Pkg.Name
   | SolverBadGitOperationUnversionedPkg Pkg.Name Git.Error
   | SolverBadGitOperationVersionedPkg Pkg.Name V.Version Git.Error
   | SolverIncompatibleSolvedVersion Pkg.Name Pkg.Name C.Constraint V.Version
@@ -1085,6 +1086,17 @@ toSolverReport problem =
         )
         [ D.reflow
             "Verify that the path is correct."
+        ]
+    SolverTransientLocalDep pkgName ->
+      Help.report
+        "PROBLEM SOLVING PACKAGE CONSTRAINTS"
+        Nothing
+        ( Pkg.toChars pkgName
+            ++ " has defined one or more local dependencies."
+        )
+        [ D.reflow
+            "Dependencies are not allowed to define their own local dependencies. Contact the package \
+            \author to resolve this issue."
         ]
     SolverBadGitOperationUnversionedPkg pkg gitError ->
       toGitErrorReport "PROBLEM SOLVING PACKAGE CONSTRAINTS" gitError $

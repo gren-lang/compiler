@@ -249,10 +249,15 @@ addVersion reportKey (Goals rootPlatform pending solved) name source =
     if C.goodGren gren
       then
         if Platform.compatible rootPlatform platform
-          then do
-            depsConstraintSources <- Map.traverseWithKey resolveToConstraintSource deps
-            newPending <- foldM (addConstraint name solved) pending (Map.toList depsConstraintSources)
-            return (Goals rootPlatform newPending (Map.insert name source solved))
+          then
+            if any PossibleFilePath.is deps
+              then
+                solverError $
+                  Exit.SolverTransientLocalDep name
+              else do
+                depsConstraintSources <- Map.traverseWithKey resolveToConstraintSource deps
+                newPending <- foldM (addConstraint name solved) pending (Map.toList depsConstraintSources)
+                return (Goals rootPlatform newPending (Map.insert name source solved))
           else
             solverError $
               Exit.SolverIncompatiblePlatforms name rootPlatform platform
