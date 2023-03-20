@@ -40,11 +40,11 @@ import Reporting.Annotation qualified as A
 -- EXPRESSIONS
 
 data Expr
-  = Bool Bool
-  | Chr ES.String
-  | Str ES.String
-  | Int Int
-  | Float EF.Float
+  = Bool A.Region Bool
+  | Chr A.Region ES.String
+  | Str A.Region ES.String
+  | Int A.Region Int
+  | Float A.Region EF.Float
   | VarLocal Name
   | VarGlobal Global
   | VarEnum Global Index.ZeroBased
@@ -206,11 +206,11 @@ instance Binary Global where
 instance Binary Expr where
   put expr =
     case expr of
-      Bool a -> putWord8 0 >> put a
-      Chr a -> putWord8 1 >> put a
-      Str a -> putWord8 2 >> put a
-      Int a -> putWord8 3 >> put a
-      Float a -> putWord8 4 >> put a
+      Bool a b -> putWord8 0 >> put a >> put b
+      Chr a b -> putWord8 1 >> put a >> put b
+      Str a b -> putWord8 2 >> put a >> put b
+      Int a b -> putWord8 3 >> put a >> put b
+      Float a b -> putWord8 4 >> put a >> put b
       VarLocal a -> putWord8 5 >> put a
       VarGlobal a -> putWord8 6 >> put a
       VarEnum a b -> putWord8 7 >> put a >> put b
@@ -235,11 +235,11 @@ instance Binary Expr where
     do
       word <- getWord8
       case word of
-        0 -> liftM Bool get
-        1 -> liftM Chr get
-        2 -> liftM Str get
-        3 -> liftM Int get
-        4 -> liftM Float get
+        0 -> liftM2 Bool get get
+        1 -> liftM2 Chr get get
+        2 -> liftM2 Str get get
+        3 -> liftM2 Int get get
+        4 -> liftM2 Float get get
         5 -> liftM VarLocal get
         6 -> liftM VarGlobal get
         7 -> liftM2 VarEnum get get

@@ -30,11 +30,11 @@ nodeHasDebug node =
 hasDebug :: Opt.Expr -> Bool
 hasDebug expression =
   case expression of
-    Opt.Bool _ -> False
-    Opt.Chr _ -> False
-    Opt.Str _ -> False
-    Opt.Int _ -> False
-    Opt.Float _ -> False
+    Opt.Bool _ _ -> False
+    Opt.Chr _ _ -> False
+    Opt.Str _ _ -> False
+    Opt.Int _ _ -> False
+    Opt.Float _ _ -> False
     Opt.VarLocal _ -> False
     Opt.VarGlobal _ -> False
     Opt.VarEnum _ _ -> False

@@ -16,6 +16,7 @@ import Data.Map qualified as Map
 import Data.Name qualified as Name
 import Gren.ModuleName qualified as ModuleName
 import Optimize.Names qualified as Names
+import Reporting.Annotation qualified as A
 import Prelude hiding (maybe, null)
 
 -- ENCODE
@@ -53,7 +54,7 @@ toEncoder tipe =
               return $
                 Opt.Record $
                   Map.fromList
-                    [ (Name.fromChars "key", Opt.Str (Name.toGrenString name)),
+                    [ (Name.fromChars "key", Opt.Str A.zero (Name.toGrenString name)),
                       (Name.fromChars "value", value)
                     ]
        in do
@@ -84,8 +85,8 @@ encodeArray tipe =
 -- FLAGS DECODER
 
 toFlagsDecoder :: Can.Type -> Names.Tracker Opt.Expr
-toFlagsDecoder tipe =
-  toDecoder tipe
+toFlagsDecoder =
+  toDecoder
 
 -- DECODE
 
@@ -182,7 +183,7 @@ fieldAndThen decoder (key, Can.FieldType _ tipe) =
       Opt.Call
         andThen
         [ Opt.Function [key] decoder,
-          Opt.Call field [Opt.Str (Name.toGrenString key), typeDecoder]
+          Opt.Call field [Opt.Str A.zero (Name.toGrenString key), typeDecoder]
         ]
 
 -- GLOBALS HELPERS

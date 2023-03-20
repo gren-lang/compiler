@@ -43,20 +43,20 @@ generateJsExpr mode expression =
 generate :: Mode.Mode -> Opt.Expr -> Code
 generate mode expression =
   case expression of
-    Opt.Bool bool ->
+    Opt.Bool _region bool ->
       JsExpr $ JS.Bool bool
-    Opt.Chr char ->
+    Opt.Chr _region char ->
       JsExpr $
         case mode of
           Mode.Dev _ ->
             JS.Call toChar [JS.String (Utf8.toBuilder char)]
           Mode.Prod _ ->
             JS.String (Utf8.toBuilder char)
-    Opt.Str string ->
+    Opt.Str _region string ->
       JsExpr $ JS.String (Utf8.toBuilder string)
-    Opt.Int int ->
+    Opt.Int _region int ->
       JsExpr $ JS.Int int
-    Opt.Float float ->
+    Opt.Float _region float ->
       JsExpr $ JS.Float (Utf8.toBuilder float)
     Opt.VarLocal name ->
       JsExpr $ JS.Ref (JsName.fromLocal name)

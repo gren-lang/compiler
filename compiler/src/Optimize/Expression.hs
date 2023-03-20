@@ -39,19 +39,19 @@ optimize cycle (A.At region expression) =
     Can.VarForeign home name _ ->
       Names.registerGlobal home name
     Can.VarCtor opts home name index _ ->
-      Names.registerCtor home name index opts
+      Names.registerCtor region home name index opts
     Can.VarDebug home name _ ->
       Names.registerDebug name home region
     Can.VarOperator _ home name _ ->
       Names.registerGlobal home name
     Can.Chr chr ->
-      Names.registerKernel Name.utils (Opt.Chr chr)
+      Names.registerKernel Name.utils (Opt.Chr region chr)
     Can.Str str ->
-      pure (Opt.Str str)
+      pure (Opt.Str region str)
     Can.Int int ->
-      pure (Opt.Int int)
+      pure (Opt.Int region int)
     Can.Float float ->
-      pure (Opt.Float float)
+      pure (Opt.Float region float)
     Can.Array entries ->
       Names.registerKernel Name.array Opt.Array
         <*> traverse (optimize cycle) entries
@@ -200,7 +200,7 @@ destructHelp path (A.At _ pattern) revDs =
         Opt.Destructor name path : revDs
     Can.PRecord [] ->
       pure revDs
-    Can.PRecord [(A.At _ (Can.PRFieldPattern name fieldPattern))] ->
+    Can.PRecord [A.At _ (Can.PRFieldPattern name fieldPattern)] ->
       destructHelp (Opt.Field name path) fieldPattern revDs
     Can.PRecord fieldPatterns ->
       case path of

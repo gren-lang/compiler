@@ -67,8 +67,8 @@ registerDebug name home region =
     let global = Opt.Global ModuleName.debug name
      in ok uid (Set.insert global deps) fields (Opt.VarDebug name home region Nothing)
 
-registerCtor :: ModuleName.Canonical -> Name.Name -> Index.ZeroBased -> Can.CtorOpts -> Tracker Opt.Expr
-registerCtor home name index opts =
+registerCtor :: A.Region -> ModuleName.Canonical -> Name.Name -> Index.ZeroBased -> Can.CtorOpts -> Tracker Opt.Expr
+registerCtor region home name index opts =
   Tracker $ \uid deps fields ok ->
     let global = Opt.Global home name
         newDeps = Set.insert global deps
@@ -78,8 +78,8 @@ registerCtor home name index opts =
           Can.Enum ->
             ok uid newDeps fields $
               case name of
-                "True" | home == ModuleName.basics -> Opt.Bool True
-                "False" | home == ModuleName.basics -> Opt.Bool False
+                "True" | home == ModuleName.basics -> Opt.Bool region True
+                "False" | home == ModuleName.basics -> Opt.Bool region False
                 _ -> Opt.VarEnum global index
           Can.Unbox ->
             ok uid (Set.insert identity newDeps) fields (Opt.VarBox global)
