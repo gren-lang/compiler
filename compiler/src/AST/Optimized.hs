@@ -52,18 +52,18 @@ data Expr
   | VarCycle A.Region ModuleName.Canonical Name
   | VarDebug A.Region Name ModuleName.Canonical (Maybe Name)
   | VarKernel A.Region Name Name
-  | Array [Expr]
-  | Function [Name] Expr
-  | Call Expr [Expr]
-  | TailCall Name [(Name, Expr)]
-  | If [(Expr, Expr)] Expr
-  | Let Def Expr
-  | Destruct Destructor Expr
+  | Array A.Region [Expr]
+  | Function A.Region [Name] Expr
+  | Call A.Region Expr [Expr]
+  | TailCall A.Region Name [(Name, Expr)]
+  | If A.Region [(Expr, Expr)] Expr
+  | Let A.Region Def Expr
+  | Destruct A.Region Destructor Expr
   | Case Name Name (Decider Choice) [(Int, Expr)]
-  | Accessor Name
-  | Access Expr Name
-  | Update Expr (Map.Map Name Expr)
-  | Record (Map.Map Name Expr)
+  | Accessor A.Region Name
+  | Access A.Region Expr Name
+  | Update A.Region Expr (Map.Map Name Expr)
+  | Record A.Region (Map.Map Name Expr)
 
 data Global = Global ModuleName.Canonical Name
 
@@ -218,18 +218,18 @@ instance Binary Expr where
       VarCycle a b c -> putWord8 9 >> put a >> put b >> put c
       VarDebug a b c d -> putWord8 10 >> put a >> put b >> put c >> put d
       VarKernel a b c -> putWord8 11 >> put a >> put b >> put c
-      Array a -> putWord8 12 >> put a
-      Function a b -> putWord8 13 >> put a >> put b
-      Call a b -> putWord8 14 >> put a >> put b
-      TailCall a b -> putWord8 15 >> put a >> put b
-      If a b -> putWord8 16 >> put a >> put b
-      Let a b -> putWord8 17 >> put a >> put b
-      Destruct a b -> putWord8 18 >> put a >> put b
+      Array a b -> putWord8 12 >> put a >> put b
+      Function a b c -> putWord8 13 >> put a >> put b >> put c
+      Call a b c -> putWord8 14 >> put a >> put b >> put c
+      TailCall a b c -> putWord8 15 >> put a >> put b >> put c
+      If a b c -> putWord8 16 >> put a >> put b >> put c
+      Let a b c -> putWord8 17 >> put a >> put b >> put c
+      Destruct a b c -> putWord8 18 >> put a >> put b >> put c
       Case a b c d -> putWord8 19 >> put a >> put b >> put c >> put d
-      Accessor a -> putWord8 20 >> put a
-      Access a b -> putWord8 21 >> put a >> put b
-      Update a b -> putWord8 22 >> put a >> put b
-      Record a -> putWord8 23 >> put a
+      Accessor a b -> putWord8 20 >> put a >> put b
+      Access a b c -> putWord8 21 >> put a >> put b >> put c
+      Update a b c -> putWord8 22 >> put a >> put b >> put c
+      Record a b -> putWord8 23 >> put a >> put b
 
   get =
     do
@@ -247,18 +247,18 @@ instance Binary Expr where
         9 -> liftM3 VarCycle get get get
         10 -> liftM4 VarDebug get get get get
         11 -> liftM3 VarKernel get get get
-        12 -> liftM Array get
-        13 -> liftM2 Function get get
-        14 -> liftM2 Call get get
-        15 -> liftM2 TailCall get get
-        16 -> liftM2 If get get
-        17 -> liftM2 Let get get
-        18 -> liftM2 Destruct get get
+        12 -> liftM2 Array get get
+        13 -> liftM3 Function get get get
+        14 -> liftM3 Call get get get
+        15 -> liftM3 TailCall get get get
+        16 -> liftM3 If get get get
+        17 -> liftM3 Let get get get
+        18 -> liftM3 Destruct get get get
         19 -> liftM4 Case get get get get
-        20 -> liftM Accessor get
-        21 -> liftM2 Access get get
-        22 -> liftM2 Update get get
-        23 -> liftM Record get
+        20 -> liftM2 Accessor get get
+        21 -> liftM3 Access get get get
+        22 -> liftM3 Update get get get
+        23 -> liftM2 Record get get
         _ -> fail "problem getting Opt.Expr binary"
 
 instance Binary Def where
