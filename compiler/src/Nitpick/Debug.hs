@@ -35,13 +35,13 @@ hasDebug expression =
     Opt.Str _ _ -> False
     Opt.Int _ _ -> False
     Opt.Float _ _ -> False
-    Opt.VarLocal _ -> False
-    Opt.VarGlobal _ -> False
-    Opt.VarEnum _ _ -> False
-    Opt.VarBox _ -> False
-    Opt.VarCycle _ _ -> False
+    Opt.VarLocal _ _ -> False
+    Opt.VarGlobal _ _ -> False
+    Opt.VarEnum _ _ _ -> False
+    Opt.VarBox _ _ -> False
+    Opt.VarCycle _ _ _ -> False
     Opt.VarDebug _ _ _ _ -> True
-    Opt.VarKernel _ _ -> False
+    Opt.VarKernel _ _ _ -> False
     Opt.Array exprs -> any hasDebug exprs
     Opt.Function _ expr -> hasDebug expr
     Opt.Call e es -> hasDebug e || any hasDebug es

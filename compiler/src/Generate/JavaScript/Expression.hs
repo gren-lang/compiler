@@ -58,27 +58,27 @@ generate mode expression =
       JsExpr $ JS.Int int
     Opt.Float _region float ->
       JsExpr $ JS.Float (Utf8.toBuilder float)
-    Opt.VarLocal name ->
+    Opt.VarLocal _region name ->
       JsExpr $ JS.Ref (JsName.fromLocal name)
-    Opt.VarGlobal (Opt.Global home name) ->
+    Opt.VarGlobal _region (Opt.Global home name) ->
       JsExpr $ JS.Ref (JsName.fromGlobal home name)
-    Opt.VarEnum (Opt.Global home name) index ->
+    Opt.VarEnum _region (Opt.Global home name) index ->
       case mode of
         Mode.Dev _ ->
           JsExpr $ JS.Ref (JsName.fromGlobal home name)
         Mode.Prod _ ->
           JsExpr $ JS.Int (Index.toMachine index)
-    Opt.VarBox (Opt.Global home name) ->
+    Opt.VarBox _region (Opt.Global home name) ->
       JsExpr $
         JS.Ref $
           case mode of
             Mode.Dev _ -> JsName.fromGlobal home name
             Mode.Prod _ -> JsName.fromGlobal ModuleName.basics Name.identity
-    Opt.VarCycle home name ->
+    Opt.VarCycle _region home name ->
       JsExpr $ JS.Call (JS.Ref (JsName.fromCycle home name)) []
-    Opt.VarDebug name home region unhandledValueName ->
+    Opt.VarDebug region name home unhandledValueName ->
       JsExpr $ generateDebug name home region unhandledValueName
-    Opt.VarKernel home name ->
+    Opt.VarKernel _region home name ->
       JsExpr $ JS.Ref (JsName.fromKernel home name)
     Opt.Array entries ->
       JsExpr $ JS.Array $ map (generateJsExpr mode) entries
@@ -262,10 +262,10 @@ funcHelpers =
 generateCall :: Mode.Mode -> Opt.Expr -> [Opt.Expr] -> JS.Expr
 generateCall mode func args =
   case func of
-    Opt.VarGlobal global@(Opt.Global (ModuleName.Canonical pkg _) _)
+    Opt.VarGlobal _region global@(Opt.Global (ModuleName.Canonical pkg _) _)
       | pkg == Pkg.core ->
           generateCoreCall mode global args
-    Opt.VarBox _ ->
+    Opt.VarBox _ _ ->
       case mode of
         Mode.Dev _ ->
           generateCallHelp mode func args
@@ -449,7 +449,7 @@ jsAppend a b =
 toSeqs :: Mode.Mode -> Opt.Expr -> [JS.Expr]
 toSeqs mode expr =
   case expr of
-    Opt.Call (Opt.VarGlobal (Opt.Global home "append")) [left, right]
+    Opt.Call (Opt.VarGlobal _region (Opt.Global home "append")) [left, right]
       | home == ModuleName.basics ->
           generateJsExpr mode left : toSeqs mode right
     _ ->

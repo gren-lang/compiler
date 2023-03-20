@@ -45,13 +45,13 @@ data Expr
   | Str A.Region ES.String
   | Int A.Region Int
   | Float A.Region EF.Float
-  | VarLocal Name
-  | VarGlobal Global
-  | VarEnum Global Index.ZeroBased
-  | VarBox Global
-  | VarCycle ModuleName.Canonical Name
-  | VarDebug Name ModuleName.Canonical A.Region (Maybe Name)
-  | VarKernel Name Name
+  | VarLocal A.Region Name
+  | VarGlobal A.Region Global
+  | VarEnum A.Region Global Index.ZeroBased
+  | VarBox A.Region Global
+  | VarCycle A.Region ModuleName.Canonical Name
+  | VarDebug A.Region Name ModuleName.Canonical (Maybe Name)
+  | VarKernel A.Region Name Name
   | Array [Expr]
   | Function [Name] Expr
   | Call Expr [Expr]
@@ -211,13 +211,13 @@ instance Binary Expr where
       Str a b -> putWord8 2 >> put a >> put b
       Int a b -> putWord8 3 >> put a >> put b
       Float a b -> putWord8 4 >> put a >> put b
-      VarLocal a -> putWord8 5 >> put a
-      VarGlobal a -> putWord8 6 >> put a
-      VarEnum a b -> putWord8 7 >> put a >> put b
-      VarBox a -> putWord8 8 >> put a
-      VarCycle a b -> putWord8 9 >> put a >> put b
+      VarLocal a b -> putWord8 5 >> put a >> put b
+      VarGlobal a b -> putWord8 6 >> put a >> put b
+      VarEnum a b c -> putWord8 7 >> put a >> put b >> put c
+      VarBox a b -> putWord8 8 >> put a >> put b
+      VarCycle a b c -> putWord8 9 >> put a >> put b >> put c
       VarDebug a b c d -> putWord8 10 >> put a >> put b >> put c >> put d
-      VarKernel a b -> putWord8 11 >> put a >> put b
+      VarKernel a b c -> putWord8 11 >> put a >> put b >> put c
       Array a -> putWord8 12 >> put a
       Function a b -> putWord8 13 >> put a >> put b
       Call a b -> putWord8 14 >> put a >> put b
@@ -240,13 +240,13 @@ instance Binary Expr where
         2 -> liftM2 Str get get
         3 -> liftM2 Int get get
         4 -> liftM2 Float get get
-        5 -> liftM VarLocal get
-        6 -> liftM VarGlobal get
-        7 -> liftM2 VarEnum get get
-        8 -> liftM VarBox get
-        9 -> liftM2 VarCycle get get
+        5 -> liftM2 VarLocal get get
+        6 -> liftM2 VarGlobal get get
+        7 -> liftM3 VarEnum get get get
+        8 -> liftM2 VarBox get get
+        9 -> liftM3 VarCycle get get get
         10 -> liftM4 VarDebug get get get get
-        11 -> liftM2 VarKernel get get
+        11 -> liftM3 VarKernel get get get
         12 -> liftM Array get
         13 -> liftM2 Function get get
         14 -> liftM2 Call get get

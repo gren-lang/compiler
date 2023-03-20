@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wall #-}
 
 module Optimize.Expression
@@ -29,21 +28,21 @@ optimize :: Cycle -> Can.Expr -> Names.Tracker Opt.Expr
 optimize cycle (A.At region expression) =
   case expression of
     Can.VarLocal name ->
-      pure (Opt.VarLocal name)
+      pure (Opt.VarLocal region name)
     Can.VarTopLevel home name ->
       if Set.member name cycle
-        then pure (Opt.VarCycle home name)
-        else Names.registerGlobal home name
+        then pure (Opt.VarCycle region home name)
+        else Names.registerGlobal region home name
     Can.VarKernel home name ->
-      Names.registerKernel home (Opt.VarKernel home name)
+      Names.registerKernel home (Opt.VarKernel region home name)
     Can.VarForeign home name _ ->
-      Names.registerGlobal home name
+      Names.registerGlobal region home name
     Can.VarCtor opts home name index _ ->
       Names.registerCtor region home name index opts
     Can.VarDebug home name _ ->
       Names.registerDebug name home region
     Can.VarOperator _ home name _ ->
-      Names.registerGlobal home name
+      Names.registerGlobal region home name
     Can.Chr chr ->
       Names.registerKernel Name.utils (Opt.Chr region chr)
     Can.Str str ->
@@ -57,12 +56,12 @@ optimize cycle (A.At region expression) =
         <*> traverse (optimize cycle) entries
     Can.Negate expr ->
       do
-        func <- Names.registerGlobal ModuleName.basics Name.negate
+        func <- Names.registerGlobal region ModuleName.basics Name.negate
         arg <- optimize cycle expr
         pure $ Opt.Call func [arg]
     Can.Binop _ home name _ left right ->
       do
-        optFunc <- Names.registerGlobal home name
+        optFunc <- Names.registerGlobal region home name
         optLeft <- optimize cycle left
         optRight <- optimize cycle right
         return (Opt.Call optFunc [optLeft, optRight])
@@ -112,7 +111,7 @@ optimize cycle (A.At region expression) =
             temp <- Names.generate
             oexpr <- optimize cycle expr
             case oexpr of
-              Opt.VarLocal root ->
+              Opt.VarLocal _region root ->
                 Case.optimize temp root <$> traverse (optimizeBranch root) branches
               _ ->
                 do
@@ -346,7 +345,7 @@ optimizeTail cycle rootName argNames locExpr@(A.At _ expression) =
             temp <- Names.generate
             oexpr <- optimize cycle expr
             case oexpr of
-              Opt.VarLocal root ->
+              Opt.VarLocal _region root ->
                 Case.optimize temp root <$> traverse (optimizeBranch root) branches
               _ ->
                 do
