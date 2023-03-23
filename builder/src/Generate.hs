@@ -46,7 +46,8 @@ debug root details (Build.Artifacts pkg ifaces roots modules) =
     let mode = Mode.Dev (Just types)
     let graph = objectsToGlobalGraph objects
     let mains = gatherMains pkg objects roots
-    return $ JS.generate mode graph mains
+    let (JS.GeneratedResult state) = JS.generate mode graph mains
+    return state
 
 dev :: FilePath -> Details.Details -> Build.Artifacts -> Task B.Builder
 dev root details (Build.Artifacts pkg _ roots modules) =
@@ -55,7 +56,8 @@ dev root details (Build.Artifacts pkg _ roots modules) =
     let mode = Mode.Dev Nothing
     let graph = objectsToGlobalGraph objects
     let mains = gatherMains pkg objects roots
-    return $ JS.generate mode graph mains
+    let (JS.GeneratedResult state) = JS.generate mode graph mains
+    return state
 
 prod :: FilePath -> Details.Details -> Build.Artifacts -> Task B.Builder
 prod root details (Build.Artifacts pkg _ roots modules) =
@@ -65,7 +67,8 @@ prod root details (Build.Artifacts pkg _ roots modules) =
     let graph = objectsToGlobalGraph objects
     let mode = Mode.Prod (Mode.shortenFieldNames graph)
     let mains = gatherMains pkg objects roots
-    return $ JS.generate mode graph mains
+    let (JS.GeneratedResult state) = JS.generate mode graph mains
+    return state
 
 repl :: FilePath -> Details.Details -> Bool -> Build.ReplArtifacts -> N.Name -> Task B.Builder
 repl root details ansi (Build.ReplArtifacts home modules localizer annotations) name =

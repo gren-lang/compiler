@@ -1,7 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Generate.JavaScript
-  ( generate,
+  ( GeneratedResult (..),
+    generate,
     generateForRepl,
   )
 where
@@ -9,6 +10,7 @@ where
 import AST.Canonical qualified as Can
 import AST.Optimized qualified as Opt
 import Data.ByteString.Builder qualified as B
+import Data.ByteString.Lazy.Char8 qualified as BLazy
 import Data.Index qualified as Index
 import Data.List qualified as List
 import Data.Map ((!))
@@ -34,38 +36,38 @@ type Graph = Map.Map Opt.Global Opt.Node
 
 type Mains = Map.Map ModuleName.Canonical Opt.Main
 
-generate :: Mode.Mode -> Opt.GlobalGraph -> Mains -> B.Builder
+newtype GeneratedResult = GeneratedResult
+  {_source :: B.Builder}
+
+prelude :: B.Builder
+prelude =
+  "(function(scope){\n'use strict';"
+    <> Functions.functions
+
+firstGeneratedLineNumber :: Int
+firstGeneratedLineNumber =
+  length $ lines $ BLazy.unpack $ B.toLazyByteString prelude
+
+generate :: Mode.Mode -> Opt.GlobalGraph -> Mains -> GeneratedResult
 generate mode (Opt.GlobalGraph graph _) mains =
-  let state = Map.foldrWithKey (addMain mode graph) emptyState mains
-   in "(function(scope){\n'use strict';"
-        <> Functions.functions
-        <> perfNote mode
-        <> stateToBuilder state
-        <> toMainExports mode mains
-        <> "}(this.module ? this.module.exports : this));"
+  let state = Map.foldrWithKey (addMain mode graph) (emptyState firstGeneratedLineNumber) mains
+      builder =
+        prelude
+          <> stateToBuilder state
+          <> toMainExports mode mains
+          <> "}(this.module ? this.module.exports : this));"
+   in GeneratedResult {_source = builder}
 
 addMain :: Mode.Mode -> Graph -> ModuleName.Canonical -> Opt.Main -> State -> State
 addMain mode graph home _ state =
   addGlobal mode graph state (Opt.Global home "main")
-
-perfNote :: Mode.Mode -> B.Builder
-perfNote mode =
-  case mode of
-    Mode.Prod _ ->
-      ""
-    Mode.Dev Nothing ->
-      "console.warn('Compiled in DEV mode. Compile with --optimize "
-        <> " for better performance and smaller assets.');"
-    Mode.Dev (Just _) ->
-      "console.warn('Compiled in DEV mode. Compile with --optimize "
-        <> " for better performance and smaller assets.');"
 
 -- GENERATE FOR REPL
 
 generateForRepl :: Bool -> L.Localizer -> Opt.GlobalGraph -> ModuleName.Canonical -> Name.Name -> Can.Annotation -> B.Builder
 generateForRepl ansi localizer (Opt.GlobalGraph graph _) home name (Can.Forall _ tipe) =
   let mode = Mode.Dev Nothing
-      debugState = addGlobal mode graph emptyState (Opt.Global ModuleName.debug "toString")
+      debugState = addGlobal mode graph (emptyState 0) (Opt.Global ModuleName.debug "toString")
       evalState = addGlobal mode graph debugState (Opt.Global home name)
    in "process.on('uncaughtException', function(err) { process.stderr.write(err.toString() + '\\n'); process.exit(1); });"
         <> Functions.functions
@@ -102,15 +104,16 @@ print ansi localizer home name tipe =
 data State = State
   { _revKernels :: [B.Builder],
     _revBuilders :: [B.Builder],
-    _seenGlobals :: Set.Set Opt.Global
+    _seenGlobals :: Set.Set Opt.Global,
+    _mappings :: Int
   }
 
-emptyState :: State
-emptyState =
-  State mempty [] Set.empty
+emptyState :: Int -> State
+emptyState startingLine =
+  State mempty [] Set.empty startingLine
 
 stateToBuilder :: State -> B.Builder
-stateToBuilder (State revKernels revBuilders _) =
+stateToBuilder (State revKernels revBuilders _ _) =
   prependBuilders revKernels (prependBuilders revBuilders mempty)
 
 prependBuilders :: [B.Builder] -> B.Builder -> B.Builder
@@ -120,12 +123,12 @@ prependBuilders revBuilders monolith =
 -- ADD DEPENDENCIES
 
 addGlobal :: Mode.Mode -> Graph -> State -> Opt.Global -> State
-addGlobal mode graph state@(State revKernels builders seen) global =
+addGlobal mode graph state@(State revKernels builders seen mappings) global =
   if Set.member global seen
     then state
     else
       addGlobalHelp mode graph global $
-        State revKernels builders (Set.insert global seen)
+        State revKernels builders (Set.insert global seen) mappings
 
 addGlobalHelp :: Mode.Mode -> Graph -> Opt.Global -> State -> State
 addGlobalHelp mode graph global state =
@@ -187,12 +190,12 @@ addStmt state stmt =
   addBuilder state (JS.stmtToBuilder stmt)
 
 addBuilder :: State -> B.Builder -> State
-addBuilder (State revKernels revBuilders seen) builder =
-  State revKernels (builder : revBuilders) seen
+addBuilder (State revKernels revBuilders seen mappings) builder =
+  State revKernels (builder : revBuilders) seen mappings
 
 addKernel :: State -> B.Builder -> State
-addKernel (State revKernels revBuilders seen) kernel =
-  State (kernel : revKernels) revBuilders seen
+addKernel (State revKernels revBuilders seen mappings) kernel =
+  State (kernel : revKernels) revBuilders seen mappings
 
 var :: Opt.Global -> Expr.Code -> JS.Stmt
 var (Opt.Global home name) code =
