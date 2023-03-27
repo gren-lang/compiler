@@ -118,13 +118,13 @@ data PrefixOp
 
 -- ENCODE
 
-stmtToBuilder :: Stmt -> Builder
-stmtToBuilder stmts =
-  fromStmt levelZero stmts
+stmtToBuilder :: Int -> Stmt -> Builder
+stmtToBuilder line stmts =
+  fromStmt line levelZero stmts
 
-exprToBuilder :: Expr -> Builder
-exprToBuilder expr =
-  snd $ fromExpr levelZero Whatever expr
+exprToBuilder :: Int -> Expr -> Builder
+exprToBuilder line expr =
+  snd $ fromExpr line levelZero Whatever expr
 
 -- INDENT LEVEL
 
@@ -155,29 +155,29 @@ commaNewlineSep (Level _ (Level deeperIndent _)) builders =
 
 -- STATEMENTS
 
-fromStmtBlock :: Level -> [Stmt] -> Builder
-fromStmtBlock level stmts =
-  mconcat (map (fromStmt level) stmts)
+fromStmtBlock :: Int -> Level -> [Stmt] -> Builder
+fromStmtBlock line level stmts =
+  mconcat (map (fromStmt line level) stmts)
 
-fromStmt :: Level -> Stmt -> Builder
-fromStmt level@(Level indent nextLevel) statement =
+fromStmt :: Int -> Level -> Stmt -> Builder
+fromStmt line level@(Level indent nextLevel) statement =
   case statement of
     Block stmts ->
-      fromStmtBlock level stmts
+      fromStmtBlock line level stmts
     EmptyStmt ->
       mempty
     ExprStmt expr ->
-      indent <> snd (fromExpr level Whatever expr) <> ";\n"
+      indent <> snd (fromExpr line level Whatever expr) <> ";\n"
     IfStmt condition thenStmt elseStmt ->
       mconcat
         [ indent,
           "if (",
-          snd (fromExpr level Whatever condition),
+          snd (fromExpr line level Whatever condition),
           ") {\n",
-          fromStmt nextLevel thenStmt,
+          fromStmt (line + 1) nextLevel thenStmt,
           indent,
           "} else {\n",
-          fromStmt nextLevel elseStmt,
+          fromStmt (line + 2) nextLevel elseStmt,
           indent,
           "}\n"
         ]
@@ -185,9 +185,9 @@ fromStmt level@(Level indent nextLevel) statement =
       mconcat
         [ indent,
           "switch (",
-          snd (fromExpr level Whatever expr),
+          snd (fromExpr line level Whatever expr),
           ") {\n",
-          mconcat (map (fromClause nextLevel) clauses),
+          mconcat (map (fromClause (line + 1) nextLevel) clauses),
           indent,
           "}\n"
         ]
@@ -195,9 +195,9 @@ fromStmt level@(Level indent nextLevel) statement =
       mconcat
         [ indent,
           "while (",
-          snd (fromExpr level Whatever expr),
+          snd (fromExpr line level Whatever expr),
           ") {\n",
-          fromStmt nextLevel stmt,
+          fromStmt (line + 1) nextLevel stmt,
           indent,
           "}\n"
         ]
@@ -214,31 +214,31 @@ fromStmt level@(Level indent nextLevel) statement =
         [ indent,
           Name.toBuilder label,
           ":\n",
-          fromStmt level stmt
+          fromStmt (line + 1) level stmt
         ]
     Try tryStmt errorName catchStmt ->
       mconcat
         [ indent,
           "try {\n",
-          fromStmt nextLevel tryStmt,
+          fromStmt (line + 1) nextLevel tryStmt,
           indent,
           "} catch (",
           Name.toBuilder errorName,
           ") {\n",
-          fromStmt nextLevel catchStmt,
+          fromStmt line nextLevel catchStmt,
           indent,
           "}\n"
         ]
     Throw expr ->
-      indent <> "throw " <> snd (fromExpr level Whatever expr) <> ";"
+      indent <> "throw " <> snd (fromExpr line level Whatever expr) <> ";"
     Return expr ->
-      indent <> "return " <> snd (fromExpr level Whatever expr) <> ";\n"
+      indent <> "return " <> snd (fromExpr line level Whatever expr) <> ";\n"
     Var name expr ->
-      indent <> "var " <> Name.toBuilder name <> " = " <> snd (fromExpr level Whatever expr) <> ";\n"
+      indent <> "var " <> Name.toBuilder name <> " = " <> snd (fromExpr line level Whatever expr) <> ";\n"
     Vars [] ->
       mempty
     Vars vars ->
-      indent <> "var " <> commaNewlineSep level (map (varToBuilder level) vars) <> ";\n"
+      indent <> "var " <> commaNewlineSep level (map (varToBuilder line level) vars) <> ";\n"
     FunctionStmt name args stmts ->
       indent
         <> "function "
@@ -246,31 +246,31 @@ fromStmt level@(Level indent nextLevel) statement =
         <> "("
         <> commaSep (map Name.toBuilder args)
         <> ") {\n"
-        <> fromStmtBlock nextLevel stmts
+        <> fromStmtBlock (line + 1) nextLevel stmts
         <> indent
         <> "}\n"
 
 -- SWITCH CLAUSES
 
-fromClause :: Level -> Case -> Builder
-fromClause level@(Level indent nextLevel) clause =
+fromClause :: Int -> Level -> Case -> Builder
+fromClause line level@(Level indent nextLevel) clause =
   case clause of
     Case expr stmts ->
       indent
         <> "case "
-        <> snd (fromExpr level Whatever expr)
+        <> snd (fromExpr line level Whatever expr)
         <> ":\n"
-        <> fromStmtBlock nextLevel stmts
+        <> fromStmtBlock (line + 1) nextLevel stmts
     Default stmts ->
       indent
         <> "default:\n"
-        <> fromStmtBlock nextLevel stmts
+        <> fromStmtBlock (line + 1) nextLevel stmts
 
 -- VAR DECLS
 
-varToBuilder :: Level -> (Name, Expr) -> Builder
-varToBuilder level (name, expr) =
-  Name.toBuilder name <> " = " <> snd (fromExpr level Whatever expr)
+varToBuilder :: Int -> Level -> (Name, Expr) -> Builder
+varToBuilder line level (name, expr) =
+  Name.toBuilder name <> " = " <> snd (fromExpr line level Whatever expr)
 
 -- EXPRESSIONS
 
@@ -297,8 +297,8 @@ parensFor grouping builder =
     Whatever ->
       builder
 
-fromExpr :: Level -> Grouping -> Expr -> (Lines, Builder)
-fromExpr level@(Level indent nextLevel@(Level deeperIndent _)) grouping expression =
+fromExpr :: Int -> Level -> Grouping -> Expr -> (Lines, Builder)
+fromExpr line level@(Level indent nextLevel@(Level deeperIndent _)) grouping expression =
   case expression of
     String string ->
       (One, "'" <> string <> "'")
@@ -314,7 +314,7 @@ fromExpr level@(Level indent nextLevel@(Level deeperIndent _)) grouping expressi
       (One, Json.encodeUgly json)
     Array exprs ->
       (,) Many $
-        let (anyMany, builders) = linesMap (fromExpr level Whatever) exprs
+        let (anyMany, builders) = linesMap (fromExpr line level Whatever) exprs
          in if anyMany
               then
                 "[\n"
@@ -326,7 +326,7 @@ fromExpr level@(Level indent nextLevel@(Level deeperIndent _)) grouping expressi
               else "[" <> commaSep builders <> "]"
     Object fields ->
       (,) Many $
-        let (anyMany, builders) = linesMap (fromField nextLevel) fields
+        let (anyMany, builders) = linesMap (fromField line nextLevel) fields
          in if anyMany
               then
                 "{\n"
@@ -339,37 +339,37 @@ fromExpr level@(Level indent nextLevel@(Level deeperIndent _)) grouping expressi
     Ref name ->
       (One, Name.toBuilder name)
     Access expr field ->
-      makeDot level expr field
+      makeDot line level expr field
     Index expr bracketedExpr ->
-      makeBracketed level expr bracketedExpr
+      makeBracketed line level expr bracketedExpr
     Prefix op expr ->
-      let (lines, builder) = fromExpr level Atomic expr
+      let (lines, builder) = fromExpr line level Atomic expr
        in ( lines,
             parensFor grouping (fromPrefix op <> builder)
           )
     Infix op leftExpr rightExpr ->
-      let (leftLines, left) = fromExpr level Atomic leftExpr
-          (rightLines, right) = fromExpr level Atomic rightExpr
+      let (leftLines, left) = fromExpr line level Atomic leftExpr
+          (rightLines, right) = fromExpr line level Atomic rightExpr
        in ( merge leftLines rightLines,
             parensFor grouping (left <> fromInfix op <> right)
           )
     If condExpr thenExpr elseExpr ->
-      let condB = snd (fromExpr level Atomic condExpr)
-          thenB = snd (fromExpr level Atomic thenExpr)
-          elseB = snd (fromExpr level Atomic elseExpr)
+      let condB = snd (fromExpr line level Atomic condExpr)
+          thenB = snd (fromExpr line level Atomic thenExpr)
+          elseB = snd (fromExpr line level Atomic elseExpr)
        in ( Many,
             parensFor grouping (condB <> " ? " <> thenB <> " : " <> elseB)
           )
     Assign lValue expr ->
-      let (leftLines, left) = fromLValue level lValue
-          (rightLines, right) = fromExpr level Whatever expr
+      let (leftLines, left) = fromLValue line level lValue
+          (rightLines, right) = fromExpr line level Whatever expr
        in ( merge leftLines rightLines,
             parensFor grouping (left <> " = " <> right)
           )
     Call function args ->
       (,) Many $
-        let (_, funcB) = fromExpr level Atomic function
-            (anyMany, argsB) = linesMap (fromExpr nextLevel Whatever) args
+        let (_, funcB) = fromExpr line level Atomic function
+            (anyMany, argsB) = linesMap (fromExpr line nextLevel Whatever) args
          in if anyMany
               then funcB <> "(\n" <> deeperIndent <> commaNewlineSep level argsB <> ")"
               else funcB <> "(" <> commaSep argsB <> ")"
@@ -380,40 +380,40 @@ fromExpr level@(Level indent nextLevel@(Level deeperIndent _)) grouping expressi
           <> "("
           <> commaSep (map Name.toBuilder args)
           <> ") {\n"
-          <> fromStmtBlock nextLevel stmts
+          <> fromStmtBlock (line + 1) nextLevel stmts
           <> indent
           <> "}"
 
 -- FIELDS
 
-fromField :: Level -> (Name, Expr) -> (Lines, Builder)
-fromField level (field, expr) =
-  let (lines, builder) = fromExpr level Whatever expr
+fromField :: Int -> Level -> (Name, Expr) -> (Lines, Builder)
+fromField line level (field, expr) =
+  let (lines, builder) = fromExpr line level Whatever expr
    in ( lines,
         Name.toBuilder field <> ": " <> builder
       )
 
 -- VALUES
 
-fromLValue :: Level -> LValue -> (Lines, Builder)
-fromLValue level lValue =
+fromLValue :: Int -> Level -> LValue -> (Lines, Builder)
+fromLValue line level lValue =
   case lValue of
     LRef name ->
       (One, Name.toBuilder name)
     LDot expr field ->
-      makeDot level expr field
+      makeDot line level expr field
     LBracket expr bracketedExpr ->
-      makeBracketed level expr bracketedExpr
+      makeBracketed line level expr bracketedExpr
 
-makeDot :: Level -> Expr -> Name -> (Lines, Builder)
-makeDot level expr field =
-  let (lines, builder) = fromExpr level Atomic expr
+makeDot :: Int -> Level -> Expr -> Name -> (Lines, Builder)
+makeDot line level expr field =
+  let (lines, builder) = fromExpr line level Atomic expr
    in (lines, builder <> "." <> Name.toBuilder field)
 
-makeBracketed :: Level -> Expr -> Expr -> (Lines, Builder)
-makeBracketed level expr bracketedExpr =
-  let (lines, builder) = fromExpr level Atomic expr
-      (bracketedLines, bracketedBuilder) = fromExpr level Whatever bracketedExpr
+makeBracketed :: Int -> Level -> Expr -> Expr -> (Lines, Builder)
+makeBracketed line level expr bracketedExpr =
+  let (lines, builder) = fromExpr line level Atomic expr
+      (bracketedLines, bracketedBuilder) = fromExpr line level Whatever bracketedExpr
    in ( merge lines bracketedLines,
         builder <> "[" <> bracketedBuilder <> "]"
       )
