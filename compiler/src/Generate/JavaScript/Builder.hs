@@ -19,7 +19,8 @@ where
 -- how all the types should fit together.
 
 import Data.ByteString qualified as BS
-import Data.ByteString.Builder as B
+import Data.ByteString.Builder qualified as B
+import Data.ByteString.Lazy.Char8 qualified as BSLazy
 import Data.List qualified as List
 import Generate.JavaScript.Name (Name)
 import Generate.JavaScript.Name qualified as Name
@@ -42,8 +43,8 @@ import Prelude hiding (lines)
 -- returning tuples when generating expressions.
 --
 data Expr
-  = String Builder
-  | Float Builder
+  = String B.Builder
+  | Float B.Builder
   | Int Int
   | Bool Bool
   | Null
@@ -115,6 +116,64 @@ data PrefixOp
   = PrefixNot -- !
   | PrefixNegate -- -
   | PrefixComplement -- ~
+
+-- BUILDER
+
+data Builder = Builder
+  { _code :: B.Builder,
+    _currentLine :: Int,
+    _currentCol :: Int,
+    _lines :: Lines,
+    _mappings :: [Mapping]
+  }
+
+data Mapping = Mapping
+  { _m_line :: Int,
+    _m_col :: Int
+  }
+
+emptyBuilder :: Int -> Builder
+emptyBuilder currentLine =
+  Builder
+    { _code = mempty,
+      _currentLine = currentLine,
+      _currentCol = 1,
+      _lines = One,
+      _mappings = []
+    }
+
+addAscii :: String -> Builder -> Builder
+addAscii code (Builder _code _currLine _currCol _lines _mappings) =
+  Builder
+    { _code = _code <> B.string7 code,
+      _currentLine = _currLine,
+      _currentCol = _currCol + length code,
+      _lines = _lines,
+      _mappings = _mappings
+    }
+
+-- TODO: This is a crutch used during prototyping
+-- Should be removed once things stabalizes as it's bad for perf
+addByteString :: B.Builder -> Builder -> Builder
+addByteString bsBuilder (Builder _code _currLine _currCol _lines _mappings) =
+  let size = BSLazy.length $ B.toLazyByteString bsBuilder
+   in Builder
+        { _code = _code <> bsBuilder,
+          _currentLine = _currLine,
+          _currentCol = _currCol + fromIntegral size,
+          _lines = _lines,
+          _mappings = _mappings
+        }
+
+addLine :: Builder -> Builder
+addLine (Builder _code _currLine _currCol _lines _mappings) =
+  Builder
+    { _code = _code <> B.char7 '\n',
+      _currentLine = _currLine + 1,
+      _currentCol = 1,
+      _lines = Many,
+      _mappings = _mappings
+    }
 
 -- ENCODE
 
@@ -297,21 +356,21 @@ parensFor grouping builder =
     Whatever ->
       builder
 
-fromExpr :: Int -> Level -> Grouping -> Expr -> (Lines, Builder)
-fromExpr line level@(Level indent nextLevel@(Level deeperIndent _)) grouping expression =
+fromExpr :: Int -> Level -> Grouping -> Expr -> Builder -> Builder
+fromExpr line level@(Level indent nextLevel@(Level deeperIndent _)) grouping expression builder =
   case expression of
     String string ->
-      (One, "'" <> string <> "'")
+      addByteString ("''" <> string <> "''") builder
     Float float ->
-      (One, float)
+      addByteString float builder
     Int n ->
-      (One, B.intDec n)
+      addByteString (B.intDec n) builder
     Bool bool ->
-      (One, if bool then "true" else "false")
+      addAscii (if bool then "true" else "false") builder
     Null ->
-      (One, "null")
+      addAscii "null" builder
     Json json ->
-      (One, Json.encodeUgly json)
+      addByteString (Json.encodeUgly json) builder
     Array exprs ->
       (,) Many $
         let (anyMany, builders) = linesMap (fromExpr line level Whatever) exprs
@@ -337,7 +396,7 @@ fromExpr line level@(Level indent nextLevel@(Level deeperIndent _)) grouping exp
                   <> "}"
               else "{" <> commaSep builders <> "}"
     Ref name ->
-      (One, Name.toBuilder name)
+      addByteString (Name.toBuilder name) builder
     Access expr field ->
       makeDot line level expr field
     Index expr bracketedExpr ->
