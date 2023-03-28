@@ -21,6 +21,7 @@ where
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder qualified as B
 import Data.ByteString.Lazy.Char8 qualified as BSLazy
+import Data.Function ((&))
 import Data.List qualified as List
 import Generate.JavaScript.Name (Name)
 import Generate.JavaScript.Name qualified as Name
@@ -346,15 +347,28 @@ linesMap func xs =
         map snd pairs
       )
 
+commaSepExpr :: (a -> Builder -> Builder) -> [a] -> Builder -> Builder
+commaSepExpr fn exprs builder =
+  case exprs of
+    [] ->
+      builder
+    [first] ->
+      fn first builder
+    first : rest ->
+      commaSepExpr fn rest (addAscii ", " (fn first builder))
+
 data Grouping = Atomic | Whatever
 
-parensFor :: Grouping -> Builder -> Builder
-parensFor grouping builder =
+parensFor :: Grouping -> Builder -> (Builder -> Builder) -> Builder
+parensFor grouping builder fillContent =
   case grouping of
     Atomic ->
-      "(" <> builder <> ")"
-    Whatever ->
       builder
+        & addAscii "("
+        & fillContent
+        & addAscii ")"
+    Whatever ->
+      fillContent builder
 
 fromExpr :: Int -> Level -> Grouping -> Expr -> Builder -> Builder
 fromExpr line level@(Level indent nextLevel@(Level deeperIndent _)) grouping expression builder =
@@ -372,139 +386,130 @@ fromExpr line level@(Level indent nextLevel@(Level deeperIndent _)) grouping exp
     Json json ->
       addByteString (Json.encodeUgly json) builder
     Array exprs ->
-      (,) Many $
-        let (anyMany, builders) = linesMap (fromExpr line level Whatever) exprs
-         in if anyMany
-              then
-                "[\n"
-                  <> deeperIndent
-                  <> commaNewlineSep level builders
-                  <> "\n"
-                  <> indent
-                  <> "]"
-              else "[" <> commaSep builders <> "]"
+      builder
+        & addAscii "[ "
+        & commaSepExpr (fromExpr line level Whatever) exprs
+        & addAscii " ]"
     Object fields ->
-      (,) Many $
-        let (anyMany, builders) = linesMap (fromField line nextLevel) fields
-         in if anyMany
-              then
-                "{\n"
-                  <> deeperIndent
-                  <> commaNewlineSep level builders
-                  <> "\n"
-                  <> indent
-                  <> "}"
-              else "{" <> commaSep builders <> "}"
+      builder
+        & addAscii "{ "
+        & commaSepExpr (fromField line level) fields
+        & addAscii " }"
     Ref name ->
       addByteString (Name.toBuilder name) builder
     Access expr field ->
-      makeDot line level expr field
+      makeDot line level expr field builder
     Index expr bracketedExpr ->
-      makeBracketed line level expr bracketedExpr
+      makeBracketed line level expr bracketedExpr builder
     Prefix op expr ->
-      let (lines, builder) = fromExpr line level Atomic expr
-       in ( lines,
-            parensFor grouping (fromPrefix op <> builder)
-          )
+      parensFor grouping builder $ \b ->
+        b
+          & fromPrefix op
+          & fromExpr line level Atomic expr
     Infix op leftExpr rightExpr ->
-      let (leftLines, left) = fromExpr line level Atomic leftExpr
-          (rightLines, right) = fromExpr line level Atomic rightExpr
-       in ( merge leftLines rightLines,
-            parensFor grouping (left <> fromInfix op <> right)
-          )
+      parensFor grouping builder $ \b ->
+        b
+          & fromExpr line level Atomic leftExpr
+          & fromInfix op
+          & fromExpr line level Atomic rightExpr
     If condExpr thenExpr elseExpr ->
-      let condB = snd (fromExpr line level Atomic condExpr)
-          thenB = snd (fromExpr line level Atomic thenExpr)
-          elseB = snd (fromExpr line level Atomic elseExpr)
-       in ( Many,
-            parensFor grouping (condB <> " ? " <> thenB <> " : " <> elseB)
-          )
+      parensFor grouping builder $ \b ->
+        b
+          & fromExpr line level Atomic condExpr
+          & addAscii " ? "
+          & fromExpr line level Atomic thenExpr
+          & addAscii " : "
+          & fromExpr line level Atomic elseExpr
     Assign lValue expr ->
-      let (leftLines, left) = fromLValue line level lValue
-          (rightLines, right) = fromExpr line level Whatever expr
-       in ( merge leftLines rightLines,
-            parensFor grouping (left <> " = " <> right)
-          )
+      parensFor grouping builder $ \b ->
+        b
+          & fromLValue line level lValue
+          & addAscii " = "
+          & fromExpr line level Whatever expr
     Call function args ->
-      (,) Many $
-        let (_, funcB) = fromExpr line level Atomic function
-            (anyMany, argsB) = linesMap (fromExpr line nextLevel Whatever) args
-         in if anyMany
-              then funcB <> "(\n" <> deeperIndent <> commaNewlineSep level argsB <> ")"
-              else funcB <> "(" <> commaSep argsB <> ")"
+      builder
+        & fromExpr line level Atomic function
+        & addAscii "("
+        & commaSepExpr (fromExpr line nextLevel Whatever) args
+        & addAscii ")"
     Function maybeName args stmts ->
-      (,) Many $
-        "function "
-          <> maybe mempty Name.toBuilder maybeName
-          <> "("
-          <> commaSep (map Name.toBuilder args)
-          <> ") {\n"
-          <> fromStmtBlock (line + 1) nextLevel stmts
-          <> indent
-          <> "}"
+      builder
+        & addAscii "function "
+        & addByteString (maybe mempty Name.toBuilder maybeName)
+        & addAscii "("
+        & commaSepExpr (\arg -> addByteString (Name.toBuilder arg)) args
+        & addAscii ") {"
+        & addLine
+        & fromStmtBlock (line + 1) nextLevel stmts
+        & addByteString indent
+        & addAscii "}"
 
 -- FIELDS
 
-fromField :: Int -> Level -> (Name, Expr) -> (Lines, Builder)
-fromField line level (field, expr) =
-  let (lines, builder) = fromExpr line level Whatever expr
-   in ( lines,
-        Name.toBuilder field <> ": " <> builder
-      )
+fromField :: Int -> Level -> (Name, Expr) -> Builder -> Builder
+fromField line level (field, expr) builder =
+  builder
+    & addByteString (Name.toBuilder field)
+    & addAscii ": "
+    & fromExpr line level Whatever expr
 
 -- VALUES
 
-fromLValue :: Int -> Level -> LValue -> (Lines, Builder)
-fromLValue line level lValue =
+fromLValue :: Int -> Level -> LValue -> Builder -> Builder
+fromLValue line level lValue builder =
   case lValue of
     LRef name ->
-      (One, Name.toBuilder name)
+      addByteString (Name.toBuilder name) builder
     LDot expr field ->
-      makeDot line level expr field
+      makeDot line level expr field builder
     LBracket expr bracketedExpr ->
-      makeBracketed line level expr bracketedExpr
+      makeBracketed line level expr bracketedExpr builder
 
-makeDot :: Int -> Level -> Expr -> Name -> (Lines, Builder)
-makeDot line level expr field =
-  let (lines, builder) = fromExpr line level Atomic expr
-   in (lines, builder <> "." <> Name.toBuilder field)
+makeDot :: Int -> Level -> Expr -> Name -> Builder -> Builder
+makeDot line level expr field builder =
+  builder
+    & fromExpr line level Atomic expr
+    & addAscii "."
+    & addByteString (Name.toBuilder field)
 
-makeBracketed :: Int -> Level -> Expr -> Expr -> (Lines, Builder)
-makeBracketed line level expr bracketedExpr =
-  let (lines, builder) = fromExpr line level Atomic expr
-      (bracketedLines, bracketedBuilder) = fromExpr line level Whatever bracketedExpr
-   in ( merge lines bracketedLines,
-        builder <> "[" <> bracketedBuilder <> "]"
-      )
+makeBracketed :: Int -> Level -> Expr -> Expr -> Builder -> Builder
+makeBracketed line level expr bracketedExpr builder =
+  builder
+    & fromExpr line level Atomic expr
+    & addAscii "["
+    & fromExpr line level Whatever bracketedExpr
+    & addAscii "]"
 
 -- OPERATORS
 
-fromPrefix :: PrefixOp -> Builder
+fromPrefix :: PrefixOp -> Builder -> Builder
 fromPrefix op =
-  case op of
-    PrefixNot -> "!"
-    PrefixNegate -> "-"
-    PrefixComplement -> "~"
+  addAscii $
+    case op of
+      PrefixNot -> "!"
+      PrefixNegate -> "-"
+      PrefixComplement -> "~"
 
-fromInfix :: InfixOp -> Builder
+fromInfix :: InfixOp -> Builder -> Builder
 fromInfix op =
-  case op of
-    OpAdd -> " + "
-    OpSub -> " - "
-    OpMul -> " * "
-    OpDiv -> " / "
-    OpMod -> " % "
-    OpEq -> " === "
-    OpNe -> " !== "
-    OpLt -> " < "
-    OpLe -> " <= "
-    OpGt -> " > "
-    OpGe -> " >= "
-    OpAnd -> " && "
-    OpOr -> " || "
-    OpBitwiseAnd -> " & "
-    OpBitwiseXor -> " ^ "
-    OpBitwiseOr -> " | "
-    OpLShift -> " << "
-    OpSpRShift -> " >> "
-    OpZfRShift -> " >>> "
+  addAscii $
+    case op of
+      OpAdd -> " + "
+      OpSub -> " - "
+      OpMul -> " * "
+      OpDiv -> " / "
+      OpMod -> " % "
+      OpEq -> " === "
+      OpNe -> " !== "
+      OpLt -> " < "
+      OpLe -> " <= "
+      OpGt -> " > "
+      OpGe -> " >= "
+      OpAnd -> " && "
+      OpOr -> " || "
+      OpBitwiseAnd -> " & "
+      OpBitwiseXor -> " ^ "
+      OpBitwiseOr -> " | "
+      OpLShift -> " << "
+      OpSpRShift -> " >> "
+      OpZfRShift -> " >>> "
