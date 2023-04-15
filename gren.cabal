@@ -214,7 +214,7 @@ Common gren-common
         ghc-prim >= 0.5.2,
         haskeline,
         mtl >= 2.2.1 && < 3,
-        prettyprint-avh4 >= 0.1.0.0 && < 0.2,
+        prettyprint-avh4 >= 0.1.1.0 && < 0.2,
         process,
         raw-strings-qq,
         scientific,

@@ -423,8 +423,7 @@ spec = do
         [ "-(x --A",
           ")"
         ]
-          `shouldFormatExpressionAs` [ "-(x",
-                                       "  -- A",
+          `shouldFormatExpressionAs` [ "-(x -- A",
                                        " )"
                                      ]
 
