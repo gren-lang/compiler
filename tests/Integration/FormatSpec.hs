@@ -736,11 +736,11 @@ spec = do
         ["({-A-}Int{-B-})"]
           `shouldFormatTypeAs` ["({- A -} Int {- B -})"]
 
-assertFormatted :: [Text] -> IO ()
+assertFormatted :: (HasCallStack) => [Text] -> IO ()
 assertFormatted lines_ =
   lines_ `shouldFormatAs` lines_
 
-shouldFormatAs :: [Text] -> [Text] -> IO ()
+shouldFormatAs :: (HasCallStack) => [Text] -> [Text] -> IO ()
 shouldFormatAs inputLines expectedOutputLines =
   let input = TE.encodeUtf8 $ Text.unlines inputLines
       expectedOutput = LazyText.unlines $ fmap LazyText.fromStrict expectedOutputLines
@@ -751,19 +751,19 @@ shouldFormatAs inputLines expectedOutputLines =
         Right actualModuleBody ->
           actualModuleBody `shouldBe` expectedOutput
 
-assertFormattedModuleBody :: [Text] -> IO ()
+assertFormattedModuleBody :: (HasCallStack) => [Text] -> IO ()
 assertFormattedModuleBody lines_ =
   lines_ `shouldFormatModuleBodyAs` lines_
 
-shouldFormatModuleBodyAs :: [Text] -> [Text] -> IO ()
+shouldFormatModuleBodyAs :: (HasCallStack) => [Text] -> [Text] -> IO ()
 shouldFormatModuleBodyAs =
   shouldFormatModuleBodyAs_ Parse.Application
 
-shouldFormatKernelModuleBodyAs :: [Text] -> [Text] -> IO ()
+shouldFormatKernelModuleBodyAs :: (HasCallStack) => [Text] -> [Text] -> IO ()
 shouldFormatKernelModuleBodyAs =
   shouldFormatModuleBodyAs_ (Parse.Package Gren.Package.kernel)
 
-shouldFormatModuleBodyAs_ :: Parse.ProjectType -> [Text] -> [Text] -> IO ()
+shouldFormatModuleBodyAs_ :: (HasCallStack) => Parse.ProjectType -> [Text] -> [Text] -> IO ()
 shouldFormatModuleBodyAs_ projectType inputLines expectedOutputLines =
   let input = TE.encodeUtf8 $ Text.unlines inputLines
       expectedOutput = LazyText.unlines $ fmap LazyText.fromStrict expectedOutputLines
@@ -776,11 +776,11 @@ shouldFormatModuleBodyAs_ projectType inputLines expectedOutputLines =
         Right (Just actualModuleBody) ->
           actualModuleBody `shouldBe` expectedOutput
 
-assertFormattedExpression :: [Text] -> IO ()
+assertFormattedExpression :: (HasCallStack) => [Text] -> IO ()
 assertFormattedExpression lines_ =
   lines_ `shouldFormatExpressionAs` lines_
 
-shouldFormatExpressionAs :: [Text] -> [Text] -> IO ()
+shouldFormatExpressionAs :: (HasCallStack) => [Text] -> [Text] -> IO ()
 shouldFormatExpressionAs inputLines expectedOutputLines =
   let input = TE.encodeUtf8 $ "expr =\n" <> Text.unlines (fmap ("    " <>) inputLines)
       expectedOutput = LazyText.unlines $ fmap LazyText.fromStrict expectedOutputLines
@@ -803,7 +803,7 @@ shouldFormatExpressionAs inputLines expectedOutputLines =
         then Just text
         else LazyText.stripPrefix "    " text
 
-shouldFormatTypeAs :: [Text] -> [Text] -> IO ()
+shouldFormatTypeAs :: (HasCallStack) => [Text] -> [Text] -> IO ()
 shouldFormatTypeAs inputLines expectedOutputLines =
   let input = TE.encodeUtf8 $ "type alias Type =\n" <> Text.unlines (fmap ("    " <>) inputLines)
       expectedOutput = LazyText.unlines $ fmap LazyText.fromStrict expectedOutputLines
