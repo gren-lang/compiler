@@ -28,7 +28,7 @@ import Gren.Int qualified as GI
 import Gren.String qualified as GS
 import Parse.Primitives qualified as P
 import Reporting.Annotation qualified as A
-import Text.PrettyPrint.Avh4.Block (Block)
+import Text.PrettyPrint.Avh4.Block (Block, spaceSeparatedOrIndent, spaceSeparatedOrIndentForce, spaceSeparatedOrStack, spaceSeparatedOrStackForce)
 import Text.PrettyPrint.Avh4.Block qualified as Block
 import Text.Printf qualified
 
@@ -64,15 +64,6 @@ addBlankLines n block =
       (replicate n Block.blankLine)
       (NonEmpty.singleton block)
 
-spaceOrStack :: NonEmpty Block -> Block
-spaceOrStack = Block.rowOrStack (Just Block.space)
-
-spaceOrIndent :: NonEmpty Block -> Block
-spaceOrIndent = Block.rowOrIndent (Just Block.space)
-
-spaceOrIndentForce :: Bool -> NonEmpty Block -> Block
-spaceOrIndentForce forceMultiline = Block.rowOrIndentForce forceMultiline (Just Block.space)
-
 group :: Char -> Char -> Char -> Bool -> [Block] -> Block
 group open sep close forceMultiline = groupWithBlankLines open sep close forceMultiline . fmap (0,)
 
@@ -80,12 +71,11 @@ group open sep close forceMultiline = groupWithBlankLines open sep close forceMu
 groupWithBlankLines :: Char -> Char -> Char -> Bool -> [(Int, Block)] -> Block
 groupWithBlankLines open _ close _ [] = Block.line $ Block.char7 open <> Block.char7 close
 groupWithBlankLines open sep close forceMultiline ((_, first) : rest) =
-  Block.rowOrStackForce
+  spaceSeparatedOrStackForce
     forceMultiline
-    (Just Block.space)
     [ Block.rowOrStackForce forceMultiline Nothing $
         formatEntry open (0, first)
-          :| fmap (formatEntry sep) (rest),
+          :| fmap (formatEntry sep) rest,
       Block.line (Block.char7 close)
     ]
   where
@@ -112,8 +102,8 @@ extendedGroup :: Char -> Char -> Char -> Char -> Char -> Block -> NonEmpty (Mayb
 extendedGroup open baseSep sep fieldSep close base fields =
   case fields of
     (single :| []) ->
-      spaceOrStack
-        [ spaceOrIndent
+      spaceSeparatedOrStack
+        [ spaceSeparatedOrIndent
             [ formattedBase,
               formatField True baseSep single
             ],
@@ -140,8 +130,8 @@ extendedGroup open baseSep sep fieldSep close base fields =
               Block.stack $
                 NonEmpty.prependList (maybeToList before) $
                   NonEmpty.singleton $
-                    spaceOrIndent
-                      [ spaceOrIndent
+                    spaceSeparatedOrIndent
+                      [ spaceSeparatedOrIndent
                           [ key,
                             Block.line $ Block.char7 fieldSep
                           ],
@@ -157,11 +147,11 @@ withCommentsAround before after block =
   case (formatCommentBlock before, formatCommentBlock after) of
     (Nothing, Nothing) -> block
     (Just beforeBlock, Nothing) ->
-      spaceOrStack [beforeBlock, block]
+      spaceSeparatedOrStack [beforeBlock, block]
     (Nothing, Just afterBlock) ->
-      spaceOrIndent [block, afterBlock]
+      spaceSeparatedOrIndent [block, afterBlock]
     (Just beforeBlock, Just afterBlock) ->
-      spaceOrStack [beforeBlock, spaceOrIndent [block, afterBlock]]
+      spaceSeparatedOrStack [beforeBlock, spaceSeparatedOrIndent [block, afterBlock]]
 
 withCommentsStackBefore :: [Src.Comment] -> Block -> Block
 withCommentsStackBefore before = withCommentsStackAround before []
@@ -204,7 +194,7 @@ formatCommentBlock =
 
 formatCommentBlockNonEmpty :: NonEmpty Src.Comment -> Block
 formatCommentBlockNonEmpty =
-  spaceOrStack . fmap formatComment
+  spaceSeparatedOrStack . fmap formatComment
 
 formatModule :: Src.Module -> Block
 formatModule (Src.Module moduleName exports docs imports values unions aliases (commentsBeforeBinops, binops) topLevelComments comments effects) =
@@ -213,7 +203,7 @@ formatModule (Src.Module moduleName exports docs imports values unions aliases (
       catMaybes
         [ formatCommentBlock commentsBeforeLine,
           Just $
-            spaceOrIndent $
+            spaceSeparatedOrIndent $
               NonEmpty.fromList $
                 catMaybes
                   [ Just $ Block.line $ Block.string7 moduleKeyword,
@@ -316,7 +306,7 @@ formatEffectsModuleWhereClause = \case
 
 formatManager :: Src.Manager -> Block
 formatManager manager =
-  spaceOrIndent
+  spaceSeparatedOrIndent
     [ Block.line $ Block.string7 "where",
       group '{' ',' '}' False $
         fmap (formatPair . second A.toValue) $
@@ -332,7 +322,7 @@ formatManager manager =
     ]
   where
     formatPair (comments, key, name) =
-      spaceOrStack $
+      spaceSeparatedOrStack $
         NonEmpty.prependList
           (fmap formatComment comments)
           ( NonEmpty.singleton $
@@ -348,7 +338,7 @@ formatExposing :: [Src.Comment] -> [Src.Comment] -> Src.Exposing -> Maybe Block
 formatExposing commentsAfterKeyword commentsAfterListing = \case
   Src.Open ->
     Just $
-      spaceOrIndent
+      spaceSeparatedOrIndent
         [ Block.line $ Block.string7 "exposing",
           withCommentsAround commentsAfterKeyword commentsAfterListing $
             Block.line $
@@ -358,7 +348,7 @@ formatExposing commentsAfterKeyword commentsAfterListing = \case
     formatCommentBlock (commentsAfterKeyword <> commentsAfterListing)
   Src.Explicit exposed ->
     Just $
-      spaceOrIndent
+      spaceSeparatedOrIndent
         [ Block.line $ Block.string7 "exposing",
           withCommentsAround commentsAfterKeyword commentsAfterListing $
             group '(' ',' ')' False $
@@ -380,12 +370,12 @@ formatImport (commentsBefore, Src.Import name alias exposing exposingComments co
           catMaybes
             [ fmap (\b -> Block.stack [Block.blankLine, b]) $ formatCommentBlock commentsBefore,
               Just $
-                spaceOrIndent $
+                spaceSeparatedOrIndent $
                   NonEmpty.fromList $
                     catMaybes
                       [ Just $ Block.line $ Block.string7 "import",
                         Just $ withCommentsBefore commentsAfterKeyword $ Block.line $ utf8 $ A.toValue name,
-                        (spaceOrStack . fmap formatComment) <$> NonEmpty.nonEmpty commentsAfterName,
+                        (spaceSeparatedOrStack . fmap formatComment) <$> NonEmpty.nonEmpty commentsAfterName,
                         fmap formatImportAlias alias,
                         formatExposing
                           (maybe [] SC._afterExposing exposingComments)
@@ -396,7 +386,7 @@ formatImport (commentsBefore, Src.Import name alias exposing exposingComments co
 
 formatImportAlias :: (Name, SC.ImportAliasComments) -> Block
 formatImportAlias (name, SC.ImportAliasComments afterAs afterAliasName) =
-  spaceOrIndent
+  spaceSeparatedOrIndent
     [ Block.line $ Block.string7 "as",
       withCommentsAround afterAs afterAliasName (Block.line $ utf8 name)
     ]
@@ -437,7 +427,7 @@ formatBasicDef name args body type_ (SC.ValueComments commentsBeforeEquals comme
       catMaybes
         [ fmap (formatTypeAnnotation Nothing name) type_,
           Just $
-            spaceOrIndent $
+            spaceSeparatedOrIndent $
               Block.line (utf8 name)
                 :| fmap formatPat args
                 ++ [ withCommentsBefore commentsBeforeEquals $
@@ -457,8 +447,8 @@ formatBasicDef name args body type_ (SC.ValueComments commentsBeforeEquals comme
 
 formatTypeAnnotation :: Maybe String -> Name -> (Src.Type, SC.ValueTypeComments) -> Block
 formatTypeAnnotation prefix name (t, SC.ValueTypeComments commentsBeforeColon commentsAfterColon commentsAfterType) =
-  spaceOrIndent $
-    [ spaceOrStack $
+  spaceSeparatedOrIndent
+    [ spaceSeparatedOrStack $
         NonEmpty.fromList $
           catMaybes
             [ Just $ Block.line $ withPrefix $ utf8 name,
@@ -479,10 +469,10 @@ formatTypeAnnotation prefix name (t, SC.ValueTypeComments commentsBeforeColon co
 formatUnion :: Src.Union -> Block
 formatUnion (Src.Union name args ctors (SC.UnionComments commentsBeforeName commentsAfterArgs)) =
   Block.stack $
-    spaceOrIndent
+    spaceSeparatedOrIndent
       [ Block.line (Block.string7 "type"),
         withCommentsAround commentsBeforeName commentsAfterArgs $
-          spaceOrIndent $
+          spaceSeparatedOrIndent $
             Block.line (utf8 $ A.toValue name)
               :| fmap formatArg args
       ]
@@ -501,7 +491,7 @@ formatCtor :: Char -> Src.UnionVariant -> Block
 formatCtor open (commentsBefore, name, args, commentsAfter) =
   Block.prefix 2 (Block.char7 open <> Block.space) $
     withCommentsAround commentsBefore commentsAfter $
-      spaceOrIndent $
+      spaceSeparatedOrIndent $
         Block.line (utf8 (A.toValue name))
           :| fmap formatArg args
   where
@@ -511,9 +501,9 @@ formatCtor open (commentsBefore, name, args, commentsAfter) =
 formatAlias :: Src.Alias -> Block
 formatAlias (Src.Alias name args type_) =
   Block.stack
-    [ spaceOrIndent
+    [ spaceSeparatedOrIndent
         [ Block.line (Block.string7 "type alias"),
-          spaceOrIndent $
+          spaceSeparatedOrIndent $
             Block.line (utf8 $ A.toValue name)
               :| fmap (Block.line . utf8 . A.toValue) args,
           Block.line (Block.char7 '=')
@@ -603,7 +593,7 @@ formatExpr = \case
   Src.Binops postfixOps final ->
     let (first, rest) = repair3 postfixOps final
      in ExpressionContainsInfixOps $
-          spaceOrIndentForce forceMultiline $
+          spaceSeparatedOrIndentForce forceMultiline $
             exprParensProtectInfixOps (formatExpr $ A.toValue first)
               :| fmap formatSegment rest
     where
@@ -624,9 +614,9 @@ formatExpr = \case
     formatExpr $ A.toValue body
   Src.Lambda (arg1 : args) body (SC.LambdaComments commentsBeforeArrow commentsAfterArrow) ->
     ExpressionHasAmbiguousEnd $
-      spaceOrIndent
+      spaceSeparatedOrIndent
         [ Block.prefix 1 (Block.char7 '\\') $
-            spaceOrStack $
+            spaceSeparatedOrStack $
               join
                 [ fmap formatArg (arg1 :| args),
                   pure $
@@ -647,7 +637,7 @@ formatExpr = \case
     formatExpr $ A.toValue fn
   Src.Call fn args ->
     ExpressionContainsSpaces $
-      spaceOrIndent $
+      spaceSeparatedOrIndent $
         exprParensProtectInfixOps (formatExpr $ A.toValue fn)
           :| fmap formatArg args
     where
@@ -677,8 +667,8 @@ formatExpr = \case
       formatIfBranch :: String -> Src.IfBranch -> Block
       formatIfBranch keyword (predicate, body, SC.IfBranchComments commentsAfterIf commentsBeforeThen commentsBeforeBody commentsAfterBody) =
         Block.stack
-          [ spaceOrStack
-              [ spaceOrIndent
+          [ spaceSeparatedOrStack
+              [ spaceSeparatedOrIndent
                   [ Block.line $ Block.string7 keyword,
                     withCommentsAround commentsAfterIf commentsBeforeThen $
                       exprParensNone $
@@ -713,8 +703,8 @@ formatExpr = \case
   Src.Case subject branches (SC.CaseComments commentsAfterCaseKeyword commentsBeforeOfKeyword) ->
     ExpressionHasAmbiguousEnd $
       Block.stack $
-        spaceOrStack
-          [ spaceOrIndent
+        spaceSeparatedOrStack
+          [ spaceSeparatedOrIndent
               [ Block.line (Block.string7 "case"),
                 withCommentsAround commentsAfterCaseKeyword commentsBeforeOfKeyword $
                   exprParensNone $
@@ -727,7 +717,7 @@ formatExpr = \case
       formatCaseBranch (pat, expr, SC.CaseBranchComments commentsBefore commentsAfterPattern commentsBeforeBody commentsAfterBody) =
         withCommentsStackBefore commentsBefore $
           Block.stack
-            [ spaceOrStack
+            [ spaceSeparatedOrStack
                 [ withCommentsAround [] commentsAfterPattern $
                     patternParensNone $
                       formatPattern (A.toValue pat),
@@ -774,8 +764,8 @@ formatExpr = \case
       formatField (name, expr, SC.RecordFieldComments commentsBeforeName commentsAfterName commentsBeforeValue commentsAfterValue) =
         ( if List.null commentsBeforeName then 0 else 1,
           withCommentsStackBefore commentsBeforeName $
-            spaceOrIndent
-              [ spaceOrIndent
+            spaceSeparatedOrIndent
+              [ spaceSeparatedOrIndent
                   [ withCommentsAround [] commentsAfterName $
                       Block.line $
                         utf8 (A.toValue name),
@@ -808,7 +798,7 @@ parensComments :: [Src.Comment] -> [Src.Comment] -> Block -> Block
 parensComments [] [] inner = inner
 parensComments commentsBefore commentsAfter inner =
   parens $
-    spaceOrStack $
+    spaceSeparatedOrStack $
       NonEmpty.fromList $
         catMaybes
           [ formatCommentBlock commentsBefore,
@@ -829,7 +819,7 @@ formatDef (commentsBefore, def) =
         formatBasicDef (A.toValue name) args (A.toValue body) ann comments
       Src.Destruct pat body (SC.ValueComments commentsBeforeEquals commentsBeforeBody commentsAfterBody) ->
         Block.stack
-          [ spaceOrIndent
+          [ spaceSeparatedOrIndent
               [ withCommentsAround [] commentsBeforeEquals $
                   patternParensProtectSpaces $
                     formatPattern (A.toValue pat),
@@ -876,7 +866,7 @@ formatType = \case
   Src.TLambda left right comments ->
     TypeContainsArrow $
       let rest = collectLambdaTypes comments right
-       in spaceOrStack $
+       in spaceSeparatedOrStack $
             (typeParensProtectArrows $ formatType (A.toValue left))
               :| NonEmpty.toList (fmap formatSegment rest)
     where
@@ -895,7 +885,7 @@ formatType = \case
       Block.line (utf8 name)
   Src.TType _ name args ->
     TypeContainsSpaces $
-      spaceOrIndent $
+      spaceSeparatedOrIndent $
         Block.line (utf8 name)
           :| fmap formatArg args
     where
@@ -906,7 +896,7 @@ formatType = \case
       Block.line (utf8 ns <> Block.char7 '.' <> utf8 name)
   Src.TTypeQual _ ns name args ->
     TypeContainsSpaces $
-      spaceOrIndent $
+      spaceSeparatedOrIndent $
         Block.line (utf8 ns <> Block.char7 '.' <> utf8 name)
           :| fmap formatArg args
     where
@@ -920,8 +910,8 @@ formatType = \case
       formatField (name, type_, SC.RecordFieldComments commentsBeforeName commentsAfterName commentsBeforeValue commentsAfterValue) =
         ( if List.null commentsBeforeName then 0 else 1,
           withCommentsStackBefore commentsBeforeName $
-            spaceOrIndent
-              [ spaceOrIndent
+            spaceSeparatedOrIndent
+              [ spaceSeparatedOrIndent
                   [ withCommentsAround [] commentsAfterName $
                       Block.line $
                         utf8 (A.toValue name),
@@ -998,13 +988,13 @@ formatPattern = \case
           | name == pname ->
               Block.line $ utf8 name
         Src.RFPattern name pat ->
-          spaceOrIndent
+          spaceSeparatedOrIndent
             [ Block.line $ utf8 (A.toValue name) <> Block.space <> Block.char7 '=',
               patternParensNone $ formatPattern (A.toValue pat)
             ]
   Src.PAlias pat name ->
     PatternContainsSpaces $
-      spaceOrIndent
+      spaceSeparatedOrIndent
         [ patternParensProtectSpaces $ formatPattern (A.toValue pat),
           Block.line $ Block.string7 "as " <> utf8 (A.toValue name)
         ]
@@ -1013,7 +1003,7 @@ formatPattern = \case
       Block.line (utf8 name)
   Src.PCtor _ name args ->
     PatternContainsSpaces $
-      spaceOrIndent $
+      spaceSeparatedOrIndent $
         Block.line (utf8 name)
           :| fmap (patternParensProtectSpaces . formatPatternConstructorArg) args
   Src.PCtorQual _ ns name [] ->
@@ -1021,7 +1011,7 @@ formatPattern = \case
       Block.line (utf8 ns <> Block.char7 '.' <> utf8 name)
   Src.PCtorQual _ ns name args ->
     PatternContainsSpaces $
-      spaceOrIndent $
+      spaceSeparatedOrIndent $
         Block.line (utf8 ns <> Block.char7 '.' <> utf8 name)
           :| fmap (patternParensProtectSpaces . formatPatternConstructorArg) args
   Src.PArray items ->
