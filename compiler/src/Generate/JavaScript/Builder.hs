@@ -22,7 +22,6 @@ import Data.ByteString qualified as BS
 import Data.ByteString.Builder qualified as B
 import Data.ByteString.Lazy.Char8 qualified as BSLazy
 import Data.Function ((&))
-import Data.List qualified as List
 import Generate.JavaScript.Name (Name)
 import Generate.JavaScript.Name qualified as Name
 import Json.Encode qualified as Json
@@ -30,19 +29,6 @@ import Prelude hiding (lines)
 
 -- EXPRESSIONS
 
--- NOTE: I tried making this create a B.Builder directly.
---
--- The hope was that it'd allocate less and speed things up, but it seemed
--- to be neutral for perf.
---
--- The downside is that Generate.JavaScript.Expression inspects the
--- structure of Expr and Stmt on some occassions to try to strip out
--- unnecessary closures. I think these closures are already avoided
--- by other logic in code gen these days, but I am not 100% certain.
---
--- For this to be worth it, I think it would be necessary to avoid
--- returning tuples when generating expressions.
---
 data Expr
   = String B.Builder
   | Float B.Builder
@@ -180,16 +166,16 @@ addLine (Builder _code _currLine _currCol _lines _mappings) =
 
 stmtToBuilder :: Int -> Stmt -> Builder
 stmtToBuilder line stmts =
-  fromStmt line levelZero stmts
+  fromStmt levelZero stmts (emptyBuilder line)
 
 exprToBuilder :: Int -> Expr -> Builder
 exprToBuilder line expr =
-  snd $ fromExpr line levelZero Whatever expr
+  fromExpr levelZero Whatever expr (emptyBuilder line)
 
 -- INDENT LEVEL
 
 data Level
-  = Level Builder Level
+  = Level B.Builder Level
 
 levelZero :: Level
 levelZero =
@@ -203,149 +189,192 @@ makeLevel level oldTabs =
           else BS.replicate (BS.length oldTabs * 2) 0x09 {-\t-}
    in Level (B.byteString (BS.take level tabs)) (makeLevel (level + 1) tabs)
 
--- HELPERS
-
-commaSep :: [Builder] -> Builder
-commaSep builders =
-  mconcat (List.intersperse ", " builders)
-
-commaNewlineSep :: Level -> [Builder] -> Builder
-commaNewlineSep (Level _ (Level deeperIndent _)) builders =
-  mconcat (List.intersperse (",\n" <> deeperIndent) builders)
-
 -- STATEMENTS
 
-fromStmtBlock :: Int -> Level -> [Stmt] -> Builder
-fromStmtBlock line level stmts =
-  mconcat (map (fromStmt line level) stmts)
+fromStmtBlock :: Level -> [Stmt] -> Builder -> Builder
+fromStmtBlock level stmts builder =
+  foldl (\accBuilder stmt -> fromStmt level stmt accBuilder) builder stmts
 
-fromStmt :: Int -> Level -> Stmt -> Builder
-fromStmt line level@(Level indent nextLevel) statement =
+fromStmt :: Level -> Stmt -> Builder -> Builder
+fromStmt level@(Level indent nextLevel) statement builder =
   case statement of
     Block stmts ->
-      fromStmtBlock line level stmts
+      fromStmtBlock level stmts builder
     EmptyStmt ->
-      mempty
+      builder
     ExprStmt expr ->
-      indent <> snd (fromExpr line level Whatever expr) <> ";\n"
+      builder
+        & addByteString indent
+        & fromExpr level Whatever expr
+        & addAscii ";"
+        & addLine
     IfStmt condition thenStmt elseStmt ->
-      mconcat
-        [ indent,
-          "if (",
-          snd (fromExpr line level Whatever condition),
-          ") {\n",
-          fromStmt (line + 1) nextLevel thenStmt,
-          indent,
-          "} else {\n",
-          fromStmt (line + 2) nextLevel elseStmt,
-          indent,
-          "}\n"
-        ]
+      builder
+        & addByteString indent
+        & addAscii "if ("
+        & fromExpr level Whatever condition
+        & addAscii ") {"
+        & addLine
+        & fromStmt nextLevel thenStmt
+        & addByteString indent
+        & addAscii "} else {"
+        & addLine
+        & fromStmt nextLevel elseStmt
+        & addAscii "}"
+        & addLine
     Switch expr clauses ->
-      mconcat
-        [ indent,
-          "switch (",
-          snd (fromExpr line level Whatever expr),
-          ") {\n",
-          mconcat (map (fromClause (line + 1) nextLevel) clauses),
-          indent,
-          "}\n"
-        ]
+      builder
+        & addByteString indent
+        & addAscii "switch ("
+        & fromExpr level Whatever expr
+        & addAscii ") {"
+        & addLine
+        & fromClauses nextLevel clauses
+        & addByteString indent
+        & addAscii "}"
+        & addLine
     While expr stmt ->
-      mconcat
-        [ indent,
-          "while (",
-          snd (fromExpr line level Whatever expr),
-          ") {\n",
-          fromStmt (line + 1) nextLevel stmt,
-          indent,
-          "}\n"
-        ]
+      builder
+        & addByteString indent
+        & addAscii "while ("
+        & fromExpr level Whatever expr
+        & addAscii ") {"
+        & addLine
+        & fromStmt nextLevel stmt
+        & addByteString indent
+        & addAscii "}"
+        & addLine
     Break Nothing ->
-      indent <> "break;\n"
+      builder
+        & addByteString indent
+        & addAscii "break;"
+        & addLine
     Break (Just label) ->
-      indent <> "break " <> Name.toBuilder label <> ";\n"
+      builder
+        & addByteString indent
+        & addAscii "break "
+        & addByteString (Name.toBuilder label)
+        & addAscii ";"
+        & addLine
     Continue Nothing ->
-      indent <> "continue;\n"
+      builder
+        & addByteString indent
+        & addAscii "continue;"
+        & addLine
     Continue (Just label) ->
-      indent <> "continue " <> Name.toBuilder label <> ";\n"
+      builder
+        & addByteString indent
+        & addAscii "continue "
+        & addByteString (Name.toBuilder label)
+        & addAscii ";"
+        & addLine
     Labelled label stmt ->
-      mconcat
-        [ indent,
-          Name.toBuilder label,
-          ":\n",
-          fromStmt (line + 1) level stmt
-        ]
+      builder
+        & addByteString indent
+        & addByteString (Name.toBuilder label)
+        & addAscii ":"
+        & addLine
+        & fromStmt level stmt
     Try tryStmt errorName catchStmt ->
-      mconcat
-        [ indent,
-          "try {\n",
-          fromStmt (line + 1) nextLevel tryStmt,
-          indent,
-          "} catch (",
-          Name.toBuilder errorName,
-          ") {\n",
-          fromStmt line nextLevel catchStmt,
-          indent,
-          "}\n"
-        ]
+      builder
+        & addByteString indent
+        & addAscii "try {"
+        & addLine
+        & fromStmt nextLevel tryStmt
+        & addByteString indent
+        & addAscii "} catch ("
+        & addByteString (Name.toBuilder errorName)
+        & addAscii ") {"
+        & addLine
+        & fromStmt nextLevel catchStmt
+        & addByteString indent
+        & addAscii "}"
+        & addLine
     Throw expr ->
-      indent <> "throw " <> snd (fromExpr line level Whatever expr) <> ";"
+      builder
+        & addByteString indent
+        & addAscii "throw "
+        & fromExpr level Whatever expr
+        & addAscii ";"
     Return expr ->
-      indent <> "return " <> snd (fromExpr line level Whatever expr) <> ";\n"
+      builder
+        & addByteString indent
+        & addAscii "return "
+        & fromExpr level Whatever expr
+        & addAscii ";"
+        & addLine
     Var name expr ->
-      indent <> "var " <> Name.toBuilder name <> " = " <> snd (fromExpr line level Whatever expr) <> ";\n"
+      builder
+        & addByteString indent
+        & addAscii "var "
+        & addByteString (Name.toBuilder name)
+        & addAscii " = "
+        & fromExpr level Whatever expr
+        & addAscii ";"
+        & addLine
     Vars [] ->
-      mempty
+      builder
     Vars vars ->
-      indent <> "var " <> commaNewlineSep level (map (varToBuilder line level) vars) <> ";\n"
+      builder
+        & addByteString indent
+        & addAscii "var "
+        & commaNewlineSepExpr level (varToBuilder level) vars
+        & addAscii ";"
+        & addLine
     FunctionStmt name args stmts ->
-      indent
-        <> "function "
-        <> Name.toBuilder name
-        <> "("
-        <> commaSep (map Name.toBuilder args)
-        <> ") {\n"
-        <> fromStmtBlock (line + 1) nextLevel stmts
-        <> indent
-        <> "}\n"
+      builder
+        & addByteString indent
+        & addAscii "function "
+        & addByteString (Name.toBuilder name)
+        & addAscii "("
+        & commaSepExpr (addByteString . Name.toBuilder) args
+        & addAscii ") {"
+        & addLine
+        & fromStmtBlock nextLevel stmts
+        & addByteString indent
+        & addAscii "}"
+        & addLine
 
 -- SWITCH CLAUSES
 
-fromClause :: Int -> Level -> Case -> Builder
-fromClause line level@(Level indent nextLevel) clause =
+fromClause :: Level -> Case -> Builder -> Builder
+fromClause level@(Level indent nextLevel) clause builder =
   case clause of
     Case expr stmts ->
-      indent
-        <> "case "
-        <> snd (fromExpr line level Whatever expr)
-        <> ":\n"
-        <> fromStmtBlock (line + 1) nextLevel stmts
+      builder
+        & addByteString indent
+        & addAscii "case "
+        & fromExpr level Whatever expr
+        & addAscii ":"
+        & addLine
+        & fromStmtBlock nextLevel stmts
     Default stmts ->
-      indent
-        <> "default:\n"
-        <> fromStmtBlock (line + 1) nextLevel stmts
+      builder
+        & addByteString indent
+        & addAscii "default:"
+        & addLine
+        & fromStmtBlock nextLevel stmts
+
+fromClauses :: Level -> [Case] -> Builder -> Builder
+fromClauses level clauses builder =
+  case clauses of
+    [] ->
+      builder
+    first : rest ->
+      fromClauses level rest (fromClause level first builder)
 
 -- VAR DECLS
 
-varToBuilder :: Int -> Level -> (Name, Expr) -> Builder
-varToBuilder line level (name, expr) =
-  Name.toBuilder name <> " = " <> snd (fromExpr line level Whatever expr)
+varToBuilder :: Level -> (Name, Expr) -> Builder -> Builder
+varToBuilder level (name, expr) builder =
+  builder
+    & addByteString (Name.toBuilder name)
+    & addAscii " = "
+    & fromExpr level Whatever expr
 
 -- EXPRESSIONS
 
 data Lines = One | Many deriving (Eq)
-
-merge :: Lines -> Lines -> Lines
-merge a b =
-  if a == Many || b == Many then Many else One
-
-linesMap :: (a -> (Lines, b)) -> [a] -> (Bool, [b])
-linesMap func xs =
-  let pairs = map func xs
-   in ( any ((==) Many . fst) pairs,
-        map snd pairs
-      )
 
 commaSepExpr :: (a -> Builder -> Builder) -> [a] -> Builder -> Builder
 commaSepExpr fn exprs builder =
@@ -356,6 +385,16 @@ commaSepExpr fn exprs builder =
       fn first builder
     first : rest ->
       commaSepExpr fn rest (addAscii ", " (fn first builder))
+
+commaNewlineSepExpr :: Level -> (a -> Builder -> Builder) -> [a] -> Builder -> Builder
+commaNewlineSepExpr level@(Level indent _) fn exprs builder =
+  case exprs of
+    [] ->
+      builder
+    [first] ->
+      fn first builder
+    first : rest ->
+      commaNewlineSepExpr level fn rest (addByteString indent (addLine (addAscii "," (fn first builder))))
 
 data Grouping = Atomic | Whatever
 
@@ -370,8 +409,8 @@ parensFor grouping builder fillContent =
     Whatever ->
       fillContent builder
 
-fromExpr :: Int -> Level -> Grouping -> Expr -> Builder -> Builder
-fromExpr line level@(Level indent nextLevel@(Level deeperIndent _)) grouping expression builder =
+fromExpr :: Level -> Grouping -> Expr -> Builder -> Builder
+fromExpr level@(Level indent nextLevel) grouping expression builder =
   case expression of
     String string ->
       addByteString ("''" <> string <> "''") builder
@@ -388,96 +427,96 @@ fromExpr line level@(Level indent nextLevel@(Level deeperIndent _)) grouping exp
     Array exprs ->
       builder
         & addAscii "[ "
-        & commaSepExpr (fromExpr line level Whatever) exprs
+        & commaSepExpr (fromExpr level Whatever) exprs
         & addAscii " ]"
     Object fields ->
       builder
         & addAscii "{ "
-        & commaSepExpr (fromField line level) fields
+        & commaSepExpr (fromField level) fields
         & addAscii " }"
     Ref name ->
       addByteString (Name.toBuilder name) builder
     Access expr field ->
-      makeDot line level expr field builder
+      makeDot level expr field builder
     Index expr bracketedExpr ->
-      makeBracketed line level expr bracketedExpr builder
+      makeBracketed level expr bracketedExpr builder
     Prefix op expr ->
       parensFor grouping builder $ \b ->
         b
           & fromPrefix op
-          & fromExpr line level Atomic expr
+          & fromExpr level Atomic expr
     Infix op leftExpr rightExpr ->
       parensFor grouping builder $ \b ->
         b
-          & fromExpr line level Atomic leftExpr
+          & fromExpr level Atomic leftExpr
           & fromInfix op
-          & fromExpr line level Atomic rightExpr
+          & fromExpr level Atomic rightExpr
     If condExpr thenExpr elseExpr ->
       parensFor grouping builder $ \b ->
         b
-          & fromExpr line level Atomic condExpr
+          & fromExpr level Atomic condExpr
           & addAscii " ? "
-          & fromExpr line level Atomic thenExpr
+          & fromExpr level Atomic thenExpr
           & addAscii " : "
-          & fromExpr line level Atomic elseExpr
+          & fromExpr level Atomic elseExpr
     Assign lValue expr ->
       parensFor grouping builder $ \b ->
         b
-          & fromLValue line level lValue
+          & fromLValue level lValue
           & addAscii " = "
-          & fromExpr line level Whatever expr
+          & fromExpr level Whatever expr
     Call function args ->
       builder
-        & fromExpr line level Atomic function
+        & fromExpr level Atomic function
         & addAscii "("
-        & commaSepExpr (fromExpr line nextLevel Whatever) args
+        & commaSepExpr (fromExpr nextLevel Whatever) args
         & addAscii ")"
     Function maybeName args stmts ->
       builder
         & addAscii "function "
         & addByteString (maybe mempty Name.toBuilder maybeName)
         & addAscii "("
-        & commaSepExpr (\arg -> addByteString (Name.toBuilder arg)) args
+        & commaSepExpr (addByteString . Name.toBuilder) args
         & addAscii ") {"
         & addLine
-        & fromStmtBlock (line + 1) nextLevel stmts
+        & fromStmtBlock nextLevel stmts
         & addByteString indent
         & addAscii "}"
 
 -- FIELDS
 
-fromField :: Int -> Level -> (Name, Expr) -> Builder -> Builder
-fromField line level (field, expr) builder =
+fromField :: Level -> (Name, Expr) -> Builder -> Builder
+fromField level (field, expr) builder =
   builder
     & addByteString (Name.toBuilder field)
     & addAscii ": "
-    & fromExpr line level Whatever expr
+    & fromExpr level Whatever expr
 
 -- VALUES
 
-fromLValue :: Int -> Level -> LValue -> Builder -> Builder
-fromLValue line level lValue builder =
+fromLValue :: Level -> LValue -> Builder -> Builder
+fromLValue level lValue builder =
   case lValue of
     LRef name ->
       addByteString (Name.toBuilder name) builder
     LDot expr field ->
-      makeDot line level expr field builder
+      makeDot level expr field builder
     LBracket expr bracketedExpr ->
-      makeBracketed line level expr bracketedExpr builder
+      makeBracketed level expr bracketedExpr builder
 
-makeDot :: Int -> Level -> Expr -> Name -> Builder -> Builder
-makeDot line level expr field builder =
+makeDot :: Level -> Expr -> Name -> Builder -> Builder
+makeDot level expr field builder =
   builder
-    & fromExpr line level Atomic expr
+    & fromExpr level Atomic expr
     & addAscii "."
     & addByteString (Name.toBuilder field)
 
-makeBracketed :: Int -> Level -> Expr -> Expr -> Builder -> Builder
-makeBracketed line level expr bracketedExpr builder =
+makeBracketed :: Level -> Expr -> Expr -> Builder -> Builder
+makeBracketed level expr bracketedExpr builder =
   builder
-    & fromExpr line level Atomic expr
+    & fromExpr level Atomic expr
     & addAscii "["
-    & fromExpr line level Whatever bracketedExpr
+    & fromExpr level Whatever bracketedExpr
     & addAscii "]"
 
 -- OPERATORS
