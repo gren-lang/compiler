@@ -2,8 +2,11 @@
 {-# OPTIONS_GHC -Wall #-}
 
 module Generate.JavaScript.Builder
-  ( stmtToBuilder,
+  ( Builder (..),
+    emptyBuilder,
+    stmtToBuilder,
     exprToBuilder,
+    addByteString,
     Expr (..),
     LValue (..),
     Stmt (..),
@@ -164,13 +167,13 @@ addLine (Builder _code _currLine _currCol _lines _mappings) =
 
 -- ENCODE
 
-stmtToBuilder :: Int -> Stmt -> Builder
-stmtToBuilder line stmts =
-  fromStmt levelZero stmts (emptyBuilder line)
+stmtToBuilder :: Stmt -> Builder -> Builder
+stmtToBuilder stmt builder =
+  fromStmt levelZero stmt builder
 
-exprToBuilder :: Int -> Expr -> Builder
-exprToBuilder line expr =
-  fromExpr levelZero Whatever expr (emptyBuilder line)
+exprToBuilder :: Expr -> Builder -> Builder
+exprToBuilder expr builder =
+  fromExpr levelZero Whatever expr builder
 
 -- INDENT LEVEL
 

@@ -102,55 +102,46 @@ print ansi localizer home name tipe =
 -- GRAPH TRAVERSAL STATE
 
 data State = State
-  { _revKernels :: [B.Builder],
-    _revBuilders :: [B.Builder],
-    _seenGlobals :: Set.Set Opt.Global,
-    _mappings :: Int
+  { _seenGlobals :: Set.Set Opt.Global,
+    _builder :: JS.Builder
   }
 
 emptyState :: Int -> State
 emptyState startingLine =
-  State mempty [] Set.empty startingLine
+  State Set.empty (JS.emptyBuilder startingLine)
 
 stateToBuilder :: State -> B.Builder
-stateToBuilder (State revKernels revBuilders _ _) =
-  prependBuilders revKernels (prependBuilders revBuilders mempty)
-
-prependBuilders :: [B.Builder] -> B.Builder -> B.Builder
-prependBuilders revBuilders monolith =
-  List.foldl' (\m b -> b <> m) monolith revBuilders
+stateToBuilder (State _ builder) =
+  JS._code builder
 
 -- ADD DEPENDENCIES
 
 addGlobal :: Mode.Mode -> Graph -> State -> Opt.Global -> State
-addGlobal mode graph state@(State revKernels builders seen mappings) global =
+addGlobal mode graph state@(State seen builder) global =
   if Set.member global seen
     then state
     else
       addGlobalHelp mode graph global $
-        State revKernels builders (Set.insert global seen) mappings
+        State (Set.insert global seen) builder
 
 addGlobalHelp :: Mode.Mode -> Graph -> Opt.Global -> State -> State
-addGlobalHelp mode graph global state@(State _ _ _ mapping) =
+addGlobalHelp mode graph global state =
   let addDeps deps someState =
         Set.foldl' (addGlobal mode graph) someState deps
    in case graph ! global of
         Opt.Define expr deps ->
           addStmt
-            mapping
             (addDeps deps state)
             ( var global (Expr.generate mode expr)
             )
         Opt.DefineTailFunc argNames body deps ->
           addStmt
-            mapping
             (addDeps deps state)
             ( let (Opt.Global _ name) = global
                in var global (Expr.generateTailDef mode name argNames body)
             )
         Opt.Ctor index arity ->
           addStmt
-            mapping
             state
             ( var global (Expr.generateCtor mode global index arity)
             )
@@ -158,7 +149,6 @@ addGlobalHelp mode graph global state@(State _ _ _ mapping) =
           addGlobal mode graph state linkedGlobal
         Opt.Cycle names values functions deps ->
           addStmt
-            mapping
             (addDeps deps state)
             ( generateCycle mode global names values functions
             )
@@ -170,40 +160,32 @@ addGlobalHelp mode graph global state@(State _ _ _ mapping) =
             else addKernel (addDeps deps state) (generateKernel mode chunks)
         Opt.Enum index ->
           addStmt
-            mapping
             state
             ( generateEnum mode global index
             )
         Opt.Box ->
           addStmt
-            mapping
             (addGlobal mode graph state identity)
             ( generateBox mode global
             )
         Opt.PortIncoming decoder deps ->
           addStmt
-            mapping
             (addDeps deps state)
             ( generatePort mode global "incomingPort" decoder
             )
         Opt.PortOutgoing encoder deps ->
           addStmt
-            mapping
             (addDeps deps state)
             ( generatePort mode global "outgoingPort" encoder
             )
 
-addStmt :: Int -> State -> JS.Stmt -> State
-addStmt line state stmt =
-  addBuilder state (JS.stmtToBuilder line stmt)
-
-addBuilder :: State -> B.Builder -> State
-addBuilder (State revKernels revBuilders seen mappings) builder =
-  State revKernels (builder : revBuilders) seen mappings
+addStmt :: State -> JS.Stmt -> State
+addStmt (State seen builder) stmt =
+  State seen (JS.stmtToBuilder stmt builder)
 
 addKernel :: State -> B.Builder -> State
-addKernel (State revKernels revBuilders seen mappings) kernel =
-  State (kernel : revKernels) revBuilders seen mappings
+addKernel (State seen builder) kernel =
+  State seen (JS.addByteString kernel builder)
 
 var :: Opt.Global -> Expr.Code -> JS.Stmt
 var (Opt.Global home name) code =
@@ -346,7 +328,7 @@ generatePort mode (Opt.Global home name) makePort converter =
 -- GENERATE MANAGER
 
 generateManager :: Mode.Mode -> Graph -> Opt.Global -> Opt.EffectsType -> State -> State
-generateManager mode graph (Opt.Global home@(ModuleName.Canonical _ moduleName) _) effectsType state@(State _ _ _ mapping) =
+generateManager mode graph (Opt.Global home@(ModuleName.Canonical _ moduleName) _) effectsType state =
   let managerLVar =
         JS.LBracket
           (JS.Ref (JsName.fromKernel Name.platform "effectManagers"))
@@ -359,7 +341,7 @@ generateManager mode graph (Opt.Global home@(ModuleName.Canonical _ moduleName) 
         JS.ExprStmt $
           JS.Assign managerLVar $
             JS.Call (JS.Ref (JsName.fromKernel Name.platform "createManager")) args
-   in addStmt mapping (List.foldl' (addGlobal mode graph) state deps) $
+   in addStmt (List.foldl' (addGlobal mode graph) state deps) $
         JS.Block (createManager : stmts)
 
 generateLeaf :: ModuleName.Canonical -> Name.Name -> JS.Stmt
@@ -410,7 +392,7 @@ generateExports mode (Trie maybeMain subs) =
             "{"
           Just (home, main) ->
             "{'init':"
-              <> JS.exprToBuilder 0 (Expr.generateMain mode home main)
+              <> JS._code (JS.exprToBuilder (Expr.generateMain mode home main) (JS.emptyBuilder 0))
               <> end
    in case Map.toList subs of
         [] ->
