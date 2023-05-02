@@ -3,6 +3,7 @@
 
 module Generate.JavaScript.Builder
   ( Builder (..),
+    Mapping (..),
     emptyBuilder,
     stmtToBuilder,
     exprToBuilder,

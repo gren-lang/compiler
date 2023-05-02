@@ -23,6 +23,7 @@ import Generate.JavaScript.Expression qualified as Expr
 import Generate.JavaScript.Functions qualified as Functions
 import Generate.JavaScript.Name qualified as JsName
 import Generate.Mode qualified as Mode
+import Generate.SourceMap qualified as SourceMap
 import Gren.Kernel qualified as K
 import Gren.ModuleName qualified as ModuleName
 import Reporting.Doc qualified as D
@@ -36,8 +37,10 @@ type Graph = Map.Map Opt.Global Opt.Node
 
 type Mains = Map.Map ModuleName.Canonical Opt.Main
 
-newtype GeneratedResult = GeneratedResult
-  {_source :: B.Builder}
+data GeneratedResult = GeneratedResult
+  { _source :: B.Builder,
+    _sourceMap :: SourceMap.SourceMap
+  }
 
 prelude :: B.Builder
 prelude =
@@ -56,7 +59,11 @@ generate mode (Opt.GlobalGraph graph _) mains =
           <> stateToBuilder state
           <> toMainExports mode mains
           <> "}(this.module ? this.module.exports : this));"
-   in GeneratedResult {_source = builder}
+      sourceMap = SourceMap.generate $ stateToMappings state
+   in GeneratedResult
+        { _source = builder,
+          _sourceMap = sourceMap
+        }
 
 addMain :: Mode.Mode -> Graph -> ModuleName.Canonical -> Opt.Main -> State -> State
 addMain mode graph home _ state =
@@ -113,6 +120,10 @@ emptyState startingLine =
 stateToBuilder :: State -> B.Builder
 stateToBuilder (State _ builder) =
   JS._code builder
+
+stateToMappings :: State -> [JS.Mapping]
+stateToMappings (State _ builder) =
+  JS._mappings builder
 
 -- ADD DEPENDENCIES
 
