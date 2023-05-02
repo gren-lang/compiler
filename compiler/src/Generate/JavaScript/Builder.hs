@@ -219,6 +219,7 @@ fromStmt level@(Level indent nextLevel) statement builder =
         & addAscii "} else {"
         & addLine
         & fromStmt nextLevel elseStmt
+        & addByteString indent
         & addAscii "}"
         & addLine
     Switch expr clauses ->
@@ -410,7 +411,7 @@ fromExpr :: Level -> Grouping -> Expr -> Builder -> Builder
 fromExpr level@(Level indent nextLevel) grouping expression builder =
   case expression of
     String string ->
-      addByteString ("''" <> string <> "''") builder
+      addByteString ("'" <> string <> "'") builder
     Float float ->
       addByteString float builder
     Int n ->
