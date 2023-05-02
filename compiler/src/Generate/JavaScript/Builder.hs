@@ -113,7 +113,6 @@ data Builder = Builder
   { _code :: B.Builder,
     _currentLine :: Int,
     _currentCol :: Int,
-    _lines :: Lines,
     _mappings :: [Mapping]
   }
 
@@ -128,40 +127,36 @@ emptyBuilder currentLine =
     { _code = mempty,
       _currentLine = currentLine,
       _currentCol = 1,
-      _lines = One,
       _mappings = []
     }
 
 addAscii :: String -> Builder -> Builder
-addAscii code (Builder _code _currLine _currCol _lines _mappings) =
+addAscii code (Builder _code _currLine _currCol _mappings) =
   Builder
     { _code = _code <> B.string7 code,
       _currentLine = _currLine,
       _currentCol = _currCol + length code,
-      _lines = _lines,
       _mappings = _mappings
     }
 
 -- TODO: This is a crutch used during prototyping
 -- Should be removed once things stabalizes as it's bad for perf
 addByteString :: B.Builder -> Builder -> Builder
-addByteString bsBuilder (Builder _code _currLine _currCol _lines _mappings) =
+addByteString bsBuilder (Builder _code _currLine _currCol _mappings) =
   let size = BSLazy.length $ B.toLazyByteString bsBuilder
    in Builder
         { _code = _code <> bsBuilder,
           _currentLine = _currLine,
           _currentCol = _currCol + fromIntegral size,
-          _lines = _lines,
           _mappings = _mappings
         }
 
 addLine :: Builder -> Builder
-addLine (Builder _code _currLine _currCol _lines _mappings) =
+addLine (Builder _code _currLine _currCol _mappings) =
   Builder
     { _code = _code <> B.char7 '\n',
       _currentLine = _currLine + 1,
       _currentCol = 1,
-      _lines = Many,
       _mappings = _mappings
     }
 
@@ -376,8 +371,6 @@ varToBuilder level (name, expr) builder =
     & fromExpr level Whatever expr
 
 -- EXPRESSIONS
-
-data Lines = One | Many deriving (Eq)
 
 commaSepExpr :: (a -> Builder -> Builder) -> [a] -> Builder -> Builder
 commaSepExpr fn exprs builder =
