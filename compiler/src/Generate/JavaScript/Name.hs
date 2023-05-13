@@ -269,3 +269,13 @@ addRenaming keyword maybeBadFields =
           BadFields $ Map.singleton keyword (unsafeIntToAscii width [] maxName)
         Just (BadFields renamings) ->
           BadFields $ Map.insert keyword (unsafeIntToAscii width [] (maxName - Map.size renamings)) renamings
+
+-- INSTANCES
+
+instance Ord Name where
+  compare (Name builder1) (Name builder2) =
+    compare (B.toLazyByteString builder1) (B.toLazyByteString builder2)
+
+instance Eq Name where
+  (==) (Name builder1) (Name builder2) =
+    (==) (B.toLazyByteString builder1) (B.toLazyByteString builder2)
