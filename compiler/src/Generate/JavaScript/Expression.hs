@@ -60,8 +60,8 @@ generate mode expression =
       JsExpr $ JS.Float (Utf8.toBuilder float)
     Opt.VarLocal _region name ->
       JsExpr $ JS.Ref (JsName.fromLocal name)
-    Opt.VarGlobal _region (Opt.Global home name) ->
-      JsExpr $ JS.Ref (JsName.fromGlobal home name)
+    Opt.VarGlobal (A.Region startPos _) (Opt.Global home name) ->
+      JsExpr $ JS.TrackedRef startPos home (JsName.fromLocal name) (JsName.fromGlobal home name)
     Opt.VarEnum _region (Opt.Global home name) index ->
       case mode of
         Mode.Dev _ ->

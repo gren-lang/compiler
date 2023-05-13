@@ -26,9 +26,12 @@ import Data.ByteString qualified as BS
 import Data.ByteString.Builder qualified as B
 import Data.ByteString.Lazy.Char8 qualified as BSLazy
 import Data.Function ((&))
+import Data.Word (Word16)
 import Generate.JavaScript.Name (Name)
 import Generate.JavaScript.Name qualified as Name
+import Gren.ModuleName qualified as ModuleName
 import Json.Encode qualified as Json
+import Reporting.Annotation qualified as A
 import Prelude hiding (lines)
 
 -- EXPRESSIONS
@@ -43,6 +46,7 @@ data Expr
   | Array [Expr]
   | Object [(Name, Expr)]
   | Ref Name
+  | TrackedRef A.Position ModuleName.Canonical Name Name
   | Access Expr Name -- foo.bar
   | Index Expr Expr -- foo[bar]
   | Prefix PrefixOp Expr
@@ -112,21 +116,25 @@ data PrefixOp
 
 data Builder = Builder
   { _code :: B.Builder,
-    _currentLine :: Int,
-    _currentCol :: Int,
+    _currentLine :: Word16,
+    _currentCol :: Word16,
     _mappings :: [Mapping]
   }
 
 data Mapping = Mapping
-  { _m_line :: Int,
-    _m_col :: Int
+  { _m_src_line :: Word16,
+    _m_src_col :: Word16,
+    _m_src_module :: ModuleName.Canonical,
+    _m_src_name :: Name,
+    _m_gen_line :: Word16,
+    _m_gen_col :: Word16
   }
 
 emptyBuilder :: Int -> Builder
 emptyBuilder currentLine =
   Builder
     { _code = mempty,
-      _currentLine = currentLine,
+      _currentLine = fromIntegral currentLine,
       _currentCol = 1,
       _mappings = []
     }
@@ -136,7 +144,7 @@ addAscii code (Builder _code _currLine _currCol _mappings) =
   Builder
     { _code = _code <> B.string7 code,
       _currentLine = _currLine,
-      _currentCol = _currCol + length code,
+      _currentCol = _currCol + fromIntegral (length code),
       _mappings = _mappings
     }
 
@@ -150,6 +158,27 @@ addByteString bsBuilder (Builder _code _currLine _currCol _mappings) =
           _currentLine = _currLine,
           _currentCol = _currCol + fromIntegral size,
           _mappings = _mappings
+        }
+
+addName :: A.Position -> ModuleName.Canonical -> Name -> Name -> Builder -> Builder
+addName (A.Position line col) moduleName name genName (Builder _code _currLine _currCol _mappings) =
+  let nameBuilder = Name.toBuilder genName
+      size = BSLazy.length $ B.toLazyByteString nameBuilder
+   in Builder
+        { _code = _code <> nameBuilder,
+          _currentLine = _currLine,
+          _currentCol = _currCol + fromIntegral size,
+          _mappings =
+            ( Mapping
+                { _m_src_line = line,
+                  _m_src_col = col,
+                  _m_src_module = moduleName,
+                  _m_src_name = name,
+                  _m_gen_line = _currLine,
+                  _m_gen_col = _currCol
+                }
+            )
+              : _mappings
         }
 
 addLine :: Builder -> Builder
@@ -434,6 +463,8 @@ fromExpr level@(Level indent nextLevel) grouping expression builder =
         & addAscii " }"
     Ref name ->
       addByteString (Name.toBuilder name) builder
+    TrackedRef position moduleName name generatedName ->
+      addName position moduleName name generatedName builder
     Access expr field ->
       makeDot level expr field builder
     Index expr bracketedExpr ->
