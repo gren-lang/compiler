@@ -168,7 +168,7 @@ addGlobalHelp mode graph global state =
         Opt.Kernel chunks deps ->
           if isDebugger global && not (Mode.isDebug mode)
             then state
-            else addKernel (addDeps deps state) (generateKernel mode chunks)
+            else addDeps deps (addKernel state (generateKernel mode chunks))
         Opt.Enum index ->
           addStmt
             state
