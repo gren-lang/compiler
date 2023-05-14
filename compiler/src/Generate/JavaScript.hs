@@ -49,7 +49,7 @@ prelude =
 
 firstGeneratedLineNumber :: Int
 firstGeneratedLineNumber =
-  length $ lines $ BLazy.unpack $ B.toLazyByteString prelude
+  (fromIntegral $ BLazy.count '\n' $ B.toLazyByteString prelude) + 1
 
 generate :: Mode.Mode -> Opt.GlobalGraph -> Mains -> GeneratedResult
 generate mode (Opt.GlobalGraph graph _) mains =

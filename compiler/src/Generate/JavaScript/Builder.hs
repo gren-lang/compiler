@@ -152,13 +152,24 @@ addAscii code (Builder _code _currLine _currCol _mappings) =
 -- Should be removed once things stabalizes as it's bad for perf
 addByteString :: B.Builder -> Builder -> Builder
 addByteString bsBuilder (Builder _code _currLine _currCol _mappings) =
-  let size = BSLazy.length $ B.toLazyByteString bsBuilder
-   in Builder
-        { _code = _code <> bsBuilder,
-          _currentLine = _currLine,
-          _currentCol = _currCol + fromIntegral size,
-          _mappings = _mappings
-        }
+  let lazyByteString = B.toLazyByteString bsBuilder
+      bsSize = BSLazy.length lazyByteString
+      bsLines = BSLazy.count '\n' lazyByteString
+   in if bsLines == 0
+        then
+          Builder
+            { _code = _code <> bsBuilder,
+              _currentLine = _currLine,
+              _currentCol = _currCol + fromIntegral bsSize,
+              _mappings = _mappings
+            }
+        else
+          Builder
+            { _code = _code <> bsBuilder,
+              _currentLine = _currLine + fromIntegral bsLines,
+              _currentCol = 1,
+              _mappings = _mappings
+            }
 
 addName :: A.Position -> ModuleName.Canonical -> Name -> Name -> Builder -> Builder
 addName (A.Position line col) moduleName name genName (Builder _code _currLine _currCol _mappings) =
