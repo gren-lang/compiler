@@ -59,7 +59,7 @@ generate mode (Opt.GlobalGraph graph _) mains =
           <> stateToBuilder state
           <> toMainExports mode mains
           <> "}(this.module ? this.module.exports : this));"
-      sourceMap = SourceMap.generate $ stateToMappings state
+      sourceMap = SourceMap.wrap $ stateToMappings state
    in GeneratedResult
         { _source = builder,
           _sourceMap = sourceMap

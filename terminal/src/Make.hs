@@ -103,15 +103,15 @@ runHelp root paths style (Flags debug optimize maybeOutput _) =
                               (Platform.Browser, [name]) ->
                                 do
                                   (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
-                                  writeToDisk style "index.html" (Html.sandwich name (SourceMap.sandwhich sourceMap source)) (NE.List name [])
+                                  writeToDisk style "index.html" (Html.sandwich name (SourceMap.generateOnto Html.leadingLines sourceMap source)) (NE.List name [])
                               (Platform.Node, [name]) ->
                                 do
                                   (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
-                                  writeToDisk style "app" (SourceMap.sandwhich sourceMap (Node.sandwich name source)) (NE.List name [])
+                                  writeToDisk style "app" (SourceMap.generateOnto Node.leadingLines sourceMap (Node.sandwich name source)) (NE.List name [])
                               (_, name : names) ->
                                 do
                                   (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
-                                  writeToDisk style "index.js" (SourceMap.sandwhich sourceMap source) (NE.List name names)
+                                  writeToDisk style "index.js" (SourceMap.generateOnto 0 sourceMap source) (NE.List name names)
                           Just DevStdOut ->
                             case getMains artifacts of
                               [] ->
@@ -119,7 +119,7 @@ runHelp root paths style (Flags debug optimize maybeOutput _) =
                               _ ->
                                 do
                                   (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
-                                  Task.io $ B.hPutBuilder IO.stdout (SourceMap.sandwhich sourceMap source)
+                                  Task.io $ B.hPutBuilder IO.stdout (SourceMap.generateOnto 0 sourceMap source)
                           Just DevNull ->
                             return ()
                           Just (Exe target) ->
@@ -127,14 +127,14 @@ runHelp root paths style (Flags debug optimize maybeOutput _) =
                               Platform.Node -> do
                                 name <- hasOneMain artifacts
                                 (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
-                                writeToDisk style target (SourceMap.sandwhich sourceMap (Node.sandwich name source)) (NE.List name [])
+                                writeToDisk style target (SourceMap.generateOnto Node.leadingLines sourceMap (Node.sandwich name source)) (NE.List name [])
                               _ -> do
                                 Task.throw Exit.MakeExeOnlyForNodePlatform
                           Just (JS target) ->
                             case getNoMains artifacts of
                               [] -> do
                                 (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
-                                writeToDisk style target (SourceMap.sandwhich sourceMap source) (Build.getRootNames artifacts)
+                                writeToDisk style target (SourceMap.generateOnto 0 sourceMap source) (Build.getRootNames artifacts)
                               name : names ->
                                 Task.throw (Exit.MakeNonMainFilesIntoJavaScript name names)
                           Just (Html target) ->
@@ -142,7 +142,7 @@ runHelp root paths style (Flags debug optimize maybeOutput _) =
                               Platform.Browser -> do
                                 name <- hasOneMain artifacts
                                 (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
-                                writeToDisk style target (Html.sandwich name (SourceMap.sandwhich sourceMap source)) (NE.List name [])
+                                writeToDisk style target (Html.sandwich name (SourceMap.generateOnto Html.leadingLines sourceMap source)) (NE.List name [])
                               _ -> do
                                 Task.throw Exit.MakeHtmlOnlyForBrowserPlatform
 
