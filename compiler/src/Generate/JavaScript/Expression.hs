@@ -36,12 +36,12 @@ import Reporting.Annotation qualified as A
 
 -- EXPRESSIONS
 
-generateJsExpr :: Mode.Mode -> Opt.Expr -> JS.Expr
-generateJsExpr mode expression =
-  codeToExpr (generate mode expression)
+generateJsExpr :: Mode.Mode -> ModuleName.Canonical -> Opt.Expr -> JS.Expr
+generateJsExpr mode parentModule expression =
+  codeToExpr (generate mode parentModule expression)
 
-generate :: Mode.Mode -> Opt.Expr -> Code
-generate mode expression =
+generate :: Mode.Mode -> ModuleName.Canonical -> Opt.Expr -> Code
+generate mode parentModule expression =
   case expression of
     Opt.Bool _region bool ->
       JsExpr $ JS.Bool bool
@@ -61,7 +61,7 @@ generate mode expression =
     Opt.VarLocal _region name ->
       JsExpr $ JS.Ref (JsName.fromLocal name)
     Opt.VarGlobal (A.Region startPos _) (Opt.Global home name) ->
-      JsExpr $ JS.TrackedRef startPos home (JsName.fromLocal name) (JsName.fromGlobal home name)
+      JsExpr $ JS.TrackedRef startPos parentModule (JsName.fromLocal name) (JsName.fromGlobal home name)
     Opt.VarEnum _region (Opt.Global home name) index ->
       case mode of
         Mode.Dev _ ->
@@ -81,23 +81,23 @@ generate mode expression =
     Opt.VarKernel _region home name ->
       JsExpr $ JS.Ref (JsName.fromKernel home name)
     Opt.Array entries ->
-      JsExpr $ JS.Array $ map (generateJsExpr mode) entries
+      JsExpr $ JS.Array $ map (generateJsExpr mode parentModule) entries
     Opt.Function args body ->
-      generateFunction (map JsName.fromLocal args) (generate mode body)
+      generateFunction (map JsName.fromLocal args) (generate mode parentModule body)
     Opt.Call func args ->
-      JsExpr $ generateCall mode func args
+      JsExpr $ generateCall mode parentModule func args
     Opt.TailCall name args ->
-      JsBlock $ generateTailCall mode name args
+      JsBlock $ generateTailCall mode parentModule name args
     Opt.If branches final ->
-      generateIf mode branches final
+      generateIf mode parentModule branches final
     Opt.Let def body ->
       JsBlock $
-        generateDef mode def : codeToStmtList (generate mode body)
+        generateDef mode parentModule def : codeToStmtList (generate mode parentModule body)
     Opt.Destruct (Opt.Destructor name path) body ->
       let pathDef = JS.Var (JsName.fromLocal name) (generatePath mode path)
-       in JsBlock $ pathDef : codeToStmtList (generate mode body)
+       in JsBlock $ pathDef : codeToStmtList (generate mode parentModule body)
     Opt.Case label root decider jumps ->
-      JsBlock $ generateCase mode label root decider jumps
+      JsBlock $ generateCase mode parentModule label root decider jumps
     Opt.Accessor field ->
       JsExpr $
         JS.Function
@@ -107,16 +107,16 @@ generate mode expression =
               JS.Access (JS.Ref JsName.dollar) (generateField mode field)
           ]
     Opt.Access record field ->
-      JsExpr $ JS.Access (generateJsExpr mode record) (generateField mode field)
+      JsExpr $ JS.Access (generateJsExpr mode parentModule record) (generateField mode field)
     Opt.Update record fields ->
       JsExpr $
         JS.Call
           (JS.Ref (JsName.fromKernel Name.utils "update"))
-          [ generateJsExpr mode record,
-            generateRecord mode fields
+          [ generateJsExpr mode parentModule record,
+            generateRecord mode parentModule fields
           ]
     Opt.Record fields ->
-      JsExpr $ generateRecord mode fields
+      JsExpr $ generateRecord mode parentModule fields
 
 -- CODE CHUNKS
 
@@ -186,10 +186,10 @@ ctorToInt home name index =
 
 -- RECORDS
 
-generateRecord :: Mode.Mode -> Map.Map Name.Name Opt.Expr -> JS.Expr
-generateRecord mode fields =
+generateRecord :: Mode.Mode -> ModuleName.Canonical -> Map.Map Name.Name Opt.Expr -> JS.Expr
+generateRecord mode parentModule fields =
   let toPair (field, value) =
-        (generateField mode field, generateJsExpr mode value)
+        (generateField mode field, generateJsExpr mode parentModule value)
    in JS.Object (map toPair (Map.toList fields))
 
 generateField :: Mode.Mode -> Name.Name -> JsName.Name
@@ -259,30 +259,30 @@ funcHelpers =
 
 -- CALLS
 
-generateCall :: Mode.Mode -> Opt.Expr -> [Opt.Expr] -> JS.Expr
-generateCall mode func args =
+generateCall :: Mode.Mode -> ModuleName.Canonical -> Opt.Expr -> [Opt.Expr] -> JS.Expr
+generateCall mode parentModule func args =
   case func of
     Opt.VarGlobal _region global@(Opt.Global (ModuleName.Canonical pkg _) _)
       | pkg == Pkg.core ->
-          generateCoreCall mode global args
+          generateCoreCall mode parentModule global args
     Opt.VarBox _ _ ->
       case mode of
         Mode.Dev _ ->
-          generateCallHelp mode func args
+          generateCallHelp mode parentModule func args
         Mode.Prod _ ->
           case args of
             [arg] ->
-              generateJsExpr mode arg
+              generateJsExpr mode parentModule arg
             _ ->
-              generateCallHelp mode func args
+              generateCallHelp mode parentModule func args
     _ ->
-      generateCallHelp mode func args
+      generateCallHelp mode parentModule func args
 
-generateCallHelp :: Mode.Mode -> Opt.Expr -> [Opt.Expr] -> JS.Expr
-generateCallHelp mode func args =
+generateCallHelp :: Mode.Mode -> ModuleName.Canonical -> Opt.Expr -> [Opt.Expr] -> JS.Expr
+generateCallHelp mode parentModule func args =
   generateNormalCall
-    (generateJsExpr mode func)
-    (map (generateJsExpr mode) args)
+    (generateJsExpr mode parentModule func)
+    (map (generateJsExpr mode parentModule) args)
 
 generateGlobalCall :: ModuleName.Canonical -> Name.Name -> [JS.Expr] -> JS.Expr
 generateGlobalCall home name args =
@@ -303,17 +303,17 @@ callHelpers =
 
 -- CORE CALLS
 
-generateCoreCall :: Mode.Mode -> Opt.Global -> [Opt.Expr] -> JS.Expr
-generateCoreCall mode (Opt.Global home@(ModuleName.Canonical _ moduleName) name) args =
+generateCoreCall :: Mode.Mode -> ModuleName.Canonical -> Opt.Global -> [Opt.Expr] -> JS.Expr
+generateCoreCall mode parentModule (Opt.Global home@(ModuleName.Canonical _ moduleName) name) args =
   if moduleName == Name.basics
-    then generateBasicsCall mode home name args
+    then generateBasicsCall mode parentModule home name args
     else
       if moduleName == Name.bitwise
-        then generateBitwiseCall home name (map (generateJsExpr mode) args)
+        then generateBitwiseCall home name (map (generateJsExpr mode parentModule) args)
         else
           if moduleName == Name.math
-            then generateMathCall home name (map (generateJsExpr mode) args)
-            else generateGlobalCall home name (map (generateJsExpr mode) args)
+            then generateMathCall home name (map (generateJsExpr mode parentModule) args)
+            else generateGlobalCall home name (map (generateJsExpr mode parentModule) args)
 
 generateBitwiseCall :: ModuleName.Canonical -> Name.Name -> [JS.Expr] -> JS.Expr
 generateBitwiseCall home name args =
@@ -334,11 +334,11 @@ generateBitwiseCall home name args =
     _ ->
       generateGlobalCall home name args
 
-generateBasicsCall :: Mode.Mode -> ModuleName.Canonical -> Name.Name -> [Opt.Expr] -> JS.Expr
-generateBasicsCall mode home name args =
+generateBasicsCall :: Mode.Mode -> ModuleName.Canonical -> ModuleName.Canonical -> Name.Name -> [Opt.Expr] -> JS.Expr
+generateBasicsCall mode parentModule home name args =
   case args of
     [grenArg] ->
-      let arg = generateJsExpr mode grenArg
+      let arg = generateJsExpr mode parentModule grenArg
        in case name of
             "not" -> JS.Prefix JS.PrefixNot arg
             "negate" -> JS.Prefix JS.PrefixNegate arg
@@ -348,12 +348,12 @@ generateBasicsCall mode home name args =
       case name of
         -- NOTE: removed "composeL" and "composeR" because of this issue:
         -- https://github.com/gren/compiler/issues/1722
-        "append" -> append mode grenLeft grenRight
-        "apL" -> generateJsExpr mode $ apply grenLeft grenRight
-        "apR" -> generateJsExpr mode $ apply grenRight grenLeft
+        "append" -> append mode parentModule grenLeft grenRight
+        "apL" -> generateJsExpr mode parentModule $ apply grenLeft grenRight
+        "apR" -> generateJsExpr mode parentModule $ apply grenRight grenLeft
         _ ->
-          let left = generateJsExpr mode grenLeft
-              right = generateJsExpr mode grenRight
+          let left = generateJsExpr mode parentModule grenLeft
+              right = generateJsExpr mode parentModule grenRight
            in case name of
                 "add" -> JS.Infix JS.OpAdd left right
                 "sub" -> JS.Infix JS.OpSub left right
@@ -371,7 +371,7 @@ generateBasicsCall mode home name args =
                 "xor" -> JS.Infix JS.OpNe left right
                 _ -> generateGlobalCall home name [left, right]
     _ ->
-      generateGlobalCall home name (map (generateJsExpr mode) args)
+      generateGlobalCall home name (map (generateJsExpr mode parentModule) args)
 
 generateMathCall :: ModuleName.Canonical -> Name.Name -> [JS.Expr] -> JS.Expr
 generateMathCall home name args =
@@ -435,9 +435,9 @@ apply func value =
     _ ->
       Opt.Call func [value]
 
-append :: Mode.Mode -> Opt.Expr -> Opt.Expr -> JS.Expr
-append mode left right =
-  let seqs = generateJsExpr mode left : toSeqs mode right
+append :: Mode.Mode -> ModuleName.Canonical -> Opt.Expr -> Opt.Expr -> JS.Expr
+append mode parentModule left right =
+  let seqs = generateJsExpr mode parentModule left : toSeqs mode parentModule right
    in if any isStringLiteral seqs
         then foldr1 (JS.Infix JS.OpAdd) seqs
         else foldr1 jsAppend seqs
@@ -446,14 +446,14 @@ jsAppend :: JS.Expr -> JS.Expr -> JS.Expr
 jsAppend a b =
   JS.Call (JS.Ref (JsName.fromKernel Name.utils "ap")) [a, b]
 
-toSeqs :: Mode.Mode -> Opt.Expr -> [JS.Expr]
-toSeqs mode expr =
+toSeqs :: Mode.Mode -> ModuleName.Canonical -> Opt.Expr -> [JS.Expr]
+toSeqs mode parentModule expr =
   case expr of
     Opt.Call (Opt.VarGlobal _region (Opt.Global home "append")) [left, right]
       | home == ModuleName.basics ->
-          generateJsExpr mode left : toSeqs mode right
+          generateJsExpr mode parentModule left : toSeqs mode parentModule right
     _ ->
-      [generateJsExpr mode expr]
+      [generateJsExpr mode parentModule expr]
 
 isStringLiteral :: JS.Expr -> Bool
 isStringLiteral expr =
@@ -499,10 +499,10 @@ strictNEq left right =
 
 -- TAIL CALL
 
-generateTailCall :: Mode.Mode -> Name.Name -> [(Name.Name, Opt.Expr)] -> [JS.Stmt]
-generateTailCall mode name args =
+generateTailCall :: Mode.Mode -> ModuleName.Canonical -> Name.Name -> [(Name.Name, Opt.Expr)] -> [JS.Stmt]
+generateTailCall mode parentModule name args =
   let toTempVars (argName, arg) =
-        (JsName.makeTemp argName, generateJsExpr mode arg)
+        (JsName.makeTemp argName, generateJsExpr mode parentModule arg)
 
       toRealVars (argName, _) =
         JS.ExprStmt $
@@ -513,22 +513,22 @@ generateTailCall mode name args =
 
 -- DEFINITIONS
 
-generateDef :: Mode.Mode -> Opt.Def -> JS.Stmt
-generateDef mode def =
+generateDef :: Mode.Mode -> ModuleName.Canonical -> Opt.Def -> JS.Stmt
+generateDef mode parentModule def =
   case def of
     Opt.Def name body ->
-      JS.Var (JsName.fromLocal name) (generateJsExpr mode body)
+      JS.Var (JsName.fromLocal name) (generateJsExpr mode parentModule body)
     Opt.TailDef name argNames body ->
-      JS.Var (JsName.fromLocal name) (codeToExpr (generateTailDef mode name argNames body))
+      JS.Var (JsName.fromLocal name) (codeToExpr (generateTailDef mode parentModule name argNames body))
 
-generateTailDef :: Mode.Mode -> Name.Name -> [Name.Name] -> Opt.Expr -> Code
-generateTailDef mode name argNames body =
+generateTailDef :: Mode.Mode -> ModuleName.Canonical -> Name.Name -> [Name.Name] -> Opt.Expr -> Code
+generateTailDef mode parentModule name argNames body =
   generateFunction (map JsName.fromLocal argNames) $
     JsBlock $
       [ JS.Labelled (JsName.fromLocal name) $
           JS.While (JS.Bool True) $
             codeToStmt $
-              generate mode body
+              generate mode parentModule body
       ]
 
 -- PATHS
@@ -553,18 +553,18 @@ generatePath mode path =
 
 -- GENERATE IFS
 
-generateIf :: Mode.Mode -> [(Opt.Expr, Opt.Expr)] -> Opt.Expr -> Code
-generateIf mode givenBranches givenFinal =
+generateIf :: Mode.Mode -> ModuleName.Canonical -> [(Opt.Expr, Opt.Expr)] -> Opt.Expr -> Code
+generateIf mode parentModule givenBranches givenFinal =
   let (branches, final) =
         crushIfs givenBranches givenFinal
 
       convertBranch (condition, expr) =
-        ( generateJsExpr mode condition,
-          generate mode expr
+        ( generateJsExpr mode parentModule condition,
+          generate mode parentModule expr
         )
 
       branchExprs = map convertBranch branches
-      finalCode = generate mode final
+      finalCode = generate mode parentModule final
    in if isBlock finalCode || any (isBlock . snd) branchExprs
         then JsBlock [foldr addStmtIf (codeToStmt finalCode) branchExprs]
         else JsExpr $ foldr addExprIf (codeToExpr finalCode) branchExprs
@@ -605,37 +605,37 @@ crushIfsHelp visitedBranches unvisitedBranches final =
 
 -- CASE EXPRESSIONS
 
-generateCase :: Mode.Mode -> Name.Name -> Name.Name -> Opt.Decider Opt.Choice -> [(Int, Opt.Expr)] -> [JS.Stmt]
-generateCase mode label root decider jumps =
-  foldr (goto mode label) (generateDecider mode label root decider) jumps
+generateCase :: Mode.Mode -> ModuleName.Canonical -> Name.Name -> Name.Name -> Opt.Decider Opt.Choice -> [(Int, Opt.Expr)] -> [JS.Stmt]
+generateCase mode parentModule label root decider jumps =
+  foldr (goto mode parentModule label) (generateDecider mode parentModule label root decider) jumps
 
-goto :: Mode.Mode -> Name.Name -> (Int, Opt.Expr) -> [JS.Stmt] -> [JS.Stmt]
-goto mode label (index, branch) stmts =
+goto :: Mode.Mode -> ModuleName.Canonical -> Name.Name -> (Int, Opt.Expr) -> [JS.Stmt] -> [JS.Stmt]
+goto mode parentModule label (index, branch) stmts =
   let labeledDeciderStmt =
         JS.Labelled
           (JsName.makeLabel label index)
           (JS.While (JS.Bool True) (JS.Block stmts))
-   in labeledDeciderStmt : codeToStmtList (generate mode branch)
+   in labeledDeciderStmt : codeToStmtList (generate mode parentModule branch)
 
-generateDecider :: Mode.Mode -> Name.Name -> Name.Name -> Opt.Decider Opt.Choice -> [JS.Stmt]
-generateDecider mode label root decisionTree =
+generateDecider :: Mode.Mode -> ModuleName.Canonical -> Name.Name -> Name.Name -> Opt.Decider Opt.Choice -> [JS.Stmt]
+generateDecider mode parentModule label root decisionTree =
   case decisionTree of
     Opt.Leaf (Opt.Inline branch) ->
-      codeToStmtList (generate mode branch)
+      codeToStmtList (generate mode parentModule branch)
     Opt.Leaf (Opt.Jump index) ->
       [JS.Break (Just (JsName.makeLabel label index))]
     Opt.Chain testChain success failure ->
       [ JS.IfStmt
           (List.foldl1' (JS.Infix JS.OpAnd) (map (generateIfTest mode root) testChain))
-          (JS.Block $ generateDecider mode label root success)
-          (JS.Block $ generateDecider mode label root failure)
+          (JS.Block $ generateDecider mode parentModule label root success)
+          (JS.Block $ generateDecider mode parentModule label root failure)
       ]
     Opt.FanOut path edges fallback ->
       [ JS.Switch
           (generateCaseTest mode root path (fst (head edges)))
           ( foldr
-              (\edge cases -> generateCaseBranch mode label root edge : cases)
-              [JS.Default (generateDecider mode label root fallback)]
+              (\edge cases -> generateCaseBranch mode parentModule label root edge : cases)
+              [JS.Default (generateDecider mode parentModule label root fallback)]
               edges
           )
       ]
@@ -678,11 +678,11 @@ generateIfTest mode root (path, test) =
         DT.IsRecord ->
           error "COMPILER BUG - there should never be tests on a record"
 
-generateCaseBranch :: Mode.Mode -> Name.Name -> Name.Name -> (DT.Test, Opt.Decider Opt.Choice) -> JS.Case
-generateCaseBranch mode label root (test, subTree) =
+generateCaseBranch :: Mode.Mode -> ModuleName.Canonical -> Name.Name -> Name.Name -> (DT.Test, Opt.Decider Opt.Choice) -> JS.Case
+generateCaseBranch mode parentModule label root (test, subTree) =
   JS.Case
     (generateCaseValue mode test)
-    (generateDecider mode label root subTree)
+    (generateDecider mode parentModule label root subTree)
 
 generateCaseValue :: Mode.Mode -> DT.Test -> JS.Expr
 generateCaseValue mode test =
@@ -774,7 +774,7 @@ generateMain mode home main =
         # JS.Int 0
     Opt.Dynamic msgType decoder ->
       JS.Ref (JsName.fromGlobal home "main")
-        # generateJsExpr mode decoder
+        # generateJsExpr mode home decoder
         # toDebugMetadata mode msgType
 
 (#) :: JS.Expr -> JS.Expr -> JS.Expr

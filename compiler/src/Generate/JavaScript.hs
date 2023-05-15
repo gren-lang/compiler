@@ -136,20 +136,20 @@ addGlobal mode graph state@(State seen builder) global =
         State (Set.insert global seen) builder
 
 addGlobalHelp :: Mode.Mode -> Graph -> Opt.Global -> State -> State
-addGlobalHelp mode graph global state =
+addGlobalHelp mode graph global@(Opt.Global home _) state =
   let addDeps deps someState =
         Set.foldl' (addGlobal mode graph) someState deps
    in case graph ! global of
         Opt.Define expr deps ->
           addStmt
             (addDeps deps state)
-            ( var global (Expr.generate mode expr)
+            ( var global (Expr.generate mode home expr)
             )
         Opt.DefineTailFunc argNames body deps ->
           addStmt
             (addDeps deps state)
             ( let (Opt.Global _ name) = global
-               in var global (Expr.generateTailDef mode name argNames body)
+               in var global (Expr.generateTailDef mode home name argNames body)
             )
         Opt.Ctor index arity ->
           addStmt
@@ -237,14 +237,14 @@ generateCycleFunc :: Mode.Mode -> ModuleName.Canonical -> Opt.Def -> JS.Stmt
 generateCycleFunc mode home def =
   case def of
     Opt.Def name expr ->
-      JS.Var (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generate mode expr))
+      JS.Var (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generate mode home expr))
     Opt.TailDef name args expr ->
-      JS.Var (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generateTailDef mode name args expr))
+      JS.Var (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generateTailDef mode home name args expr))
 
 generateSafeCycle :: Mode.Mode -> ModuleName.Canonical -> (Name.Name, Opt.Expr) -> JS.Stmt
 generateSafeCycle mode home (name, expr) =
   JS.FunctionStmt (JsName.fromCycle home name) [] $
-    Expr.codeToStmtList (Expr.generate mode expr)
+    Expr.codeToStmtList (Expr.generate mode home expr)
 
 generateRealCycle :: ModuleName.Canonical -> (Name.Name, expr) -> JS.Stmt
 generateRealCycle home (name, _) =
@@ -333,7 +333,7 @@ generatePort mode (Opt.Global home name) makePort converter =
     JS.Call
       (JS.Ref (JsName.fromKernel Name.platform makePort))
       [ JS.String (Name.toBuilder name),
-        Expr.codeToExpr (Expr.generate mode converter)
+        Expr.codeToExpr (Expr.generate mode home converter)
       ]
 
 -- GENERATE MANAGER
