@@ -6,6 +6,7 @@ import Data.ByteString.Base64 qualified as Base64
 import Data.ByteString.Builder qualified as B
 import Data.ByteString.Lazy qualified as BLazy
 import Data.Function ((&))
+import Data.List as List
 import Data.Map.Strict qualified as Map
 import Data.Maybe qualified as Maybe
 import Data.Name qualified as Name
@@ -18,7 +19,7 @@ import Json.String qualified as JStr
 newtype SourceMap = SourceMap [JS.Mapping]
 
 wrap :: [JS.Mapping] -> SourceMap
-wrap mappings = SourceMap mappings
+wrap = SourceMap
 
 generateOnto :: Int -> SourceMap -> B.Builder -> B.Builder
 generateOnto leadingLines (SourceMap mappings) sourceBytes =
@@ -30,7 +31,7 @@ generateOnto leadingLines (SourceMap mappings) sourceBytes =
 generate :: Int -> [JS.Mapping] -> B.Builder
 generate leadingLines mappings =
   mappings
-    & map (\mapping -> mapping {JS._m_gen_line = (JS._m_gen_line mapping) + fromIntegral leadingLines})
+    & map (\mapping -> mapping {JS._m_gen_line = JS._m_gen_line mapping + fromIntegral leadingLines})
     & parseMappings
     & mappingsToJson
     & Json.encode
@@ -47,7 +48,7 @@ data Mappings = Mappings
 
 parseMappings :: [JS.Mapping] -> Mappings
 parseMappings mappings =
-  parseMappingsHelp mappings $
+  parseMappingsHelp (List.sortBy (\a b -> JS._m_gen_line b `compare` JS._m_gen_line a) mappings) $
     Mappings
       { _m_sources = emptyOrderedListBuilder,
         _m_names = emptyOrderedListBuilder,
