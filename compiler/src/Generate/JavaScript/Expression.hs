@@ -58,10 +58,10 @@ generate mode parentModule expression =
       JsExpr $ JS.Int int
     Opt.Float _region float ->
       JsExpr $ JS.Float (Utf8.toBuilder float)
-    Opt.VarLocal _region name ->
-      JsExpr $ JS.Ref (JsName.fromLocal name)
+    Opt.VarLocal (A.Region startPos _) name ->
+      JsExpr $ JS.TrackedRef startPos parentModule (JsName.fromLocalHumanReadable name) (JsName.fromLocal name)
     Opt.VarGlobal (A.Region startPos _) (Opt.Global home name) ->
-      JsExpr $ JS.TrackedRef startPos parentModule (JsName.fromLocal name) (JsName.fromGlobal home name)
+      JsExpr $ JS.TrackedRef startPos parentModule (JsName.fromGlobalHumanReadable home name) (JsName.fromGlobal home name)
     Opt.VarEnum _region (Opt.Global home name) index ->
       case mode of
         Mode.Dev _ ->

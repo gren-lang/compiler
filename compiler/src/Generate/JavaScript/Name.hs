@@ -7,7 +7,9 @@ module Generate.JavaScript.Name
     fromIndex,
     fromInt,
     fromLocal,
+    fromLocalHumanReadable,
     fromGlobal,
+    fromGlobalHumanReadable,
     fromCycle,
     fromKernel,
     makeF,
@@ -48,9 +50,20 @@ fromLocal name =
     then Name ("_" <> Name.toBuilder name)
     else Name (Name.toBuilder name)
 
+fromLocalHumanReadable :: Name.Name -> Name
+fromLocalHumanReadable name =
+  Name (Name.toBuilder name)
+
 fromGlobal :: ModuleName.Canonical -> Name.Name -> Name
 fromGlobal home name =
   Name $ homeToBuilder home <> usd <> Name.toBuilder name
+
+fromGlobalHumanReadable :: ModuleName.Canonical -> Name.Name -> Name
+fromGlobalHumanReadable (ModuleName.Canonical _ mod) name =
+  Name $
+    Utf8.toBuilder mod
+      <> "."
+      <> Name.toBuilder name
 
 fromCycle :: ModuleName.Canonical -> Name.Name -> Name
 fromCycle home name =
