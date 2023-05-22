@@ -54,7 +54,7 @@ data Expr
   | VarKernel A.Region Name Name
   | Array [Expr]
   | Function [Name] Expr
-  | Call Expr [Expr]
+  | Call A.Region Expr [Expr]
   | TailCall Name [(Name, Expr)]
   | If [(Expr, Expr)] Expr
   | Let Def Expr
@@ -220,7 +220,7 @@ instance Binary Expr where
       VarKernel a b c -> putWord8 11 >> put a >> put b >> put c
       Array a -> putWord8 12 >> put a
       Function a b -> putWord8 13 >> put a >> put b
-      Call a b -> putWord8 14 >> put a >> put b
+      Call a b c -> putWord8 14 >> put a >> put b >> put c
       TailCall a b -> putWord8 15 >> put a >> put b
       If a b -> putWord8 16 >> put a >> put b
       Let a b -> putWord8 17 >> put a >> put b
@@ -249,7 +249,7 @@ instance Binary Expr where
         11 -> liftM3 VarKernel get get get
         12 -> liftM Array get
         13 -> liftM2 Function get get
-        14 -> liftM2 Call get get
+        14 -> liftM3 Call get get get
         15 -> liftM2 TailCall get get
         16 -> liftM2 If get get
         17 -> liftM2 Let get get

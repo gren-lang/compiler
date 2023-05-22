@@ -54,6 +54,7 @@ data Expr
   | If Expr Expr Expr
   | Assign LValue Expr
   | Call Expr [Expr]
+  | TrackedNormalCall A.Position ModuleName.Canonical Expr Expr [Expr]
   | Function (Maybe Name) [Name] [Stmt]
 
 data LValue
@@ -511,6 +512,18 @@ fromExpr level@(Level indent nextLevel) grouping expression builder =
         & addAscii "("
         & commaSepExpr (fromExpr nextLevel Whatever) args
         & addAscii ")"
+    TrackedNormalCall position moduleName helper function args ->
+      let trackedHelper =
+            case (trackedNameFromExpr function, helper) of
+              (Just functionName, Ref helperName) ->
+                TrackedRef position moduleName functionName helperName
+              _ ->
+                helper
+       in builder
+            & fromExpr level Atomic trackedHelper
+            & addAscii "("
+            & commaSepExpr (fromExpr nextLevel Whatever) (function : args)
+            & addAscii ")"
     Function maybeName args stmts ->
       builder
         & addAscii "function "
@@ -522,6 +535,12 @@ fromExpr level@(Level indent nextLevel) grouping expression builder =
         & fromStmtBlock nextLevel stmts
         & addByteString indent
         & addAscii "}"
+
+trackedNameFromExpr :: Expr -> Maybe Name
+trackedNameFromExpr expr =
+  case expr of
+    TrackedRef _ _ name _ -> Just name
+    _ -> Nothing
 
 -- FIELDS
 

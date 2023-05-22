@@ -44,7 +44,7 @@ hasDebug expression =
     Opt.VarKernel _ _ _ -> False
     Opt.Array exprs -> any hasDebug exprs
     Opt.Function _ expr -> hasDebug expr
-    Opt.Call e es -> hasDebug e || any hasDebug es
+    Opt.Call _ e es -> hasDebug e || any hasDebug es
     Opt.TailCall _ args -> any (hasDebug . snd) args
     Opt.If conds finally -> any (\(c, e) -> hasDebug c || hasDebug e) conds || hasDebug finally
     Opt.Let def body -> defHasDebug def || hasDebug body

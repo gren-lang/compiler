@@ -84,8 +84,8 @@ generate mode parentModule expression =
       JsExpr $ JS.Array $ map (generateJsExpr mode parentModule) entries
     Opt.Function args body ->
       generateFunction (map JsName.fromLocal args) (generate mode parentModule body)
-    Opt.Call func args ->
-      JsExpr $ generateCall mode parentModule func args
+    Opt.Call (A.Region startPos _) func args ->
+      JsExpr $ generateCall mode startPos parentModule func args
     Opt.TailCall name args ->
       JsBlock $ generateTailCall mode parentModule name args
     Opt.If branches final ->
@@ -259,40 +259,42 @@ funcHelpers =
 
 -- CALLS
 
-generateCall :: Mode.Mode -> ModuleName.Canonical -> Opt.Expr -> [Opt.Expr] -> JS.Expr
-generateCall mode parentModule func args =
+generateCall :: Mode.Mode -> A.Position -> ModuleName.Canonical -> Opt.Expr -> [Opt.Expr] -> JS.Expr
+generateCall mode pos parentModule func args =
   case func of
-    Opt.VarGlobal _region global@(Opt.Global (ModuleName.Canonical pkg _) _)
+    Opt.VarGlobal _ global@(Opt.Global (ModuleName.Canonical pkg _) _)
       | pkg == Pkg.core ->
-          generateCoreCall mode parentModule global args
+          generateCoreCall mode pos parentModule global args
     Opt.VarBox _ _ ->
       case mode of
         Mode.Dev _ ->
-          generateCallHelp mode parentModule func args
+          generateCallHelp mode pos parentModule func args
         Mode.Prod _ ->
           case args of
             [arg] ->
               generateJsExpr mode parentModule arg
             _ ->
-              generateCallHelp mode parentModule func args
+              generateCallHelp mode pos parentModule func args
     _ ->
-      generateCallHelp mode parentModule func args
+      generateCallHelp mode pos parentModule func args
 
-generateCallHelp :: Mode.Mode -> ModuleName.Canonical -> Opt.Expr -> [Opt.Expr] -> JS.Expr
-generateCallHelp mode parentModule func args =
+generateCallHelp :: Mode.Mode -> A.Position -> ModuleName.Canonical -> Opt.Expr -> [Opt.Expr] -> JS.Expr
+generateCallHelp mode pos parentModule func args =
   generateNormalCall
+    pos
+    parentModule
     (generateJsExpr mode parentModule func)
     (map (generateJsExpr mode parentModule) args)
 
-generateGlobalCall :: ModuleName.Canonical -> Name.Name -> [JS.Expr] -> JS.Expr
-generateGlobalCall home name args =
-  generateNormalCall (JS.Ref (JsName.fromGlobal home name)) args
+generateGlobalCall :: A.Position -> ModuleName.Canonical -> ModuleName.Canonical -> Name.Name -> [JS.Expr] -> JS.Expr
+generateGlobalCall pos parentModule home name args =
+  generateNormalCall pos parentModule (JS.Ref (JsName.fromGlobal home name)) args
 
-generateNormalCall :: JS.Expr -> [JS.Expr] -> JS.Expr
-generateNormalCall func args =
+generateNormalCall :: A.Position -> ModuleName.Canonical -> JS.Expr -> [JS.Expr] -> JS.Expr
+generateNormalCall pos parentModule func args =
   case IntMap.lookup (length args) callHelpers of
     Just helper ->
-      JS.Call helper (func : args)
+      JS.TrackedNormalCall pos parentModule helper func args
     Nothing ->
       List.foldl' (\f a -> JS.Call f [a]) func args
 
@@ -303,25 +305,25 @@ callHelpers =
 
 -- CORE CALLS
 
-generateCoreCall :: Mode.Mode -> ModuleName.Canonical -> Opt.Global -> [Opt.Expr] -> JS.Expr
-generateCoreCall mode parentModule (Opt.Global home@(ModuleName.Canonical _ moduleName) name) args =
+generateCoreCall :: Mode.Mode -> A.Position -> ModuleName.Canonical -> Opt.Global -> [Opt.Expr] -> JS.Expr
+generateCoreCall mode pos parentModule (Opt.Global home@(ModuleName.Canonical _ moduleName) name) args =
   if moduleName == Name.basics
-    then generateBasicsCall mode parentModule home name args
+    then generateBasicsCall mode pos parentModule home name args
     else
       if moduleName == Name.bitwise
-        then generateBitwiseCall home name (map (generateJsExpr mode parentModule) args)
+        then generateBitwiseCall pos parentModule home name (map (generateJsExpr mode parentModule) args)
         else
           if moduleName == Name.math
-            then generateMathCall home name (map (generateJsExpr mode parentModule) args)
-            else generateGlobalCall home name (map (generateJsExpr mode parentModule) args)
+            then generateMathCall pos parentModule home name (map (generateJsExpr mode parentModule) args)
+            else generateGlobalCall pos parentModule home name (map (generateJsExpr mode parentModule) args)
 
-generateBitwiseCall :: ModuleName.Canonical -> Name.Name -> [JS.Expr] -> JS.Expr
-generateBitwiseCall home name args =
+generateBitwiseCall :: A.Position -> ModuleName.Canonical -> ModuleName.Canonical -> Name.Name -> [JS.Expr] -> JS.Expr
+generateBitwiseCall pos parentModule home name args =
   case args of
     [arg] ->
       case name of
         "complement" -> JS.Prefix JS.PrefixComplement arg
-        _ -> generateGlobalCall home name args
+        _ -> generateGlobalCall pos parentModule home name args
     [left, right] ->
       case name of
         "and" -> JS.Infix JS.OpBitwiseAnd left right
@@ -330,12 +332,12 @@ generateBitwiseCall home name args =
         "shiftLeftBy" -> JS.Infix JS.OpLShift right left
         "shiftRightBy" -> JS.Infix JS.OpSpRShift right left
         "shiftRightZfBy" -> JS.Infix JS.OpZfRShift right left
-        _ -> generateGlobalCall home name args
+        _ -> generateGlobalCall pos parentModule home name args
     _ ->
-      generateGlobalCall home name args
+      generateGlobalCall pos parentModule home name args
 
-generateBasicsCall :: Mode.Mode -> ModuleName.Canonical -> ModuleName.Canonical -> Name.Name -> [Opt.Expr] -> JS.Expr
-generateBasicsCall mode parentModule home name args =
+generateBasicsCall :: Mode.Mode -> A.Position -> ModuleName.Canonical -> ModuleName.Canonical -> Name.Name -> [Opt.Expr] -> JS.Expr
+generateBasicsCall mode pos parentModule home name args =
   case args of
     [grenArg] ->
       let arg = generateJsExpr mode parentModule grenArg
@@ -343,7 +345,7 @@ generateBasicsCall mode parentModule home name args =
             "not" -> JS.Prefix JS.PrefixNot arg
             "negate" -> JS.Prefix JS.PrefixNegate arg
             "toFloat" -> arg
-            _ -> generateGlobalCall home name [arg]
+            _ -> generateGlobalCall pos parentModule home name [arg]
     [grenLeft, grenRight] ->
       case name of
         -- NOTE: removed "composeL" and "composeR" because of this issue:
@@ -369,23 +371,23 @@ generateBasicsCall mode parentModule home name args =
                 "or" -> JS.Infix JS.OpOr left right
                 "and" -> JS.Infix JS.OpAnd left right
                 "xor" -> JS.Infix JS.OpNe left right
-                _ -> generateGlobalCall home name [left, right]
+                _ -> generateGlobalCall pos parentModule home name [left, right]
     _ ->
-      generateGlobalCall home name (map (generateJsExpr mode parentModule) args)
+      generateGlobalCall pos parentModule home name (map (generateJsExpr mode parentModule) args)
 
-generateMathCall :: ModuleName.Canonical -> Name.Name -> [JS.Expr] -> JS.Expr
-generateMathCall home name args =
+generateMathCall :: A.Position -> ModuleName.Canonical -> ModuleName.Canonical -> Name.Name -> [JS.Expr] -> JS.Expr
+generateMathCall pos parentModule home name args =
   case args of
     [arg] ->
       case name of
         "truncate" -> JS.Infix JS.OpBitwiseOr arg (JS.Int 0)
-        _ -> generateGlobalCall home name [arg]
+        _ -> generateGlobalCall pos parentModule home name [arg]
     [left, right] ->
       case name of
         "remainderBy" -> JS.Infix JS.OpMod right left
-        _ -> generateGlobalCall home name [left, right]
+        _ -> generateGlobalCall pos parentModule home name [left, right]
     _ ->
-      generateGlobalCall home name args
+      generateGlobalCall pos parentModule home name args
 
 equal :: JS.Expr -> JS.Expr -> JS.Expr
 equal left right =
@@ -430,10 +432,10 @@ apply func value =
   case func of
     Opt.Accessor field ->
       Opt.Access value field
-    Opt.Call f args ->
-      Opt.Call f (args ++ [value])
+    Opt.Call region f args ->
+      Opt.Call region f (args ++ [value])
     _ ->
-      Opt.Call func [value]
+      Opt.Call A.zero func [value]
 
 append :: Mode.Mode -> ModuleName.Canonical -> Opt.Expr -> Opt.Expr -> JS.Expr
 append mode parentModule left right =
@@ -449,7 +451,7 @@ jsAppend a b =
 toSeqs :: Mode.Mode -> ModuleName.Canonical -> Opt.Expr -> [JS.Expr]
 toSeqs mode parentModule expr =
   case expr of
-    Opt.Call (Opt.VarGlobal _region (Opt.Global home "append")) [left, right]
+    Opt.Call _ (Opt.VarGlobal _ (Opt.Global home "append")) [left, right]
       | home == ModuleName.basics ->
           generateJsExpr mode parentModule left : toSeqs mode parentModule right
     _ ->

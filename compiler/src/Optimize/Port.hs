@@ -50,7 +50,7 @@ toEncoder tipe =
       let encodeField (name, Can.FieldType _ fieldType) =
             do
               encoder <- toEncoder fieldType
-              let value = Opt.Call encoder [Opt.Access (Opt.VarLocal A.zero Name.dollar) name]
+              let value = Opt.Call A.zero encoder [Opt.Access (Opt.VarLocal A.zero Name.dollar) name]
               return $
                 Opt.Record $
                   Map.fromList
@@ -61,7 +61,7 @@ toEncoder tipe =
             object <- encode "object"
             keyValuePairs <- traverse encodeField (Map.toList fields)
             Names.registerFieldDict fields $
-              Opt.Function [Name.dollar] (Opt.Call object [Opt.Array keyValuePairs])
+              Opt.Function [Name.dollar] (Opt.Call A.zero object [Opt.Array keyValuePairs])
 
 -- ENCODE HELPERS
 
@@ -73,14 +73,14 @@ encodeMaybe tipe =
     destruct <- Names.registerGlobal A.zero ModuleName.maybe "destruct"
     return $
       Opt.Function [Name.dollar] $
-        Opt.Call destruct [null, encoder, Opt.VarLocal A.zero Name.dollar]
+        Opt.Call A.zero destruct [null, encoder, Opt.VarLocal A.zero Name.dollar]
 
 encodeArray :: Can.Type -> Names.Tracker Opt.Expr
 encodeArray tipe =
   do
     array <- encode "array"
     encoder <- toEncoder tipe
-    return $ Opt.Call array [encoder]
+    return $ Opt.Call A.zero array [encoder]
 
 -- FLAGS DECODER
 
@@ -125,7 +125,7 @@ decodeUnit =
   do
     succeed <- decode "succeed"
     unit <- Names.registerGlobal A.zero ModuleName.basics Name.unit
-    return (Opt.Call succeed [unit])
+    return (Opt.Call A.zero succeed [unit])
 
 -- DECODE MAYBE
 
@@ -142,11 +142,11 @@ decodeMaybe tipe =
     subDecoder <- toDecoder tipe
 
     return $
-      Opt.Call
+      (Opt.Call A.zero)
         oneOf
         [ Opt.Array
-            [ Opt.Call null [nothing],
-              Opt.Call map_ [just, subDecoder]
+            [ Opt.Call A.zero null [nothing],
+              Opt.Call A.zero map_ [just, subDecoder]
             ]
         ]
 
@@ -157,7 +157,7 @@ decodeArray tipe =
   do
     array <- decode "array"
     decoder <- toDecoder tipe
-    return $ Opt.Call array [decoder]
+    return $ Opt.Call A.zero array [decoder]
 
 -- DECODE RECORDS
 
@@ -170,7 +170,7 @@ decodeRecord fields =
         Opt.Record (Map.mapWithKey toFieldExpr fields)
    in do
         succeed <- decode "succeed"
-        foldM fieldAndThen (Opt.Call succeed [record])
+        foldM fieldAndThen (Opt.Call A.zero succeed [record])
           =<< Names.registerFieldDict fields (Map.toList fields)
 
 fieldAndThen :: Opt.Expr -> (Name.Name, Can.FieldType) -> Names.Tracker Opt.Expr
@@ -180,10 +180,10 @@ fieldAndThen decoder (key, Can.FieldType _ tipe) =
     field <- decode "field"
     typeDecoder <- toDecoder tipe
     return $
-      Opt.Call
+      (Opt.Call A.zero)
         andThen
         [ Opt.Function [key] decoder,
-          Opt.Call field [Opt.Str A.zero (Name.toGrenString key), typeDecoder]
+          Opt.Call A.zero field [Opt.Str A.zero (Name.toGrenString key), typeDecoder]
         ]
 
 -- GLOBALS HELPERS

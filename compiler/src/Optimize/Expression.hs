@@ -58,20 +58,20 @@ optimize cycle (A.At region expression) =
       do
         func <- Names.registerGlobal region ModuleName.basics Name.negate
         arg <- optimize cycle expr
-        pure $ Opt.Call func [arg]
+        pure $ Opt.Call region func [arg]
     Can.Binop _ home name _ left right ->
       do
         optFunc <- Names.registerGlobal region home name
         optLeft <- optimize cycle left
         optRight <- optimize cycle right
-        return (Opt.Call optFunc [optLeft, optRight])
+        return (Opt.Call region optFunc [optLeft, optRight])
     Can.Lambda args body ->
       do
         (argNames, destructors) <- destructArgs args
         obody <- optimize cycle body
         pure $ Opt.Function argNames (foldr Opt.Destruct obody destructors)
     Can.Call func args ->
-      Opt.Call
+      Opt.Call region
         <$> optimize cycle func
         <*> traverse (optimize cycle) args
     Can.If branches finally ->
@@ -285,7 +285,7 @@ optimizePotentialTailCall cycle name args expr =
       <$> optimizeTail cycle name argNames expr
 
 optimizeTail :: Cycle -> Name.Name -> [Name.Name] -> Can.Expr -> Names.Tracker Opt.Expr
-optimizeTail cycle rootName argNames locExpr@(A.At _ expression) =
+optimizeTail cycle rootName argNames locExpr@(A.At region expression) =
   case expression of
     Can.Call func args ->
       do
@@ -304,10 +304,10 @@ optimizeTail cycle rootName argNames locExpr@(A.At _ expression) =
             Index.LengthMismatch _ _ ->
               do
                 ofunc <- optimize cycle func
-                pure $ Opt.Call ofunc oargs
+                pure $ Opt.Call region ofunc oargs
           else do
             ofunc <- optimize cycle func
-            pure $ Opt.Call ofunc oargs
+            pure $ Opt.Call region ofunc oargs
     Can.If branches finally ->
       let optimizeBranch (condition, branch) =
             (,)
