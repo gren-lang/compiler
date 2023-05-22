@@ -59,9 +59,9 @@ fromGlobal home name =
   Name $ homeToBuilder home <> usd <> Name.toBuilder name
 
 fromGlobalHumanReadable :: ModuleName.Canonical -> Name.Name -> Name
-fromGlobalHumanReadable (ModuleName.Canonical _ mod) name =
+fromGlobalHumanReadable (ModuleName.Canonical _ moduleName) name =
   Name $
-    Utf8.toBuilder mod
+    Utf8.toBuilder moduleName
       <> "."
       <> Name.toBuilder name
 
