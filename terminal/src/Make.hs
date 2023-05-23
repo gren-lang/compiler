@@ -14,6 +14,7 @@ import AST.Optimized qualified as Opt
 import BackgroundWriter qualified as BW
 import Build qualified
 import Data.ByteString.Builder qualified as B
+import Data.Map (Map)
 import Data.Maybe qualified as Maybe
 import Data.NonEmptyList qualified as NE
 import Directories qualified as Dirs
@@ -76,6 +77,7 @@ runHelp root paths style (Flags debug optimize maybeOutput _) =
         do
           desiredMode <- getMode debug optimize
           details <- Task.eio Exit.MakeBadDetails (Details.load style scope root)
+          moduleSources <- rereadSources details
           let platform = getPlatform details
           let projectType = getProjectType details
           case (projectType, maybeOutput) of
@@ -103,15 +105,15 @@ runHelp root paths style (Flags debug optimize maybeOutput _) =
                               (Platform.Browser, [name]) ->
                                 do
                                   (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
-                                  writeToDisk style "index.html" (Html.sandwich name (SourceMap.generateOnto Html.leadingLines sourceMap source)) (NE.List name [])
+                                  writeToDisk style "index.html" (Html.sandwich name (SourceMap.generateOnto Html.leadingLines moduleSources sourceMap source)) (NE.List name [])
                               (Platform.Node, [name]) ->
                                 do
                                   (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
-                                  writeToDisk style "app" (SourceMap.generateOnto Node.leadingLines sourceMap (Node.sandwich name source)) (NE.List name [])
+                                  writeToDisk style "app" (SourceMap.generateOnto Node.leadingLines moduleSources sourceMap (Node.sandwich name source)) (NE.List name [])
                               (_, name : names) ->
                                 do
                                   (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
-                                  writeToDisk style "index.js" (SourceMap.generateOnto 0 sourceMap source) (NE.List name names)
+                                  writeToDisk style "index.js" (SourceMap.generateOnto 0 moduleSources sourceMap source) (NE.List name names)
                           Just DevStdOut ->
                             case getMains artifacts of
                               [] ->
@@ -119,7 +121,7 @@ runHelp root paths style (Flags debug optimize maybeOutput _) =
                               _ ->
                                 do
                                   (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
-                                  Task.io $ B.hPutBuilder IO.stdout (SourceMap.generateOnto 0 sourceMap source)
+                                  Task.io $ B.hPutBuilder IO.stdout (SourceMap.generateOnto 0 moduleSources sourceMap source)
                           Just DevNull ->
                             return ()
                           Just (Exe target) ->
@@ -127,14 +129,14 @@ runHelp root paths style (Flags debug optimize maybeOutput _) =
                               Platform.Node -> do
                                 name <- hasOneMain artifacts
                                 (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
-                                writeToDisk style target (SourceMap.generateOnto Node.leadingLines sourceMap (Node.sandwich name source)) (NE.List name [])
+                                writeToDisk style target (SourceMap.generateOnto Node.leadingLines moduleSources sourceMap (Node.sandwich name source)) (NE.List name [])
                               _ -> do
                                 Task.throw Exit.MakeExeOnlyForNodePlatform
                           Just (JS target) ->
                             case getNoMains artifacts of
                               [] -> do
                                 (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
-                                writeToDisk style target (SourceMap.generateOnto 0 sourceMap source) (Build.getRootNames artifacts)
+                                writeToDisk style target (SourceMap.generateOnto 0 moduleSources sourceMap source) (Build.getRootNames artifacts)
                               name : names ->
                                 Task.throw (Exit.MakeNonMainFilesIntoJavaScript name names)
                           Just (Html target) ->
@@ -142,7 +144,7 @@ runHelp root paths style (Flags debug optimize maybeOutput _) =
                               Platform.Browser -> do
                                 name <- hasOneMain artifacts
                                 (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
-                                writeToDisk style target (Html.sandwich name (SourceMap.generateOnto Html.leadingLines sourceMap source)) (NE.List name [])
+                                writeToDisk style target (Html.sandwich name (SourceMap.generateOnto Html.leadingLines moduleSources sourceMap source)) (NE.List name [])
                               _ -> do
                                 Task.throw Exit.MakeHtmlOnlyForBrowserPlatform
 
@@ -162,6 +164,11 @@ getMode debug optimize =
     (True, False) -> return Debug
     (False, False) -> return Dev
     (False, True) -> return Prod
+
+rereadSources :: Details.Details -> Task (Map ModuleName.Raw String)
+rereadSources details =
+  let locals = Details._locals details
+   in Task.io $ traverse (readFile . Details._path) locals
 
 getExposed :: Details.Details -> Task (NE.List ModuleName.Raw)
 getExposed (Details.Details _ validOutline _ _ _ _) =
