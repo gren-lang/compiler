@@ -3,7 +3,6 @@ module Generate.VLQSpec (spec) where
 import Generate.VLQ (encode)
 import Test.Hspec (Spec, describe, it, shouldBe)
 
-
 spec :: Spec
 spec = do
   describe "VLQ tests" $ do
