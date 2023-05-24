@@ -225,7 +225,8 @@ Common gren-common
         utf8-string,
         vector,
         text >= 2 && < 3,
-        base64-bytestring >= 1.2 && < 2
+        base64-bytestring >= 1.2 && < 2,
+        indexed-traversable
 
 Executable gren
     Import:
