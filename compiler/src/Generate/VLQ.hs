@@ -14,13 +14,18 @@ import Data.Map qualified as Map
 {- Ported from the Elm package Janiczek/elm-vlq
 -}
 
+-- Int is converted to 32-bit representation before encoding
 encode :: Int -> String
 encode num =
   let numWithSign =
         if num < 0
-          then (negate num `Bit.shiftL` 1) .|. 1
-          else num `Bit.shiftL` 1
+          then ((negate num .&. usableBits) `Bit.shiftL` 1) .|. 1
+          else (num .&. usableBits) `Bit.shiftL` 1
    in encodeHelp numWithSign ""
+
+usableBits :: Int
+usableBits =
+  0xFFFFFFFF `Bit.shiftR` 1
 
 encodeHelp :: Int -> String -> String
 encodeHelp num acc =
