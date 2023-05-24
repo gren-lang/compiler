@@ -153,6 +153,7 @@ Common gren-common
         Generate.JavaScript.Name
         Generate.Mode
         Generate.SourceMap
+        Generate.VLQ
         Nitpick.Debug
         Nitpick.PatternMatches
         Optimize.Case
@@ -255,6 +256,7 @@ Test-Suite gren-tests
         Helpers.Parse
 
         -- tests
+        Generate.VLQSpec
         Integration.FormatSpec
         Parse.AliasSpec
         Parse.RecordUpdateSpec
