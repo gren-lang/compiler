@@ -110,10 +110,10 @@ encodeSegment :: JS.Mapping -> Mappings -> Mappings
 encodeSegment segment (Mappings srcs nms sa vlqs) =
   let newSources = insertIntoOrderedListBuilder (JS._m_src_module segment) srcs
       newNames = insertIntoOrderedListBuilder (JS._m_src_name segment) nms
-      genCol = JS._m_gen_col segment
+      genCol = JS._m_gen_col segment - 1
       moduleIdx = Maybe.fromMaybe 0 $ lookupIndexOrderedListBuilder (JS._m_src_module segment) newSources
-      sourceLine = fromIntegral $ JS._m_src_line segment
-      sourceCol = fromIntegral $ JS._m_src_col segment
+      sourceLine = fromIntegral (JS._m_src_line segment) - 1
+      sourceCol = fromIntegral (JS._m_src_col segment) - 1 
       nameIdx = Maybe.fromMaybe 0 $ lookupIndexOrderedListBuilder (JS._m_src_name segment) newNames
       genColDelta = fromIntegral genCol - fromIntegral (Maybe.fromMaybe 0 (_sa_prev_col sa))
       moduleIdxDelta = moduleIdx - Maybe.fromMaybe 0 (_sa_prev_source_idx sa)
