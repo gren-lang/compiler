@@ -7,8 +7,11 @@ import Data.ByteString.Builder qualified as B
 import Data.ByteString.Lazy qualified as BLazy
 import Data.Function ((&))
 import Data.List as List
+import Data.Map.Strict (Map)
 import Data.Map.Strict qualified as Map
 import Data.Maybe qualified as Maybe
+import Data.Ord qualified
+import GHC.Word (Word16)
 import Generate.JavaScript.Builder qualified as JS
 import Generate.JavaScript.Name qualified as JsName
 import Gren.ModuleName qualified as ModuleName
@@ -47,34 +50,51 @@ data Mappings = Mappings
 
 parseMappings :: [JS.Mapping] -> Mappings
 parseMappings mappings =
-  let sortedMappings = List.sortBy (\a b -> JS._m_gen_line b `compare` JS._m_gen_line a) mappings
-   in parseMappingsHelp sortedMappings $
+  let mappingMap = foldr (\mapping acc -> Map.alter (mappingMapUpdater mapping) (JS._m_gen_line mapping) acc) Map.empty mappings
+   in parseMappingsHelp 1 (fst $ Map.findMax mappingMap) mappingMap $
         Mappings
           { _m_sources = emptyOrderedListBuilder,
             _m_names = emptyOrderedListBuilder,
             _m_vlqs = []
           }
 
-parseMappingsHelp :: [JS.Mapping] -> Mappings -> Mappings
-parseMappingsHelp mappings acc@(Mappings srcs nms vlqs) =
-  case mappings of
-    [] -> acc
-    first : rest ->
-      let newSources = insertIntoOrderedListBuilder (JS._m_src_module first) srcs
-          newNames = insertIntoOrderedListBuilder (JS._m_src_name first) nms
-       in parseMappingsHelp rest $
-            Mappings newSources newNames $
-              Json.object
-                [ (JStr.fromChars "src_line", Json.int $ fromIntegral $ JS._m_src_line first),
-                  (JStr.fromChars "src_col", Json.int $ fromIntegral $ JS._m_src_col first),
-                  (JStr.fromChars "src_module", ModuleName.encode $ ModuleName._module $ JS._m_src_module first),
-                  (JStr.fromChars "src_module_idx", Json.int $ Maybe.fromMaybe 0 $ lookupIndexOrderedListBuilder (JS._m_src_module first) newSources),
-                  (JStr.fromChars "src_name", Json.String $ JsName.toBuilder $ JS._m_src_name first),
-                  (JStr.fromChars "src_name_idx", Json.int $ Maybe.fromMaybe 0 $ lookupIndexOrderedListBuilder (JS._m_src_name first) newNames),
-                  (JStr.fromChars "gen_line", Json.int $ fromIntegral $ JS._m_gen_line first),
-                  (JStr.fromChars "gen_col", Json.int $ fromIntegral $ JS._m_gen_col first)
-                ]
-                : vlqs
+mappingMapUpdater :: JS.Mapping -> Maybe [JS.Mapping] -> Maybe [JS.Mapping]
+mappingMapUpdater toInsert maybeVal =
+  case maybeVal of
+    Nothing ->
+      Just [toInsert]
+    Just existing ->
+      Just $ toInsert : existing
+
+parseMappingsHelp :: Word16 -> Word16 -> Map Word16 [JS.Mapping] -> Mappings -> Mappings
+parseMappingsHelp currentLine lastLine mappingMap acc@(Mappings srcs nms vlqs) =
+  if currentLine >= lastLine
+    then Mappings srcs nms (reverse vlqs)
+    else case Map.lookup currentLine mappingMap of
+      Nothing ->
+        parseMappingsHelp (currentLine + 1) lastLine mappingMap $
+          Mappings srcs nms (Json.null : vlqs)
+      Just segments ->
+        let sortedSegments = List.sortOn (Data.Ord.Down . JS._m_gen_col) segments
+         in parseMappingsHelp (currentLine + 1) lastLine mappingMap $
+              foldr encodeSegment acc sortedSegments
+
+encodeSegment :: JS.Mapping -> Mappings -> Mappings
+encodeSegment segment (Mappings srcs nms vlqs) =
+  let newSources = insertIntoOrderedListBuilder (JS._m_src_module segment) srcs
+      newNames = insertIntoOrderedListBuilder (JS._m_src_name segment) nms
+   in Mappings newSources newNames $
+        Json.object
+          [ (JStr.fromChars "src_line", Json.int $ fromIntegral $ JS._m_src_line segment),
+            (JStr.fromChars "src_col", Json.int $ fromIntegral $ JS._m_src_col segment),
+            (JStr.fromChars "src_module", ModuleName.encode $ ModuleName._module $ JS._m_src_module segment),
+            (JStr.fromChars "src_module_idx", Json.int $ Maybe.fromMaybe 0 $ lookupIndexOrderedListBuilder (JS._m_src_module segment) newSources),
+            (JStr.fromChars "src_name", Json.String $ JsName.toBuilder $ JS._m_src_name segment),
+            (JStr.fromChars "src_name_idx", Json.int $ Maybe.fromMaybe 0 $ lookupIndexOrderedListBuilder (JS._m_src_name segment) newNames),
+            (JStr.fromChars "gen_line", Json.int $ fromIntegral $ JS._m_gen_line segment),
+            (JStr.fromChars "gen_col", Json.int $ fromIntegral $ JS._m_gen_col segment)
+          ]
+          : vlqs
 
 -- Array builder
 
