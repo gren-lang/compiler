@@ -7,6 +7,7 @@ module Make
     run,
     reportType,
     output,
+    rereadSources,
   )
 where
 
@@ -15,6 +16,7 @@ import BackgroundWriter qualified as BW
 import Build qualified
 import Data.ByteString.Builder qualified as B
 import Data.Map (Map)
+import Data.Map qualified as Map
 import Data.Maybe qualified as Maybe
 import Data.NonEmptyList qualified as NE
 import Directories qualified as Dirs
@@ -26,6 +28,7 @@ import Generate.Node qualified as Node
 import Generate.SourceMap qualified as SourceMap
 import Gren.Details qualified as Details
 import Gren.ModuleName qualified as ModuleName
+import Gren.Outline qualified as Outline
 import Gren.Platform qualified as Platform
 import Parse.Module qualified as Parse
 import Reporting qualified
@@ -77,7 +80,7 @@ runHelp root paths style (Flags debug optimize maybeOutput _) =
         do
           desiredMode <- getMode debug optimize
           details <- Task.eio Exit.MakeBadDetails (Details.load style scope root)
-          moduleSources <- rereadSources details
+          moduleSources <- Task.io $ rereadSources root
           let platform = getPlatform details
           let projectType = getProjectType details
           case (projectType, maybeOutput) of
@@ -165,10 +168,16 @@ getMode debug optimize =
     (False, False) -> return Dev
     (False, True) -> return Prod
 
-rereadSources :: Details.Details -> Task (Map ModuleName.Raw String)
-rereadSources details =
-  let locals = Details._locals details
-   in Task.io $ traverse (readFile . Details._path) locals
+rereadSources :: FilePath -> IO (Map ModuleName.Canonical String)
+rereadSources root =
+  do
+    outlineResult <- Outline.read root
+    case outlineResult of
+      Left _ -> return Map.empty
+      Right outline ->
+        do
+          modulePaths <- Outline.getAllModulePaths root outline
+          traverse readFile modulePaths
 
 getExposed :: Details.Details -> Task (NE.List ModuleName.Raw)
 getExposed (Details.Details _ validOutline _ _ _ _) =

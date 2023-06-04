@@ -24,14 +24,14 @@ newtype SourceMap = SourceMap [JS.Mapping]
 wrap :: [JS.Mapping] -> SourceMap
 wrap = SourceMap
 
-generateOnto :: Int -> Map.Map ModuleName.Raw String -> SourceMap -> B.Builder -> B.Builder
+generateOnto :: Int -> Map.Map ModuleName.Canonical String -> SourceMap -> B.Builder -> B.Builder
 generateOnto leadingLines moduleSources (SourceMap mappings) sourceBytes =
   sourceBytes
     <> "\n"
     <> "//# sourceMappingURL=data:application/json;base64,"
     <> generate leadingLines moduleSources mappings
 
-generate :: Int -> Map.Map ModuleName.Raw String -> [JS.Mapping] -> B.Builder
+generate :: Int -> Map.Map ModuleName.Canonical String -> [JS.Mapping] -> B.Builder
 generate leadingLines moduleSources mappings =
   mappings
     & map (\mapping -> mapping {JS._m_gen_line = JS._m_gen_line mapping + fromIntegral leadingLines})
@@ -178,13 +178,13 @@ orderedListBuilderToList (OrderedListBuilder _ values) =
     & Map.fromList
     & Map.elems
 
-mappingsToJson :: Map.Map ModuleName.Raw String -> Mappings -> Json.Value
+mappingsToJson :: Map.Map ModuleName.Canonical String -> Mappings -> Json.Value
 mappingsToJson moduleSources (Mappings sources names _sa vlqs) =
   let moduleNames = orderedListBuilderToList sources
    in Json.object
         [ (JStr.fromChars "version", Json.int 3),
           (JStr.fromChars "sources", Json.array $ map (ModuleName.encode . ModuleName._module) moduleNames),
-          (JStr.fromChars "sourcesContent", Json.array $ map (\moduleName -> Maybe.maybe Json.null Json.chars $ Map.lookup (ModuleName._module moduleName) moduleSources) moduleNames),
+          (JStr.fromChars "sourcesContent", Json.array $ map (\moduleName -> Maybe.maybe Json.null Json.chars $ Map.lookup moduleName moduleSources) moduleNames),
           (JStr.fromChars "names", Json.array $ map (\jsName -> Json.String ("\"" <> JsName.toBuilder jsName <> "\"")) $ orderedListBuilderToList names),
           (JStr.fromChars "mappings", Json.String ("\"" <> vlqs <> "\""))
         ]
