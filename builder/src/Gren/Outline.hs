@@ -268,16 +268,22 @@ sourceDirs outline =
 
 -- getAllModulePaths
 
-getAllModulePaths :: FilePath -> Outline -> IO (Map.Map ModuleName.Canonical FilePath)
-getAllModulePaths root outline =
-  case outline of
-    App appOutline ->
-      let deps = Map.union (_app_deps_direct appOutline) (_app_deps_indirect appOutline)
-          srcDirs = map (toAbsolute root) (NE.toList (_app_source_dirs appOutline))
-       in getAllModulePathsHelper Pkg.dummyName srcDirs deps
-    Pkg pkgOutline ->
-      let deps = Map.map (PossibleFilePath.mapWith Con.lowerBound) (_pkg_deps pkgOutline)
-       in getAllModulePathsHelper (_pkg_name pkgOutline) [root </> "src"] deps
+getAllModulePaths :: FilePath -> IO (Map.Map ModuleName.Canonical FilePath)
+getAllModulePaths root =
+  do
+    outlineResult <- read root
+    case outlineResult of
+      Left _ ->
+        return Map.empty
+      Right outline ->
+        case outline of
+          App appOutline ->
+            let deps = Map.union (_app_deps_direct appOutline) (_app_deps_indirect appOutline)
+                srcDirs = map (toAbsolute root) (NE.toList (_app_source_dirs appOutline))
+             in getAllModulePathsHelper Pkg.dummyName srcDirs deps
+          Pkg pkgOutline ->
+            let deps = Map.map (PossibleFilePath.mapWith Con.lowerBound) (_pkg_deps pkgOutline)
+             in getAllModulePathsHelper (_pkg_name pkgOutline) [root </> "src"] deps
 
 getAllModulePathsHelper :: Pkg.Name -> [FilePath] -> Map.Map Pkg.Name (PossibleFilePath V.Version) -> IO (Map.Map ModuleName.Canonical FilePath)
 getAllModulePathsHelper packageName packageSrcDirs deps =
@@ -298,7 +304,7 @@ recursiveFindGrenFilesHelp root =
   do
     dirContents <- Dir.getDirectoryContents root
     let (grenFiles, others) = List.partition (List.isSuffixOf ".gren") dirContents
-    subDirectories <- filterM Dir.doesDirectoryExist (filter (List.isSuffixOf "./") others)
+    subDirectories <- filterM (\fp -> Dir.doesDirectoryExist (root </> fp)) (filter (\fp -> fp /= "." && fp /= "..") others)
     filesFromSubDirs <- traverse (recursiveFindGrenFilesHelp . (root </>)) subDirectories
     return $ concat filesFromSubDirs ++ map (\fp -> root </> fp) grenFiles
 

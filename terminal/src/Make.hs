@@ -16,7 +16,6 @@ import BackgroundWriter qualified as BW
 import Build qualified
 import Data.ByteString.Builder qualified as B
 import Data.Map (Map)
-import Data.Map qualified as Map
 import Data.Maybe qualified as Maybe
 import Data.NonEmptyList qualified as NE
 import Directories qualified as Dirs
@@ -171,13 +170,8 @@ getMode debug optimize =
 rereadSources :: FilePath -> IO (Map ModuleName.Canonical String)
 rereadSources root =
   do
-    outlineResult <- Outline.read root
-    case outlineResult of
-      Left _ -> return Map.empty
-      Right outline ->
-        do
-          modulePaths <- Outline.getAllModulePaths root outline
-          traverse readFile modulePaths
+    modulePaths <- Outline.getAllModulePaths root
+    traverse readFile modulePaths
 
 getExposed :: Details.Details -> Task (NE.List ModuleName.Raw)
 getExposed (Details.Details _ validOutline _ _ _ _) =
