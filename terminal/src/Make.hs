@@ -24,6 +24,7 @@ import Generate qualified
 import Generate.Html qualified as Html
 import Generate.JavaScript qualified as JS
 import Generate.Node qualified as Node
+import Generate.SourceMap (SourceMap)
 import Generate.SourceMap qualified as SourceMap
 import Gren.Details qualified as Details
 import Gren.ModuleName qualified as ModuleName
@@ -43,6 +44,7 @@ import Terminal (Parser (..))
 data Flags = Flags
   { _debug :: Bool,
     _optimize :: Bool,
+    _sourceMaps :: Bool,
     _output :: Maybe Output,
     _report :: Maybe ReportType
   }
@@ -62,7 +64,7 @@ data ReportType
 type Task a = Task.Task Exit.Make a
 
 run :: [FilePath] -> Flags -> IO ()
-run paths flags@(Flags _ _ maybeOutput report) =
+run paths flags@(Flags _ _ _ maybeOutput report) =
   do
     style <- getStyle maybeOutput report
     maybeRoot <- Dirs.findRoot
@@ -72,14 +74,13 @@ run paths flags@(Flags _ _ maybeOutput report) =
         Nothing -> return $ Left Exit.MakeNoOutline
 
 runHelp :: FilePath -> [FilePath] -> Reporting.Style -> Flags -> IO (Either Exit.Make ())
-runHelp root paths style (Flags debug optimize maybeOutput _) =
+runHelp root paths style (Flags debug optimize withSourceMaps maybeOutput _) =
   BW.withScope $ \scope ->
     Dirs.withRootLock root $
       Task.run $
         do
           desiredMode <- getMode debug optimize
           details <- Task.eio Exit.MakeBadDetails (Details.load style scope root)
-          moduleSources <- Task.io $ rereadSources root
           let platform = getPlatform details
           let projectType = getProjectType details
           case (projectType, maybeOutput) of
@@ -107,15 +108,18 @@ runHelp root paths style (Flags debug optimize maybeOutput _) =
                               (Platform.Browser, [name]) ->
                                 do
                                   (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
-                                  writeToDisk style "index.html" (Html.sandwich name (SourceMap.generateOnto Html.leadingLines moduleSources sourceMap source)) (NE.List name [])
+                                  bundle <- prepareOutput withSourceMaps root Html.leadingLines sourceMap source
+                                  writeToDisk style "index.html" (Html.sandwich name bundle) (NE.List name [])
                               (Platform.Node, [name]) ->
                                 do
                                   (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
-                                  writeToDisk style "app" (SourceMap.generateOnto Node.leadingLines moduleSources sourceMap (Node.sandwich name source)) (NE.List name [])
+                                  bundle <- prepareOutput withSourceMaps root Node.leadingLines sourceMap (Node.sandwich name source)
+                                  writeToDisk style "app" bundle (NE.List name [])
                               (_, name : names) ->
                                 do
                                   (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
-                                  writeToDisk style "index.js" (SourceMap.generateOnto 0 moduleSources sourceMap source) (NE.List name names)
+                                  bundle <- prepareOutput withSourceMaps root 0 sourceMap source
+                                  writeToDisk style "index.js" bundle (NE.List name names)
                           Just DevStdOut ->
                             case getMains artifacts of
                               [] ->
@@ -123,7 +127,8 @@ runHelp root paths style (Flags debug optimize maybeOutput _) =
                               _ ->
                                 do
                                   (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
-                                  Task.io $ B.hPutBuilder IO.stdout (SourceMap.generateOnto 0 moduleSources sourceMap source)
+                                  bundle <- prepareOutput withSourceMaps root 0 sourceMap source
+                                  Task.io $ B.hPutBuilder IO.stdout bundle
                           Just DevNull ->
                             return ()
                           Just (Exe target) ->
@@ -131,14 +136,16 @@ runHelp root paths style (Flags debug optimize maybeOutput _) =
                               Platform.Node -> do
                                 name <- hasOneMain artifacts
                                 (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
-                                writeToDisk style target (SourceMap.generateOnto Node.leadingLines moduleSources sourceMap (Node.sandwich name source)) (NE.List name [])
+                                bundle <- prepareOutput withSourceMaps root Node.leadingLines sourceMap (Node.sandwich name source)
+                                writeToDisk style target bundle (NE.List name [])
                               _ -> do
                                 Task.throw Exit.MakeExeOnlyForNodePlatform
                           Just (JS target) ->
                             case getNoMains artifacts of
                               [] -> do
                                 (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
-                                writeToDisk style target (SourceMap.generateOnto 0 moduleSources sourceMap source) (Build.getRootNames artifacts)
+                                bundle <- prepareOutput withSourceMaps root 0 sourceMap source
+                                writeToDisk style target bundle (Build.getRootNames artifacts)
                               name : names ->
                                 Task.throw (Exit.MakeNonMainFilesIntoJavaScript name names)
                           Just (Html target) ->
@@ -146,7 +153,8 @@ runHelp root paths style (Flags debug optimize maybeOutput _) =
                               Platform.Browser -> do
                                 name <- hasOneMain artifacts
                                 (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
-                                writeToDisk style target (Html.sandwich name (SourceMap.generateOnto Html.leadingLines moduleSources sourceMap source)) (NE.List name [])
+                                bundle <- prepareOutput withSourceMaps root Html.leadingLines sourceMap source
+                                writeToDisk style target (Html.sandwich name bundle) (NE.List name [])
                               _ -> do
                                 Task.throw Exit.MakeHtmlOnlyForBrowserPlatform
 
@@ -264,6 +272,14 @@ getNoMain modules root =
         Nothing -> Just name
 
 -- WRITE TO DISK
+
+prepareOutput :: Bool -> FilePath -> Int -> SourceMap -> B.Builder -> Task B.Builder
+prepareOutput enabled root leadingLines sourceMap source =
+  if enabled
+    then do
+      moduleSources <- Task.io $ rereadSources root
+      return $ SourceMap.generateOnto leadingLines moduleSources sourceMap source
+    else return source
 
 writeToDisk :: Reporting.Style -> FilePath -> B.Builder -> NE.List ModuleName.Raw -> Task ()
 writeToDisk style target builder names =
