@@ -52,7 +52,7 @@ data Expr
   | VarCycle A.Region ModuleName.Canonical Name
   | VarDebug A.Region Name ModuleName.Canonical (Maybe Name)
   | VarKernel A.Region Name Name
-  | Array [Expr]
+  | Array A.Region [Expr]
   | Function [Name] Expr
   | Call A.Region Expr [Expr]
   | TailCall Name [(Name, Expr)]
@@ -218,7 +218,7 @@ instance Binary Expr where
       VarCycle a b c -> putWord8 9 >> put a >> put b >> put c
       VarDebug a b c d -> putWord8 10 >> put a >> put b >> put c >> put d
       VarKernel a b c -> putWord8 11 >> put a >> put b >> put c
-      Array a -> putWord8 12 >> put a
+      Array a b -> putWord8 12 >> put a >> put b
       Function a b -> putWord8 13 >> put a >> put b
       Call a b c -> putWord8 14 >> put a >> put b >> put c
       TailCall a b -> putWord8 15 >> put a >> put b
@@ -247,7 +247,7 @@ instance Binary Expr where
         9 -> liftM3 VarCycle get get get
         10 -> liftM4 VarDebug get get get get
         11 -> liftM3 VarKernel get get get
-        12 -> liftM Array get
+        12 -> liftM2 Array get get
         13 -> liftM2 Function get get
         14 -> liftM3 Call get get get
         15 -> liftM2 TailCall get get

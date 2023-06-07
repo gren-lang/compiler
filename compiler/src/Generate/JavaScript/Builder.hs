@@ -48,6 +48,7 @@ data Expr
   | Null
   | Json Json.Value
   | Array [Expr]
+  | TrackedArray ModuleName.Canonical A.Region [Expr]
   | Object [(Name, Expr)]
   | Ref Name
   | TrackedRef A.Position ModuleName.Canonical Name Name
@@ -532,6 +533,11 @@ fromExpr level@(Level indent nextLevel) grouping expression builder =
         & addAscii "[ "
         & commaSepExpr (fromExpr level Whatever) exprs
         & addAscii " ]"
+    TrackedArray moduleName (A.Region start end) exprs ->
+      builder
+        & addTrackedByteString moduleName start "[ "
+        & commaSepExpr (fromExpr level Whatever) exprs
+        & addTrackedByteString moduleName end " ]"
     Object fields ->
       builder
         & addAscii "{ "

@@ -61,7 +61,7 @@ toEncoder tipe =
             object <- encode "object"
             keyValuePairs <- traverse encodeField (Map.toList fields)
             Names.registerFieldDict fields $
-              Opt.Function [Name.dollar] (Opt.Call A.zero object [Opt.Array keyValuePairs])
+              Opt.Function [Name.dollar] (Opt.Call A.zero object [Opt.Array A.zero keyValuePairs])
 
 -- ENCODE HELPERS
 
@@ -144,7 +144,7 @@ decodeMaybe tipe =
     return $
       (Opt.Call A.zero)
         oneOf
-        [ Opt.Array
+        [ Opt.Array A.zero
             [ Opt.Call A.zero null [nothing],
               Opt.Call A.zero map_ [just, subDecoder]
             ]

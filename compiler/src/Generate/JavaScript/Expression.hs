@@ -80,8 +80,12 @@ generate mode parentModule expression =
       JsExpr $ generateDebug name home region unhandledValueName
     Opt.VarKernel _region home name ->
       JsExpr $ JS.Ref (JsName.fromKernel home name)
-    Opt.Array entries ->
-      JsExpr $ JS.Array $ map (generateJsExpr mode parentModule) entries
+    Opt.Array region entries ->
+      let generatedEntries = map (generateJsExpr mode parentModule) entries      
+      in JsExpr $
+        if region == A.zero
+          then JS.Array generatedEntries 
+          else JS.TrackedArray parentModule region generatedEntries
     Opt.Function args body ->
       generateFunction (map JsName.fromLocal args) (generate mode parentModule body)
     Opt.Call (A.Region startPos _) func args ->
