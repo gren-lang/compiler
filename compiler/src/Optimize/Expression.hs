@@ -119,10 +119,10 @@ optimize cycle (A.At region expression) =
                   return $ Opt.Let (Opt.Def temp oexpr) (Case.optimize temp temp obranches)
     Can.Accessor field ->
       Names.registerField field (Opt.Accessor field)
-    Can.Access record (A.At _ field) ->
+    Can.Access record (A.At fieldPosition field) ->
       do
         optRecord <- optimize cycle record
-        Names.registerField field (Opt.Access optRecord field)
+        Names.registerField field (Opt.Access optRecord fieldPosition field)
     Can.Update record updates ->
       Names.registerFieldDict updates Opt.Update
         <*> optimize cycle record

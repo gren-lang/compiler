@@ -48,6 +48,7 @@ data Expr
   | Ref Name
   | TrackedRef A.Position ModuleName.Canonical Name Name
   | Access Expr Name -- foo.bar
+  | TrackedAccess Expr A.Position ModuleName.Canonical Name
   | Index Expr Expr -- foo[bar]
   | Prefix PrefixOp Expr
   | Infix InfixOp Expr Expr
@@ -126,7 +127,7 @@ data Mapping = Mapping
   { _m_src_line :: Word16,
     _m_src_col :: Word16,
     _m_src_module :: ModuleName.Canonical,
-    _m_src_name :: Name,
+    _m_src_name :: Maybe Name,
     _m_gen_line :: Word16,
     _m_gen_col :: Word16
   }
@@ -185,13 +186,32 @@ addName (A.Position line col) moduleName name genName (Builder _code _currLine _
                 { _m_src_line = line,
                   _m_src_col = col,
                   _m_src_module = moduleName,
-                  _m_src_name = name,
+                  _m_src_name = Just name,
                   _m_gen_line = _currLine,
                   _m_gen_col = _currCol
                 }
             )
               : _mappings
         }
+
+addTrackedDot :: A.Position -> ModuleName.Canonical -> Builder -> Builder
+addTrackedDot (A.Position line col) moduleName (Builder _code _currLine _currCol _mappings) =
+  Builder
+    { _code = _code <> B.string7 ".",
+      _currentLine = _currLine,
+      _currentCol = _currCol + 1,
+      _mappings =
+        ( Mapping
+            { _m_src_line = line,
+              _m_src_col = col,
+              _m_src_module = moduleName,
+              _m_src_name = Nothing,
+              _m_gen_line = _currLine,
+              _m_gen_col = _currCol
+            }
+        )
+          : _mappings
+    }
 
 addLine :: Builder -> Builder
 addLine (Builder _code _currLine _currCol _mappings) =
@@ -479,6 +499,11 @@ fromExpr level@(Level indent nextLevel) grouping expression builder =
       addName position moduleName name generatedName builder
     Access expr field ->
       makeDot level expr field builder
+    TrackedAccess expr position@(A.Position fieldLine fieldCol) moduleName field ->
+      builder
+        & fromExpr level Atomic expr
+        & addTrackedDot (A.Position fieldLine (fieldCol - 1)) moduleName
+        & addName position moduleName field field
     Index expr bracketedExpr ->
       makeBracketed level expr bracketedExpr builder
     Prefix op expr ->

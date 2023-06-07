@@ -109,37 +109,47 @@ prepareForNewLine (Mappings srcs nms sa vlqs) =
 encodeSegment :: JS.Mapping -> Mappings -> Mappings
 encodeSegment segment (Mappings srcs nms sa vlqs) =
   let newSources = insertIntoOrderedListBuilder (JS._m_src_module segment) srcs
-      newNames = insertIntoOrderedListBuilder (JS._m_src_name segment) nms
       genCol = JS._m_gen_col segment - 1
       moduleIdx = Maybe.fromMaybe 0 $ lookupIndexOrderedListBuilder (JS._m_src_module segment) newSources
       sourceLine = fromIntegral (JS._m_src_line segment) - 1
       sourceCol = fromIntegral (JS._m_src_col segment) - 1
-      nameIdx = Maybe.fromMaybe 0 $ lookupIndexOrderedListBuilder (JS._m_src_name segment) newNames
       genColDelta = fromIntegral genCol - fromIntegral (Maybe.fromMaybe 0 (_sa_prev_col sa))
       moduleIdxDelta = moduleIdx - Maybe.fromMaybe 0 (_sa_prev_source_idx sa)
       sourceLineDelta = sourceLine - fromIntegral (Maybe.fromMaybe 0 (_sa_prev_source_line sa))
       sourceColDelta = sourceCol - fromIntegral (Maybe.fromMaybe 0 (_sa_prev_source_col sa))
-      nameIdxDelta = nameIdx - Maybe.fromMaybe 0 (_sa_prev_name_idx sa)
       updatedSa =
         SegmentAccounting
           { _sa_prev_col = Just genCol,
             _sa_prev_source_idx = Just moduleIdx,
             _sa_prev_source_line = Just sourceLine,
             _sa_prev_source_col = Just sourceCol,
-            _sa_prev_name_idx = Just nameIdx
+            _sa_prev_name_idx = _sa_prev_name_idx sa
           }
       vlqPrefix =
         if Maybe.isNothing (_sa_prev_col sa)
           then ""
           else ","
-   in Mappings newSources newNames updatedSa $
-        vlqs
-          <> vlqPrefix
-          <> B.string8 (VLQ.encode genColDelta)
-          <> B.string8 (VLQ.encode moduleIdxDelta)
-          <> B.string8 (VLQ.encode sourceLineDelta)
-          <> B.string8 (VLQ.encode sourceColDelta)
-          <> B.string8 (VLQ.encode nameIdxDelta)
+   in case JS._m_src_name segment of
+        Just segmentName ->
+          let newNames = insertIntoOrderedListBuilder segmentName nms
+              nameIdx = Maybe.fromMaybe 0 $ lookupIndexOrderedListBuilder segmentName newNames
+              nameIdxDelta = nameIdx - Maybe.fromMaybe 0 (_sa_prev_name_idx sa)
+           in Mappings newSources newNames (updatedSa {_sa_prev_name_idx = Just nameIdx}) $
+                vlqs
+                  <> vlqPrefix
+                  <> B.string8 (VLQ.encode genColDelta)
+                  <> B.string8 (VLQ.encode moduleIdxDelta)
+                  <> B.string8 (VLQ.encode sourceLineDelta)
+                  <> B.string8 (VLQ.encode sourceColDelta)
+                  <> B.string8 (VLQ.encode nameIdxDelta)
+        Nothing ->
+          Mappings newSources nms updatedSa $
+            vlqs
+              <> vlqPrefix
+              <> B.string8 (VLQ.encode genColDelta)
+              <> B.string8 (VLQ.encode moduleIdxDelta)
+              <> B.string8 (VLQ.encode sourceLineDelta)
+              <> B.string8 (VLQ.encode sourceColDelta)
 
 -- Array builder
 

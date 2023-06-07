@@ -106,8 +106,8 @@ generate mode parentModule expression =
           [ JS.Return $
               JS.Access (JS.Ref JsName.dollar) (generateField mode field)
           ]
-    Opt.Access record field ->
-      JsExpr $ JS.Access (generateJsExpr mode parentModule record) (generateField mode field)
+    Opt.Access record (A.Region startPos _) field ->
+      JsExpr $ JS.TrackedAccess (generateJsExpr mode parentModule record) startPos parentModule (generateField mode field)
     Opt.Update record fields ->
       JsExpr $
         JS.Call
@@ -431,7 +431,7 @@ apply :: Opt.Expr -> Opt.Expr -> Opt.Expr
 apply func value =
   case func of
     Opt.Accessor field ->
-      Opt.Access value field
+      Opt.Access value A.zero field
     Opt.Call region f args ->
       Opt.Call region f (args ++ [value])
     _ ->

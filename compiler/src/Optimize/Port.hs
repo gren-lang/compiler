@@ -50,7 +50,7 @@ toEncoder tipe =
       let encodeField (name, Can.FieldType _ fieldType) =
             do
               encoder <- toEncoder fieldType
-              let value = Opt.Call A.zero encoder [Opt.Access (Opt.VarLocal A.zero Name.dollar) name]
+              let value = Opt.Call A.zero encoder [Opt.Access (Opt.VarLocal A.zero Name.dollar) A.zero name]
               return $
                 Opt.Record $
                   Map.fromList
