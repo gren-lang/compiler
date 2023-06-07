@@ -38,9 +38,13 @@ import Prelude hiding (lines)
 
 data Expr
   = String B.Builder
+  | TrackedString ModuleName.Canonical A.Position B.Builder
   | Float B.Builder
+  | TrackedFloat ModuleName.Canonical A.Position B.Builder
   | Int Int
+  | TrackedInt ModuleName.Canonical A.Position Int
   | Bool Bool
+  | TrackedBool ModuleName.Canonical A.Position Bool
   | Null
   | Json Json.Value
   | Array [Expr]
@@ -171,6 +175,38 @@ addByteString bsBuilder (Builder _code _currLine _currCol _mappings) =
               _currentLine = _currLine + fromIntegral bsLines,
               _currentCol = 1,
               _mappings = _mappings
+            }
+
+addTrackedByteString :: ModuleName.Canonical -> A.Position -> B.Builder -> Builder -> Builder
+addTrackedByteString moduleName (A.Position line col) bsBuilder (Builder _code _currLine _currCol _mappings) =
+  let lazyByteString = B.toLazyByteString bsBuilder
+      bsSize = BSLazy.length lazyByteString
+      bsLines = BSLazy.count '\n' lazyByteString
+      newMappings =
+        ( Mapping
+            { _m_src_line = line,
+              _m_src_col = col,
+              _m_src_module = moduleName,
+              _m_src_name = Nothing,
+              _m_gen_line = _currLine,
+              _m_gen_col = _currCol
+            }
+        )
+          : _mappings
+   in if bsLines == 0
+        then
+          Builder
+            { _code = _code <> bsBuilder,
+              _currentLine = _currLine,
+              _currentCol = _currCol + fromIntegral bsSize,
+              _mappings = newMappings
+            }
+        else
+          Builder
+            { _code = _code <> bsBuilder,
+              _currentLine = _currLine + fromIntegral bsLines,
+              _currentCol = 1,
+              _mappings = newMappings
             }
 
 addName :: A.Position -> ModuleName.Canonical -> Name -> Name -> Builder -> Builder
@@ -473,12 +509,20 @@ fromExpr level@(Level indent nextLevel) grouping expression builder =
   case expression of
     String string ->
       addByteString ("'" <> string <> "'") builder
+    TrackedString moduleName position string ->
+      addTrackedByteString moduleName position ("'" <> string <> "'") builder
     Float float ->
       addByteString float builder
+    TrackedFloat moduleName position float ->
+      addTrackedByteString moduleName position float builder
     Int n ->
       addByteString (B.intDec n) builder
+    TrackedInt moduleName position n ->
+      addTrackedByteString moduleName position (B.intDec n) builder
     Bool bool ->
       addAscii (if bool then "true" else "false") builder
+    TrackedBool moduleName position bool ->
+      addTrackedByteString moduleName position (if bool then "true" else "false") builder
     Null ->
       addAscii "null" builder
     Json json ->

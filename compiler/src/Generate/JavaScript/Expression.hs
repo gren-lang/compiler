@@ -43,21 +43,21 @@ generateJsExpr mode parentModule expression =
 generate :: Mode.Mode -> ModuleName.Canonical -> Opt.Expr -> Code
 generate mode parentModule expression =
   case expression of
-    Opt.Bool _region bool ->
-      JsExpr $ JS.Bool bool
-    Opt.Chr _region char ->
+    Opt.Bool (A.Region start _) bool ->
+      JsExpr $ JS.TrackedBool parentModule start bool
+    Opt.Chr (A.Region start _) char ->
       JsExpr $
         case mode of
           Mode.Dev _ ->
-            JS.Call toChar [JS.String (Utf8.toBuilder char)]
+            JS.Call toChar [JS.TrackedString parentModule start (Utf8.toBuilder char)]
           Mode.Prod _ ->
-            JS.String (Utf8.toBuilder char)
-    Opt.Str _region string ->
-      JsExpr $ JS.String (Utf8.toBuilder string)
-    Opt.Int _region int ->
-      JsExpr $ JS.Int int
-    Opt.Float _region float ->
-      JsExpr $ JS.Float (Utf8.toBuilder float)
+            JS.TrackedString parentModule start (Utf8.toBuilder char)
+    Opt.Str (A.Region start _) string ->
+      JsExpr $ JS.TrackedString parentModule start (Utf8.toBuilder string)
+    Opt.Int (A.Region start _) int ->
+      JsExpr $ JS.TrackedInt parentModule start int
+    Opt.Float (A.Region start _) float ->
+      JsExpr $ JS.TrackedFloat parentModule start (Utf8.toBuilder float)
     Opt.VarLocal (A.Region startPos _) name ->
       JsExpr $ JS.TrackedRef startPos parentModule (JsName.fromLocalHumanReadable name) (JsName.fromLocal name)
     Opt.VarGlobal (A.Region startPos _) (Opt.Global home name) ->
