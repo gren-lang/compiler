@@ -291,8 +291,12 @@ generateCallHelp mode pos parentModule func args =
     (map (generateJsExpr mode parentModule) args)
 
 generateGlobalCall :: A.Position -> ModuleName.Canonical -> ModuleName.Canonical -> Name.Name -> [JS.Expr] -> JS.Expr
-generateGlobalCall pos parentModule home name args =
-  generateNormalCall pos parentModule (JS.Ref (JsName.fromGlobal home name)) args
+generateGlobalCall pos@(A.Position line col) parentModule home name args =
+  let ref =
+        if line == 0 && col == 0
+          then JS.Ref (JsName.fromGlobal home name)
+          else JS.TrackedRef pos parentModule (JsName.fromGlobalHumanReadable home name) (JsName.fromGlobal home name)
+   in generateNormalCall pos parentModule ref args
 
 generateNormalCall :: A.Position -> ModuleName.Canonical -> JS.Expr -> [JS.Expr] -> JS.Expr
 generateNormalCall pos parentModule func args =
