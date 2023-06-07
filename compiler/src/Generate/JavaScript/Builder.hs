@@ -50,6 +50,7 @@ data Expr
   | Array [Expr]
   | TrackedArray ModuleName.Canonical A.Region [Expr]
   | Object [(Name, Expr)]
+  | TrackedObject ModuleName.Canonical A.Region [(A.Located Name, Expr)]
   | Ref Name
   | TrackedRef A.Position ModuleName.Canonical Name Name
   | Access Expr Name -- foo.bar
@@ -533,16 +534,23 @@ fromExpr level@(Level indent nextLevel) grouping expression builder =
         & addAscii "[ "
         & commaSepExpr (fromExpr level Whatever) exprs
         & addAscii " ]"
-    TrackedArray moduleName (A.Region start end) exprs ->
+    TrackedArray moduleName (A.Region start (A.Position endLine endCol)) exprs ->
       builder
         & addTrackedByteString moduleName start "[ "
         & commaSepExpr (fromExpr level Whatever) exprs
-        & addTrackedByteString moduleName end " ]"
+        & addAscii " "
+        & addTrackedByteString moduleName (A.Position endLine (endCol - 1)) "]"
     Object fields ->
       builder
         & addAscii "{ "
         & commaSepExpr (fromField level) fields
         & addAscii " }"
+    TrackedObject moduleName (A.Region start (A.Position endLine endCol)) fields ->
+      builder
+        & addTrackedByteString moduleName start "{ "
+        & commaSepExpr (trackedFromField level moduleName) fields
+        & addAscii " "
+        & addTrackedByteString moduleName (A.Position endLine (endCol - 1)) "}"
     Ref name ->
       addByteString (Name.toBuilder name) builder
     TrackedRef position moduleName name generatedName ->
@@ -624,6 +632,13 @@ fromField level (field, expr) builder =
   builder
     & addByteString (Name.toBuilder field)
     & addAscii ": "
+    & fromExpr level Whatever expr
+
+trackedFromField :: Level -> ModuleName.Canonical -> (A.Located Name, Expr) -> Builder -> Builder
+trackedFromField level moduleName (A.At (A.Region start end) field, expr) builder =
+  builder
+    & addTrackedByteString moduleName start (Name.toBuilder field)
+    & addTrackedByteString moduleName end ": "
     & fromExpr level Whatever expr
 
 -- VALUES

@@ -11,6 +11,7 @@ import AST.Canonical qualified as Can
 import AST.Optimized qualified as Opt
 import Control.Monad (foldM)
 import Data.Index qualified as Index
+import Data.Map qualified as Map
 import Data.Name qualified as Name
 import Data.Set qualified as Set
 import Gren.ModuleName qualified as ModuleName
@@ -38,7 +39,7 @@ optimize cycle (A.At region expression) =
     Can.VarForeign home name _ ->
       Names.registerGlobal region home name
     Can.VarCtor opts home name index _ ->
-      Names.registerCtor region home name index opts
+      Names.registerCtor region home (A.At region name) index opts
     Can.VarDebug home name _ ->
       Names.registerDebug name home region
     Can.VarOperator _ home name _ ->
@@ -124,11 +125,11 @@ optimize cycle (A.At region expression) =
         optRecord <- optimize cycle record
         Names.registerField field (Opt.Access optRecord fieldPosition field)
     Can.Update record updates ->
-      Names.registerFieldDict updates Opt.Update
+      Names.registerFieldDict (Map.mapKeys A.toValue updates) (Opt.Update region)
         <*> optimize cycle record
         <*> traverse (optimizeUpdate cycle) updates
     Can.Record fields ->
-      Names.registerFieldDict fields Opt.Record
+      Names.registerFieldDict (Map.mapKeys A.toValue fields) (Opt.Record region)
         <*> traverse (optimize cycle) fields
 
 -- UPDATE

@@ -62,8 +62,8 @@ data Expr
   | Case Name Name (Decider Choice) [(Int, Expr)]
   | Accessor Name
   | Access Expr A.Region Name
-  | Update Expr (Map.Map Name Expr)
-  | Record (Map.Map Name Expr)
+  | Update A.Region Expr (Map.Map (A.Located Name) Expr)
+  | Record A.Region (Map.Map (A.Located Name) Expr)
 
 data Global = Global ModuleName.Canonical Name
 
@@ -228,8 +228,8 @@ instance Binary Expr where
       Case a b c d -> putWord8 19 >> put a >> put b >> put c >> put d
       Accessor a -> putWord8 20 >> put a
       Access a b c -> putWord8 21 >> put a >> put b >> put c
-      Update a b -> putWord8 22 >> put a >> put b
-      Record a -> putWord8 23 >> put a
+      Update a b c -> putWord8 22 >> put a >> put b >> put c
+      Record a b -> putWord8 23 >> put a >> put b
 
   get =
     do
@@ -257,8 +257,8 @@ instance Binary Expr where
         19 -> liftM4 Case get get get get
         20 -> liftM Accessor get
         21 -> liftM3 Access get get get
-        22 -> liftM2 Update get get
-        23 -> liftM Record get
+        22 -> liftM3 Update get get get
+        23 -> liftM2 Record get get
         _ -> fail "problem getting Opt.Expr binary"
 
 instance Binary Def where

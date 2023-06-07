@@ -336,13 +336,13 @@ constrainCaseBranch rtv (Can.CaseBranch pattern expr) pExpect bExpect =
 
 -- CONSTRAIN RECORD
 
-constrainRecord :: RTV -> A.Region -> Map.Map Name.Name Can.Expr -> Expected Type -> IO Constraint
+constrainRecord :: RTV -> A.Region -> Map.Map (A.Located Name.Name) Can.Expr -> Expected Type -> IO Constraint
 constrainRecord rtv region fields expected =
   do
     dict <- traverse (constrainField rtv) fields
 
     let getType (_, t, _) = t
-    let recordType = RecordN (Map.map getType dict) EmptyRecordN
+    let recordType = RecordN (Map.mapKeys A.toValue (Map.map getType dict)) EmptyRecordN
     let recordCon = CEqual region Record recordType expected
 
     let vars = Map.foldr (\(v, _, _) vs -> v : vs) [] dict
@@ -360,10 +360,11 @@ constrainField rtv expr =
 
 -- CONSTRAIN RECORD UPDATE
 
-constrainUpdate :: RTV -> A.Region -> Can.Expr -> Map.Map Name.Name Can.FieldUpdate -> Expected Type -> IO Constraint
-constrainUpdate rtv region expr fields expected =
+constrainUpdate :: RTV -> A.Region -> Can.Expr -> Map.Map (A.Located Name.Name) Can.FieldUpdate -> Expected Type -> IO Constraint
+constrainUpdate rtv region expr locatedFields expected =
   do
     extVar <- mkFlexVar
+    let fields = Map.mapKeys A.toValue locatedFields
     fieldDict <- Map.traverseWithKey (constrainUpdateField rtv region) fields
 
     recordVar <- mkFlexVar

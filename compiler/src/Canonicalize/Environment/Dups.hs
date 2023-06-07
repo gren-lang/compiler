@@ -1,10 +1,10 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_GHC -Wall #-}
-
 module Canonicalize.Environment.Dups
   ( detect,
+    detectLocated,
     checkFields,
+    checkLocatedFields,
     checkFields',
+    checkLocatedFields',
     Dict,
     none,
     one,
@@ -14,7 +14,9 @@ module Canonicalize.Environment.Dups
   )
 where
 
+import Data.Function ((&))
 import Data.Map qualified as Map
+import Data.Maybe qualified as Maybe
 import Data.Name qualified as Name
 import Data.OneOrMore qualified as OneOrMore
 import Reporting.Annotation qualified as A
@@ -40,6 +42,19 @@ detect :: ToError -> Dict a -> Result.Result i w Error.Error (Map.Map Name.Name 
 detect toError dict =
   Map.traverseWithKey (detectHelp toError) dict
 
+detectLocated :: ToError -> Dict a -> Result.Result i w Error.Error (Map.Map (A.Located Name.Name) a)
+detectLocated toError dict =
+  let nameLocations = Map.mapMaybe extractLocation dict
+   in dict
+        & Map.mapKeys (\k -> A.At (Maybe.fromMaybe A.zero $ Map.lookup k nameLocations) k)
+        & Map.traverseWithKey (\(A.At _ name) values -> detectHelp toError name values)
+
+extractLocation :: OneOrMore.OneOrMore (Info a) -> Maybe A.Region
+extractLocation oneOrMore =
+  case oneOrMore of
+    OneOrMore.One (Info region _) -> Just region
+    OneOrMore.More _ _ -> Nothing
+
 detectHelp :: ToError -> Name.Name -> OneOrMore.OneOrMore (Info a) -> Result.Result i w Error.Error a
 detectHelp toError name values =
   case values of
@@ -52,6 +67,10 @@ detectHelp toError name values =
 
 -- CHECK FIELDS
 
+checkLocatedFields :: [(A.Located Name.Name, a, comments)] -> Result.Result i w Error.Error (Map.Map (A.Located Name.Name) a)
+checkLocatedFields fields =
+  detectLocated Error.DuplicateField (foldr addField none fields)
+
 checkFields :: [(A.Located Name.Name, a, comments)] -> Result.Result i w Error.Error (Map.Map Name.Name a)
 checkFields fields =
   detect Error.DuplicateField (foldr addField none fields)
@@ -59,6 +78,10 @@ checkFields fields =
 addField :: (A.Located Name.Name, a, comments) -> Dict a -> Dict a
 addField (A.At region name, value, _) dups =
   Map.insertWith OneOrMore.more name (OneOrMore.one (Info region value)) dups
+
+checkLocatedFields' :: (A.Region -> a -> b) -> [(A.Located Name.Name, a, comments)] -> Result.Result i w Error.Error (Map.Map (A.Located Name.Name) b)
+checkLocatedFields' toValue fields =
+  detectLocated Error.DuplicateField (foldr (addField' toValue) none fields)
 
 checkFields' :: (A.Region -> a -> b) -> [(A.Located Name.Name, a, comments)] -> Result.Result i w Error.Error (Map.Map Name.Name b)
 checkFields' toValue fields =

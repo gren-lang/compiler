@@ -81,11 +81,11 @@ generate mode parentModule expression =
     Opt.VarKernel _region home name ->
       JsExpr $ JS.Ref (JsName.fromKernel home name)
     Opt.Array region entries ->
-      let generatedEntries = map (generateJsExpr mode parentModule) entries      
-      in JsExpr $
-        if region == A.zero
-          then JS.Array generatedEntries 
-          else JS.TrackedArray parentModule region generatedEntries
+      let generatedEntries = map (generateJsExpr mode parentModule) entries
+       in JsExpr $
+            if region == A.zero
+              then JS.Array generatedEntries
+              else JS.TrackedArray parentModule region generatedEntries
     Opt.Function args body ->
       generateFunction (map JsName.fromLocal args) (generate mode parentModule body)
     Opt.Call (A.Region startPos _) func args ->
@@ -112,15 +112,15 @@ generate mode parentModule expression =
           ]
     Opt.Access record (A.Region startPos _) field ->
       JsExpr $ JS.TrackedAccess (generateJsExpr mode parentModule record) startPos parentModule (generateField mode field)
-    Opt.Update record fields ->
+    Opt.Update region record fields ->
       JsExpr $
         JS.Call
           (JS.Ref (JsName.fromKernel Name.utils "update"))
           [ generateJsExpr mode parentModule record,
-            generateRecord mode parentModule fields
+            generateRecord mode parentModule region fields
           ]
-    Opt.Record fields ->
-      JsExpr $ generateRecord mode parentModule fields
+    Opt.Record region fields ->
+      JsExpr $ generateRecord mode parentModule region fields
 
 -- CODE CHUNKS
 
@@ -190,11 +190,11 @@ ctorToInt home name index =
 
 -- RECORDS
 
-generateRecord :: Mode.Mode -> ModuleName.Canonical -> Map.Map Name.Name Opt.Expr -> JS.Expr
-generateRecord mode parentModule fields =
-  let toPair (field, value) =
-        (generateField mode field, generateJsExpr mode parentModule value)
-   in JS.Object (map toPair (Map.toList fields))
+generateRecord :: Mode.Mode -> ModuleName.Canonical -> A.Region -> Map.Map (A.Located Name.Name) Opt.Expr -> JS.Expr
+generateRecord mode parentModule region fields =
+  let toPair (A.At fieldRegion field, value) =
+        (A.At fieldRegion $ generateField mode field, generateJsExpr mode parentModule value)
+   in JS.TrackedObject parentModule region (map toPair (Map.toList fields))
 
 generateField :: Mode.Mode -> Name.Name -> JsName.Name
 generateField mode name =

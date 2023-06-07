@@ -67,8 +67,8 @@ registerDebug name home region =
     let global = Opt.Global ModuleName.debug name
      in ok uid (Set.insert global deps) fields (Opt.VarDebug region name home Nothing)
 
-registerCtor :: A.Region -> ModuleName.Canonical -> Name.Name -> Index.ZeroBased -> Can.CtorOpts -> Tracker Opt.Expr
-registerCtor region home name index opts =
+registerCtor :: A.Region -> ModuleName.Canonical -> A.Located Name.Name -> Index.ZeroBased -> Can.CtorOpts -> Tracker Opt.Expr
+registerCtor region home (A.At _ name) index opts =
   Tracker $ \uid deps fields ok ->
     let global = Opt.Global home name
         newDeps = Set.insert global deps

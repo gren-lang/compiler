@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_GHC -Wall #-}
-
 module Canonicalize.Expression
   ( canonicalize,
     FreeLocals,
@@ -112,16 +109,16 @@ canonicalize env (A.At region expression) =
           <*> Result.ok field
       Src.Update baseRecord fields _ ->
         let makeCanFields =
-              Dups.checkFields' (\r t -> Can.FieldUpdate r <$> canonicalize env t) fields
+              Dups.checkLocatedFields' (\r t -> Can.FieldUpdate r <$> canonicalize env t) fields
          in Can.Update
-              <$> (canonicalize env baseRecord)
+              <$> canonicalize env baseRecord
               <*> (sequenceA =<< makeCanFields)
       Src.Record fields ->
         do
-          fieldDict <- Dups.checkFields fields
+          fieldDict <- Dups.checkLocatedFields fields
           Can.Record <$> traverse (canonicalize env) fieldDict
       Src.Parens _ expr _ ->
-        A.toValue <$> (canonicalize env expr)
+        A.toValue <$> canonicalize env expr
 
 -- CANONICALIZE IF BRANCH
 

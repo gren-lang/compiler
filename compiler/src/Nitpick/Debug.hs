@@ -52,8 +52,8 @@ hasDebug expression =
     Opt.Case _ _ d jumps -> deciderHasDebug d || any (hasDebug . snd) jumps
     Opt.Accessor _ -> False
     Opt.Access r _ _ -> hasDebug r
-    Opt.Update r fs -> hasDebug r || any hasDebug fs
-    Opt.Record fs -> any hasDebug fs
+    Opt.Update _ r fs -> hasDebug r || any hasDebug fs
+    Opt.Record _ fs -> any hasDebug fs
 
 defHasDebug :: Opt.Def -> Bool
 defHasDebug def =

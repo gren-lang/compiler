@@ -52,10 +52,10 @@ toEncoder tipe =
               encoder <- toEncoder fieldType
               let value = Opt.Call A.zero encoder [Opt.Access (Opt.VarLocal A.zero Name.dollar) A.zero name]
               return $
-                Opt.Record $
+                Opt.Record A.zero $
                   Map.fromList
-                    [ (Name.fromChars "key", Opt.Str A.zero (Name.toGrenString name)),
-                      (Name.fromChars "value", value)
+                    [ (A.At A.zero (Name.fromChars "key"), Opt.Str A.zero (Name.toGrenString name)),
+                      (A.At A.zero (Name.fromChars "value"), value)
                     ]
        in do
             object <- encode "object"
@@ -144,7 +144,8 @@ decodeMaybe tipe =
     return $
       (Opt.Call A.zero)
         oneOf
-        [ Opt.Array A.zero
+        [ Opt.Array
+            A.zero
             [ Opt.Call A.zero null [nothing],
               Opt.Call A.zero map_ [just, subDecoder]
             ]
@@ -167,7 +168,7 @@ decodeRecord fields =
         Opt.VarLocal A.zero name
 
       record =
-        Opt.Record (Map.mapWithKey toFieldExpr fields)
+        Opt.Record A.zero (Map.mapKeys (A.At A.zero) (Map.mapWithKey toFieldExpr fields))
    in do
         succeed <- decode "succeed"
         foldM fieldAndThen (Opt.Call A.zero succeed [record])
