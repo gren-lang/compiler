@@ -60,7 +60,7 @@ data Expr
   | Let Def Expr
   | Destruct Destructor Expr
   | Case Name Name (Decider Choice) [(Int, Expr)]
-  | Accessor Name
+  | Accessor A.Region Name
   | Access Expr A.Region Name
   | Update A.Region Expr (Map.Map (A.Located Name) Expr)
   | Record A.Region (Map.Map (A.Located Name) Expr)
@@ -226,7 +226,7 @@ instance Binary Expr where
       Let a b -> putWord8 17 >> put a >> put b
       Destruct a b -> putWord8 18 >> put a >> put b
       Case a b c d -> putWord8 19 >> put a >> put b >> put c >> put d
-      Accessor a -> putWord8 20 >> put a
+      Accessor a b -> putWord8 20 >> put a >> put b
       Access a b c -> putWord8 21 >> put a >> put b >> put c
       Update a b c -> putWord8 22 >> put a >> put b >> put c
       Record a b -> putWord8 23 >> put a >> put b
@@ -255,7 +255,7 @@ instance Binary Expr where
         17 -> liftM2 Let get get
         18 -> liftM2 Destruct get get
         19 -> liftM4 Case get get get get
-        20 -> liftM Accessor get
+        20 -> liftM2 Accessor get get
         21 -> liftM3 Access get get get
         22 -> liftM3 Update get get get
         23 -> liftM2 Record get get

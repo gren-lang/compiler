@@ -19,6 +19,7 @@ import Data.IntMap qualified as IntMap
 import Data.List qualified as List
 import Data.Map ((!))
 import Data.Map qualified as Map
+import Data.Maybe qualified as Maybe
 import Data.Name qualified as Name
 import Data.Utf8 qualified as Utf8
 import Generate.JavaScript.Builder qualified as JS
@@ -103,7 +104,7 @@ generate mode parentModule expression =
        in JsBlock $ pathDef : codeToStmtList (generate mode parentModule body)
     Opt.Case label root decider jumps ->
       JsBlock $ generateCase mode parentModule label root decider jumps
-    Opt.Accessor field ->
+    Opt.Accessor _ field ->
       JsExpr $
         JS.Function
           Nothing
@@ -462,12 +463,40 @@ isLiteral expr =
 apply :: Opt.Expr -> Opt.Expr -> Opt.Expr
 apply func value =
   case func of
-    Opt.Accessor field ->
-      Opt.Access value A.zero field
+    Opt.Accessor region field ->
+      Opt.Access value region field
     Opt.Call region f args ->
       Opt.Call region f (args ++ [value])
     _ ->
-      Opt.Call A.zero func [value]
+      Opt.Call (Maybe.fromMaybe A.zero (exprRegion func)) func [value]
+
+exprRegion :: Opt.Expr -> Maybe A.Region
+exprRegion expr =
+  case expr of
+    Opt.Bool region _ -> Just region
+    Opt.Chr region _ -> Just region
+    Opt.Str region _ -> Just region
+    Opt.Int region _ -> Just region
+    Opt.Float region _ -> Just region
+    Opt.VarLocal region _ -> Just region
+    Opt.VarGlobal region _ -> Just region
+    Opt.VarEnum region _ _ -> Just region
+    Opt.VarBox region _ -> Just region
+    Opt.VarCycle region _ _ -> Just region
+    Opt.VarDebug region _ _ _ -> Just region
+    Opt.VarKernel region _ _ -> Just region
+    Opt.Array region _ -> Just region
+    Opt.Function _ _ -> Nothing
+    Opt.Call region _ _ -> Just region
+    Opt.TailCall _ _ -> Nothing
+    Opt.If _ _ -> Nothing
+    Opt.Let _ _ -> Nothing
+    Opt.Destruct _ _ -> Nothing
+    Opt.Case _ _ _ _ -> Nothing
+    Opt.Accessor region _ -> Just region
+    Opt.Access _ region _ -> Just region
+    Opt.Update region _ _ -> Just region
+    Opt.Record region _ -> Just region
 
 append :: Mode.Mode -> ModuleName.Canonical -> Opt.Expr -> Opt.Expr -> JS.Expr
 append mode parentModule left right =

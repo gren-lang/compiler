@@ -119,7 +119,7 @@ optimize cycle (A.At region expression) =
                   obranches <- traverse (optimizeBranch temp) branches
                   return $ Opt.Let (Opt.Def temp oexpr) (Case.optimize temp temp obranches)
     Can.Accessor field ->
-      Names.registerField field (Opt.Accessor field)
+      Names.registerField field (Opt.Accessor region field)
     Can.Access record (A.At fieldPosition field) ->
       do
         optRecord <- optimize cycle record

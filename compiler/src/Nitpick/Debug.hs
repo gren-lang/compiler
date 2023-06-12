@@ -50,7 +50,7 @@ hasDebug expression =
     Opt.Let def body -> defHasDebug def || hasDebug body
     Opt.Destruct _ expr -> hasDebug expr
     Opt.Case _ _ d jumps -> deciderHasDebug d || any (hasDebug . snd) jumps
-    Opt.Accessor _ -> False
+    Opt.Accessor _ _ -> False
     Opt.Access r _ _ -> hasDebug r
     Opt.Update _ r fs -> hasDebug r || any hasDebug fs
     Opt.Record _ fs -> any hasDebug fs
