@@ -26,6 +26,7 @@ import Generate.Mode qualified as Mode
 import Generate.SourceMap qualified as SourceMap
 import Gren.Kernel qualified as K
 import Gren.ModuleName qualified as ModuleName
+import Reporting.Annotation qualified as A
 import Reporting.Doc qualified as D
 import Reporting.Render.Type qualified as RT
 import Reporting.Render.Type.Localizer qualified as L
@@ -140,16 +141,16 @@ addGlobalHelp mode graph global@(Opt.Global home _) state =
   let addDeps deps someState =
         Set.foldl' (addGlobal mode graph) someState deps
    in case graph ! global of
-        Opt.Define expr deps ->
+        Opt.Define region expr deps ->
           addStmt
             (addDeps deps state)
-            ( var global (Expr.generate mode home expr)
+            ( trackedVar region global (Expr.generate mode home expr)
             )
-        Opt.DefineTailFunc argNames body deps ->
+        Opt.DefineTailFunc region argNames body deps ->
           addStmt
             (addDeps deps state)
             ( let (Opt.Global _ name) = global
-               in var global (Expr.generateTailDef mode home name argNames body)
+               in trackedVar region global (Expr.generateTailDef mode home name argNames body)
             )
         Opt.Ctor index arity ->
           addStmt
@@ -202,6 +203,10 @@ var :: Opt.Global -> Expr.Code -> JS.Stmt
 var (Opt.Global home name) code =
   JS.Var (JsName.fromGlobal home name) (Expr.codeToExpr code)
 
+trackedVar :: A.Region -> Opt.Global -> Expr.Code -> JS.Stmt
+trackedVar (A.Region startPos _) (Opt.Global home name) code =
+  JS.TrackedVar home startPos (JsName.fromGlobalHumanReadable home name) (JsName.fromGlobal home name) (Expr.codeToExpr code)
+
 isDebugger :: Opt.Global -> Bool
 isDebugger (Opt.Global (ModuleName.Canonical _ home) _) =
   home == Name.debugger
@@ -236,9 +241,9 @@ generateCycle mode (Opt.Global home _) names values functions =
 generateCycleFunc :: Mode.Mode -> ModuleName.Canonical -> Opt.Def -> JS.Stmt
 generateCycleFunc mode home def =
   case def of
-    Opt.Def name expr ->
+    Opt.Def _ name expr ->
       JS.Var (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generate mode home expr))
-    Opt.TailDef name args expr ->
+    Opt.TailDef _ name args expr ->
       JS.Var (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generateTailDef mode home name args expr))
 
 generateSafeCycle :: Mode.Mode -> ModuleName.Canonical -> (Name.Name, Opt.Expr) -> JS.Stmt

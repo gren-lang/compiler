@@ -86,6 +86,7 @@ data Stmt
   | Throw Expr
   | Return Expr
   | Var Name Expr
+  | TrackedVar ModuleName.Canonical A.Position Name Name Expr
   | Vars [(Name, Expr)]
   | FunctionStmt Name [Name] [Stmt]
 
@@ -408,6 +409,15 @@ fromStmt level@(Level indent nextLevel) statement builder =
         & addByteString indent
         & addAscii "var "
         & addByteString (Name.toBuilder name)
+        & addAscii " = "
+        & fromExpr level Whatever expr
+        & addAscii ";"
+        & addLine
+    TrackedVar moduleName pos name genName expr ->
+      builder
+        & addByteString indent
+        & addAscii "var "
+        & addName pos moduleName name genName
         & addAscii " = "
         & fromExpr level Whatever expr
         & addAscii ";"

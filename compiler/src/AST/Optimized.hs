@@ -70,8 +70,8 @@ data Global = Global ModuleName.Canonical Name
 -- DEFINITIONS
 
 data Def
-  = Def Name Expr
-  | TailDef Name [A.Located Name] Expr
+  = Def A.Region Name Expr
+  | TailDef A.Region Name [A.Located Name] Expr
 
 data Destructor
   = Destructor Name Path
@@ -125,8 +125,8 @@ data Main
       }
 
 data Node
-  = Define Expr (Set.Set Global)
-  | DefineTailFunc [A.Located Name] Expr (Set.Set Global)
+  = Define A.Region Expr (Set.Set Global)
+  | DefineTailFunc A.Region [A.Located Name] Expr (Set.Set Global)
   | Ctor Index.ZeroBased Int
   | Enum Index.ZeroBased
   | Box
@@ -264,15 +264,15 @@ instance Binary Expr where
 instance Binary Def where
   put def =
     case def of
-      Def a b -> putWord8 0 >> put a >> put b
-      TailDef a b c -> putWord8 1 >> put a >> put b >> put c
+      Def a b c -> putWord8 0 >> put a >> put b >> put c
+      TailDef a b c d -> putWord8 1 >> put a >> put b >> put c >> put d
 
   get =
     do
       word <- getWord8
       case word of
-        0 -> liftM2 Def get get
-        1 -> liftM3 TailDef get get get
+        0 -> liftM3 Def get get get
+        1 -> liftM4 TailDef get get get get
         _ -> fail "problem getting Opt.Def binary"
 
 instance Binary Destructor where
@@ -356,8 +356,8 @@ instance Binary Main where
 instance Binary Node where
   put node =
     case node of
-      Define a b -> putWord8 0 >> put a >> put b
-      DefineTailFunc a b c -> putWord8 1 >> put a >> put b >> put c
+      Define a b c -> putWord8 0 >> put a >> put b >> put c
+      DefineTailFunc a b c d -> putWord8 1 >> put a >> put b >> put c >> put d
       Ctor a b -> putWord8 2 >> put a >> put b
       Enum a -> putWord8 3 >> put a
       Box -> putWord8 4
@@ -372,8 +372,8 @@ instance Binary Node where
     do
       word <- getWord8
       case word of
-        0 -> liftM2 Define get get
-        1 -> liftM3 DefineTailFunc get get get
+        0 -> liftM3 Define get get get
+        1 -> liftM4 DefineTailFunc get get get get
         2 -> liftM2 Ctor get get
         3 -> liftM Enum get
         4 -> return Box

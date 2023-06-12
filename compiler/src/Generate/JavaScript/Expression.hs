@@ -578,10 +578,12 @@ generateTailCall mode parentModule name args =
 generateDef :: Mode.Mode -> ModuleName.Canonical -> Opt.Def -> JS.Stmt
 generateDef mode parentModule def =
   case def of
-    Opt.Def name body ->
-      JS.Var (JsName.fromLocal name) (generateJsExpr mode parentModule body)
-    Opt.TailDef name argNames body ->
-      JS.Var (JsName.fromLocal name) (codeToExpr (generateTailDef mode parentModule name argNames body))
+    Opt.Def (A.Region start _) name body ->
+      JS.TrackedVar parentModule start (JsName.fromLocal name) (JsName.fromLocal name) $
+        generateJsExpr mode parentModule body
+    Opt.TailDef (A.Region start _) name argNames body ->
+      JS.TrackedVar parentModule start (JsName.fromLocal name) (JsName.fromLocal name) $
+        codeToExpr (generateTailDef mode parentModule name argNames body)
 
 generateTailDef :: Mode.Mode -> ModuleName.Canonical -> Name.Name -> [A.Located Name.Name] -> Opt.Expr -> Code
 generateTailDef mode parentModule name argNames body =

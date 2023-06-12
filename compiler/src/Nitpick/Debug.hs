@@ -15,8 +15,8 @@ hasDebugUses (Opt.LocalGraph _ graph _) =
 nodeHasDebug :: Opt.Node -> Bool
 nodeHasDebug node =
   case node of
-    Opt.Define expr _ -> hasDebug expr
-    Opt.DefineTailFunc _ expr _ -> hasDebug expr
+    Opt.Define _ expr _ -> hasDebug expr
+    Opt.DefineTailFunc _ _ expr _ -> hasDebug expr
     Opt.Ctor _ _ -> False
     Opt.Enum _ -> False
     Opt.Box -> False
@@ -58,8 +58,8 @@ hasDebug expression =
 defHasDebug :: Opt.Def -> Bool
 defHasDebug def =
   case def of
-    Opt.Def _ expr -> hasDebug expr
-    Opt.TailDef _ _ expr -> hasDebug expr
+    Opt.Def _ _ expr -> hasDebug expr
+    Opt.TailDef _ _ _ expr -> hasDebug expr
 
 deciderHasDebug :: Opt.Decider Opt.Choice -> Bool
 deciderHasDebug decider =
