@@ -63,24 +63,23 @@ generate mode parentModule expression =
       JsExpr $ JS.TrackedRef startPos parentModule (JsName.fromLocalHumanReadable name) (JsName.fromLocal name)
     Opt.VarGlobal (A.Region startPos _) (Opt.Global home name) ->
       JsExpr $ JS.TrackedRef startPos parentModule (JsName.fromGlobalHumanReadable home name) (JsName.fromGlobal home name)
-    Opt.VarEnum _region (Opt.Global home name) index ->
+    Opt.VarEnum (A.Region startPos _) (Opt.Global home name) index ->
       case mode of
         Mode.Dev _ ->
-          JsExpr $ JS.Ref (JsName.fromGlobal home name)
+          JsExpr $ JS.TrackedRef startPos parentModule (JsName.fromGlobalHumanReadable home name) (JsName.fromGlobal home name)
         Mode.Prod _ ->
           JsExpr $ JS.Int (Index.toMachine index)
-    Opt.VarBox _region (Opt.Global home name) ->
+    Opt.VarBox (A.Region startPos _) (Opt.Global home name) ->
       JsExpr $
-        JS.Ref $
-          case mode of
-            Mode.Dev _ -> JsName.fromGlobal home name
-            Mode.Prod _ -> JsName.fromGlobal ModuleName.basics Name.identity
-    Opt.VarCycle _region home name ->
-      JsExpr $ JS.Call (JS.Ref (JsName.fromCycle home name)) []
+        case mode of
+          Mode.Dev _ -> JS.TrackedRef startPos parentModule (JsName.fromGlobalHumanReadable home name) (JsName.fromGlobal home name)
+          Mode.Prod _ -> JS.Ref $ JsName.fromGlobal ModuleName.basics Name.identity
+    Opt.VarCycle (A.Region startPos _) home name ->
+      JsExpr $ JS.Call (JS.TrackedRef startPos parentModule (JsName.fromGlobalHumanReadable home name) (JsName.fromCycle home name)) []
     Opt.VarDebug region name home unhandledValueName ->
       JsExpr $ generateDebug name home region unhandledValueName
-    Opt.VarKernel _region home name ->
-      JsExpr $ JS.Ref (JsName.fromKernel home name)
+    Opt.VarKernel (A.Region startPos _) home name ->
+      JsExpr $ JS.TrackedRef startPos parentModule (JsName.fromKernel home name) (JsName.fromKernel home name)
     Opt.Array region entries ->
       let generatedEntries = map (generateJsExpr mode parentModule) entries
        in JsExpr $
