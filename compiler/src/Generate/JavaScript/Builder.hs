@@ -52,16 +52,16 @@ data Expr
   | Object [(Name, Expr)]
   | TrackedObject ModuleName.Canonical A.Region [(A.Located Name, Expr)]
   | Ref Name
-  | TrackedRef A.Position ModuleName.Canonical Name Name
+  | TrackedRef ModuleName.Canonical A.Position Name Name
   | Access Expr Name -- foo.bar
-  | TrackedAccess Expr A.Position ModuleName.Canonical Name
+  | TrackedAccess Expr ModuleName.Canonical A.Position Name
   | Index Expr Expr -- foo[bar]
   | Prefix PrefixOp Expr
   | Infix InfixOp Expr Expr
   | If Expr Expr Expr
   | Assign LValue Expr
   | Call Expr [Expr]
-  | TrackedNormalCall A.Position ModuleName.Canonical Expr Expr [Expr]
+  | TrackedNormalCall ModuleName.Canonical A.Position Expr Expr [Expr]
   | Function (Maybe Name) [Name] [Stmt]
   | TrackedFunction ModuleName.Canonical [A.Located Name] [Stmt]
 
@@ -158,8 +158,6 @@ addAscii code (Builder _code _currLine _currCol _mappings) =
       _mappings = _mappings
     }
 
--- TODO: This is a crutch used during prototyping
--- Should be removed once things stabalizes as it's bad for perf
 addByteString :: B.Builder -> Builder -> Builder
 addByteString bsBuilder (Builder _code _currLine _currCol _mappings) =
   let lazyByteString = B.toLazyByteString bsBuilder
@@ -213,8 +211,8 @@ addTrackedByteString moduleName (A.Position line col) bsBuilder (Builder _code _
               _mappings = newMappings
             }
 
-addName :: A.Position -> ModuleName.Canonical -> Name -> Name -> Builder -> Builder
-addName (A.Position line col) moduleName name genName (Builder _code _currLine _currCol _mappings) =
+addName :: ModuleName.Canonical -> A.Position -> Name -> Name -> Builder -> Builder
+addName moduleName (A.Position line col) name genName (Builder _code _currLine _currCol _mappings) =
   let nameBuilder = Name.toBuilder genName
       size = BSLazy.length $ B.toLazyByteString nameBuilder
    in Builder
@@ -234,8 +232,8 @@ addName (A.Position line col) moduleName name genName (Builder _code _currLine _
               : _mappings
         }
 
-addTrackedDot :: A.Position -> ModuleName.Canonical -> Builder -> Builder
-addTrackedDot (A.Position line col) moduleName (Builder _code _currLine _currCol _mappings) =
+addTrackedDot :: ModuleName.Canonical -> A.Position -> Builder -> Builder
+addTrackedDot moduleName (A.Position line col) (Builder _code _currLine _currCol _mappings) =
   Builder
     { _code = _code <> B.string7 ".",
       _currentLine = _currLine,
@@ -417,7 +415,7 @@ fromStmt level@(Level indent nextLevel) statement builder =
       builder
         & addByteString indent
         & addAscii "var "
-        & addName pos moduleName name genName
+        & addName moduleName pos name genName
         & addAscii " = "
         & fromExpr level Whatever expr
         & addAscii ";"
@@ -568,11 +566,11 @@ fromExpr level@(Level indent nextLevel) grouping expression builder =
       addName position moduleName name generatedName builder
     Access expr field ->
       makeDot level expr field builder
-    TrackedAccess expr position@(A.Position fieldLine fieldCol) moduleName field ->
+    TrackedAccess expr moduleName position@(A.Position fieldLine fieldCol) field ->
       builder
         & fromExpr level Atomic expr
-        & addTrackedDot (A.Position fieldLine (fieldCol - 1)) moduleName
-        & addName position moduleName field field
+        & addTrackedDot moduleName (A.Position fieldLine (fieldCol - 1))
+        & addName moduleName position field field
     Index expr bracketedExpr ->
       makeBracketed level expr bracketedExpr builder
     Prefix op expr ->
@@ -633,7 +631,7 @@ fromExpr level@(Level indent nextLevel) grouping expression builder =
       builder
         & addAscii "function"
         & addAscii "("
-        & commaSepExpr (\(A.At (A.Region start _) name) -> addName start moduleName name name) args
+        & commaSepExpr (\(A.At (A.Region start _) name) -> addName moduleName start name name) args
         & addAscii ") {"
         & addLine
         & fromStmtBlock nextLevel stmts
@@ -658,7 +656,7 @@ fromField level (field, expr) builder =
 trackedFromField :: Level -> ModuleName.Canonical -> (A.Located Name, Expr) -> Builder -> Builder
 trackedFromField level moduleName (A.At (A.Region start end) field, expr) builder =
   builder
-    & addName start moduleName field field
+    & addName moduleName start field field
     & addTrackedByteString moduleName end ": "
     & fromExpr level Whatever expr
 
