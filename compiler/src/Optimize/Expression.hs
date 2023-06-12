@@ -101,7 +101,7 @@ optimize cycle (A.At region expression) =
         oexpr <- optimize cycle expr
         obody <- optimize cycle body
         pure $
-          Opt.Let (Opt.Def name oexpr) (foldr Opt.Destruct obody destructs)
+          Opt.Let (Opt.Def (A.toValue name) oexpr) (foldr Opt.Destruct obody destructs)
     Can.Case expr branches ->
       let optimizeBranch root (Can.CaseBranch pattern branch) =
             do
@@ -163,7 +163,7 @@ optimizeDefHelp cycle name args expr body =
 
 -- DESTRUCTURING
 
-destructArgs :: [Can.Pattern] -> Names.Tracker ([Name.Name], [Opt.Destructor])
+destructArgs :: [Can.Pattern] -> Names.Tracker ([A.Located Name.Name], [Opt.Destructor])
 destructArgs args =
   do
     (argNames, destructorLists) <- unzip <$> traverse destruct args
@@ -173,20 +173,20 @@ destructCase :: Name.Name -> Can.Pattern -> Names.Tracker [Opt.Destructor]
 destructCase rootName pattern =
   reverse <$> destructHelp (Opt.Root rootName) pattern []
 
-destruct :: Can.Pattern -> Names.Tracker (Name.Name, [Opt.Destructor])
-destruct pattern@(A.At _ ptrn) =
+destruct :: Can.Pattern -> Names.Tracker (A.Located Name.Name, [Opt.Destructor])
+destruct pattern@(A.At region ptrn) =
   case ptrn of
     Can.PVar name ->
-      pure (name, [])
+      pure (A.At region name, [])
     Can.PAlias subPattern name ->
       do
         revDs <- destructHelp (Opt.Root name) subPattern []
-        pure (name, reverse revDs)
+        pure (A.At region name, reverse revDs)
     _ ->
       do
         name <- Names.generate
         revDs <- destructHelp (Opt.Root name) pattern []
-        pure (name, reverse revDs)
+        pure (A.At region name, reverse revDs)
 
 destructHelp :: Opt.Path -> Can.Pattern -> [Opt.Destructor] -> Names.Tracker [Opt.Destructor]
 destructHelp path (A.At _ pattern) revDs =
@@ -285,7 +285,7 @@ optimizePotentialTailCall cycle name args expr =
     toTailDef name argNames destructors
       <$> optimizeTail cycle name argNames expr
 
-optimizeTail :: Cycle -> Name.Name -> [Name.Name] -> Can.Expr -> Names.Tracker Opt.Expr
+optimizeTail :: Cycle -> Name.Name -> [A.Located Name.Name] -> Can.Expr -> Names.Tracker Opt.Expr
 optimizeTail cycle rootName argNames locExpr@(A.At region expression) =
   case expression of
     Can.Call func args ->
@@ -299,7 +299,7 @@ optimizeTail cycle rootName argNames locExpr@(A.At region expression) =
                 _ -> False
 
         if isMatchingName
-          then case Index.indexedZipWith (\_ a b -> (a, b)) argNames oargs of
+          then case Index.indexedZipWith (\_ a b -> (A.toValue a, b)) argNames oargs of
             Index.LengthMatch pairs ->
               pure $ Opt.TailCall rootName pairs
             Index.LengthMismatch _ _ ->
@@ -335,7 +335,7 @@ optimizeTail cycle rootName argNames locExpr@(A.At region expression) =
         oexpr <- optimize cycle expr
         obody <- optimizeTail cycle rootName argNames body
         pure $
-          Opt.Let (Opt.Def dname oexpr) (foldr Opt.Destruct obody destructors)
+          Opt.Let (Opt.Def (A.toValue dname) oexpr) (foldr Opt.Destruct obody destructors)
     Can.Case expr branches ->
       let optimizeBranch root (Can.CaseBranch pattern branch) =
             do
@@ -357,7 +357,7 @@ optimizeTail cycle rootName argNames locExpr@(A.At region expression) =
 
 -- DETECT TAIL CALLS
 
-toTailDef :: Name.Name -> [Name.Name] -> [Opt.Destructor] -> Opt.Expr -> Opt.Def
+toTailDef :: Name.Name -> [A.Located Name.Name] -> [Opt.Destructor] -> Opt.Expr -> Opt.Def
 toTailDef name argNames destructors body =
   if hasTailCall body
     then Opt.TailDef name argNames (foldr Opt.Destruct body destructors)

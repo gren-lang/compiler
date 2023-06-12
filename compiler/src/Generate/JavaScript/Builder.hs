@@ -63,6 +63,7 @@ data Expr
   | Call Expr [Expr]
   | TrackedNormalCall A.Position ModuleName.Canonical Expr Expr [Expr]
   | Function (Maybe Name) [Name] [Stmt]
+  | TrackedFunction ModuleName.Canonical [A.Located Name] [Stmt]
 
 data LValue
   = LRef Name
@@ -618,6 +619,16 @@ fromExpr level@(Level indent nextLevel) grouping expression builder =
         & fromStmtBlock nextLevel stmts
         & addByteString indent
         & addAscii "}"
+    TrackedFunction moduleName args stmts ->
+      builder
+        & addAscii "function"
+        & addAscii "("
+        & commaSepExpr (\(A.At (A.Region start _) name) -> addName start moduleName name name) args
+        & addAscii ") {"
+        & addLine
+        & fromStmtBlock nextLevel stmts
+        & addByteString indent
+        & addAscii "}"
 
 trackedNameFromExpr :: Expr -> Maybe Name
 trackedNameFromExpr expr =
@@ -637,7 +648,7 @@ fromField level (field, expr) builder =
 trackedFromField :: Level -> ModuleName.Canonical -> (A.Located Name, Expr) -> Builder -> Builder
 trackedFromField level moduleName (A.At (A.Region start end) field, expr) builder =
   builder
-    & addTrackedByteString moduleName start (Name.toBuilder field)
+    & addName start moduleName field field
     & addTrackedByteString moduleName end ": "
     & fromExpr level Whatever expr
 

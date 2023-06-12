@@ -53,7 +53,7 @@ data Expr
   | VarDebug A.Region Name ModuleName.Canonical (Maybe Name)
   | VarKernel A.Region Name Name
   | Array A.Region [Expr]
-  | Function [Name] Expr
+  | Function [A.Located Name] Expr
   | Call A.Region Expr [Expr]
   | TailCall Name [(Name, Expr)]
   | If [(Expr, Expr)] Expr
@@ -71,7 +71,7 @@ data Global = Global ModuleName.Canonical Name
 
 data Def
   = Def Name Expr
-  | TailDef Name [Name] Expr
+  | TailDef Name [A.Located Name] Expr
 
 data Destructor
   = Destructor Name Path
@@ -126,7 +126,7 @@ data Main
 
 data Node
   = Define Expr (Set.Set Global)
-  | DefineTailFunc [Name] Expr (Set.Set Global)
+  | DefineTailFunc [A.Located Name] Expr (Set.Set Global)
   | Ctor Index.ZeroBased Int
   | Enum Index.ZeroBased
   | Box

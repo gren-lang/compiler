@@ -87,7 +87,8 @@ generate mode parentModule expression =
               then JS.Array generatedEntries
               else JS.TrackedArray parentModule region generatedEntries
     Opt.Function args body ->
-      generateFunction (map JsName.fromLocal args) (generate mode parentModule body)
+      let argNames = map (\(A.At region name) -> A.At region (JsName.fromLocal name)) args
+       in generateTrackedFunction parentModule argNames (generate mode parentModule body)
     Opt.Call (A.Region startPos _) func args ->
       JsExpr $ generateCall mode startPos parentModule func args
     Opt.TailCall name args ->
@@ -255,6 +256,29 @@ generateFunction args body =
               JS.Function Nothing [arg] $
                 codeToStmtList code
        in foldr addArg body args
+
+generateTrackedFunction :: ModuleName.Canonical -> [A.Located JsName.Name] -> Code -> Code
+generateTrackedFunction parentModule args body =
+  case IntMap.lookup (length args) funcHelpers of
+    Just helper ->
+      JsExpr $
+        JS.Call
+          helper
+          [ JS.TrackedFunction parentModule args $
+              codeToStmtList body
+          ]
+    Nothing ->
+      case args of
+        [_] ->
+          JsExpr $
+            JS.TrackedFunction parentModule args $
+              codeToStmtList body
+        _ ->
+          let addArg arg code =
+                JsExpr $
+                  JS.Function Nothing [arg] $
+                    codeToStmtList code
+           in foldr addArg body (map A.toValue args)
 
 funcHelpers :: IntMap.IntMap JS.Expr
 funcHelpers =
@@ -531,10 +555,10 @@ generateDef mode parentModule def =
     Opt.TailDef name argNames body ->
       JS.Var (JsName.fromLocal name) (codeToExpr (generateTailDef mode parentModule name argNames body))
 
-generateTailDef :: Mode.Mode -> ModuleName.Canonical -> Name.Name -> [Name.Name] -> Opt.Expr -> Code
+generateTailDef :: Mode.Mode -> ModuleName.Canonical -> Name.Name -> [A.Located Name.Name] -> Opt.Expr -> Code
 generateTailDef mode parentModule name argNames body =
-  generateFunction (map JsName.fromLocal argNames) $
-    JsBlock $
+  generateTrackedFunction parentModule (map (\(A.At region argName) -> A.At region (JsName.fromLocal argName)) argNames) $
+    JsBlock
       [ JS.Labelled (JsName.fromLocal name) $
           JS.While (JS.Bool True) $
             codeToStmt $
