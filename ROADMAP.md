@@ -8,12 +8,16 @@ Also, keep in mind that this only focuses on the big picture. Major features lik
 
 ## Releases
 
-* June 2023 - Source maps and improved code generation to better support the built-in debugger in Node and browsers.
+* December 2023 - Parametric modules, or OCaml functors, to enable defining things like equality, comparisons etc. for your own types and use them in data structures like Dict. This release also removes the "magic" type classes currently in the language, like `number` and `comparable`.
 
-* December 2023 - Additions and bugfixes to core packages like gren-lang/core, gren-lang/browser and gren-lang/node. The compiler will mostly receive bugfixes in this period.
+* June 2024 - Stabelization period. Mostly bugfixes and code gen improvements. While we prepare for the next big thing.
 
-* June 2024 - Parametric modules, or OCaml functors, to enable defining things like equality, comparisons etc. for your own types and use them in data structures like Dict. This release also removes the "magic" type classes currently in the language, like `number` and `comparable`.
+* December 2024 - Re-evaluating how concurrency works in the language. More specifically, we'll re-evaluate how `Task`, `Cmd`, `Process` and effect modules work.
 
-* June 2025 - Compile to Web Assembly instead of JS. This will give us proper integers, big integers, hopefully smaller asset size and possibly enable future optimizations in codegen.
+* June 2025 - Re-evaluate records and custom types.
 
-* December 2025, or June 2026 - The language is considered complete. Both the compiler and core packages will commit to maintaining backwards compatability from here on out.
+* December 2025 - Re-evaluate interop: ports and kernel code.
+
+* June 2026 - Compile to Web Assembly instead of JS. This will give us proper integers, big integers, hopefully smaller asset size and possibly enable future optimizations in codegen.
+
+* December 2026 - The language is considered complete. Both the compiler and core packages will commit to maintaining backwards compatability from here on out.
