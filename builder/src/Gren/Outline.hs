@@ -20,6 +20,7 @@ module Gren.Outline
     sourceDirs,
     platform,
     dependencyConstraints,
+    getAllModulePaths,
   )
 where
 
@@ -27,10 +28,13 @@ import AbsoluteSrcDir (AbsoluteSrcDir)
 import AbsoluteSrcDir qualified
 import Control.Monad (filterM, liftM)
 import Data.Binary (Binary, get, getWord8, put, putWord8)
+import Data.Function ((&))
 import Data.List qualified as List
 import Data.Map qualified as Map
+import Data.Name qualified as Name
 import Data.NonEmptyList qualified as NE
 import Data.OneOrMore qualified as OneOrMore
+import Directories qualified
 import File qualified
 import Foreign.Ptr (minusPtr)
 import Gren.Constraint qualified as Con
@@ -261,6 +265,68 @@ sourceDirs outline =
       srcDirs
     Pkg _ ->
       NE.singleton (RelativeSrcDir "src")
+
+-- getAllModulePaths
+
+getAllModulePaths :: FilePath -> IO (Map.Map ModuleName.Canonical FilePath)
+getAllModulePaths root =
+  do
+    outlineResult <- read root
+    case outlineResult of
+      Left _ ->
+        return Map.empty
+      Right outline ->
+        case outline of
+          App appOutline ->
+            let deps = Map.union (_app_deps_direct appOutline) (_app_deps_indirect appOutline)
+                srcDirs = map (toAbsolute root) (NE.toList (_app_source_dirs appOutline))
+             in getAllModulePathsHelper Pkg.dummyName srcDirs deps
+          Pkg pkgOutline ->
+            let deps = Map.map (PossibleFilePath.mapWith Con.lowerBound) (_pkg_deps pkgOutline)
+             in getAllModulePathsHelper (_pkg_name pkgOutline) [root </> "src"] deps
+
+getAllModulePathsHelper :: Pkg.Name -> [FilePath] -> Map.Map Pkg.Name (PossibleFilePath V.Version) -> IO (Map.Map ModuleName.Canonical FilePath)
+getAllModulePathsHelper packageName packageSrcDirs deps =
+  do
+    grenFiles <- traverse recursiveFindGrenFiles packageSrcDirs
+    let asMap = Map.fromList $ map (\(root, fp) -> (ModuleName.Canonical packageName (moduleNameFromFilePath root fp), fp)) (concat grenFiles)
+    dependencyRoots <- Map.traverseWithKey resolvePackagePaths deps
+    dependencyMaps <- traverse (\(pkgName, pkgRoot) -> getAllModulePathsHelper pkgName [pkgRoot </> "src"] Map.empty) dependencyRoots
+    return $ foldr Map.union asMap dependencyMaps
+
+recursiveFindGrenFiles :: FilePath -> IO [(FilePath, FilePath)]
+recursiveFindGrenFiles root = do
+  files <- recursiveFindGrenFilesHelp root
+  return $ map (\f -> (root, f)) files
+
+recursiveFindGrenFilesHelp :: FilePath -> IO [FilePath]
+recursiveFindGrenFilesHelp root =
+  do
+    dirContents <- Dir.getDirectoryContents root
+    let (grenFiles, others) = List.partition (List.isSuffixOf ".gren") dirContents
+    subDirectories <- filterM (\fp -> Dir.doesDirectoryExist (root </> fp)) (filter (\fp -> fp /= "." && fp /= "..") others)
+    filesFromSubDirs <- traverse (recursiveFindGrenFilesHelp . (root </>)) subDirectories
+    return $ concat filesFromSubDirs ++ map (\fp -> root </> fp) grenFiles
+
+moduleNameFromFilePath :: FilePath -> FilePath -> Name.Name
+moduleNameFromFilePath root filePath =
+  filePath
+    & drop (List.length root + 1)
+    & reverse
+    & drop 5 -- .gren
+    & reverse
+    & map (\c -> if c == '/' then '.' else c)
+    & Name.fromChars
+
+resolvePackagePaths :: Pkg.Name -> PossibleFilePath V.Version -> IO (Pkg.Name, FilePath)
+resolvePackagePaths pkgName versionOrFilePath =
+  case versionOrFilePath of
+    PossibleFilePath.Other vsn ->
+      do
+        packageCache <- Directories.getPackageCache
+        return (pkgName, Directories.package packageCache pkgName vsn)
+    PossibleFilePath.Is filePath ->
+      return (pkgName, filePath)
 
 -- JSON DECODE
 

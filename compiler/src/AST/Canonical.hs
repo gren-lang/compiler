@@ -98,8 +98,8 @@ data Expr_
   | Case Expr [CaseBranch]
   | Accessor Name
   | Access Expr (A.Located Name)
-  | Update Expr (Map.Map Name FieldUpdate)
-  | Record (Map.Map Name Expr)
+  | Update Expr (Map.Map (A.Located Name) FieldUpdate)
+  | Record (Map.Map (A.Located Name) Expr)
   deriving (Show)
 
 data CaseBranch

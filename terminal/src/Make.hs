@@ -7,6 +7,7 @@ module Make
     run,
     reportType,
     output,
+    rereadSources,
   )
 where
 
@@ -14,15 +15,20 @@ import AST.Optimized qualified as Opt
 import BackgroundWriter qualified as BW
 import Build qualified
 import Data.ByteString.Builder qualified as B
+import Data.Map (Map)
 import Data.Maybe qualified as Maybe
 import Data.NonEmptyList qualified as NE
 import Directories qualified as Dirs
 import File qualified
 import Generate qualified
 import Generate.Html qualified as Html
+import Generate.JavaScript qualified as JS
 import Generate.Node qualified as Node
+import Generate.SourceMap (SourceMap)
+import Generate.SourceMap qualified as SourceMap
 import Gren.Details qualified as Details
 import Gren.ModuleName qualified as ModuleName
+import Gren.Outline qualified as Outline
 import Gren.Platform qualified as Platform
 import Parse.Module qualified as Parse
 import Reporting qualified
@@ -38,6 +44,7 @@ import Terminal (Parser (..))
 data Flags = Flags
   { _debug :: Bool,
     _optimize :: Bool,
+    _sourceMaps :: Bool,
     _output :: Maybe Output,
     _report :: Maybe ReportType
   }
@@ -57,17 +64,17 @@ data ReportType
 type Task a = Task.Task Exit.Make a
 
 run :: [FilePath] -> Flags -> IO ()
-run paths flags@(Flags _ _ maybeOutput report) =
+run paths flags@(Flags _ _ _ maybeOutput report) =
   do
     style <- getStyle maybeOutput report
     maybeRoot <- Dirs.findRoot
     Reporting.attemptWithStyle style Exit.makeToReport $
       case maybeRoot of
         Just root -> runHelp root paths style flags
-        Nothing -> return $ Left $ Exit.MakeNoOutline
+        Nothing -> return $ Left Exit.MakeNoOutline
 
 runHelp :: FilePath -> [FilePath] -> Reporting.Style -> Flags -> IO (Either Exit.Make ())
-runHelp root paths style (Flags debug optimize maybeOutput _) =
+runHelp root paths style (Flags debug optimize withSourceMaps maybeOutput _) =
   BW.withScope $ \scope ->
     Dirs.withRootLock root $
       Task.run $
@@ -100,47 +107,54 @@ runHelp root paths style (Flags debug optimize maybeOutput _) =
                                 return ()
                               (Platform.Browser, [name]) ->
                                 do
-                                  builder <- toBuilder root details desiredMode artifacts
-                                  generate style "index.html" (Html.sandwich name builder) (NE.List name [])
+                                  (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
+                                  bundle <- prepareOutput withSourceMaps root Html.leadingLines sourceMap source
+                                  writeToDisk style "index.html" (Html.sandwich name bundle) (NE.List name [])
                               (Platform.Node, [name]) ->
                                 do
-                                  builder <- toBuilder root details desiredMode artifacts
-                                  generate style "app" (Node.sandwich name builder) (NE.List name [])
+                                  (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
+                                  bundle <- prepareOutput withSourceMaps root Node.leadingLines sourceMap (Node.sandwich name source)
+                                  writeToDisk style "app" bundle (NE.List name [])
                               (_, name : names) ->
                                 do
-                                  builder <- toBuilder root details desiredMode artifacts
-                                  generate style "index.js" builder (NE.List name names)
+                                  (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
+                                  bundle <- prepareOutput withSourceMaps root 0 sourceMap source
+                                  writeToDisk style "index.js" bundle (NE.List name names)
                           Just DevStdOut ->
                             case getMains artifacts of
                               [] ->
                                 return ()
                               _ ->
                                 do
-                                  builder <- toBuilder root details desiredMode artifacts
-                                  Task.io $ B.hPutBuilder IO.stdout builder
+                                  (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
+                                  bundle <- prepareOutput withSourceMaps root 0 sourceMap source
+                                  Task.io $ B.hPutBuilder IO.stdout bundle
                           Just DevNull ->
                             return ()
                           Just (Exe target) ->
                             case platform of
                               Platform.Node -> do
                                 name <- hasOneMain artifacts
-                                builder <- toBuilder root details desiredMode artifacts
-                                generate style target (Node.sandwich name builder) (NE.List name [])
+                                (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
+                                bundle <- prepareOutput withSourceMaps root Node.leadingLines sourceMap (Node.sandwich name source)
+                                writeToDisk style target bundle (NE.List name [])
                               _ -> do
                                 Task.throw Exit.MakeExeOnlyForNodePlatform
                           Just (JS target) ->
                             case getNoMains artifacts of
                               [] -> do
-                                builder <- toBuilder root details desiredMode artifacts
-                                generate style target builder (Build.getRootNames artifacts)
+                                (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
+                                bundle <- prepareOutput withSourceMaps root 0 sourceMap source
+                                writeToDisk style target bundle (Build.getRootNames artifacts)
                               name : names ->
                                 Task.throw (Exit.MakeNonMainFilesIntoJavaScript name names)
                           Just (Html target) ->
                             case platform of
                               Platform.Browser -> do
                                 name <- hasOneMain artifacts
-                                builder <- toBuilder root details desiredMode artifacts
-                                generate style target (Html.sandwich name builder) (NE.List name [])
+                                (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
+                                bundle <- prepareOutput withSourceMaps root Html.leadingLines sourceMap source
+                                writeToDisk style target (Html.sandwich name bundle) (NE.List name [])
                               _ -> do
                                 Task.throw Exit.MakeHtmlOnlyForBrowserPlatform
 
@@ -160,6 +174,12 @@ getMode debug optimize =
     (True, False) -> return Debug
     (False, False) -> return Dev
     (False, True) -> return Prod
+
+rereadSources :: FilePath -> IO (Map ModuleName.Canonical String)
+rereadSources root =
+  do
+    modulePaths <- Outline.getAllModulePaths root
+    traverse readFile modulePaths
 
 getExposed :: Details.Details -> Task (NE.List ModuleName.Raw)
 getExposed (Details.Details _ validOutline _ _ _ _) =
@@ -251,22 +271,30 @@ getNoMain modules root =
         Just _ -> Nothing
         Nothing -> Just name
 
--- GENERATE
+-- WRITE TO DISK
 
-generate :: Reporting.Style -> FilePath -> B.Builder -> NE.List ModuleName.Raw -> Task ()
-generate style target builder names =
+prepareOutput :: Bool -> FilePath -> Int -> SourceMap -> B.Builder -> Task B.Builder
+prepareOutput enabled root leadingLines sourceMap source =
+  if enabled
+    then do
+      moduleSources <- Task.io $ rereadSources root
+      return $ SourceMap.generateOnto leadingLines moduleSources sourceMap source
+    else return source
+
+writeToDisk :: Reporting.Style -> FilePath -> B.Builder -> NE.List ModuleName.Raw -> Task ()
+writeToDisk style target builder names =
   Task.io $
     do
       Dir.createDirectoryIfMissing True (FP.takeDirectory target)
       File.writeBuilder target builder
       Reporting.reportGenerate style names target
 
--- TO BUILDER
+-- GENERATE
 
 data DesiredMode = Debug | Dev | Prod
 
-toBuilder :: FilePath -> Details.Details -> DesiredMode -> Build.Artifacts -> Task B.Builder
-toBuilder root details desiredMode artifacts =
+generate :: FilePath -> Details.Details -> DesiredMode -> Build.Artifacts -> Task JS.GeneratedResult
+generate root details desiredMode artifacts =
   Task.mapError Exit.MakeBadGenerate $
     case desiredMode of
       Debug -> Generate.debug root details artifacts

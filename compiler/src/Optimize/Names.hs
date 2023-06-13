@@ -55,34 +55,34 @@ registerKernel home value =
   Tracker $ \uid deps fields ok ->
     ok uid (Set.insert (Opt.toKernelGlobal home) deps) fields value
 
-registerGlobal :: ModuleName.Canonical -> Name.Name -> Tracker Opt.Expr
-registerGlobal home name =
+registerGlobal :: A.Region -> ModuleName.Canonical -> Name.Name -> Tracker Opt.Expr
+registerGlobal region home name =
   Tracker $ \uid deps fields ok ->
     let global = Opt.Global home name
-     in ok uid (Set.insert global deps) fields (Opt.VarGlobal global)
+     in ok uid (Set.insert global deps) fields (Opt.VarGlobal region global)
 
 registerDebug :: Name.Name -> ModuleName.Canonical -> A.Region -> Tracker Opt.Expr
 registerDebug name home region =
   Tracker $ \uid deps fields ok ->
     let global = Opt.Global ModuleName.debug name
-     in ok uid (Set.insert global deps) fields (Opt.VarDebug name home region Nothing)
+     in ok uid (Set.insert global deps) fields (Opt.VarDebug region name home Nothing)
 
-registerCtor :: ModuleName.Canonical -> Name.Name -> Index.ZeroBased -> Can.CtorOpts -> Tracker Opt.Expr
-registerCtor home name index opts =
+registerCtor :: A.Region -> ModuleName.Canonical -> A.Located Name.Name -> Index.ZeroBased -> Can.CtorOpts -> Tracker Opt.Expr
+registerCtor region home (A.At _ name) index opts =
   Tracker $ \uid deps fields ok ->
     let global = Opt.Global home name
         newDeps = Set.insert global deps
      in case opts of
           Can.Normal ->
-            ok uid newDeps fields (Opt.VarGlobal global)
+            ok uid newDeps fields (Opt.VarGlobal region global)
           Can.Enum ->
             ok uid newDeps fields $
               case name of
-                "True" | home == ModuleName.basics -> Opt.Bool True
-                "False" | home == ModuleName.basics -> Opt.Bool False
-                _ -> Opt.VarEnum global index
+                "True" | home == ModuleName.basics -> Opt.Bool region True
+                "False" | home == ModuleName.basics -> Opt.Bool region False
+                _ -> Opt.VarEnum region global index
           Can.Unbox ->
-            ok uid (Set.insert identity newDeps) fields (Opt.VarBox global)
+            ok uid (Set.insert identity newDeps) fields (Opt.VarBox region global)
 
 identity :: Opt.Global
 identity =

@@ -37,7 +37,7 @@ import Prelude hiding (cycle, print)
 type Task a =
   Task.Task Exit.Generate a
 
-debug :: FilePath -> Details.Details -> Build.Artifacts -> Task B.Builder
+debug :: FilePath -> Details.Details -> Build.Artifacts -> Task JS.GeneratedResult
 debug root details (Build.Artifacts pkg ifaces roots modules) =
   do
     loading <- loadObjects root details modules
@@ -48,7 +48,7 @@ debug root details (Build.Artifacts pkg ifaces roots modules) =
     let mains = gatherMains pkg objects roots
     return $ JS.generate mode graph mains
 
-dev :: FilePath -> Details.Details -> Build.Artifacts -> Task B.Builder
+dev :: FilePath -> Details.Details -> Build.Artifacts -> Task JS.GeneratedResult
 dev root details (Build.Artifacts pkg _ roots modules) =
   do
     objects <- finalizeObjects =<< loadObjects root details modules
@@ -57,7 +57,7 @@ dev root details (Build.Artifacts pkg _ roots modules) =
     let mains = gatherMains pkg objects roots
     return $ JS.generate mode graph mains
 
-prod :: FilePath -> Details.Details -> Build.Artifacts -> Task B.Builder
+prod :: FilePath -> Details.Details -> Build.Artifacts -> Task JS.GeneratedResult
 prod root details (Build.Artifacts pkg _ roots modules) =
   do
     objects <- finalizeObjects =<< loadObjects root details modules

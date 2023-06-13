@@ -164,12 +164,12 @@ addDef platform home annotations def graph =
 addDefHelp :: P.Platform -> A.Region -> Annotations -> ModuleName.Canonical -> Name.Name -> [Can.Pattern] -> Can.Expr -> Opt.LocalGraph -> Result i w Opt.LocalGraph
 addDefHelp platform region annotations home name args body graph@(Opt.LocalGraph _ nodes fieldCounts) =
   if name /= Name._main
-    then Result.ok (addDefNode home name args body Set.empty graph)
+    then Result.ok (addDefNode home region name args body Set.empty graph)
     else
       let (Can.Forall _ tipe) = annotations ! name
 
           addMain (deps, fields, main) =
-            addDefNode home name args body deps $
+            addDefNode home region name args body deps $
               Opt.LocalGraph (Just main) nodes (Map.unionWith (+) fields fieldCounts)
        in case Type.deepDealias tipe of
             Can.TType hm nm []
@@ -199,8 +199,8 @@ addDefHelp platform region annotations home name args body graph@(Opt.LocalGraph
                 P.Node -> Result.throw (E.BadType region tipe ["String", "Program"])
                 P.Common -> Result.throw (E.BadType region tipe [])
 
-addDefNode :: ModuleName.Canonical -> Name.Name -> [Can.Pattern] -> Can.Expr -> Set.Set Opt.Global -> Opt.LocalGraph -> Opt.LocalGraph
-addDefNode home name args body mainDeps graph =
+addDefNode :: ModuleName.Canonical -> A.Region -> Name.Name -> [Can.Pattern] -> Can.Expr -> Set.Set Opt.Global -> Opt.LocalGraph -> Opt.LocalGraph
+addDefNode home region name args body mainDeps graph =
   let (deps, fields, def) =
         Names.run $
           case args of
@@ -213,7 +213,7 @@ addDefNode home name args body mainDeps graph =
                 pure $
                   Opt.Function argNames $
                     foldr Opt.Destruct obody destructors
-   in addToGraph (Opt.Global home name) (Opt.Define def (Set.union deps mainDeps)) fields graph
+   in addToGraph (Opt.Global home name) (Opt.Define region def (Set.union deps mainDeps)) fields graph
 
 -- ADD RECURSIVE DEFS
 
@@ -262,13 +262,13 @@ addLink home link def links =
 addRecDef :: Set.Set Name.Name -> State -> Can.Def -> Names.Tracker State
 addRecDef cycle state def =
   case def of
-    Can.Def (A.At _ name) args body ->
-      addRecDefHelp cycle state name args body
-    Can.TypedDef (A.At _ name) _ args body _ ->
-      addRecDefHelp cycle state name (map fst args) body
+    Can.Def (A.At region name) args body ->
+      addRecDefHelp cycle region state name args body
+    Can.TypedDef (A.At region name) _ args body _ ->
+      addRecDefHelp cycle region state name (map fst args) body
 
-addRecDefHelp :: Set.Set Name.Name -> State -> Name.Name -> [Can.Pattern] -> Can.Expr -> Names.Tracker State
-addRecDefHelp cycle (State values funcs) name args body =
+addRecDefHelp :: Set.Set Name.Name -> A.Region -> State -> Name.Name -> [Can.Pattern] -> Can.Expr -> Names.Tracker State
+addRecDefHelp cycle region (State values funcs) name args body =
   case args of
     [] ->
       do
@@ -276,5 +276,5 @@ addRecDefHelp cycle (State values funcs) name args body =
         pure $ State ((name, obody) : values) funcs
     _ : _ ->
       do
-        odef <- Expr.optimizePotentialTailCall cycle name args body
+        odef <- Expr.optimizePotentialTailCall cycle region name args body
         pure $ State values (odef : funcs)

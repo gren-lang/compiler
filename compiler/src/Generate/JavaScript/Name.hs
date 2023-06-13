@@ -7,7 +7,9 @@ module Generate.JavaScript.Name
     fromIndex,
     fromInt,
     fromLocal,
+    fromLocalHumanReadable,
     fromGlobal,
+    fromGlobalHumanReadable,
     fromCycle,
     fromKernel,
     makeF,
@@ -48,9 +50,20 @@ fromLocal name =
     then Name ("_" <> Name.toBuilder name)
     else Name (Name.toBuilder name)
 
+fromLocalHumanReadable :: Name.Name -> Name
+fromLocalHumanReadable name =
+  Name (Name.toBuilder name)
+
 fromGlobal :: ModuleName.Canonical -> Name.Name -> Name
 fromGlobal home name =
   Name $ homeToBuilder home <> usd <> Name.toBuilder name
+
+fromGlobalHumanReadable :: ModuleName.Canonical -> Name.Name -> Name
+fromGlobalHumanReadable (ModuleName.Canonical _ moduleName) name =
+  Name $
+    Utf8.toBuilder moduleName
+      <> "."
+      <> Name.toBuilder name
 
 fromCycle :: ModuleName.Canonical -> Name.Name -> Name
 fromCycle home name =
@@ -269,3 +282,13 @@ addRenaming keyword maybeBadFields =
           BadFields $ Map.singleton keyword (unsafeIntToAscii width [] maxName)
         Just (BadFields renamings) ->
           BadFields $ Map.insert keyword (unsafeIntToAscii width [] (maxName - Map.size renamings)) renamings
+
+-- INSTANCES
+
+instance Ord Name where
+  compare (Name builder1) (Name builder2) =
+    compare (B.toLazyByteString builder1) (B.toLazyByteString builder2)
+
+instance Eq Name where
+  (==) (Name builder1) (Name builder2) =
+    (==) (B.toLazyByteString builder1) (B.toLazyByteString builder2)

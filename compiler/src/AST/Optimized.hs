@@ -40,38 +40,38 @@ import Reporting.Annotation qualified as A
 -- EXPRESSIONS
 
 data Expr
-  = Bool Bool
-  | Chr ES.String
-  | Str ES.String
-  | Int Int
-  | Float EF.Float
-  | VarLocal Name
-  | VarGlobal Global
-  | VarEnum Global Index.ZeroBased
-  | VarBox Global
-  | VarCycle ModuleName.Canonical Name
-  | VarDebug Name ModuleName.Canonical A.Region (Maybe Name)
-  | VarKernel Name Name
-  | Array [Expr]
-  | Function [Name] Expr
-  | Call Expr [Expr]
+  = Bool A.Region Bool
+  | Chr A.Region ES.String
+  | Str A.Region ES.String
+  | Int A.Region Int
+  | Float A.Region EF.Float
+  | VarLocal A.Region Name
+  | VarGlobal A.Region Global
+  | VarEnum A.Region Global Index.ZeroBased
+  | VarBox A.Region Global
+  | VarCycle A.Region ModuleName.Canonical Name
+  | VarDebug A.Region Name ModuleName.Canonical (Maybe Name)
+  | VarKernel A.Region Name Name
+  | Array A.Region [Expr]
+  | Function [A.Located Name] Expr
+  | Call A.Region Expr [Expr]
   | TailCall Name [(Name, Expr)]
   | If [(Expr, Expr)] Expr
   | Let Def Expr
   | Destruct Destructor Expr
   | Case Name Name (Decider Choice) [(Int, Expr)]
-  | Accessor Name
-  | Access Expr Name
-  | Update Expr (Map.Map Name Expr)
-  | Record (Map.Map Name Expr)
+  | Accessor A.Region Name
+  | Access Expr A.Region Name
+  | Update A.Region Expr (Map.Map (A.Located Name) Expr)
+  | Record A.Region (Map.Map (A.Located Name) Expr)
 
 data Global = Global ModuleName.Canonical Name
 
 -- DEFINITIONS
 
 data Def
-  = Def Name Expr
-  | TailDef Name [Name] Expr
+  = Def A.Region Name Expr
+  | TailDef A.Region Name [A.Located Name] Expr
 
 data Destructor
   = Destructor Name Path
@@ -125,8 +125,8 @@ data Main
       }
 
 data Node
-  = Define Expr (Set.Set Global)
-  | DefineTailFunc [Name] Expr (Set.Set Global)
+  = Define A.Region Expr (Set.Set Global)
+  | DefineTailFunc A.Region [A.Located Name] Expr (Set.Set Global)
   | Ctor Index.ZeroBased Int
   | Enum Index.ZeroBased
   | Box
@@ -206,73 +206,73 @@ instance Binary Global where
 instance Binary Expr where
   put expr =
     case expr of
-      Bool a -> putWord8 0 >> put a
-      Chr a -> putWord8 1 >> put a
-      Str a -> putWord8 2 >> put a
-      Int a -> putWord8 3 >> put a
-      Float a -> putWord8 4 >> put a
-      VarLocal a -> putWord8 5 >> put a
-      VarGlobal a -> putWord8 6 >> put a
-      VarEnum a b -> putWord8 7 >> put a >> put b
-      VarBox a -> putWord8 8 >> put a
-      VarCycle a b -> putWord8 9 >> put a >> put b
+      Bool a b -> putWord8 0 >> put a >> put b
+      Chr a b -> putWord8 1 >> put a >> put b
+      Str a b -> putWord8 2 >> put a >> put b
+      Int a b -> putWord8 3 >> put a >> put b
+      Float a b -> putWord8 4 >> put a >> put b
+      VarLocal a b -> putWord8 5 >> put a >> put b
+      VarGlobal a b -> putWord8 6 >> put a >> put b
+      VarEnum a b c -> putWord8 7 >> put a >> put b >> put c
+      VarBox a b -> putWord8 8 >> put a >> put b
+      VarCycle a b c -> putWord8 9 >> put a >> put b >> put c
       VarDebug a b c d -> putWord8 10 >> put a >> put b >> put c >> put d
-      VarKernel a b -> putWord8 11 >> put a >> put b
-      Array a -> putWord8 12 >> put a
+      VarKernel a b c -> putWord8 11 >> put a >> put b >> put c
+      Array a b -> putWord8 12 >> put a >> put b
       Function a b -> putWord8 13 >> put a >> put b
-      Call a b -> putWord8 14 >> put a >> put b
+      Call a b c -> putWord8 14 >> put a >> put b >> put c
       TailCall a b -> putWord8 15 >> put a >> put b
       If a b -> putWord8 16 >> put a >> put b
       Let a b -> putWord8 17 >> put a >> put b
       Destruct a b -> putWord8 18 >> put a >> put b
       Case a b c d -> putWord8 19 >> put a >> put b >> put c >> put d
-      Accessor a -> putWord8 20 >> put a
-      Access a b -> putWord8 21 >> put a >> put b
-      Update a b -> putWord8 22 >> put a >> put b
-      Record a -> putWord8 23 >> put a
+      Accessor a b -> putWord8 20 >> put a >> put b
+      Access a b c -> putWord8 21 >> put a >> put b >> put c
+      Update a b c -> putWord8 22 >> put a >> put b >> put c
+      Record a b -> putWord8 23 >> put a >> put b
 
   get =
     do
       word <- getWord8
       case word of
-        0 -> liftM Bool get
-        1 -> liftM Chr get
-        2 -> liftM Str get
-        3 -> liftM Int get
-        4 -> liftM Float get
-        5 -> liftM VarLocal get
-        6 -> liftM VarGlobal get
-        7 -> liftM2 VarEnum get get
-        8 -> liftM VarBox get
-        9 -> liftM2 VarCycle get get
+        0 -> liftM2 Bool get get
+        1 -> liftM2 Chr get get
+        2 -> liftM2 Str get get
+        3 -> liftM2 Int get get
+        4 -> liftM2 Float get get
+        5 -> liftM2 VarLocal get get
+        6 -> liftM2 VarGlobal get get
+        7 -> liftM3 VarEnum get get get
+        8 -> liftM2 VarBox get get
+        9 -> liftM3 VarCycle get get get
         10 -> liftM4 VarDebug get get get get
-        11 -> liftM2 VarKernel get get
-        12 -> liftM Array get
+        11 -> liftM3 VarKernel get get get
+        12 -> liftM2 Array get get
         13 -> liftM2 Function get get
-        14 -> liftM2 Call get get
+        14 -> liftM3 Call get get get
         15 -> liftM2 TailCall get get
         16 -> liftM2 If get get
         17 -> liftM2 Let get get
         18 -> liftM2 Destruct get get
         19 -> liftM4 Case get get get get
-        20 -> liftM Accessor get
-        21 -> liftM2 Access get get
-        22 -> liftM2 Update get get
-        23 -> liftM Record get
+        20 -> liftM2 Accessor get get
+        21 -> liftM3 Access get get get
+        22 -> liftM3 Update get get get
+        23 -> liftM2 Record get get
         _ -> fail "problem getting Opt.Expr binary"
 
 instance Binary Def where
   put def =
     case def of
-      Def a b -> putWord8 0 >> put a >> put b
-      TailDef a b c -> putWord8 1 >> put a >> put b >> put c
+      Def a b c -> putWord8 0 >> put a >> put b >> put c
+      TailDef a b c d -> putWord8 1 >> put a >> put b >> put c >> put d
 
   get =
     do
       word <- getWord8
       case word of
-        0 -> liftM2 Def get get
-        1 -> liftM3 TailDef get get get
+        0 -> liftM3 Def get get get
+        1 -> liftM4 TailDef get get get get
         _ -> fail "problem getting Opt.Def binary"
 
 instance Binary Destructor where
@@ -356,8 +356,8 @@ instance Binary Main where
 instance Binary Node where
   put node =
     case node of
-      Define a b -> putWord8 0 >> put a >> put b
-      DefineTailFunc a b c -> putWord8 1 >> put a >> put b >> put c
+      Define a b c -> putWord8 0 >> put a >> put b >> put c
+      DefineTailFunc a b c d -> putWord8 1 >> put a >> put b >> put c >> put d
       Ctor a b -> putWord8 2 >> put a >> put b
       Enum a -> putWord8 3 >> put a
       Box -> putWord8 4
@@ -372,8 +372,8 @@ instance Binary Node where
     do
       word <- getWord8
       case word of
-        0 -> liftM2 Define get get
-        1 -> liftM3 DefineTailFunc get get get
+        0 -> liftM3 Define get get get
+        1 -> liftM4 DefineTailFunc get get get get
         2 -> liftM2 Ctor get get
         3 -> liftM Enum get
         4 -> return Box

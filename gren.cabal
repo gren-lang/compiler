@@ -150,6 +150,8 @@ Common gren-common
         Generate.JavaScript.Functions
         Generate.JavaScript.Name
         Generate.Mode
+        Generate.SourceMap
+        Generate.VLQ
         Nitpick.Debug
         Nitpick.PatternMatches
         Optimize.Case
@@ -222,7 +224,8 @@ Common gren-common
         utf8-string,
         vector,
         text >= 2 && < 3,
-        base64-bytestring >= 1.2 && < 2
+        base64-bytestring >= 1.2 && < 2,
+        indexed-traversable
 
 Executable gren
     Import:
@@ -253,6 +256,7 @@ Test-Suite gren-tests
         Helpers.Parse
 
         -- tests
+        Generate.VLQSpec
         Integration.FormatSpec
         Parse.AliasSpec
         Parse.RecordUpdateSpec

@@ -3,6 +3,7 @@
 
 module Generate.Html
   ( sandwich,
+    leadingLines,
   )
 where
 
@@ -10,7 +11,8 @@ import Data.ByteString.Builder qualified as B
 import Data.Name qualified as Name
 import Text.RawString.QQ (r)
 
--- SANDWICH
+leadingLines :: Int
+leadingLines = 2
 
 sandwich :: Name.Name -> B.Builder -> B.Builder
 sandwich moduleName javascript =

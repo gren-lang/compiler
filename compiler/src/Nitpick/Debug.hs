@@ -15,8 +15,8 @@ hasDebugUses (Opt.LocalGraph _ graph _) =
 nodeHasDebug :: Opt.Node -> Bool
 nodeHasDebug node =
   case node of
-    Opt.Define expr _ -> hasDebug expr
-    Opt.DefineTailFunc _ expr _ -> hasDebug expr
+    Opt.Define _ expr _ -> hasDebug expr
+    Opt.DefineTailFunc _ _ expr _ -> hasDebug expr
     Opt.Ctor _ _ -> False
     Opt.Enum _ -> False
     Opt.Box -> False
@@ -30,36 +30,36 @@ nodeHasDebug node =
 hasDebug :: Opt.Expr -> Bool
 hasDebug expression =
   case expression of
-    Opt.Bool _ -> False
-    Opt.Chr _ -> False
-    Opt.Str _ -> False
-    Opt.Int _ -> False
-    Opt.Float _ -> False
-    Opt.VarLocal _ -> False
-    Opt.VarGlobal _ -> False
-    Opt.VarEnum _ _ -> False
-    Opt.VarBox _ -> False
-    Opt.VarCycle _ _ -> False
+    Opt.Bool _ _ -> False
+    Opt.Chr _ _ -> False
+    Opt.Str _ _ -> False
+    Opt.Int _ _ -> False
+    Opt.Float _ _ -> False
+    Opt.VarLocal _ _ -> False
+    Opt.VarGlobal _ _ -> False
+    Opt.VarEnum _ _ _ -> False
+    Opt.VarBox _ _ -> False
+    Opt.VarCycle _ _ _ -> False
     Opt.VarDebug _ _ _ _ -> True
-    Opt.VarKernel _ _ -> False
-    Opt.Array exprs -> any hasDebug exprs
+    Opt.VarKernel _ _ _ -> False
+    Opt.Array _ exprs -> any hasDebug exprs
     Opt.Function _ expr -> hasDebug expr
-    Opt.Call e es -> hasDebug e || any hasDebug es
+    Opt.Call _ e es -> hasDebug e || any hasDebug es
     Opt.TailCall _ args -> any (hasDebug . snd) args
     Opt.If conds finally -> any (\(c, e) -> hasDebug c || hasDebug e) conds || hasDebug finally
     Opt.Let def body -> defHasDebug def || hasDebug body
     Opt.Destruct _ expr -> hasDebug expr
     Opt.Case _ _ d jumps -> deciderHasDebug d || any (hasDebug . snd) jumps
-    Opt.Accessor _ -> False
-    Opt.Access r _ -> hasDebug r
-    Opt.Update r fs -> hasDebug r || any hasDebug fs
-    Opt.Record fs -> any hasDebug fs
+    Opt.Accessor _ _ -> False
+    Opt.Access r _ _ -> hasDebug r
+    Opt.Update _ r fs -> hasDebug r || any hasDebug fs
+    Opt.Record _ fs -> any hasDebug fs
 
 defHasDebug :: Opt.Def -> Bool
 defHasDebug def =
   case def of
-    Opt.Def _ expr -> hasDebug expr
-    Opt.TailDef _ _ expr -> hasDebug expr
+    Opt.Def _ _ expr -> hasDebug expr
+    Opt.TailDef _ _ _ expr -> hasDebug expr
 
 deciderHasDebug :: Opt.Decider Opt.Choice -> Bool
 deciderHasDebug decider =
