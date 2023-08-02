@@ -1,5 +1,3 @@
-{-# LANGUAGE MagicHash #-}
-
 -- | This module is the "normalization" phase that transforms the raw source AST
 -- into an AST ready for rendering back into a text representation.
 --
@@ -25,13 +23,13 @@ normalize projectType module_ =
     }
 
 importSortKey :: ([Src.Comment], Src.Import) -> Name
-importSortKey (_, Src.Import name _ _ _ _) =
+importSortKey (_, Src.Import name _ _ _ _ _) =
   A.toValue name
 
 removeDefaultImports :: Parse.ProjectType -> ([Src.Comment], Src.Import) -> Maybe ([Src.Comment], Src.Import)
-removeDefaultImports projectType import_@(_, Src.Import name alias exposing _ _) =
+removeDefaultImports projectType import_@(_, Src.Import name _ alias exposing _ _) =
   case Map.lookup (A.toValue name) (defaultImports projectType) of
-    Just (Src.Import _ defAlias defExposing _ _) ->
+    Just (Src.Import _ _ defAlias defExposing _ _) ->
       if fmap fst alias == fmap fst defAlias && exposingEq exposing defExposing
         then Nothing
         else Just import_

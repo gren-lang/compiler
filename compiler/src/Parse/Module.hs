@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wall #-}
 -- Temporary while implementing gren format
 {-# OPTIONS_GHC -Wno-error=unused-do-bind #-}
@@ -411,7 +410,7 @@ chompImport =
       [ do
           Space.checkFreshLine E.ImportEnd
           let comments = SC.ImportComments commentsAfterImportKeyword commentsAfterName
-          return $ (Src.Import name Nothing (Src.Explicit []) Nothing comments, outdentedComments),
+          return (Src.Import name [] Nothing (Src.Explicit []) Nothing comments, outdentedComments),
         do
           Space.checkIndent end E.ImportEnd
           let comments = SC.ImportComments commentsAfterImportKeyword (commentsAfterName ++ outdentedComments)
@@ -436,7 +435,7 @@ chompAs name comments =
       [ do
           Space.checkFreshLine E.ImportEnd
           let aliasComments = SC.ImportAliasComments commentsAfterAs commentsAfterAliasName
-          return (Src.Import name (Just (alias, aliasComments)) (Src.Explicit []) Nothing comments, outdentedComments),
+          return (Src.Import name [] (Just (alias, aliasComments)) (Src.Explicit []) Nothing comments, outdentedComments),
         do
           Space.checkIndent end E.ImportEnd
           let aliasComments = SC.ImportAliasComments commentsAfterAs (commentsAfterAliasName <> outdentedComments)
@@ -452,7 +451,7 @@ chompExposing name maybeAlias comments =
     commentsAfterListing <- Space.chompIndentedMoreThan 1 E.ModuleSpace
     outdentedComments <- freshLine E.ImportEnd
     let exposingComments = SC.ImportExposingComments commentsAfterExposing commentsAfterListing
-    return (Src.Import name maybeAlias exposed (Just exposingComments) comments, outdentedComments)
+    return (Src.Import name [] maybeAlias exposed (Just exposingComments) comments, outdentedComments)
 
 -- LISTING
 

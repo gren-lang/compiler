@@ -259,6 +259,7 @@ Test-Suite gren-tests
         Generate.VLQSpec
         Integration.FormatSpec
         Parse.AliasSpec
+        Parse.ParameterizedModulesSpec
         Parse.RecordUpdateSpec
         Parse.SpaceSpec
         Parse.UnderscorePatternSpec

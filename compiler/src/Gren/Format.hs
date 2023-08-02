@@ -363,7 +363,7 @@ formatExposed = \case
   Src.Operator _ name -> Block.line $ Block.char7 '(' <> utf8 name <> Block.char7 ')'
 
 formatImport :: ([Src.Comment], Src.Import) -> Block
-formatImport (commentsBefore, Src.Import name alias exposing exposingComments comments) =
+formatImport (commentsBefore, Src.Import name _ alias exposing exposingComments comments) =
   let (SC.ImportComments commentsAfterKeyword commentsAfterName) = comments
    in Block.stack $
         NonEmpty.fromList $

@@ -1,5 +1,4 @@
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE EmptyDataDecls #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE UnboxedTuples #-}
 {-# OPTIONS_GHC -Wall #-}
@@ -219,7 +218,7 @@ toVarTable pkg foreigns imports =
   List.foldl' (addImport pkg foreigns) Map.empty imports
 
 addImport :: Pkg.Name -> Foreigns -> VarTable -> Src.Import -> VarTable
-addImport pkg foreigns vtable (Src.Import (A.At _ importName) maybeAlias exposing _ _) =
+addImport pkg foreigns vtable (Src.Import (A.At _ importName) _ maybeAlias exposing _ _) =
   if Name.isKernel importName
     then case maybeAlias of
       Just _ ->

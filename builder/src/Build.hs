@@ -418,7 +418,7 @@ checkDepsHelp root results deps new same cached importProblems isBlocked lastDep
           return $ DepsNotFound (NE.List p ps)
         [] ->
           if isBlocked
-            then return $ DepsBlock
+            then return DepsBlock
             else
               if null new && lastDepChange <= lastCompile
                 then return $ DepsSame same cached
@@ -443,7 +443,7 @@ toImportErrors (Env _ _ _ _ _ _ locals foreigns) results imports problems =
         Set.difference knownModules (Set.fromList (map (Src.getImportName . snd) imports))
 
       regionDict =
-        Map.fromList (map (\(_, Src.Import (A.At region name) _ _ _ _) -> (name, region)) imports)
+        Map.fromList (map (\(_, Src.Import (A.At region name) _ _ _ _ _) -> (name, region)) imports)
 
       toError (name, problem) =
         Import.Error (regionDict ! name) name unimportedModules problem
