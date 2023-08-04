@@ -6,6 +6,7 @@ module Reporting.Error.Syntax
     toReport,
     --
     Module (..),
+    Arguments (..),
     Exposing (..),
     --
     Decl (..),
@@ -92,6 +93,8 @@ data Module
   | --
     ImportStart Row Col
   | ImportName Row Col
+  | ImportArguments Row Col
+  | ImportArgumentsArray Arguments Row Col
   | ImportAs Row Col
   | ImportAlias Row Col
   | ImportExposing Row Col
@@ -105,6 +108,16 @@ data Module
     Infix Row Col
   | --
     Declarations Decl Row Col
+  deriving (Show)
+
+data Arguments
+  = ArgumentsSpace Space Row Col
+  | ArgumentsStart Row Col
+  | ArgumentsValue Row Col
+  | ArgumentsEnd Row Col
+  | --
+    ArgumentsIndentEnd Row Col
+  | ArgumentsIndentValue Row Col
   deriving (Show)
 
 data Exposing
@@ -832,6 +845,10 @@ toParseErrorReport source modul =
                     D.reflowLink "Read" "imports" "to learn more."
                   ]
               )
+    ImportArguments row col ->
+      toImportReport source row col
+    ImportArgumentsArray arguments row col ->
+      toArgumentsReport source arguments row col
     ImportAs row col ->
       toImportReport source row col
     ImportAlias row col ->
@@ -1109,6 +1126,123 @@ toImportReport source row col =
                 D.reflowLink "Read" "imports" "to learn more."
               ]
           )
+
+toArgumentsReport :: Code.Source -> Arguments -> Row -> Col -> Report.Report
+toArgumentsReport source arguments startRow startCol =
+  case arguments of
+    ArgumentsSpace space row col ->
+      toSpaceReport source space row col
+    ArgumentsStart row col ->
+      let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+          region = toRegion row col
+       in Report.Report "PROBLEM WITH MODULE ARGUMENTS" region [] $
+            Code.toSnippet
+              source
+              surroundings
+              (Just region)
+              ( D.reflow
+                  "I want to parse module arguments, but I am getting stuck here:",
+                D.stack
+                  [ D.fillSep
+                      [ "Module",
+                        "arguments",
+                        "are",
+                        "always",
+                        "surrounded",
+                        "by",
+                        "parentheses.",
+                        "So",
+                        "try",
+                        "adding",
+                        "a",
+                        D.green "(",
+                        "here?"
+                      ],
+                    D.toSimpleNote "Here is a valid example, for reference:",
+                    D.indent 4 $
+                      D.vcat
+                        [ D.fillSep [D.cyan "import", "Dict", D.cyan "(String)"]
+                        ]
+                  ]
+              )
+    ArgumentsValue row col ->
+      let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+          region = toRegion row col
+       in Report.Report "PROBLEM WITH MODULE ARGUMENTS" region [] $
+            Code.toSnippet
+              source
+              surroundings
+              (Just region)
+              ( D.reflow
+                  "I got stuck while parsing module arguments:",
+                D.stack
+                  [ D.reflow
+                      "I do not have an exact recommendation, so here are some valid examples, for reference",
+                    D.indent 4 $
+                      D.vcat
+                        [ D.fillSep [D.cyan "import", "Dict", "(String)"],
+                          D.fillSep [D.cyan "import", "Set", "(String)", D.cyan "as", "StringSet"]
+                        ],
+                    D.reflow
+                      "These examples show how to import parameterized modules. Every argument needs to be a module name."
+                  ]
+              )
+    ArgumentsEnd row col ->
+      let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+          region = toRegion row col
+       in Report.Report "UNFINISHED ARGUMENT LIST" region [] $
+            Code.toSnippet
+              source
+              surroundings
+              (Just region)
+              ( D.reflow
+                  "I was partway through parsing module arguments, but I got stuck here:",
+                D.reflow
+                  "Maybe there is a comma missing before this?"
+              )
+    ArgumentsIndentEnd row col ->
+      let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+          region = toRegion row col
+       in Report.Report "UNFINISHED ARGUMENT LIST" region [] $
+            Code.toSnippet
+              source
+              surroundings
+              (Just region)
+              ( D.reflow
+                  "I was partway through parsing module arguments, but I got stuck here:",
+                D.stack
+                  [ D.fillSep
+                      [ "I",
+                        "was",
+                        "expecting",
+                        "a",
+                        "closing",
+                        "parenthesis.",
+                        "Try",
+                        "adding",
+                        "a",
+                        D.green ")",
+                        "right",
+                        "here?"
+                      ],
+                    D.toSimpleNote
+                      "I can get confused when there is not enough indentation, so if you already\
+                      \ have a closing parenthesis, it probably just needs some spaces in front of it."
+                  ]
+              )
+    ArgumentsIndentValue row col ->
+      let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+          region = toRegion row col
+       in Report.Report "UNFINISHED ARGUMENT LIST" region [] $
+            Code.toSnippet
+              source
+              surroundings
+              (Just region)
+              ( D.reflow
+                  "I was partway through parsing module arguments, but I got stuck here:",
+                D.reflow
+                  "I was expecting another argument."
+              )
 
 -- EXPOSING
 

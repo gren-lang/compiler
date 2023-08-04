@@ -416,13 +416,34 @@ chompImport =
           let comments = SC.ImportComments commentsAfterImportKeyword (commentsAfterName ++ outdentedComments)
           oneOf
             E.ImportAs
-            [ chompAs name comments,
-              chompExposing name Nothing comments
+            [ chompArguments name comments,
+              chompAs name [] comments,
+              chompExposing name [] Nothing comments
             ]
       ]
 
-chompAs :: A.Located Name.Name -> SC.ImportComments -> Parser E.Module (Src.Import, [Src.Comment])
-chompAs name comments =
+chompArguments :: A.Located Name.Name -> SC.ImportComments -> Parser E.Module (Src.Import, [Src.Comment])
+chompArguments name comments =
+  do
+    args <- specialize E.ImportArgumentsArray arguments
+    end <- getPosition
+    outdentedComments <- Space.chomp E.ModuleSpace
+    oneOf
+      E.ImportEnd
+      [ do
+          Space.checkFreshLine E.ImportEnd
+          return (Src.Import name args Nothing (Src.Explicit []) Nothing comments, outdentedComments),
+        do
+          Space.checkIndent end E.ImportEnd
+          oneOf
+            E.ImportAs
+            [ chompAs name args comments,
+              chompExposing name args Nothing comments
+            ]
+      ]
+
+chompAs :: A.Located Name.Name -> [A.Located Name.Name] -> SC.ImportComments -> Parser E.Module (Src.Import, [Src.Comment])
+chompAs name args comments =
   do
     Keyword.as_ E.ImportAs
     commentsAfterAs <- Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentAlias
@@ -435,15 +456,15 @@ chompAs name comments =
       [ do
           Space.checkFreshLine E.ImportEnd
           let aliasComments = SC.ImportAliasComments commentsAfterAs commentsAfterAliasName
-          return (Src.Import name [] (Just (alias, aliasComments)) (Src.Explicit []) Nothing comments, outdentedComments),
+          return (Src.Import name args (Just (alias, aliasComments)) (Src.Explicit []) Nothing comments, outdentedComments),
         do
           Space.checkIndent end E.ImportEnd
           let aliasComments = SC.ImportAliasComments commentsAfterAs (commentsAfterAliasName <> outdentedComments)
-          chompExposing name (Just (alias, aliasComments)) comments
+          chompExposing name args (Just (alias, aliasComments)) comments
       ]
 
-chompExposing :: A.Located Name.Name -> Maybe (Name.Name, SC.ImportAliasComments) -> SC.ImportComments -> Parser E.Module (Src.Import, [Src.Comment])
-chompExposing name maybeAlias comments =
+chompExposing :: A.Located Name.Name -> [A.Located Name.Name] -> Maybe (Name.Name, SC.ImportAliasComments) -> SC.ImportComments -> Parser E.Module (Src.Import, [Src.Comment])
+chompExposing name args maybeAlias comments =
   do
     Keyword.exposing_ E.ImportExposing
     commentsAfterExposing <- Space.chompAndCheckIndent E.ModuleSpace E.ImportIndentExposingArray
@@ -451,9 +472,33 @@ chompExposing name maybeAlias comments =
     commentsAfterListing <- Space.chompIndentedMoreThan 1 E.ModuleSpace
     outdentedComments <- freshLine E.ImportEnd
     let exposingComments = SC.ImportExposingComments commentsAfterExposing commentsAfterListing
-    return (Src.Import name [] maybeAlias exposed (Just exposingComments) comments, outdentedComments)
+    return (Src.Import name args maybeAlias exposed (Just exposingComments) comments, outdentedComments)
 
 -- LISTING
+
+arguments :: Parser E.Arguments [A.Located Name.Name]
+arguments =
+  do
+    word1 0x28 {-(-} E.ArgumentsStart
+    Space.chompAndCheckIndent E.ArgumentsSpace E.ArgumentsIndentValue
+    firstArgument <- addLocation (Var.moduleName E.ArgumentsValue)
+    Space.chompAndCheckIndent E.ArgumentsSpace E.ArgumentsIndentEnd
+    argumentsHelp [firstArgument]
+
+argumentsHelp :: [A.Located Name.Name] -> Parser E.Arguments [A.Located Name.Name]
+argumentsHelp revArguments =
+  oneOf
+    E.ArgumentsEnd
+    [ do
+        word1 0x2C {-,-} E.ArgumentsEnd
+        Space.chompAndCheckIndent E.ArgumentsSpace E.ArgumentsIndentValue
+        argument <- addLocation (Var.moduleName E.ArgumentsValue)
+        Space.chompAndCheckIndent E.ArgumentsSpace E.ArgumentsIndentEnd
+        argumentsHelp (argument : revArguments),
+      do
+        word1 0x29 {-)-} E.ArgumentsEnd
+        return (reverse revArguments)
+    ]
 
 exposing :: Parser E.Exposing Src.Exposing
 exposing =

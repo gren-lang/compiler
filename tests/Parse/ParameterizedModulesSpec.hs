@@ -8,26 +8,29 @@ import Data.Name qualified as Name
 import Helpers.Instances ()
 import Parse.Module qualified as Module
 import Parse.Primitives qualified as P
-import Reporting.Error.Syntax qualified as Error.Syntax
 import Reporting.Annotation qualified as A
+import Reporting.Error.Syntax qualified as Error.Syntax
 import Test.Hspec (Spec, describe, it, shouldSatisfy)
 
 spec :: Spec
 spec = do
   describe "Parameterized modules" $ do
-    it "Imports can take a parameter" $
+    it "Imports can take arguments" $
       parse
         ["ModA"]
-        "import ParamModule(ModA)"
-    
-    it "Imports can take two parameters" $
+        "import ParamModule(ModA)\n"
+    it "Imports can take two arguments" $
       parse
         ["ModA", "ModB"]
-        "import ParamModule(ModA, ModB)"
-    it "Imports can take three parameters (and more)" $
+        "import ParamModule(ModA, ModB)\n"
+    it "Imports can take three arguments (and more)" $
       parse
         ["ModA", "ModB", "ModC"]
-        "import ParamModule(ModA, ModB, ModC)"
+        "import ParamModule(ModA, ModB, ModC)\n"
+    it "Imports can take a complex argument" $
+      parse
+        ["Some.Module"]
+        "import ParamModule(Some.Module)\n"
 
 parse :: [String] -> BS.ByteString -> IO ()
 parse expectedParams str =
