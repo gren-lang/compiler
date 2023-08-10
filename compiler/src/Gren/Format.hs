@@ -197,7 +197,7 @@ formatCommentBlockNonEmpty =
   spaceSeparatedOrStack . fmap formatComment
 
 formatModule :: Src.Module -> Block
-formatModule (Src.Module moduleName exports docs imports values unions aliases (commentsBeforeBinops, binops) topLevelComments comments effects) =
+formatModule (Src.Module moduleName _ exports docs imports values unions aliases (commentsBeforeBinops, binops) topLevelComments comments effects) =
   Block.stack $
     NonEmpty.fromList $
       catMaybes

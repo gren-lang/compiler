@@ -15,32 +15,56 @@ import Test.Hspec (Spec, describe, it, shouldSatisfy)
 spec :: Spec
 spec = do
   describe "Parameterized modules" $ do
-    it "Imports can take arguments" $
-      parse
-        ["ModA"]
-        "import ParamModule(ModA)\n"
-    it "Imports can take two arguments" $
-      parse
-        ["ModA", "ModB"]
-        "import ParamModule(ModA, ModB)\n"
-    it "Imports can take three arguments (and more)" $
-      parse
-        ["ModA", "ModB", "ModC"]
-        "import ParamModule(ModA, ModB, ModC)\n"
-    it "Imports can take a complex argument" $
-      parse
-        ["Some.Module"]
-        "import ParamModule(Some.Module)\n"
+    describe "Importing a parameterized module" $ do
+      it "Imports can take arguments" $
+        parseImport
+          ["ModA"]
+          "import ParamModule(ModA)\n"
+      it "Imports can take two arguments" $
+        parseImport
+          ["ModA", "ModB"]
+          "import ParamModule(ModA, ModB)\n"
+      it "Imports can take three arguments (and more)" $
+        parseImport
+          ["ModA", "ModB", "ModC"]
+          "import ParamModule(ModA, ModB, ModC)\n"
+      it "Imports can take a complex argument" $
+        parseImport
+          ["Some.Module"]
+          "import ParamModule(Some.Module)\n"
 
-parse :: [String] -> BS.ByteString -> IO ()
-parse expectedParams str =
+    describe "Defining parameterized module" $ do
+      it "Modules can take a parameter" $
+        parseModule
+          [("One", "SomeSignature")]
+          "module ParamModule(One : SomeSignature)\n"
+
+parseImport :: [String] -> BS.ByteString -> IO ()
+parseImport expectedArgs str =
   let checkResult result =
         case result of
-          Right (imp, _) ->
-            let params = map (Name.toChars . A.toValue) (Src._params imp)
-             in expectedParams == params
+          Right (import_, _) ->
+            let args = map localizedNameToString (Src._args import_)
+             in expectedArgs == args
           Left _ ->
             False
    in shouldSatisfy
         (P.fromByteString Module.chompImport Error.Syntax.ModuleBadEnd str)
         checkResult
+
+parseModule :: [(String, String)] -> BS.ByteString -> IO ()
+parseModule expectedParams str =
+  let checkResult result =
+        case result of
+          Right module_ ->
+            let params = map (\(alias, type_) -> (localizedNameToString alias, localizedNameToString type_)) (Src._params module_)
+             in expectedParams == params
+          Left _ ->
+            False
+   in shouldSatisfy
+        (Module.fromByteString Module.Application str)
+        checkResult
+
+localizedNameToString :: A.Located Name.Name -> String
+localizedNameToString localizedName =
+  Name.toChars $ A.toValue localizedName

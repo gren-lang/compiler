@@ -1,4 +1,3 @@
-{-# LANGUAGE EmptyDataDecls #-}
 {-# OPTIONS_GHC -Wall #-}
 
 module AST.Source
@@ -153,6 +152,7 @@ type SourceOrder = Int
 
 data Module = Module
   { _name :: Maybe (A.Located Name),
+    _params :: [(A.Located Name, A.Located Name)],
     _exports :: A.Located Exposing,
     _docs :: Docs,
     _imports :: [([Comment], Import)],
@@ -167,7 +167,7 @@ data Module = Module
   deriving (Show)
 
 getName :: Module -> Name
-getName (Module maybeName _ _ _ _ _ _ _ _ _ _) =
+getName (Module maybeName _ _ _ _ _ _ _ _ _ _ _) =
   case maybeName of
     Just (A.At _ name) ->
       name
@@ -180,7 +180,7 @@ getImportName (Import (A.At _ name) _ _ _ _ _) =
 
 data Import = Import
   { _import :: A.Located Name,
-    _params :: [A.Located Name],
+    _args :: [A.Located Name],
     _alias :: Maybe (Name, SC.ImportAliasComments),
     _exposing :: Exposing,
     _exposingComments :: Maybe SC.ImportExposingComments,
