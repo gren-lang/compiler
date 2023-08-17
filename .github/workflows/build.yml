@@ -85,7 +85,7 @@ jobs:
         retention-days: 14
 
   mac:
-    runs-on: lambdera-community-m1-gren
+    runs-on: lamdera-community-m1-gren
     needs: validate-code-formatting
 
     steps:
