@@ -88,8 +88,8 @@ checkModule :: ProjectType -> Module -> Either E.Error Src.Module
 checkModule projectType (Module maybeHeader imports infixes decls) =
   let (values, unions, aliases, ports, topLevelComments) = categorizeDecls [] [] [] [] [] 0 decls
    in case maybeHeader of
-        Just (Header name effects exports docs comments) ->
-          Src.Module (Just name) [] exports (toDocs docs decls) imports values unions aliases infixes topLevelComments comments
+        Just (Header name params effects exports docs comments) ->
+          Src.Module (Just name) params exports (toDocs docs decls) imports values unions aliases infixes topLevelComments comments
             <$> checkEffects projectType ports effects
         Nothing ->
           let comments = SC.HeaderComments [] [] [] [] [] []
@@ -218,7 +218,7 @@ chompInfixes infixes commentsBefore =
 
 -- MODULE DOC COMMENT
 
-chompModuleDocCommentSpace :: Parser E.Module ([Src.Comment], (Either A.Region Src.DocComment), [Src.Comment])
+chompModuleDocCommentSpace :: Parser E.Module ([Src.Comment], Either A.Region Src.DocComment, [Src.Comment])
 chompModuleDocCommentSpace =
   do
     (A.At region preComments) <- addLocation (freshLine E.FreshLine)
@@ -227,15 +227,16 @@ chompModuleDocCommentSpace =
           docComment <- Space.docComment E.ImportStart E.ModuleSpace
           postComments <- Space.chomp E.ModuleSpace
           Space.checkFreshLine E.FreshLine
-          return (preComments, (Right docComment), postComments)
+          return (preComments, Right docComment, postComments)
       ]
-      (preComments, (Left region), [])
+      (preComments, Left region, [])
 
 -- HEADER
 
 data Header
   = Header
       (A.Located Name.Name)
+      [(A.Located Name.Name, A.Located Name.Name)]
       Effects
       (A.Located Src.Exposing)
       (Either A.Region Src.DocComment)
@@ -266,7 +267,7 @@ chompHeader =
           let comments = SC.HeaderComments commentsBeforeModuleLine commentsAfterModuleKeyword commentsAfterModuleName commentsAfterExposingKeyword commentsBeforeDocComment commentsAfterDocComment
           return $
             Just $
-              Header name (NoEffects (A.Region start effectEnd)) exports docComment comments,
+              Header name [] (NoEffects (A.Region start effectEnd)) exports docComment comments,
         -- port module MyThing exposing (..)
         do
           Keyword.port_ E.PortModuleProblem
@@ -284,7 +285,7 @@ chompHeader =
           let portsComments = SC.PortsComments commentsAfterPortKeyword
           return $
             Just $
-              Header name (Ports (A.Region start effectEnd) portsComments) exports docComment comments,
+              Header name [] (Ports (A.Region start effectEnd) portsComments) exports docComment comments,
         -- effect module MyThing where { command = MyCmd } exposing (..)
         do
           Keyword.effect_ E.Effect
@@ -306,7 +307,7 @@ chompHeader =
           let managerComments = SC.ManagerComments commentsAfterEffectKeyword commentsAfterWhereKeyword (commentsAfterManager1 <> commentsAfterManager2)
           return $
             Just $
-              Header name (Manager (A.Region start effectEnd) manager managerComments) exports docComment comments
+              Header name [] (Manager (A.Region start effectEnd) manager managerComments) exports docComment comments
       ]
       -- default header
       Nothing
