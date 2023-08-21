@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 env:
-  ghc: "9.4.5"
+  ghc: "9.4.6"
   cabal: "3.8.1.0"
 
 jobs:
@@ -29,7 +29,7 @@ jobs:
     - uses: actions/checkout@v3
 
     - name: Install GHCup
-      run: curl https://downloads.haskell.org/~ghcup/0.1.19.0/x86_64-linux-ghcup-0.1.19.0 -o /usr/local/bin/ghcup && chmod a+x /usr/local/bin/ghcup
+      run: curl https://downloads.haskell.org/~ghcup/0.1.19.4/x86_64-linux-ghcup-0.1.19.4 -o /usr/local/bin/ghcup && chmod a+x /usr/local/bin/ghcup
 
     - name: Cache ghcup
       uses: actions/cache@v3
