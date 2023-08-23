@@ -38,6 +38,19 @@ spec = do
         parseModule
           [("One", "SomeSignature")]
           "module ParamModule(One : SomeSignature) exposing (..)"
+      it "Parameter names cannot contain dots" $
+        parseModuleFails
+          "module ParamModule(One.Two : SomeSignature) exposing (..)"
+      it "Parameter signatures are actual module names" $
+        parseModule
+          [("One", "Some.Long.Signature")]
+          "module ParamModule(One : Some.Long.Signature) exposing (..)"
+      it "Modules can take multiple parameters" $
+        parseModule
+          [ ("One", "Signature"),
+            ("Two", "Signature")
+          ]
+          "module ParamModule(One : Signature, Two : Signature) exposing (..)"
 
 parseImport :: [String] -> BS.ByteString -> IO ()
 parseImport expectedArgs str =
@@ -71,3 +84,14 @@ parseModule expectedParams str =
 localizedNameToString :: A.Located Name.Name -> String
 localizedNameToString localizedName =
   Name.toChars $ A.toValue localizedName
+
+parseModuleFails :: BS.ByteString -> IO ()
+parseModuleFails str =
+  let checkResult result =
+        case result of
+          Right _ -> False
+          Left _ -> True
+      validModuleStr = str <> "\n\none = 1"
+   in shouldSatisfy
+        (Module.fromByteString Module.Application validModuleStr)
+        checkResult

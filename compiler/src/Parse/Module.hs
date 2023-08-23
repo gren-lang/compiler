@@ -535,7 +535,7 @@ moduleParameter :: Parser E.ModuleParameters (A.Located Name.Name, A.Located Nam
 moduleParameter =
   do
     Space.chompAndCheckIndent E.ModuleParametersSpace E.ModuleParametersIndentValue
-    parameterName <- addLocation (Var.moduleName E.ModuleParametersName)
+    parameterName <- addLocation (Var.upper E.ModuleParametersName)
     Space.chompAndCheckIndent E.ModuleParametersSpace E.ModuleParametersIndentValue
     word1 0x3A {-:-} E.ModuleParametersColon
     Space.chompAndCheckIndent E.ModuleParametersSpace E.ModuleParametersIndentValue
