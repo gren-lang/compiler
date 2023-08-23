@@ -19,25 +19,25 @@ spec = do
       it "Imports can take arguments" $
         parseImport
           ["ModA"]
-          "import ParamModule(ModA)\n"
+          "import ParamModule(ModA)"
       it "Imports can take two arguments" $
         parseImport
           ["ModA", "ModB"]
-          "import ParamModule(ModA, ModB)\n"
+          "import ParamModule(ModA, ModB)"
       it "Imports can take three arguments (and more)" $
         parseImport
           ["ModA", "ModB", "ModC"]
-          "import ParamModule(ModA, ModB, ModC)\n"
+          "import ParamModule(ModA, ModB, ModC)"
       it "Imports can take a complex argument" $
         parseImport
           ["Some.Module"]
-          "import ParamModule(Some.Module)\n"
+          "import ParamModule(Some.Module)"
 
     describe "Defining parameterized module" $ do
       it "Modules can take a parameter" $
         parseModule
           [("One", "SomeSignature")]
-          "module ParamModule(One : SomeSignature)\n"
+          "module ParamModule(One : SomeSignature) exposing (..)"
 
 parseImport :: [String] -> BS.ByteString -> IO ()
 parseImport expectedArgs str =
@@ -48,8 +48,10 @@ parseImport expectedArgs str =
              in expectedArgs == args
           Left _ ->
             False
+
+      strWithNewline = str <> "\n"
    in shouldSatisfy
-        (P.fromByteString Module.chompImport Error.Syntax.ModuleBadEnd str)
+        (P.fromByteString Module.chompImport Error.Syntax.ModuleBadEnd strWithNewline)
         checkResult
 
 parseModule :: [(String, String)] -> BS.ByteString -> IO ()
@@ -61,8 +63,9 @@ parseModule expectedParams str =
              in expectedParams == params
           Left _ ->
             False
+      validModuleStr = str <> "\n\none = 1"
    in shouldSatisfy
-        (Module.fromByteString Module.Application str)
+        (Module.fromByteString Module.Application validModuleStr)
         checkResult
 
 localizedNameToString :: A.Located Name.Name -> String

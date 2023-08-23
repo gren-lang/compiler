@@ -253,13 +253,15 @@ chompHeader =
     commentsBeforeModuleLine <- freshLine E.FreshLine
     start <- getPosition
     oneOfWithFallback
-      [ -- module MyThing exposing (..)
+      [ -- module MyThing (..) exposing (..)
         do
           Keyword.module_ E.ModuleProblem
           effectEnd <- getPosition
           commentsAfterModuleKeyword <- Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem
           name <- addLocation (Var.moduleName E.ModuleName)
           commentsAfterModuleName <- Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem
+          params <- specialize E.ModuleParameters parameters
+          _commentsAfterParameters <- Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem
           Keyword.exposing_ E.ModuleProblem
           commentsAfterExposingKeyword <- Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem
           exports <- addLocation (specialize E.ModuleExposing exposing)
@@ -267,8 +269,8 @@ chompHeader =
           let comments = SC.HeaderComments commentsBeforeModuleLine commentsAfterModuleKeyword commentsAfterModuleName commentsAfterExposingKeyword commentsBeforeDocComment commentsAfterDocComment
           return $
             Just $
-              Header name [] (NoEffects (A.Region start effectEnd)) exports docComment comments,
-        -- port module MyThing exposing (..)
+              Header name params (NoEffects (A.Region start effectEnd)) exports docComment comments,
+        -- port module MyThing (..) exposing (..)
         do
           Keyword.port_ E.PortModuleProblem
           commentsAfterPortKeyword <- Space.chompAndCheckIndent E.ModuleSpace E.PortModuleProblem
@@ -277,6 +279,8 @@ chompHeader =
           commentsAfterModuleKeyword <- Space.chompAndCheckIndent E.ModuleSpace E.PortModuleProblem
           name <- addLocation (Var.moduleName E.PortModuleName)
           commentsAfterModuleName <- Space.chompAndCheckIndent E.ModuleSpace E.PortModuleProblem
+          params <- specialize E.ModuleParameters parameters
+          _commentsAfterParameters <- Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem
           Keyword.exposing_ E.PortModuleProblem
           commentsAfterExposingKeyword <- Space.chompAndCheckIndent E.ModuleSpace E.PortModuleProblem
           exports <- addLocation (specialize E.PortModuleExposing exposing)
@@ -285,8 +289,8 @@ chompHeader =
           let portsComments = SC.PortsComments commentsAfterPortKeyword
           return $
             Just $
-              Header name [] (Ports (A.Region start effectEnd) portsComments) exports docComment comments,
-        -- effect module MyThing where { command = MyCmd } exposing (..)
+              Header name params (Ports (A.Region start effectEnd) portsComments) exports docComment comments,
+        -- effect module MyThing (..) where { command = MyCmd } exposing (..)
         do
           Keyword.effect_ E.Effect
           commentsAfterEffectKeyword <- Space.chompAndCheckIndent E.ModuleSpace E.Effect
@@ -295,6 +299,8 @@ chompHeader =
           commentsAfterModuleKeyword <- Space.chompAndCheckIndent E.ModuleSpace E.Effect
           name <- addLocation (Var.moduleName E.ModuleName)
           commentsAfterModuleName <- Space.chompAndCheckIndent E.ModuleSpace E.Effect
+          params <- specialize E.ModuleParameters parameters
+          _commentsAfterParameters <- Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem
           Keyword.where_ E.Effect
           commentsAfterWhereKeyword <- Space.chompAndCheckIndent E.ModuleSpace E.Effect
           (manager, commentsAfterManager1) <- chompManager
@@ -307,7 +313,7 @@ chompHeader =
           let managerComments = SC.ManagerComments commentsAfterEffectKeyword commentsAfterWhereKeyword (commentsAfterManager1 <> commentsAfterManager2)
           return $
             Just $
-              Header name [] (Manager (A.Region start effectEnd) manager managerComments) exports docComment comments
+              Header name params (Manager (A.Region start effectEnd) manager managerComments) exports docComment comments
       ]
       -- default header
       Nothing
@@ -500,6 +506,42 @@ argumentsHelp revArguments =
         word1 0x29 {-)-} E.ArgumentsEnd
         return (reverse revArguments)
     ]
+
+parameters :: Parser E.ModuleParameters [(A.Located Name.Name, A.Located Name.Name)]
+parameters =
+  oneOf
+    E.ModuleParametersEnd
+    [ do
+        word1 0x28 {-(-} E.ModuleParametersStart
+        firstParameter <- moduleParameter
+        parametersHelp [firstParameter],
+      return []
+    ]
+
+parametersHelp :: [(A.Located Name.Name, A.Located Name.Name)] -> Parser E.ModuleParameters [(A.Located Name.Name, A.Located Name.Name)]
+parametersHelp revParams =
+  oneOf
+    E.ModuleParametersEnd
+    [ do
+        word1 0x2C {-,-} E.ModuleParametersEnd
+        param <- moduleParameter
+        parametersHelp (param : revParams),
+      do
+        word1 0x29 {-)-} E.ModuleParametersEnd
+        return (reverse revParams)
+    ]
+
+moduleParameter :: Parser E.ModuleParameters (A.Located Name.Name, A.Located Name.Name)
+moduleParameter =
+  do
+    Space.chompAndCheckIndent E.ModuleParametersSpace E.ModuleParametersIndentValue
+    parameterName <- addLocation (Var.moduleName E.ModuleParametersName)
+    Space.chompAndCheckIndent E.ModuleParametersSpace E.ModuleParametersIndentValue
+    word1 0x3A {-:-} E.ModuleParametersColon
+    Space.chompAndCheckIndent E.ModuleParametersSpace E.ModuleParametersIndentValue
+    parameterSignature <- addLocation (Var.moduleName E.ModuleParametersSignature)
+    Space.chompAndCheckIndent E.ModuleParametersSpace E.ModuleParametersIndentValue
+    return (parameterName, parameterSignature)
 
 exposing :: Parser E.Exposing Src.Exposing
 exposing =

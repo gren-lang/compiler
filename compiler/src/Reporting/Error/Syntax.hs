@@ -7,6 +7,7 @@ module Reporting.Error.Syntax
     --
     Module (..),
     Arguments (..),
+    ModuleParameters (..),
     Exposing (..),
     --
     Decl (..),
@@ -81,10 +82,12 @@ data Module
   | --
     ModuleProblem Row Col
   | ModuleName Row Col
+  | ModuleParameters ModuleParameters Row Col
   | ModuleExposing Exposing Row Col
   | --
     PortModuleProblem Row Col
   | PortModuleName Row Col
+  | PortModuleParameters ModuleParameters Row Col
   | PortModuleExposing Exposing Row Col
   | --
     Effect Row Col
@@ -132,6 +135,18 @@ data Exposing
   | --
     ExposingIndentEnd Row Col
   | ExposingIndentValue Row Col
+  deriving (Show)
+
+data ModuleParameters
+  = ModuleParametersSpace Space Row Col
+  | ModuleParametersStart Row Col
+  | ModuleParametersName Row Col
+  | ModuleParametersColon Row Col
+  | ModuleParametersSignature Row Col
+  | ModuleParametersEnd Row Col
+  | --
+    ModuleParametersIndentEnd Row Col
+  | ModuleParametersIndentValue Row Col
   deriving (Show)
 
 -- DECLARATIONS
@@ -716,6 +731,8 @@ toParseErrorReport source modul =
                       "Notice that the module names all start with capital letters. That is required!"
                   ]
               )
+    ModuleParameters parameters row col ->
+      toModuleParametersReport source parameters row col
     ModuleExposing exposing row col ->
       toExposingReport source exposing row col
     PortModuleProblem row col ->
@@ -759,6 +776,8 @@ toParseErrorReport source modul =
                       "Notice that the module names start with capital letters. That is required!"
                   ]
               )
+    PortModuleParameters parameters row col ->
+      toModuleParametersReport source parameters row col
     PortModuleExposing exposing row col ->
       toExposingReport source exposing row col
     Effect row col ->
@@ -1242,6 +1261,156 @@ toArgumentsReport source arguments startRow startCol =
                   "I was partway through parsing module arguments, but I got stuck here:",
                 D.reflow
                   "I was expecting another argument."
+              )
+
+-- MODULE PARAMETERS
+
+toModuleParametersReport :: Code.Source -> ModuleParameters -> Row -> Col -> Report.Report
+toModuleParametersReport source parameters startRow startCol =
+  case parameters of
+    ModuleParametersSpace space row col ->
+      toSpaceReport source space row col
+    ModuleParametersStart row col ->
+      let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+          region = toRegion row col
+       in Report.Report "PROBLEM WITH MODULE PARAMETERS" region [] $
+            Code.toSnippet
+              source
+              surroundings
+              (Just region)
+              ( D.reflow
+                  "I want to parse module parameters, but I am getting stuck here:",
+                D.stack
+                  [ D.fillSep
+                      [ "Module",
+                        "parameters",
+                        "are",
+                        "always",
+                        "surrounded",
+                        "by",
+                        "parentheses.",
+                        "So",
+                        "try",
+                        "adding",
+                        "a",
+                        D.green "(",
+                        "here?"
+                      ],
+                    D.toSimpleNote "Here is a valid example, for reference:",
+                    D.indent 4 $
+                      D.vcat
+                        [ D.fillSep [D.cyan "module", "Dict", D.cyan "(Key : Comparable)", "exposing", "(..)"]
+                        ]
+                  ]
+              )
+    ModuleParametersName row col ->
+      let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+          region = toRegion row col
+       in Report.Report "PROBLEM WITH MODULE PARAMETERS" region [] $
+            Code.toSnippet
+              source
+              surroundings
+              (Just region)
+              ( D.reflow
+                  "I got stuck while parsing module parameters:",
+                D.stack
+                  [ D.toSimpleNote "Here is a valid example, for reference:",
+                    D.indent 4 $
+                      D.vcat
+                        [ D.fillSep [D.cyan "module", "Dict", D.cyan "(Key : Comparable)", "exposing", "(..)"]
+                        ],
+                    D.reflow
+                      "This example shows how to define a module that takes a single parameter, named Key. The parameter name must start with an upper case letter."
+                  ]
+              )
+    ModuleParametersColon row col ->
+      let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+          region = toRegion row col
+       in Report.Report "PROBLEM WITH MODULE PARAMETERS" region [] $
+            Code.toSnippet
+              source
+              surroundings
+              (Just region)
+              ( D.reflow
+                  "I was partway through parsing module parameters, but I got stuck here:",
+                D.reflow
+                  "I was expecting a colon (:) here."
+              )
+    ModuleParametersSignature row col ->
+      let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+          region = toRegion row col
+       in Report.Report "PROBLEM WITH MODULE PARAMETERS" region [] $
+            Code.toSnippet
+              source
+              surroundings
+              (Just region)
+              ( D.reflow
+                  "I got stuck while parsing module parameters:",
+                D.stack
+                  [ D.toSimpleNote "Here is a valid example, for reference:",
+                    D.indent 4 $
+                      D.vcat
+                        [ D.fillSep [D.cyan "module", "Dict", D.cyan "(Key : Comparable)", "exposing", "(..)"]
+                        ],
+                    D.reflow
+                      "This example shows how to define a module that takes a single parameter, that matches the Comparable signature. The signature name must be a valid module name."
+                  ]
+              )
+    ModuleParametersEnd row col ->
+      let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+          region = toRegion row col
+       in Report.Report "UNFINISHED PARAMETER LIST" region [] $
+            Code.toSnippet
+              source
+              surroundings
+              (Just region)
+              ( D.reflow
+                  "I was partway through parsing module parameters, but I got stuck here:",
+                D.reflow
+                  "Maybe there is a comma missing before this?"
+              )
+    ModuleParametersIndentEnd row col ->
+      let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+          region = toRegion row col
+       in Report.Report "UNFINISHED PARAMETER LIST" region [] $
+            Code.toSnippet
+              source
+              surroundings
+              (Just region)
+              ( D.reflow
+                  "I was partway through parsing module parameters, but I got stuck here:",
+                D.stack
+                  [ D.fillSep
+                      [ "I",
+                        "was",
+                        "expecting",
+                        "a",
+                        "closing",
+                        "parenthesis.",
+                        "Try",
+                        "adding",
+                        "a",
+                        D.green ")",
+                        "right",
+                        "here?"
+                      ],
+                    D.toSimpleNote
+                      "I can get confused when there is not enough indentation, so if you already\
+                      \ have a closing parenthesis, it probably just needs some spaces in front of it."
+                  ]
+              )
+    ModuleParametersIndentValue row col ->
+      let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
+          region = toRegion row col
+       in Report.Report "UNFINISHED PARAMETER LIST" region [] $
+            Code.toSnippet
+              source
+              surroundings
+              (Just region)
+              ( D.reflow
+                  "I was partway through parsing module parameters, but I got stuck here:",
+                D.reflow
+                  "I was expecting another parameter."
               )
 
 -- EXPOSING
