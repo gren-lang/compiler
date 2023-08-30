@@ -52,6 +52,11 @@ spec = do
           ]
           "module ParamModule(One : Signature, Two : Signature) exposing (..)"
 
+    describe "Defining a module signature" $ do
+      it "Signature with single type alias (simplest module)" $
+        parseModuleSignature
+          "signature module Comparable\n\ntype alias T"
+
 parseImport :: [String] -> BS.ByteString -> IO ()
 parseImport expectedArgs str =
   let checkResult result =
@@ -92,6 +97,19 @@ parseModuleFails str =
           Right _ -> False
           Left _ -> True
       validModuleStr = str <> "\n\none = 1"
+   in shouldSatisfy
+        (Module.fromByteString Module.Application validModuleStr)
+        checkResult
+
+parseModuleSignature :: BS.ByteString -> IO ()
+parseModuleSignature str =
+  let checkResult result =
+        case result of
+          Right _ ->
+            True
+          Left _ ->
+            False
+      validModuleStr = str <> "\n"
    in shouldSatisfy
         (Module.fromByteString Module.Application validModuleStr)
         checkResult

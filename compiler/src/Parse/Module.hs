@@ -246,6 +246,7 @@ data Effects
   = NoEffects A.Region
   | Ports A.Region SC.PortsComments
   | Manager A.Region Src.Manager SC.ManagerComments
+  | Signature A.Region
 
 chompHeader :: Parser E.Module (Maybe Header)
 chompHeader =
@@ -261,7 +262,7 @@ chompHeader =
           name <- addLocation (Var.moduleName E.ModuleName)
           commentsAfterModuleName <- Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem
           params <- specialize E.ModuleParameters parameters
-          _commentsAfterParameters <- Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem
+          Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem
           Keyword.exposing_ E.ModuleProblem
           commentsAfterExposingKeyword <- Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem
           exports <- addLocation (specialize E.ModuleExposing exposing)
@@ -280,7 +281,7 @@ chompHeader =
           name <- addLocation (Var.moduleName E.PortModuleName)
           commentsAfterModuleName <- Space.chompAndCheckIndent E.ModuleSpace E.PortModuleProblem
           params <- specialize E.ModuleParameters parameters
-          _commentsAfterParameters <- Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem
+          Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem
           Keyword.exposing_ E.PortModuleProblem
           commentsAfterExposingKeyword <- Space.chompAndCheckIndent E.ModuleSpace E.PortModuleProblem
           exports <- addLocation (specialize E.PortModuleExposing exposing)
@@ -290,6 +291,19 @@ chompHeader =
           return $
             Just $
               Header name params (Ports (A.Region start effectEnd) portsComments) exports docComment comments,
+        -- signature module MyThing
+        do
+          Keyword.signature_ E.ModuleProblem
+          Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem
+          Keyword.module_ E.ModuleProblem
+          effectEnd <- getPosition
+          commentsAfterModuleKeyword <- Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem
+          name <- addLocation (Var.moduleName E.ModuleName)
+          (commentsBeforeDocComment, docComment, commentsAfterDocComment) <- chompModuleDocCommentSpace
+          let comments = SC.HeaderComments commentsBeforeModuleLine commentsAfterModuleKeyword [] [] commentsBeforeDocComment commentsAfterDocComment
+          return $
+            Just $
+              Header name [] (Signature (A.Region start effectEnd)) (A.At A.one Src.Open) docComment comments,
         -- effect module MyThing (..) where { command = MyCmd } exposing (..)
         do
           Keyword.effect_ E.Effect
@@ -300,7 +314,7 @@ chompHeader =
           name <- addLocation (Var.moduleName E.ModuleName)
           commentsAfterModuleName <- Space.chompAndCheckIndent E.ModuleSpace E.Effect
           params <- specialize E.ModuleParameters parameters
-          _commentsAfterParameters <- Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem
+          Space.chompAndCheckIndent E.ModuleSpace E.ModuleProblem
           Keyword.where_ E.Effect
           commentsAfterWhereKeyword <- Space.chompAndCheckIndent E.ModuleSpace E.Effect
           (manager, commentsAfterManager1) <- chompManager

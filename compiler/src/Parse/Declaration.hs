@@ -37,6 +37,7 @@ data Decl
   = Value (Maybe Src.DocComment) (A.Located Src.Value)
   | Union (Maybe Src.DocComment) (A.Located Src.Union)
   | Alias (Maybe Src.DocComment) (A.Located Src.Alias)
+  | AliasConstraint (Maybe Src.DocComment) (A.Located Name.Name)
   | Port (Maybe Src.DocComment) Src.Port
   | TopLevelComments (NonEmpty Src.Comment)
   deriving (Show)
@@ -138,10 +139,19 @@ typeDecl maybeDocs start =
             do
               -- TODO: use commentsAfterTypeKeyword
               Space.chompAndCheckIndent E.AliasSpace E.AliasIndentEquals
-              (name, args) <- chompAliasNameToEquals
-              ((tipe, commentsAfterTipe), end) <- specialize E.AliasBody Type.expression
-              let alias = A.at start end (Src.Alias name args tipe)
-              return ((Alias maybeDocs alias, commentsAfterTipe), end),
+              name <- addLocation (Var.upper E.AliasName)
+              Space.chompAndCheckIndent E.AliasSpace E.AliasIndentEquals
+              oneOf
+                E.AliasEquals
+                [ do
+                    args <- chompAliasArgsToEquals []
+                    ((tipe, commentsAfterTipe), end) <- specialize E.AliasBody Type.expression
+                    let alias = A.at start end (Src.Alias name args tipe)
+                    return ((Alias maybeDocs alias, commentsAfterTipe), end),
+                  do
+                    end <- getPosition
+                    return ((AliasConstraint maybeDocs name, []), end)
+                ],
           specialize E.DT_Union $
             do
               (name, args, commentsAfterArgs, commentsAfterEquals) <- chompCustomNameToEquals
@@ -155,25 +165,18 @@ typeDecl maybeDocs start =
 
 -- TYPE ALIASES
 
-chompAliasNameToEquals :: Parser E.TypeAlias (A.Located Name.Name, [A.Located Name.Name])
-chompAliasNameToEquals =
-  do
-    name <- addLocation (Var.upper E.AliasName)
-    Space.chompAndCheckIndent E.AliasSpace E.AliasIndentEquals
-    chompAliasNameToEqualsHelp name []
-
-chompAliasNameToEqualsHelp :: A.Located Name.Name -> [A.Located Name.Name] -> Parser E.TypeAlias (A.Located Name.Name, [A.Located Name.Name])
-chompAliasNameToEqualsHelp name args =
+chompAliasArgsToEquals :: [A.Located Name.Name] -> Parser E.TypeAlias [A.Located Name.Name]
+chompAliasArgsToEquals args =
   oneOf
     E.AliasEquals
     [ do
         arg <- addLocation (Var.lower E.AliasEquals)
         Space.chompAndCheckIndent E.AliasSpace E.AliasIndentEquals
-        chompAliasNameToEqualsHelp name (arg : args),
+        chompAliasArgsToEquals (arg : args),
       do
         word1 0x3D {-=-} E.AliasEquals
         Space.chompAndCheckIndent E.AliasSpace E.AliasIndentBody
-        return (name, reverse args)
+        return (reverse args)
     ]
 
 -- CUSTOM TYPES
