@@ -140,10 +140,12 @@ typeDecl maybeDocs start =
               -- TODO: use commentsAfterTypeKeyword
               Space.chompAndCheckIndent E.AliasSpace E.AliasIndentEquals
               name <- addLocation (Var.upper E.AliasName)
-              Space.chompAndCheckIndent E.AliasSpace E.AliasIndentEquals
+              Space.chomp E.AliasSpace
               oneOf
                 E.AliasEquals
                 [ do
+                    currentPos <- getPosition
+                    Space.checkIndent currentPos E.AliasIndentEquals
                     args <- chompAliasArgsToEquals []
                     ((tipe, commentsAfterTipe), end) <- specialize E.AliasBody Type.expression
                     let alias = A.at start end (Src.Alias name args tipe)
