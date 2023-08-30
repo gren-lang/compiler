@@ -72,6 +72,7 @@ import Json.Encode ((==>))
 import Json.Encode qualified as E
 import Json.String qualified as Json
 import System.Console.ANSI.Types qualified as Ansi
+import System.Environment qualified
 import System.IO (Handle)
 import System.Info qualified as Info
 import Text.PrettyPrint.ANSI.Leijen qualified as P
@@ -102,8 +103,16 @@ fromInt n =
 -- TO STRING
 
 toAnsi :: Handle -> P.Doc -> IO ()
-toAnsi handle doc =
-  P.displayIO handle (P.renderPretty 1 80 doc)
+toAnsi handle doc = do
+  docOutput <- maybeRemoveDocColors doc
+  P.displayIO handle (P.renderPretty 1 80 docOutput)
+
+maybeRemoveDocColors :: P.Doc -> IO P.Doc
+maybeRemoveDocColors doc = do
+  noColorEnv <- System.Environment.lookupEnv "NO_COLOR"
+  pure $ case noColorEnv of
+    Just noColor | noColor /= "" -> P.plain doc
+    _ -> doc
 
 toString :: P.Doc -> String
 toString doc =
