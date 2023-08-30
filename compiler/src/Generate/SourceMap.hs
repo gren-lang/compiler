@@ -165,7 +165,7 @@ emptyOrderedListBuilder =
       _ab_values = Map.empty
     }
 
-insertIntoOrderedListBuilder :: Ord a => a -> OrderedListBuilder a -> OrderedListBuilder a
+insertIntoOrderedListBuilder :: (Ord a) => a -> OrderedListBuilder a -> OrderedListBuilder a
 insertIntoOrderedListBuilder value builder@(OrderedListBuilder nextIndex values) =
   case Map.lookup value values of
     Just _ ->
@@ -176,7 +176,7 @@ insertIntoOrderedListBuilder value builder@(OrderedListBuilder nextIndex values)
           _ab_values = Map.insert value nextIndex values
         }
 
-lookupIndexOrderedListBuilder :: Ord a => a -> OrderedListBuilder a -> Maybe Int
+lookupIndexOrderedListBuilder :: (Ord a) => a -> OrderedListBuilder a -> Maybe Int
 lookupIndexOrderedListBuilder value (OrderedListBuilder _ values) =
   Map.lookup value values
 

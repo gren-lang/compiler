@@ -55,7 +55,7 @@ install =
               "For example, if you want to get access to Web APIs in your project, you would say:",
             P.indent 4 $
               P.green $
-                P.vcat $
+                P.vcat
                   [ "gren package install gren-lang/browser"
                   ],
             reflow
@@ -91,7 +91,7 @@ uninstall =
               \ you would say:",
             P.indent 4 $
               P.green $
-                P.vcat $
+                P.vcat
                   [ "gren package uninstall gren-lang/browser"
                   ],
             reflow
@@ -124,7 +124,7 @@ outdated =
               \ you would say:",
             P.indent 4 $
               P.green $
-                P.vcat $
+                P.vcat
                   [ "gren package outdated"
                   ]
           ]
@@ -179,7 +179,11 @@ bump =
           \ I will compare the published API to what you have locally, figure out that\
           \ it is a MAJOR change, and bump your version number to 2.0.0. I do this with\
           \ all packages, so there cannot be MAJOR changes hiding in PATCH releases in Gren!"
-   in Terminal.Command "bump" Uncommon details example noArgs noFlags Bump.run
+
+      bumpFlags =
+        flags Bump.Flags
+          |-- onOff "yes" "Assume yes for all interactive prompts."
+   in Terminal.Command "bump" Uncommon details example noArgs bumpFlags Bump.run
 
 -- DIFF
 
@@ -193,7 +197,7 @@ diff =
           [ reflow
               "For example, to see what changed in the Browser package between\
               \ versions 1.0.0 and 2.0.0, you can say:",
-            P.indent 4 $ P.green $ "gren package diff gren-lang/browser 1.0.0 2.0.0",
+            P.indent 4 $ P.green "gren package diff gren-lang/browser 1.0.0 2.0.0",
             reflow
               "Sometimes a MAJOR change is not actually very big, so\
               \ this can help you plan your upgrade timelines."

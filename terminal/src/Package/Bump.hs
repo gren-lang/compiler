@@ -2,6 +2,7 @@
 
 module Package.Bump
   ( run,
+    Flags (Flags),
   )
 where
 
@@ -26,10 +27,13 @@ import Reporting.Task qualified as Task
 
 -- RUN
 
-run :: () -> () -> IO ()
-run () () =
+newtype Flags = Flags
+  {_skipPrompts :: Bool}
+
+run :: () -> Flags -> IO ()
+run () flags =
   Reporting.attempt Exit.bumpToReport $
-    Task.run (bump =<< getEnv)
+    Task.run (bump flags =<< getEnv)
 
 -- ENV
 
@@ -58,8 +62,8 @@ getEnv =
 
 -- BUMP
 
-bump :: Env -> Task.Task Exit.Bump ()
-bump env@(Env root _ outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _)) =
+bump :: Flags -> Env -> Task.Task Exit.Bump ()
+bump flags env@(Env root _ outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _)) =
   Task.eio id $
     do
       versionResult <- Package.getVersions pkg
@@ -68,7 +72,7 @@ bump env@(Env root _ outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _)) =
           let bumpableVersions =
                 map (\(old, _, _) -> old) (Package.bumpPossibilities knownVersions)
            in if elem vsn bumpableVersions
-                then Task.run $ suggestVersion env
+                then Task.run $ suggestVersion flags env
                 else do
                   return $
                     Left $
@@ -76,19 +80,19 @@ bump env@(Env root _ outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _)) =
                         map head (List.group (List.sort bumpableVersions))
         Left _ ->
           do
-            checkNewPackage root outline
+            checkNewPackage flags root outline
             return $ Right ()
 
 -- CHECK NEW PACKAGE
 
-checkNewPackage :: FilePath -> Outline.PkgOutline -> IO ()
-checkNewPackage root outline@(Outline.PkgOutline _ _ _ version _ _ _ _) =
+checkNewPackage :: Flags -> FilePath -> Outline.PkgOutline -> IO ()
+checkNewPackage flags root outline@(Outline.PkgOutline _ _ _ version _ _ _ _) =
   do
     putStrLn Exit.newPackageOverview
     if version == V.one
       then putStrLn "The version number in gren.json is correct so you are all set!"
       else
-        changeVersion root outline V.one $
+        changeVersion flags root outline V.one $
           "It looks like the version in gren.json has been changed though!\n\
           \Would you like me to change it back to "
             <> D.fromVersion V.one
@@ -96,8 +100,8 @@ checkNewPackage root outline@(Outline.PkgOutline _ _ _ version _ _ _ _) =
 
 -- SUGGEST VERSION
 
-suggestVersion :: Env -> Task.Task Exit.Bump ()
-suggestVersion (Env root cache outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _)) =
+suggestVersion :: Flags -> Env -> Task.Task Exit.Bump ()
+suggestVersion flags (Env root cache outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _)) =
   do
     oldDocs <-
       Task.mapError
@@ -108,24 +112,24 @@ suggestVersion (Env root cache outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _))
     let changes = Diff.diff oldDocs newDocs
     let newVersion = Diff.bump changes vsn
     Task.io $
-      changeVersion root outline newVersion $
+      changeVersion flags root outline newVersion $
         let old = D.fromVersion vsn
             new = D.fromVersion newVersion
             mag = D.fromChars $ M.toChars (Diff.toMagnitude changes)
          in "Based on your new API, this should be a"
               <+> D.green mag
               <+> "change ("
-                <> old
-                <> " => "
-                <> new
-                <> ")\n"
-                <> "Bail out of this command and run 'gren diff' for a full explanation.\n"
-                <> "\n"
-                <> "Should I perform the update ("
-                <> old
-                <> " => "
-                <> new
-                <> ") in gren.json? [Y/n] "
+              <> old
+              <> " => "
+              <> new
+              <> ")\n"
+              <> "Bail out of this command and run 'gren diff' for a full explanation.\n"
+              <> "\n"
+              <> "Should I perform the update ("
+              <> old
+              <> " => "
+              <> new
+              <> ") in gren.json? [Y/n] "
 
 generateDocs :: FilePath -> Outline.PkgOutline -> Task.Task Exit.Bump Docs.Documentation
 generateDocs root (Outline.PkgOutline _ _ _ _ exposed _ _ _) =
@@ -144,10 +148,10 @@ generateDocs root (Outline.PkgOutline _ _ _ _ exposed _ _ _) =
 
 -- CHANGE VERSION
 
-changeVersion :: FilePath -> Outline.PkgOutline -> V.Version -> D.Doc -> IO ()
-changeVersion root outline targetVersion question =
+changeVersion :: Flags -> FilePath -> Outline.PkgOutline -> V.Version -> D.Doc -> IO ()
+changeVersion flags root outline targetVersion question =
   do
-    approved <- Reporting.ask question
+    approved <- Reporting.ask (_skipPrompts flags) question
     if not approved
       then putStrLn "Okay, I did not change anything!"
       else do
