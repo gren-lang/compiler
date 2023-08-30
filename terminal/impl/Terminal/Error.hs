@@ -17,6 +17,7 @@ where
 import Data.List qualified as List
 import Data.Maybe qualified as Maybe
 import GHC.IO.Handle (hIsTerminalDevice)
+import Reporting.Doc qualified as D
 import Reporting.Suggest as Suggest
 import System.Environment qualified as Env
 import System.Exit qualified as Exit
@@ -62,12 +63,11 @@ exitWith code docs =
   do
     isTerminal <- hIsTerminalDevice stderr
     let adjust = if isTerminal then id else P.plain
-    P.displayIO stderr $
-      P.renderPretty 1 80 $
-        adjust $
-          P.vcat $
-            concatMap (\d -> [d, ""]) $
-              trimDocs docs
+    D.toAnsi stderr $
+      adjust $
+        P.vcat $
+          concatMap (\d -> [d, ""]) $
+            trimDocs docs
     hPutStrLn stderr ""
     Exit.exitWith code
 
