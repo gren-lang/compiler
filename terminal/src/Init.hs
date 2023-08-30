@@ -26,7 +26,8 @@ import System.Directory qualified as Dir
 import Prelude hiding (init)
 
 data Flags = Flags
-  { _isPackage :: Bool,
+  { _skipPrompts :: Bool,
+    _isPackage :: Bool,
     _platform :: Maybe Platform.Platform
   }
 
@@ -40,7 +41,7 @@ run () flags =
       if exists
         then return (Left Exit.InitAlreadyExists)
         else do
-          approved <- Reporting.ask question
+          approved <- Reporting.ask (_skipPrompts flags) question
           if approved
             then init flags
             else do

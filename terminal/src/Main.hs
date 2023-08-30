@@ -81,6 +81,7 @@ init =
 
       initFlags =
         flags Init.Flags
+          |-- onOff "yes" "Assume yes for all interactive prompts."
           |-- onOff "package" "Create a package (as opposed to an application)."
           |-- flag "platform" initPlatformParser "Which platform to target"
    in Terminal.Command "init" (Common summary) details example noArgs initFlags Init.run
@@ -192,14 +193,14 @@ package =
               \ you would say:",
             P.indent 4 $
               P.green $
-                P.vcat $
+                P.vcat
                   [ "gren package install gren-lang/browser"
                   ],
             reflow
               "To see a description of all available sub-commands, execute:",
             P.indent 4 $
               P.green $
-                P.vcat $
+                P.vcat
                   ["gren package --help"]
           ]
    in Terminal.Prefix "package" details example Package.run

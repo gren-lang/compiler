@@ -128,11 +128,13 @@ ignorer =
 
 -- ASK
 
-ask :: D.Doc -> IO Bool
-ask doc =
-  do
-    Help.toStdout doc
-    askHelp
+ask :: Bool -> D.Doc -> IO Bool
+ask skipPrompts doc =
+  if skipPrompts
+    then pure True
+    else do
+      Help.toStdout doc
+      askHelp
 
 askHelp :: IO Bool
 askHelp =
@@ -238,7 +240,7 @@ putDownload mark pkg vsn =
       mark
         <+> D.fromPackage pkg
         <+> D.fromVersion vsn
-          <> "\n"
+        <> "\n"
 
 putTransition :: DState -> IO DState
 putTransition state@(DState total cached _ rcvd failed built broken) =

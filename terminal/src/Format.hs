@@ -189,10 +189,7 @@ validateExistingFile projectType path = do
 
 formatFilesOnDisk :: Flags -> Parse.ProjectType -> [FilePath] -> Task.Task Exit.Format ()
 formatFilesOnDisk flags projectType paths = do
-  approved <-
-    if not (_skipPrompts flags)
-      then Task.io $ Reporting.ask (confirmFormat paths)
-      else return True
+  approved <- Task.io $ Reporting.ask (_skipPrompts flags) (confirmFormat paths)
   if not approved
     then Task.io $ putStrLn "Okay, I did not change anything!"
     else do
