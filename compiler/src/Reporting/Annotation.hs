@@ -88,10 +88,10 @@ instance Binary Position where
   put (Position a b) = put a >> put b
   get = liftM2 Position get get
 
-instance Ord a => Ord (Located a) where
+instance (Ord a) => Ord (Located a) where
   compare (At _ lhs) (At _ rhs) = compare lhs rhs
 
-instance Eq a => Eq (Located a) where
+instance (Eq a) => Eq (Located a) where
   (==) (At _ lhs) (At _ rhs) = lhs == rhs
 
 instance (Binary a) => Binary (Located a) where
