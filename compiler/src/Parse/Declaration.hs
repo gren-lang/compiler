@@ -38,6 +38,7 @@ data Decl
   | Union (Maybe Src.DocComment) (A.Located Src.Union)
   | Alias (Maybe Src.DocComment) (A.Located Src.Alias)
   | AliasConstraint (Maybe Src.DocComment) (A.Located Name.Name)
+  | ValueConstraint (Maybe Src.DocComment) (A.Located Src.ValueConstraint)
   | Port (Maybe Src.DocComment) Src.Port
   | TopLevelComments (NonEmpty Src.Comment)
   deriving (Show)
@@ -85,10 +86,19 @@ valueDecl maybeDocs start =
               commentsAfterColon <- Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentType
               ((tipe, commentsAfterTipe), _) <- specialize E.DeclDefType Type.expression
               Space.checkFreshLine E.DeclDefNameRepeat
-              defName <- chompMatchingName name
-              commentsAfterMatchingName <- Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentEquals
-              let tipeComments = SC.ValueTypeComments commentsBeforeColon commentsAfterColon commentsAfterTipe
-              chompDefArgsAndBody maybeDocs start defName (Just (tipe, tipeComments)) [] commentsAfterMatchingName,
+              oneOf
+                E.DeclDefEquals
+                [
+                  do
+                    defName <- chompMatchingName name
+                    commentsAfterMatchingName <- Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentEquals
+                    let tipeComments = SC.ValueTypeComments commentsBeforeColon commentsAfterColon commentsAfterTipe
+                    chompDefArgsAndBody maybeDocs start defName (Just (tipe, tipeComments)) [] commentsAfterMatchingName,
+                  do
+                    typeEnd <- getPosition
+                    let value = Src.ValueConstraint (A.at start end name) tipe
+                    return ((ValueConstraint maybeDocs (A.at start typeEnd value), commentsAfterTipe), typeEnd)
+                ],
             chompDefArgsAndBody maybeDocs start (A.at start end name) Nothing [] commentsAfterName
           ]
 

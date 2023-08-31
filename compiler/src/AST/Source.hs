@@ -30,6 +30,7 @@ module AST.Source
     Union (..),
     UnionVariant,
     Alias (..),
+    ValueConstraint (..),
     Infix (..),
     Port (..),
     Effects (..),
@@ -198,6 +199,9 @@ type UnionVariant =
   ([Comment], A.Located Name, [([Comment], Type)], [Comment])
 
 data Alias = Alias (A.Located Name) [A.Located Name] Type
+  deriving (Show)
+
+data ValueConstraint = ValueConstraint (A.Located Name) Type
   deriving (Show)
 
 data Infix = Infix Name Binop.Associativity Binop.Precedence Name

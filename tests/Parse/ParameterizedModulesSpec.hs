@@ -53,9 +53,12 @@ spec = do
           "module ParamModule(One : Signature, Two : Signature) exposing (..)"
 
     describe "Defining a module signature" $ do
-      it "Signature with single type alias (simplest module)" $
+      it "Signature with single type alias (simplest case)" $
         parseModuleSignature
           "signature module Comparable\n\ntype alias T"
+      it "Signature with type alias and function (common case)" $
+        parseModuleSignature
+          "signature module Comparable\n\ntype alias T\n\ncompare : T -> T -> Order"
 
 parseImport :: [String] -> BS.ByteString -> IO ()
 parseImport expectedArgs str =
