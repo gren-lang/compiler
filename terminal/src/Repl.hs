@@ -286,6 +286,8 @@ attemptDeclOrExpr lines =
             PD.Value _ (A.At _ (Src.Value (A.At _ name) _ _ _ _)) -> ifDone lines (Decl name src)
             PD.Union _ (A.At _ (Src.Union (A.At _ name) _ _ _)) -> ifDone lines (Type name src)
             PD.Alias _ (A.At _ (Src.Alias (A.At _ name) _ _)) -> ifDone lines (Type name src)
+            PD.AliasConstraint _ _ -> Done Skip
+            PD.ValueConstraint _ _ -> Done Skip
             PD.Port _ _ -> Done Port
             PD.TopLevelComments _ -> Done Skip
         Left declPosition
