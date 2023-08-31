@@ -86,11 +86,11 @@ chompModule projectType =
 
 checkModule :: ProjectType -> Module -> Either E.Error Src.Module
 checkModule projectType (Module maybeHeader imports infixes decls) =
-  let (values, unions, aliases, ports, topLevelComments) = categorizeDecls [] [] [] [] [] 0 decls
+  let (values, unions, aliases, aliasConstraints, ports, topLevelComments) = categorizeDecls [] [] [] [] [] [] 0 decls
    in case maybeHeader of
         Just (Header name params effects exports docs comments) ->
           Src.Module (Just name) params exports (toDocs docs decls) imports values unions aliases infixes topLevelComments comments
-            <$> checkEffects projectType ports effects
+            <$> checkEffects projectType values unions aliases aliasConstraints ports effects
         Nothing ->
           let comments = SC.HeaderComments [] [] [] [] [] []
            in Right $
@@ -99,13 +99,23 @@ checkModule projectType (Module maybeHeader imports infixes decls) =
                     [] -> Src.NoEffects
                     _ : _ -> Src.Ports ports (SC.PortsComments [])
 
-checkEffects :: ProjectType -> [(Src.SourceOrder, Src.Port)] -> Effects -> Either E.Error Src.Effects
-checkEffects projectType ports effects =
+checkEffects ::
+  ProjectType ->
+  [(Src.SourceOrder, A.Located Src.Value)] ->
+  [(Src.SourceOrder, A.Located Src.Union)] ->
+  [(Src.SourceOrder, A.Located Src.Alias)] ->
+  [(Src.SourceOrder, A.Located Name.Name)] ->
+  [(Src.SourceOrder, Src.Port)] ->
+  Effects ->
+  Either E.Error Src.Effects
+checkEffects projectType values unions aliases aliasConstraints ports effects =
   case effects of
     NoEffects region ->
       case ports of
         [] ->
-          Right Src.NoEffects
+          if null aliasConstraints
+            then Right Src.NoEffects
+            else Left (E.TypeConstraintsOutsideSignatureModule region)
         (_, Src.Port name _) : _ ->
           case projectType of
             Package _ -> Left (E.NoPortsInPackage name)
@@ -117,18 +127,29 @@ checkEffects projectType ports effects =
         Application ->
           case ports of
             [] -> Left (E.NoPorts region)
-            _ : _ -> Right (Src.Ports ports comments)
+            _ : _ ->
+              if null aliasConstraints
+                then Right (Src.Ports ports comments)
+                else Left (E.TypeConstraintsOutsideSignatureModule region)
     Manager region manager comments ->
       if isKernel projectType
         then case ports of
-          [] -> Right (Src.Manager region manager comments)
+          [] ->
+            if null aliasConstraints
+              then Right (Src.Manager region manager comments)
+              else Left (E.TypeConstraintsOutsideSignatureModule region)
           _ : _ -> Left (E.UnexpectedPort region)
         else Left (E.NoEffectsOutsideKernel region)
+    Signature region ->
+      if length values + length unions + length aliases + length ports > 0
+        then Left (E.ImpureSignatureModule region)
+        else Right Src.NoEffects
 
 categorizeDecls ::
   [(Src.SourceOrder, A.Located Src.Value)] ->
   [(Src.SourceOrder, A.Located Src.Union)] ->
   [(Src.SourceOrder, A.Located Src.Alias)] ->
+  [(Src.SourceOrder, A.Located Name.Name)] ->
   [(Src.SourceOrder, Src.Port)] ->
   [(Src.SourceOrder, NonEmpty Src.Comment)] ->
   Src.SourceOrder ->
@@ -136,20 +157,28 @@ categorizeDecls ::
   ( [(Src.SourceOrder, A.Located Src.Value)],
     [(Src.SourceOrder, A.Located Src.Union)],
     [(Src.SourceOrder, A.Located Src.Alias)],
+    [(Src.SourceOrder, A.Located Name.Name)],
     [(Src.SourceOrder, Src.Port)],
     [(Src.SourceOrder, NonEmpty Src.Comment)]
   )
-categorizeDecls values unions aliases ports topLevelComments index decls =
+categorizeDecls values unions aliases aliasConstraints ports topLevelComments index decls =
   case decls of
     [] ->
-      (values, unions, aliases, ports, topLevelComments)
+      (values, unions, aliases, aliasConstraints, ports, topLevelComments)
     decl : otherDecls ->
       case decl of
-        Decl.Value _ value -> categorizeDecls ((index, value) : values) unions aliases ports topLevelComments (index + 1) otherDecls
-        Decl.Union _ union -> categorizeDecls values ((index, union) : unions) aliases ports topLevelComments (index + 1) otherDecls
-        Decl.Alias _ alias -> categorizeDecls values unions ((index, alias) : aliases) ports topLevelComments (index + 1) otherDecls
-        Decl.Port _ port_ -> categorizeDecls values unions aliases ((index, port_) : ports) topLevelComments (index + 1) otherDecls
-        Decl.TopLevelComments comments -> categorizeDecls values unions aliases ports ((index, comments) : topLevelComments) (index + 1) otherDecls
+        Decl.Value _ value ->
+          categorizeDecls ((index, value) : values) unions aliases aliasConstraints ports topLevelComments (index + 1) otherDecls
+        Decl.Union _ union ->
+          categorizeDecls values ((index, union) : unions) aliases aliasConstraints ports topLevelComments (index + 1) otherDecls
+        Decl.Alias _ alias ->
+          categorizeDecls values unions ((index, alias) : aliases) aliasConstraints ports topLevelComments (index + 1) otherDecls
+        Decl.AliasConstraint _ aliasConstraint ->
+          categorizeDecls values unions aliases ((index, aliasConstraint) : aliasConstraints) ports topLevelComments (index + 1) otherDecls
+        Decl.Port _ port_ ->
+          categorizeDecls values unions aliases aliasConstraints ((index, port_) : ports) topLevelComments (index + 1) otherDecls
+        Decl.TopLevelComments comments ->
+          categorizeDecls values unions aliases aliasConstraints ports ((index, comments) : topLevelComments) (index + 1) otherDecls
 
 -- TO DOCS
 
@@ -171,6 +200,7 @@ getDocComments decls comments =
         Decl.Value c (A.At _ (Src.Value n _ _ _ _)) -> getDocComments otherDecls (addComment c n comments)
         Decl.Union c (A.At _ (Src.Union n _ _ _)) -> getDocComments otherDecls (addComment c n comments)
         Decl.Alias c (A.At _ (Src.Alias n _ _)) -> getDocComments otherDecls (addComment c n comments)
+        Decl.AliasConstraint c n -> getDocComments otherDecls (addComment c n comments)
         Decl.Port c (Src.Port n _) -> getDocComments otherDecls (addComment c n comments)
         Decl.TopLevelComments _ -> getDocComments otherDecls comments
 

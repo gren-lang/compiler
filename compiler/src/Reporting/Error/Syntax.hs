@@ -71,6 +71,8 @@ data Error
   | NoPortsInPackage (A.Located Name.Name)
   | NoPortModulesInPackage A.Region
   | NoEffectsOutsideKernel A.Region
+  | TypeConstraintsOutsideSignatureModule A.Region
+  | ImpureSignatureModule A.Region
   | ParseError Module
   deriving (Show)
 
@@ -650,6 +652,42 @@ toReport source err =
                   \ to test effects, but this may require changes to the design of effect modules.\
                   \ By only having them defined in the gren-lang organization, that kind of design work\
                   \ can proceed much more smoothly."
+              ]
+          )
+    TypeConstraintsOutsideSignatureModule region ->
+      Report.Report "NON-SIGNATURE MODULE CONTAINS TYPE CONSTRAINTS" region [] $
+        Code.toSnippet
+          source
+          region
+          Nothing
+          ( D.reflow
+              "This module contains type constraints but is not defined to be a signature module.",
+            D.stack
+              [ D.reflow
+                  "Either remove the type constraints, or switch to a signature module declaration.",
+                D.toSimpleNote
+                  "Signature modules are used to describe a particular module shape in context of\
+                  \ parametric modules. For this reason, they can only contain abstract type information,\
+                  \ otherwise known as type constraints. For other module types it makes no sense to\
+                  \ to include type constraints, as they are meant to contain actual implementations."
+              ]
+          )
+    ImpureSignatureModule region ->
+      Report.Report "SIGNATURE MODULE CONTAINS CONCRETE VALUES" region [] $
+        Code.toSnippet
+          source
+          region
+          Nothing
+          ( D.reflow
+              "This module contains values but is defined to be a signature module.",
+            D.stack
+              [ D.reflow
+                  "Either remove the values, or switch to a normal module declaration.",
+                D.toSimpleNote
+                  "Signature modules are used to describe a particular module shape in context of\
+                  \ parametric modules. For this reason, they can only contain abstract type information,\
+                  \ otherwise known as type constraints. For other module types it makes no sense to\
+                  \ to include type constraints, as they are meant to contain actual implementations."
               ]
           )
     ParseError modul ->
