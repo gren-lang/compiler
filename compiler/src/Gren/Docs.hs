@@ -239,10 +239,10 @@ assocDecoder =
    in do
         str <- D.string
         if
-          | str == left -> return Binop.Left
-          | str == non -> return Binop.Non
-          | str == right -> return Binop.Right
-          | otherwise -> D.failure BadAssociativity
+            | str == left -> return Binop.Left
+            | str == non -> return Binop.Non
+            | str == right -> return Binop.Right
+            | otherwise -> D.failure BadAssociativity
 
 -- PRECEDENCE JSON
 

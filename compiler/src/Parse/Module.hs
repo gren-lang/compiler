@@ -110,44 +110,42 @@ checkEffects ::
   Effects ->
   Either E.Error Src.Effects
 checkEffects projectType values unions aliases aliasConstraints valueConstraints ports effects =
-  let
-    freeOfConstraints = length aliasConstraints + length valueConstraints == 0
-  in
-  case effects of
-    NoEffects region ->
-      case ports of
-        [] ->
-          if freeOfConstraints
-            then Right Src.NoEffects
-            else Left (E.TypeConstraintsOutsideSignatureModule region)
-        (_, Src.Port name _) : _ ->
-          case projectType of
-            Package _ -> Left (E.NoPortsInPackage name)
-            Application -> Left (E.UnexpectedPort region)
-    Ports region comments ->
-      case projectType of
-        Package _ ->
-          Left (E.NoPortModulesInPackage region)
-        Application ->
+  let freeOfConstraints = length aliasConstraints + length valueConstraints == 0
+   in case effects of
+        NoEffects region ->
           case ports of
-            [] -> Left (E.NoPorts region)
-            _ : _ ->
+            [] ->
               if freeOfConstraints
-                then Right (Src.Ports ports comments)
+                then Right Src.NoEffects
                 else Left (E.TypeConstraintsOutsideSignatureModule region)
-    Manager region manager comments ->
-      if isKernel projectType
-        then case ports of
-          [] ->
-            if freeOfConstraints
-              then Right (Src.Manager region manager comments)
-              else Left (E.TypeConstraintsOutsideSignatureModule region)
-          _ : _ -> Left (E.UnexpectedPort region)
-        else Left (E.NoEffectsOutsideKernel region)
-    Signature region ->
-      if length values + length unions + length aliases + length ports > 0
-        then Left (E.ImpureSignatureModule region)
-        else Right Src.NoEffects
+            (_, Src.Port name _) : _ ->
+              case projectType of
+                Package _ -> Left (E.NoPortsInPackage name)
+                Application -> Left (E.UnexpectedPort region)
+        Ports region comments ->
+          case projectType of
+            Package _ ->
+              Left (E.NoPortModulesInPackage region)
+            Application ->
+              case ports of
+                [] -> Left (E.NoPorts region)
+                _ : _ ->
+                  if freeOfConstraints
+                    then Right (Src.Ports ports comments)
+                    else Left (E.TypeConstraintsOutsideSignatureModule region)
+        Manager region manager comments ->
+          if isKernel projectType
+            then case ports of
+              [] ->
+                if freeOfConstraints
+                  then Right (Src.Manager region manager comments)
+                  else Left (E.TypeConstraintsOutsideSignatureModule region)
+              _ : _ -> Left (E.UnexpectedPort region)
+            else Left (E.NoEffectsOutsideKernel region)
+        Signature region ->
+          if length values + length unions + length aliases + length ports > 0
+            then Left (E.ImpureSignatureModule region)
+            else Right Src.NoEffects
 
 categorizeDecls ::
   [(Src.SourceOrder, A.Located Src.Value)] ->

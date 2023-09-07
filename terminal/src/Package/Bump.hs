@@ -119,17 +119,17 @@ suggestVersion flags (Env root cache outline@(Outline.PkgOutline pkg _ _ vsn _ _
          in "Based on your new API, this should be a"
               <+> D.green mag
               <+> "change ("
-              <> old
-              <> " => "
-              <> new
-              <> ")\n"
-              <> "Bail out of this command and run 'gren diff' for a full explanation.\n"
-              <> "\n"
-              <> "Should I perform the update ("
-              <> old
-              <> " => "
-              <> new
-              <> ") in gren.json? [Y/n] "
+                <> old
+                <> " => "
+                <> new
+                <> ")\n"
+                <> "Bail out of this command and run 'gren diff' for a full explanation.\n"
+                <> "\n"
+                <> "Should I perform the update ("
+                <> old
+                <> " => "
+                <> new
+                <> ") in gren.json? [Y/n] "
 
 generateDocs :: FilePath -> Outline.PkgOutline -> Task.Task Exit.Bump Docs.Documentation
 generateDocs root (Outline.PkgOutline _ _ _ _ exposed _ _ _) =
