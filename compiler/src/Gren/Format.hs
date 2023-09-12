@@ -197,7 +197,7 @@ formatCommentBlockNonEmpty =
   spaceSeparatedOrStack . fmap formatComment
 
 formatModule :: Src.Module -> Block
-formatModule (Src.Module moduleName _ exports docs imports values unions aliases (commentsBeforeBinops, binops) topLevelComments comments effects) =
+formatModule (Src.ImplementationModule moduleName _ exports docs imports values unions aliases (commentsBeforeBinops, binops) topLevelComments comments effects) =
   Block.stack $
     NonEmpty.fromList $
       catMaybes
@@ -289,6 +289,54 @@ formatModule (Src.Module moduleName _ exports docs imports values unions aliases
                       Block.stack $ fmap (formatInfix . A.toValue) some
                     ]
                   ]
+formatModule (Src.SignatureModule moduleName docs imports aliasConstraints valueConstraints) =
+  Block.stack $
+    NonEmpty.fromList $
+      catMaybes
+        [ Just $
+            spaceSeparatedOrIndent $
+              NonEmpty.fromList $
+                catMaybes
+                  [ Just $ Block.line $ Block.string7 "signature module",
+                    Just $ Block.line $ (utf8 . A.toValue) moduleName
+                  ],
+          case docs of
+            Src.NoDocs _ -> Nothing
+            Src.YesDocs moduleDocs _ ->
+              Just $
+                Block.stack
+                  [ Block.blankLine,
+                    formatDocComment moduleDocs
+                  ],
+          Just $ Block.stack $ Block.blankLine :| fmap formatImport imports,
+          let defs =
+                fmap snd $
+                  List.sortOn fst $
+                    concat @[]
+                      [ fmap (formatWithDocComment aliasConstraintName formatAliasConstraint . A.toValue) <$> aliasConstraints,
+                        fmap (formatWithDocComment valueConstraintName formatValueConstraint . A.toValue) <$> valueConstraints
+                      ]
+           in fmap Block.stack $ nonEmpty $ fmap (addBlankLines 2) defs
+        ]
+  where
+    defDocs :: Map Name Src.DocComment
+    defDocs =
+      case docs of
+        Src.NoDocs _ -> Map.empty
+        Src.YesDocs _ defs -> Map.fromList defs
+
+    aliasConstraintName (Src.AliasConstraint name) = A.toValue name
+    valueConstraintName (Src.ValueConstraint name _) = A.toValue name
+
+    formatWithDocComment :: (a -> Name) -> (a -> Block) -> a -> Block
+    formatWithDocComment getName render a =
+      case Map.lookup (getName a) defDocs of
+        Nothing -> render a
+        Just defDoc ->
+          Block.stack
+            [ formatDocComment defDoc,
+              render a
+            ]
 
 formatTopLevelCommentBlock :: NonEmpty Src.Comment -> Block
 formatTopLevelCommentBlock comments =
@@ -419,6 +467,24 @@ formatAssociativity = \case
 formatValue :: Src.Value -> Block
 formatValue (Src.Value name args body type_ comments) =
   formatBasicDef (A.toValue name) args (A.toValue body) type_ comments
+
+formatAliasConstraint :: Src.AliasConstraint -> Block
+formatAliasConstraint (Src.AliasConstraint (A.At _ name)) =
+  Block.line $
+    Block.string7 "type alias "
+      <> utf8 name
+
+formatValueConstraint :: Src.ValueConstraint -> Block
+formatValueConstraint (Src.ValueConstraint (A.At _ name) type_) =
+  Block.stack $
+    NonEmpty.fromList
+      [ Block.line $
+          utf8 name
+            <> Block.space
+            <> Block.string7 ":"
+            <> Block.space,
+        typeParensNone $ formatType $ A.toValue type_
+      ]
 
 formatBasicDef :: Name -> [([Src.Comment], Src.Pattern)] -> Src.Expr_ -> Maybe (Src.Type, SC.ValueTypeComments) -> SC.ValueComments -> Block
 formatBasicDef name args body type_ (SC.ValueComments commentsBeforeEquals commentsBeforeBody commentsAfterBody) =

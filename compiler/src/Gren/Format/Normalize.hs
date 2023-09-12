@@ -18,9 +18,15 @@ import Reporting.Annotation qualified as A
 
 normalize :: Parse.ProjectType -> Src.Module -> Src.Module
 normalize projectType module_ =
-  module_
-    { Src._imports = List.sortOn importSortKey $ mapMaybe (removeDefaultImports projectType) $ Src._imports module_
-    }
+  case module_ of
+    Src.ImplementationModule {} ->
+      module_
+        { Src._imports = List.sortOn importSortKey $ mapMaybe (removeDefaultImports projectType) $ Src._imports module_
+        }
+    Src.SignatureModule {} ->
+      module_
+        { Src._sm_imports = List.sortOn importSortKey $ mapMaybe (removeDefaultImports projectType) $ Src._sm_imports module_
+        }
 
 importSortKey :: ([Src.Comment], Src.Import) -> Name
 importSortKey (_, Src.Import name _ _ _ _ _) =

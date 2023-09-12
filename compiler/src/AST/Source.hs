@@ -24,6 +24,7 @@ module AST.Source
     SourceOrder,
     Module (..),
     getName,
+    getModuleImports,
     getImportName,
     Import (..),
     Value (..),
@@ -152,29 +153,49 @@ type TRecordField = (A.Located Name, Type, SC.RecordFieldComments)
 
 type SourceOrder = Int
 
-data Module = Module
-  { _name :: Maybe (A.Located Name),
-    _params :: [(A.Located Name, A.Located Name)],
-    _exports :: A.Located Exposing,
-    _docs :: Docs,
-    _imports :: [([Comment], Import)],
-    _values :: [(SourceOrder, A.Located Value)],
-    _unions :: [(SourceOrder, A.Located Union)],
-    _aliases :: [(SourceOrder, A.Located Alias)],
-    _binops :: ([Comment], [A.Located Infix]),
-    _topLevelComments :: [(SourceOrder, NonEmpty Comment)],
-    _headerComments :: SC.HeaderComments,
-    _effects :: Effects
-  }
+data Module
+  = ImplementationModule
+      { _name :: Maybe (A.Located Name),
+        _params :: [(A.Located Name, A.Located Name)],
+        _exports :: A.Located Exposing,
+        _docs :: Docs,
+        _imports :: [([Comment], Import)],
+        _values :: [(SourceOrder, A.Located Value)],
+        _unions :: [(SourceOrder, A.Located Union)],
+        _aliases :: [(SourceOrder, A.Located Alias)],
+        _binops :: ([Comment], [A.Located Infix]),
+        _topLevelComments :: [(SourceOrder, NonEmpty Comment)],
+        _headerComments :: SC.HeaderComments,
+        _effects :: Effects
+      }
+  | SignatureModule
+      { _sm_name :: A.Located Name,
+        _sm_docs :: Docs,
+        _sm_imports :: [([Comment], Import)],
+        _sm_aliasConstraints :: [(SourceOrder, A.Located AliasConstraint)],
+        _sm_valueConstraints :: [(SourceOrder, A.Located ValueConstraint)]
+      }
   deriving (Show)
 
 getName :: Module -> Name
-getName (Module maybeName _ _ _ _ _ _ _ _ _ _ _) =
-  case maybeName of
-    Just (A.At _ name) ->
+getName modul =
+  case modul of
+    ImplementationModule maybeName _ _ _ _ _ _ _ _ _ _ _ ->
+      case maybeName of
+        Just (A.At _ name) ->
+          name
+        Nothing ->
+          Name._Main
+    SignatureModule (A.At _ name) _ _ _ _ ->
       name
-    Nothing ->
-      Name._Main
+
+getModuleImports :: Module -> [([Comment], Import)]
+getModuleImports modul =
+  case modul of
+    ImplementationModule {_imports} ->
+      _imports
+    SignatureModule {_sm_imports} ->
+      _sm_imports
 
 getImportName :: Import -> Name
 getImportName (Import (A.At _ name) _ _ _ _ _) =

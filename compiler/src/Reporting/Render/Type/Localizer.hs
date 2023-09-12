@@ -66,10 +66,16 @@ fromNames names =
 -- FROM MODULE
 
 fromModule :: Src.Module -> Localizer
-fromModule modul@(Src.Module _ _ _ _ imports _ _ _ _ _ _ _) =
-  Localizer $
-    Map.fromList $
-      (Src.getName modul, Import Nothing All) : map (toPair . snd) imports
+fromModule modul =
+  case modul of
+    Src.ImplementationModule _ _ _ _ imports _ _ _ _ _ _ _ ->
+      Localizer $
+        Map.fromList $
+          (Src.getName modul, Import Nothing All) : map (toPair . snd) imports
+    Src.SignatureModule _ _ imports _ _ ->
+      Localizer $
+        Map.fromList $
+          (Src.getName modul, Import Nothing All) : map (toPair . snd) imports
 
 toPair :: Src.Import -> (Name.Name, Import)
 toPair (Src.Import (A.At _ name) _ alias exposing _ _) =

@@ -528,7 +528,11 @@ crawlFile foreignDeps mvar pkg src docsStatus authorizedForKernelCode expectedNa
   do
     bytes <- File.readUtf8 path
     case Parse.fromByteString (Parse.Package pkg) bytes of
-      Right modul@(Src.Module (Just (A.At _ actualName)) _ _ _ imports _ _ _ _ _ _ _) | expectedName == actualName ->
+      Right modul@(Src.ImplementationModule (Just (A.At _ actualName)) _ _ _ imports _ _ _ _ _ _ _) | expectedName == actualName ->
+        do
+          deps <- crawlImports foreignDeps mvar pkg authorizedForKernelCode src (fmap snd imports)
+          return (Right (SLocal docsStatus deps modul))
+      Right modul@(Src.SignatureModule (A.At _ actualName) _ imports _ _) | expectedName == actualName ->
         do
           deps <- crawlImports foreignDeps mvar pkg authorizedForKernelCode src (fmap snd imports)
           return (Right (SLocal docsStatus deps modul))

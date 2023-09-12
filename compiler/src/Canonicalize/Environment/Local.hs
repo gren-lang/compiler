@@ -46,11 +46,13 @@ addVars module_ (Env.Env home vs ts cs bs qvs qts qcs) =
     Result.ok $ Env.Env home vs2 ts cs bs qvs qts qcs
 
 collectVars :: Src.Module -> Result i w (Map.Map Name.Name Env.Var)
-collectVars (Src.Module _ _ _ _ _ values _ _ _ _ _ effects) =
+collectVars (Src.ImplementationModule _ _ _ _ _ values _ _ _ _ _ effects) =
   let addDecl dict (A.At _ (Src.Value (A.At region name) _ _ _ _)) =
         Dups.insert name region (Env.TopLevel region) dict
    in Dups.detect Error.DuplicateDecl $
         List.foldl' addDecl (toEffectDups effects) (fmap snd values)
+collectVars _ =
+  Result.ok Map.empty
 
 toEffectDups :: Src.Effects -> Dups.Dict Env.Var
 toEffectDups effects =
@@ -75,7 +77,7 @@ toEffectDups effects =
 -- ADD TYPES
 
 addTypes :: Src.Module -> Env.Env -> Result i w Env.Env
-addTypes (Src.Module _ _ _ _ _ _ unions aliases _ _ _ _) (Env.Env home vs ts cs bs qvs qts qcs) =
+addTypes (Src.ImplementationModule _ _ _ _ _ _ unions aliases _ _ _ _) (Env.Env home vs ts cs bs qvs qts qcs) =
   let addAliasDups dups (A.At _ (Src.Alias (A.At region name) _ _)) = Dups.insert name region () dups
       addUnionDups dups (A.At _ (Src.Union (A.At region name) _ _ _)) = Dups.insert name region () dups
       typeNameDups =
@@ -84,6 +86,8 @@ addTypes (Src.Module _ _ _ _ _ _ unions aliases _ _ _ _) (Env.Env home vs ts cs 
         _ <- Dups.detect Error.DuplicateType typeNameDups
         ts1 <- foldM (addUnion home) ts (fmap snd unions)
         addAliases (fmap snd aliases) (Env.Env home vs ts1 cs bs qvs qts qcs)
+addTypes _ env =
+  Result.ok env
 
 addUnion :: ModuleName.Canonical -> Env.Exposed Env.Type -> A.Located Src.Union -> Result i w (Env.Exposed Env.Type)
 addUnion home types union@(A.At _ (Src.Union (A.At _ name) _ _ _)) =
@@ -203,7 +207,7 @@ addFreeVars freeVars (A.At region tipe) =
 -- ADD CTORS
 
 addCtors :: Src.Module -> Env.Env -> Result i w (Env.Env, Unions, Aliases)
-addCtors (Src.Module _ _ _ _ _ _ unions aliases _ _ _ _) env@(Env.Env home vs ts cs bs qvs qts qcs) =
+addCtors (Src.ImplementationModule _ _ _ _ _ _ unions aliases _ _ _ _) env@(Env.Env home vs ts cs bs qvs qts qcs) =
   do
     unionInfo <- traverse (canonicalizeUnion env) (fmap snd unions)
     aliasInfo <- traverse (canonicalizeAlias env) (fmap snd aliases)
@@ -221,6 +225,8 @@ addCtors (Src.Module _ _ _ _ _ _ unions aliases _ _ _ _) env@(Env.Env home vs ts
         Map.fromList (map fst unionInfo),
         Map.fromList (map fst aliasInfo)
       )
+addCtors _ env =
+  Result.ok (env, Map.empty, Map.empty)
 
 type CtorDups = Dups.Dict (Env.Info Env.Ctor)
 

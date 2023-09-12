@@ -89,12 +89,21 @@ checkModule projectType (Module maybeHeader imports infixes decls) =
   let (values, unions, aliases, aliasConstraints, valueConstraints, ports, topLevelComments) = categorizeDecls [] [] [] [] [] [] [] 0 decls
    in case maybeHeader of
         Just (Header name params effects exports docs comments) ->
-          Src.Module (Just name) params exports (toDocs docs decls) imports values unions aliases infixes topLevelComments comments
-            <$> checkEffects projectType values unions aliases aliasConstraints valueConstraints ports effects
+          case checkEffects projectType values unions aliases aliasConstraints valueConstraints ports effects of
+            Left err ->
+              Left err
+            Right checkedEffect ->
+              case effects of
+                Signature _ ->
+                  Right $
+                    Src.SignatureModule name (toDocs docs decls) imports aliasConstraints valueConstraints
+                _ ->
+                  Right $
+                    Src.ImplementationModule (Just name) params exports (toDocs docs decls) imports values unions aliases infixes topLevelComments comments checkedEffect
         Nothing ->
           let comments = SC.HeaderComments [] [] [] [] [] []
            in Right $
-                Src.Module Nothing [] (A.At A.one Src.Open) (Src.NoDocs A.one) imports values unions aliases infixes topLevelComments comments $
+                Src.ImplementationModule Nothing [] (A.At A.one Src.Open) (Src.NoDocs A.one) imports values unions aliases infixes topLevelComments comments $
                   case ports of
                     [] -> Src.NoEffects
                     _ : _ -> Src.Ports ports (SC.PortsComments [])
