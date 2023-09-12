@@ -37,7 +37,7 @@ data Decl
   = Value (Maybe Src.DocComment) (A.Located Src.Value)
   | Union (Maybe Src.DocComment) (A.Located Src.Union)
   | Alias (Maybe Src.DocComment) (A.Located Src.Alias)
-  | AliasConstraint (Maybe Src.DocComment) (A.Located Name.Name)
+  | AliasConstraint (Maybe Src.DocComment) (A.Located Src.AliasConstraint)
   | ValueConstraint (Maybe Src.DocComment) (A.Located Src.ValueConstraint)
   | Port (Maybe Src.DocComment) Src.Port
   | TopLevelComments (NonEmpty Src.Comment)
@@ -161,7 +161,7 @@ typeDecl maybeDocs start =
                     return ((Alias maybeDocs alias, commentsAfterTipe), end),
                   do
                     end <- getPosition
-                    return ((AliasConstraint maybeDocs name, []), end)
+                    return ((AliasConstraint maybeDocs (A.at start end (Src.AliasConstraint name)), []), end)
                 ],
           specialize E.DT_Union $
             do

@@ -30,6 +30,7 @@ module AST.Source
     Union (..),
     UnionVariant,
     Alias (..),
+    AliasConstraint (..),
     ValueConstraint (..),
     Infix (..),
     Port (..),
@@ -199,6 +200,9 @@ type UnionVariant =
   ([Comment], A.Located Name, [([Comment], Type)], [Comment])
 
 data Alias = Alias (A.Located Name) [A.Located Name] Type
+  deriving (Show)
+
+data AliasConstraint = AliasConstraint (A.Located Name.Name)
   deriving (Show)
 
 data ValueConstraint = ValueConstraint (A.Located Name) Type

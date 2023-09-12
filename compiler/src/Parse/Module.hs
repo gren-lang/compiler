@@ -104,7 +104,7 @@ checkEffects ::
   [(Src.SourceOrder, A.Located Src.Value)] ->
   [(Src.SourceOrder, A.Located Src.Union)] ->
   [(Src.SourceOrder, A.Located Src.Alias)] ->
-  [(Src.SourceOrder, A.Located Name.Name)] ->
+  [(Src.SourceOrder, A.Located Src.AliasConstraint)] ->
   [(Src.SourceOrder, A.Located Src.ValueConstraint)] ->
   [(Src.SourceOrder, Src.Port)] ->
   Effects ->
@@ -151,7 +151,7 @@ categorizeDecls ::
   [(Src.SourceOrder, A.Located Src.Value)] ->
   [(Src.SourceOrder, A.Located Src.Union)] ->
   [(Src.SourceOrder, A.Located Src.Alias)] ->
-  [(Src.SourceOrder, A.Located Name.Name)] ->
+  [(Src.SourceOrder, A.Located Src.AliasConstraint)] ->
   [(Src.SourceOrder, A.Located Src.ValueConstraint)] ->
   [(Src.SourceOrder, Src.Port)] ->
   [(Src.SourceOrder, NonEmpty Src.Comment)] ->
@@ -160,7 +160,7 @@ categorizeDecls ::
   ( [(Src.SourceOrder, A.Located Src.Value)],
     [(Src.SourceOrder, A.Located Src.Union)],
     [(Src.SourceOrder, A.Located Src.Alias)],
-    [(Src.SourceOrder, A.Located Name.Name)],
+    [(Src.SourceOrder, A.Located Src.AliasConstraint)],
     [(Src.SourceOrder, A.Located Src.ValueConstraint)],
     [(Src.SourceOrder, Src.Port)],
     [(Src.SourceOrder, NonEmpty Src.Comment)]
@@ -206,7 +206,7 @@ getDocComments decls comments =
         Decl.Value c (A.At _ (Src.Value n _ _ _ _)) -> getDocComments otherDecls (addComment c n comments)
         Decl.Union c (A.At _ (Src.Union n _ _ _)) -> getDocComments otherDecls (addComment c n comments)
         Decl.Alias c (A.At _ (Src.Alias n _ _)) -> getDocComments otherDecls (addComment c n comments)
-        Decl.AliasConstraint c n -> getDocComments otherDecls (addComment c n comments)
+        Decl.AliasConstraint c (A.At _ (Src.AliasConstraint n)) -> getDocComments otherDecls (addComment c n comments)
         Decl.ValueConstraint c (A.At _ (Src.ValueConstraint n _)) -> getDocComments otherDecls (addComment c n comments)
         Decl.Port c (Src.Port n _) -> getDocComments otherDecls (addComment c n comments)
         Decl.TopLevelComments _ -> getDocComments otherDecls comments
