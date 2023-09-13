@@ -192,8 +192,23 @@ getName modul =
 getModuleImports :: Module -> [([Comment], Import)]
 getModuleImports modul =
   case modul of
-    ImplementationModule {_imports} ->
-      _imports
+    ImplementationModule {_params, _imports} ->
+      let paramsAsImports =
+            map paramToImport _params
+
+          paramToImport :: (A.Located Name, A.Located Name) -> ([Comment], Import)
+          paramToImport (argName, signatureName) =
+            ( [],
+              Import
+                { _import = signatureName,
+                  _args = [],
+                  _alias = Just (A.toValue argName, SC.ImportAliasComments [] []),
+                  _exposing = Open,
+                  _exposingComments = Nothing,
+                  _importComments = SC.ImportComments [] []
+                }
+            )
+       in paramsAsImports ++ _imports
     SignatureModule {_sm_imports} ->
       _sm_imports
 

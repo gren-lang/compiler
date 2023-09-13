@@ -269,14 +269,15 @@ crawlFile env@(Env _ root projectType _ _ buildID _ _) mvar docsNeed expectedNam
     case Parse.fromByteString projectType source of
       Left err ->
         return $ SBadSyntax path time source err
-      Right modul@(Src.ImplementationModule maybeActualName _ _ _ imports values _ _ _ _ _ _) ->
+      Right modul@(Src.ImplementationModule maybeActualName _ _ _ _ values _ _ _ _ _ _) ->
         case maybeActualName of
           Nothing ->
             return $ SBadSyntax path time source (Syntax.ModuleNameUnspecified expectedName)
           Just name@(A.At _ actualName) ->
             if expectedName == actualName
               then
-                let deps = map (Src.getImportName . snd) imports
+                let imports = Src.getModuleImports modul
+                    deps = map (Src.getImportName . snd) imports
                     local = Details.Local path time deps (any (isMain . snd) values) lastChange buildID
                  in crawlDeps env mvar deps (SChanged local source modul docsNeed)
               else return $ SBadSyntax path time source (Syntax.ModuleNameMismatch expectedName name)
@@ -964,8 +965,9 @@ crawlRoot env@(Env _ _ projectType _ _ buildID _ _) mvar root =
         time <- File.getTime path
         source <- File.readUtf8 path
         case Parse.fromByteString projectType source of
-          Right modul@(Src.ImplementationModule _ _ _ _ imports values _ _ _ _ _ _) ->
+          Right modul@(Src.ImplementationModule _ _ _ _ _ values _ _ _ _ _ _) ->
             do
+              let imports = Src.getModuleImports modul
               let deps = map (Src.getImportName . snd) imports
               let local = Details.Local path time deps (any (isMain . snd) values) buildID buildID
               crawlDeps env mvar deps (SOutsideOk local source modul)

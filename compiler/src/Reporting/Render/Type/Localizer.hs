@@ -67,15 +67,9 @@ fromNames names =
 
 fromModule :: Src.Module -> Localizer
 fromModule modul =
-  case modul of
-    Src.ImplementationModule _ _ _ _ imports _ _ _ _ _ _ _ ->
-      Localizer $
-        Map.fromList $
-          (Src.getName modul, Import Nothing All) : map (toPair . snd) imports
-    Src.SignatureModule _ _ imports _ _ ->
-      Localizer $
-        Map.fromList $
-          (Src.getName modul, Import Nothing All) : map (toPair . snd) imports
+  Localizer $
+    Map.fromList $
+      (Src.getName modul, Import Nothing All) : map (toPair . snd) (Src.getModuleImports modul)
 
 toPair :: Src.Import -> (Name.Name, Import)
 toPair (Src.Import (A.At _ name) _ alias exposing _ _) =
