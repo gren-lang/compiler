@@ -85,10 +85,11 @@ valueDecl maybeDocs start =
               let commentsBeforeColon = commentsAfterName
               commentsAfterColon <- Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentType
               ((tipe, commentsAfterTipe), _) <- specialize E.DeclDefType Type.expression
-              Space.checkFreshLine E.DeclDefNameRepeat
+              Space.chomp E.DeclDefSpace
               oneOf
                 E.DeclDefEquals
                 [ do
+                    Space.checkFreshLine E.DeclDefNameRepeat
                     defName <- chompMatchingName name
                     commentsAfterMatchingName <- Space.chompAndCheckIndent E.DeclDefSpace E.DeclDefIndentEquals
                     let tipeComments = SC.ValueTypeComments commentsBeforeColon commentsAfterColon commentsAfterTipe

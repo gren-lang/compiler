@@ -112,7 +112,6 @@ parseModuleSignature str =
             True
           Left _ ->
             False
-      validModuleStr = str <> "\n"
    in shouldSatisfy
-        (Module.fromByteString Module.Application validModuleStr)
+        (Module.fromByteString Module.Application str)
         checkResult
