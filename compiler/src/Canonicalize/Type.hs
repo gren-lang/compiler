@@ -1,5 +1,6 @@
 module Canonicalize.Type
   ( toAnnotation,
+    annotationFromType,
     canonicalize,
   )
 where
@@ -26,7 +27,11 @@ toAnnotation :: Env.Env -> Src.Type -> Result i w Can.Annotation
 toAnnotation env srcType =
   do
     tipe <- canonicalize env srcType
-    Result.ok $ Can.Forall (addFreeVars Map.empty tipe) tipe
+    Result.ok $ annotationFromType tipe
+
+annotationFromType :: Can.Type -> Can.Annotation
+annotationFromType tipe =
+  Can.Forall (addFreeVars Map.empty tipe) tipe
 
 -- CANONICALIZE TYPES
 

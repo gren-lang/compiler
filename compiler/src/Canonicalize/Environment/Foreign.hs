@@ -10,9 +10,9 @@ where
 import AST.Canonical qualified as Can
 import AST.Source qualified as Src
 import Canonicalize.Environment qualified as Env
+import Canonicalize.Type qualified as Type
 import Control.Monad (foldM)
 import Data.List qualified as List
-import Data.Map.Strict ((!))
 import Data.Map.Strict qualified as Map
 import Data.Name qualified as Name
 import Gren.Interface qualified as I
@@ -79,34 +79,56 @@ isNormal (Src.Import (A.At _ name) _ maybeAlias _ _ _) =
 
 addImport :: Map.Map ModuleName.Raw I.Interface -> State -> Src.Import -> Result i w State
 addImport ifaces (State vs ts cs bs qvs qts qcs) (Src.Import (A.At _ name) _ maybeAlias exposing _ _) =
-  let (I.ImplementationInterface pkg defs unions aliases binops) = ifaces ! name
-      !prefix = maybe name id (fmap fst maybeAlias)
-      !home = ModuleName.Canonical pkg name
+  case Map.lookup name ifaces of
+    Just (I.ImplementationInterface pkg defs unions aliases binops) ->
+      let !prefix = maybe name id (fmap fst maybeAlias)
+          !home = ModuleName.Canonical pkg name
 
-      !rawTypeInfo =
-        Map.union
-          (Map.mapMaybeWithKey (unionToType home) unions)
-          (Map.mapMaybeWithKey (aliasToType home) aliases)
+          !rawTypeInfo =
+            Map.union
+              (Map.mapMaybeWithKey (unionToType home) unions)
+              (Map.mapMaybeWithKey (aliasToType home) aliases)
 
-      !vars = Map.map (Env.Specific home) defs
-      !types = Map.map (Env.Specific home . fst) rawTypeInfo
-      !ctors = Map.foldr (addExposed . snd) Map.empty rawTypeInfo
+          !vars = Map.map (Env.Specific home) defs
+          !types = Map.map (Env.Specific home . fst) rawTypeInfo
+          !ctors = Map.foldr (addExposed . snd) Map.empty rawTypeInfo
 
-      !qvs2 = addQualified prefix vars qvs
-      !qts2 = addQualified prefix types qts
-      !qcs2 = addQualified prefix ctors qcs
-   in case exposing of
-        Src.Open ->
-          let !vs2 = addExposed vs vars
-              !ts2 = addExposed ts types
-              !cs2 = addExposed cs ctors
-              !bs2 = addExposed bs (Map.mapWithKey (binopToBinop home) binops)
-           in Result.ok (State vs2 ts2 cs2 bs2 qvs2 qts2 qcs2)
-        Src.Explicit exposedList ->
-          foldM
-            (addExposedValue home vars rawTypeInfo binops)
-            (State vs ts cs bs qvs2 qts2 qcs2)
-            exposedList
+          !qvs2 = addQualified prefix vars qvs
+          !qts2 = addQualified prefix types qts
+          !qcs2 = addQualified prefix ctors qcs
+       in case exposing of
+            Src.Open ->
+              let !vs2 = addExposed vs vars
+                  !ts2 = addExposed ts types
+                  !cs2 = addExposed cs ctors
+                  !bs2 = addExposed bs (Map.mapWithKey (binopToBinop home) binops)
+               in Result.ok (State vs2 ts2 cs2 bs2 qvs2 qts2 qcs2)
+            Src.Explicit exposedList ->
+              foldM
+                (addExposedValue home vars rawTypeInfo binops)
+                (State vs ts cs bs qvs2 qts2 qcs2)
+                exposedList
+    Just (I.SignatureInterface pkg aliasConstraints valueConstraints) ->
+      let !prefix = maybe name id (fmap fst maybeAlias)
+          !home = ModuleName.Canonical pkg name
+
+          addAliasConstraint (I.AliasConstraint aliasName) acc =
+            Map.insert aliasName (Env.Specific home $ Env.AliasConstraint home aliasName) acc
+
+          mapValueConstraint (I.ValueConstraint _ tipe) =
+            Env.Specific home $ Type.annotationFromType tipe
+
+          !acs = foldr addAliasConstraint Map.empty aliasConstraints
+          !vcs = Map.map mapValueConstraint valueConstraints
+
+          !ts2 = addExposed ts acs
+          !vs2 = addExposed vs vcs
+
+          !qts2 = addQualified prefix acs qts
+          !qvs2 = addQualified prefix vcs qvs
+       in Result.ok (State vs2 ts2 cs bs qvs2 qts2 qcs)
+    Nothing ->
+      error $ "Failed to find interface named " ++ show name
 
 addExposed :: Env.Exposed a -> Env.Exposed a -> Env.Exposed a
 addExposed =

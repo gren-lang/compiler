@@ -5,6 +5,8 @@ module Gren.Interface
     Union (..),
     Alias (..),
     Binop (..),
+    AliasConstraint (..),
+    ValueConstraint (..),
     fromModule,
     toPublicUnion,
     toPublicAlias,
