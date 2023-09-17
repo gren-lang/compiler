@@ -345,7 +345,7 @@ instance Binary Type where
         1 -> liftM TVar get
         2 -> liftM2 TRecord get get
         3 -> liftM4 TAlias get get get get
-        4 -> liftM4 TAlias get get get get
+        4 -> liftM2 TAliasConstraint get get
         5 -> liftM3 TType get get get
         n -> liftM3 TType get get (replicateM (fromIntegral (n - 6)) get)
 
