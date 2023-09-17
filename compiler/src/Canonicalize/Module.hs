@@ -37,7 +37,8 @@ type Result i w a =
 canonicalize :: Pkg.Name -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> Result i [W.Warning] Can.Module
 canonicalize pkg ifaces modul =
   case modul of
-    (Src.ImplementationModule _ _ exports docs imports valuesWithSourceOrder _ _ (_, binops) _ _ effects) -> do
+    (Src.ImplementationModule _ _ exports docs _ valuesWithSourceOrder _ _ (_, binops) _ _ effects) -> do
+      let imports = Src.getModuleImports modul
       let values = fmap snd valuesWithSourceOrder
       let home = ModuleName.Canonical pkg (Src.getName modul)
       let cbinops = Map.fromList (map canonicalizeBinop binops)
@@ -51,7 +52,8 @@ canonicalize pkg ifaces modul =
       cexports <- canonicalizeExports values cunions caliases cbinops ceffects exports
 
       return $ Can.ImplementationModule home cexports docs cvalues cunions caliases cbinops ceffects
-    (Src.SignatureModule _ _ imports aliasConstraints valueConstraints) -> do
+    (Src.SignatureModule _ _ _ aliasConstraints valueConstraints) -> do
+      let imports = Src.getModuleImports modul
       let home = ModuleName.Canonical pkg (Src.getName modul)
       let acs = map ((\(Src.AliasConstraint (A.At _ name)) -> name) . A.toValue . snd) aliasConstraints
       let nameAndTypes = map ((\(Src.ValueConstraint (A.At _ name) tipe) -> (name, tipe)) . A.toValue . snd) valueConstraints
