@@ -87,6 +87,7 @@ data Var
 data Type
   = Alias Int ModuleName.Canonical [Name.Name] Can.Type
   | Union Int ModuleName.Canonical
+  | AliasConstraint ModuleName.Canonical Name.Name
 
 -- CTORS
 

@@ -238,7 +238,7 @@ type UnionVariant =
 data Alias = Alias (A.Located Name) [A.Located Name] Type
   deriving (Show)
 
-data AliasConstraint = AliasConstraint (A.Located Name.Name)
+data AliasConstraint = AliasConstraint (A.Located Name)
   deriving (Show)
 
 data ValueConstraint = ValueConstraint (A.Located Name) Type

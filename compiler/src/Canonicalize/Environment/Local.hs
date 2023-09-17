@@ -86,8 +86,14 @@ addTypes (Src.ImplementationModule _ _ _ _ _ _ unions aliases _ _ _ _) (Env.Env 
         _ <- Dups.detect Error.DuplicateType typeNameDups
         ts1 <- foldM (addUnion home) ts (fmap snd unions)
         addAliases (fmap snd aliases) (Env.Env home vs ts1 cs bs qvs qts qcs)
-addTypes _ env =
-  Result.ok env
+addTypes (Src.SignatureModule _ _ _ orderedAliasConstraints _) (Env.Env home vs ts cs bs qvs qts qcs) =
+  let aliasConstraints = map snd orderedAliasConstraints
+      addAliasConstraintDups dups (A.At _ (Src.AliasConstraint (A.At region name))) = Dups.insert name region () dups
+      typeNameDups = List.foldl' addAliasConstraintDups Dups.none aliasConstraints
+   in do
+        _ <- Dups.detect Error.DuplicateType typeNameDups
+        ts1 <- foldM (addAliasConstraint home) ts aliasConstraints
+        Result.ok $ Env.Env home vs ts1 cs bs qvs qts qcs
 
 addUnion :: ModuleName.Canonical -> Env.Exposed Env.Type -> A.Located Src.Union -> Result i w (Env.Exposed Env.Type)
 addUnion home types union@(A.At _ (Src.Union (A.At _ name) _ _ _)) =
@@ -121,6 +127,14 @@ addAlias env@(Env.Env home vs ts cs bs qvs qts qcs) scc =
         args <- checkAliasFreeVars alias
         let toName (A.At _ (Src.Alias (A.At _ name) _ _)) = name
         Result.throw (Error.RecursiveAlias region name1 args tipe (map toName others))
+
+-- ADD ALIAS CONSTRAINT
+
+addAliasConstraint :: ModuleName.Canonical -> Env.Exposed Env.Type -> A.Located Src.AliasConstraint -> Result i w (Env.Exposed Env.Type)
+addAliasConstraint home types (A.At _ (Src.AliasConstraint (A.At _ alias))) =
+  do
+    let one = Env.Specific home (Env.AliasConstraint home alias)
+    Result.ok $ Map.insert alias one types
 
 -- DETECT TYPE ALIAS CYCLES
 

@@ -69,6 +69,8 @@ canonicalizeType env region name args info =
       Env.Alias arity home argNames aliasedType ->
         checkArity arity region name args $
           Can.TAlias home name (zip argNames cargs) (Can.Holey aliasedType)
+      Env.AliasConstraint home _ ->
+        Result.ok $ Can.TAliasConstraint home name
       Env.Union arity home ->
         checkArity arity region name args $
           Can.TType home name cargs
@@ -97,6 +99,8 @@ addFreeVars freeVars tipe =
       Map.foldl addFieldFreeVars (Map.insert ext () freeVars) fields
     Can.TAlias _ _ args _ ->
       List.foldl' (\fvs (_, arg) -> addFreeVars fvs arg) freeVars args
+    Can.TAliasConstraint _ _ ->
+      freeVars
 
 addFieldFreeVars :: Map.Map Name.Name () -> Can.FieldType -> Map.Map Name.Name ()
 addFieldFreeVars freeVars (Can.FieldType _ tipe) =

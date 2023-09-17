@@ -36,11 +36,15 @@ type Annotations =
   Map.Map Name.Name Can.Annotation
 
 optimize :: P.Platform -> Annotations -> Can.Module -> Result i [W.Warning] Opt.LocalGraph
-optimize platform annotations (Can.Module home _ _ decls unions _ _ effects) =
-  addDecls platform home annotations decls $
-    addEffects home effects $
-      addUnions home unions $
-        Opt.LocalGraph Nothing Map.empty Map.empty
+optimize platform annotations modul =
+  case modul of
+    (Can.ImplementationModule home _ _ decls unions _ _ effects) ->
+      addDecls platform home annotations decls $
+        addEffects home effects $
+          addUnions home unions $
+            Opt.LocalGraph Nothing Map.empty Map.empty
+    (Can.SignatureModule {}) ->
+      Result.ok $ Opt.LocalGraph Nothing Map.empty Map.empty
 
 -- UNION
 

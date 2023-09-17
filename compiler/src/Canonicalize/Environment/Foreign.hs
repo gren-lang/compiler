@@ -177,6 +177,8 @@ addExposedValue home vars types binops (State vs ts cs bs qvs qts qcs) exposed =
                   let !ts2 = Map.insert name (Env.Specific home tipe) ts
                       !cs2 = addExposed cs ctors
                    in Result.ok (State vs ts2 cs2 bs qvs qts qcs)
+                Env.AliasConstraint _ _ ->
+                  Result.throw $ Error.ImportExposingNotFound region home name (Map.keys types)
             Nothing ->
               case checkForCtorMistake name types of
                 tipe : _ ->
@@ -193,6 +195,8 @@ addExposedValue home vars types binops (State vs ts cs bs qvs qts qcs) exposed =
                    in Result.ok (State vs ts2 cs2 bs qvs qts qcs)
                 Env.Alias _ _ _ _ ->
                   Result.throw (Error.ImportOpenAlias dotDotRegion name)
+                Env.AliasConstraint _ _ ->
+                  Result.throw $ Error.ImportExposingNotFound region home name (Map.keys types)
             Nothing ->
               Result.throw (Error.ImportExposingNotFound region home name (Map.keys types))
     Src.Operator region op ->

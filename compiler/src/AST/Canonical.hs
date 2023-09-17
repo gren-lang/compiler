@@ -28,6 +28,7 @@ module AST.Canonical
     Binop (..),
     Union (..),
     Ctor (..),
+    ValueConstraint (..),
     Exports (..),
     Export (..),
     Effects (..),
@@ -180,6 +181,7 @@ data Type
   | TType ModuleName.Canonical Name [Type]
   | TRecord (Map.Map Name FieldType) (Maybe Name)
   | TAlias ModuleName.Canonical Name [(Name, Type)] AliasType
+  | TAliasConstraint ModuleName.Canonical Name
   deriving (Eq, Show)
 
 data AliasType
@@ -204,16 +206,22 @@ fieldsToList fields =
 
 -- MODULES
 
-data Module = Module
-  { _name :: ModuleName.Canonical,
-    _exports :: Exports,
-    _docs :: Src.Docs,
-    _decls :: Decls,
-    _unions :: Map.Map Name Union,
-    _aliases :: Map.Map Name Alias,
-    _binops :: Map.Map Name Binop,
-    _effects :: Effects
-  }
+data Module
+  = ImplementationModule
+      { _name :: ModuleName.Canonical,
+        _exports :: Exports,
+        _docs :: Src.Docs,
+        _decls :: Decls,
+        _unions :: Map.Map Name Union,
+        _aliases :: Map.Map Name Alias,
+        _binops :: Map.Map Name Binop,
+        _effects :: Effects
+      }
+  | SignatureModule
+      { _sm_name :: ModuleName.Canonical,
+        _sm_aliasConstraints :: [Name],
+        _sm_valueConstraints :: [ValueConstraint]
+      }
   deriving (Show)
 
 data Alias = Alias [Name] Type
@@ -237,6 +245,9 @@ data CtorOpts
   deriving (Eq, Ord, Show)
 
 data Ctor = Ctor Name Index.ZeroBased Int [Type] -- CACHE length args
+  deriving (Eq, Show)
+
+data ValueConstraint = ValueConstraint Name Type
   deriving (Eq, Show)
 
 -- EXPORTS
@@ -315,15 +326,16 @@ instance Binary Type where
       TVar a -> putWord8 1 >> put a
       TRecord a b -> putWord8 2 >> put a >> put b
       TAlias a b c d -> putWord8 3 >> put a >> put b >> put c >> put d
+      TAliasConstraint a b -> putWord8 4 >> put a >> put b
       TType home name ts ->
-        let potentialWord = length ts + 5
+        let potentialWord = length ts + 6
          in if potentialWord <= fromIntegral (maxBound :: Word8)
               then do
                 putWord8 (fromIntegral potentialWord)
                 put home
                 put name
                 mapM_ put ts
-              else putWord8 4 >> put home >> put name >> put ts
+              else putWord8 5 >> put home >> put name >> put ts
 
   get =
     do
@@ -333,8 +345,9 @@ instance Binary Type where
         1 -> liftM TVar get
         2 -> liftM2 TRecord get get
         3 -> liftM4 TAlias get get get get
-        4 -> liftM3 TType get get get
-        n -> liftM3 TType get get (replicateM (fromIntegral (n - 5)) get)
+        4 -> liftM4 TAlias get get get get
+        5 -> liftM3 TType get get get
+        n -> liftM3 TType get get (replicateM (fromIntegral (n - 6)) get)
 
 instance Binary AliasType where
   put aliasType =
