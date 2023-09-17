@@ -1,5 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE Rank2Types #-}
 {-# OPTIONS_GHC -Wall #-}
 
@@ -88,7 +86,7 @@ merge (Types types1) (Types types2) =
   Types (Map.union types1 types2)
 
 fromInterface :: ModuleName.Raw -> I.Interface -> Types
-fromInterface name (I.Interface pkg _ unions aliases _) =
+fromInterface name (I.ImplementationInterface pkg _ unions aliases _) =
   Types $
     Map.singleton (ModuleName.Canonical pkg name) $
       Types_ (Map.map I.extractUnion unions) (Map.map I.extractAlias aliases)
@@ -98,7 +96,7 @@ fromDependencyInterface home di =
   Types $
     Map.singleton home $
       case di of
-        I.Public (I.Interface _ _ unions aliases _) ->
+        I.Public (I.ImplementationInterface _ _ unions aliases _) ->
           Types_ (Map.map I.extractUnion unions) (Map.map I.extractAlias aliases)
         I.Private _ unions aliases ->
           Types_ unions aliases

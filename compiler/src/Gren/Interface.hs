@@ -19,7 +19,7 @@ where
 
 import AST.Canonical qualified as Can
 import AST.Utils.Binop qualified as Binop
-import Control.Monad (liftM, liftM3, liftM4, liftM5)
+import Control.Monad (liftM, liftM2, liftM3, liftM4, liftM5)
 import Data.Binary
 import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict ((!))
@@ -30,13 +30,19 @@ import Reporting.Annotation qualified as A
 
 -- INTERFACE
 
-data Interface = Interface
-  { _home :: Pkg.Name,
-    _values :: Map.Map Name.Name Can.Annotation,
-    _unions :: Map.Map Name.Name Union,
-    _aliases :: Map.Map Name.Name Alias,
-    _binops :: Map.Map Name.Name Binop
-  }
+data Interface
+  = ImplementationInterface
+      { _home :: Pkg.Name,
+        _values :: Map.Map Name.Name Can.Annotation,
+        _unions :: Map.Map Name.Name Union,
+        _aliases :: Map.Map Name.Name Alias,
+        _binops :: Map.Map Name.Name Binop
+      }
+  | SignatureInterface
+      { _si_home :: Pkg.Name,
+        _si_aliasConstraints :: [AliasConstraint],
+        _si_valueConstraints :: Map.Map Name.Name ValueConstraint
+      }
   deriving (Eq, Show)
 
 data Union
@@ -58,16 +64,32 @@ data Binop = Binop
   }
   deriving (Eq, Show)
 
+newtype AliasConstraint = AliasConstraint Name.Name
+  deriving (Eq, Show)
+
+data ValueConstraint = ValueConstraint Name.Name Can.Type
+  deriving (Eq, Show)
+
 -- FROM MODULE
 
 fromModule :: Pkg.Name -> Can.Module -> Map.Map Name.Name Can.Annotation -> Interface
 fromModule home (Can.ImplementationModule _ exports _ _ unions aliases binops _) annotations =
-  Interface
+  ImplementationInterface
     { _home = home,
       _values = restrict exports annotations,
       _unions = restrictUnions exports unions,
       _aliases = restrictAliases exports aliases,
       _binops = restrict exports (Map.map (toOp annotations) binops)
+    }
+fromModule home (Can.SignatureModule _ aliasConstraints valueConstraints) _annotation =
+  SignatureInterface
+    { _si_home = home,
+      _si_aliasConstraints = map AliasConstraint aliasConstraints,
+      _si_valueConstraints =
+        foldl
+          (\acc (Can.ValueConstraint name t) -> Map.insert name (ValueConstraint name t) acc)
+          Map.empty
+          valueConstraints
     }
 
 restrict :: Can.Exports -> Map.Map Name.Name a -> Map.Map Name.Name a
@@ -139,8 +161,10 @@ public =
   Public
 
 private :: Interface -> DependencyInterface
-private (Interface pkg _ unions aliases _) =
+private (ImplementationInterface pkg _ unions aliases _) =
   Private pkg (Map.map extractUnion unions) (Map.map extractAlias aliases)
+private (SignatureInterface pkg _ _) =
+  Private pkg Map.empty Map.empty
 
 extractUnion :: Union -> Can.Union
 extractUnion iUnion =
@@ -159,13 +183,20 @@ privatize :: DependencyInterface -> DependencyInterface
 privatize di =
   case di of
     Public i -> private i
-    Private _ _ _ -> di
+    Private {} -> di
 
 -- BINARY
 
 instance Binary Interface where
-  get = liftM5 Interface get get get get get
-  put (Interface a b c d e) = put a >> put b >> put c >> put d >> put e
+  get = do
+    v <- getWord8
+    case v of
+      1 -> liftM5 ImplementationInterface get get get get get
+      2 -> liftM3 SignatureInterface get get get
+      _ -> fail "binary encoding of Interface was corrupted"
+
+  put (ImplementationInterface a b c d e) = putWord8 1 >> put a >> put b >> put c >> put d >> put e
+  put (SignatureInterface a b c) = putWord8 2 >> put a >> put b >> put c
 
 instance Binary Union where
   put union =
@@ -217,3 +248,11 @@ instance Binary DependencyInterface where
         0 -> liftM Public get
         1 -> liftM3 Private get get get
         _ -> fail "binary encoding of DependencyInterface was corrupted"
+
+instance Binary AliasConstraint where
+  put (AliasConstraint a) = put a
+  get = liftM AliasConstraint get
+
+instance Binary ValueConstraint where
+  put (ValueConstraint a b) = put a >> put b
+  get = liftM2 ValueConstraint get get

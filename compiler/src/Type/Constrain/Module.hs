@@ -19,27 +19,30 @@ import Type.Type (Constraint (..), Type (..), mkFlexVar, nameToRigid, never, (==
 -- CONSTRAIN
 
 constrain :: Can.Module -> IO Constraint
-constrain (Can.ImplementationModule home _ _ decls _ _ _ effects) =
-  case effects of
-    Can.NoEffects ->
-      constrainDecls decls CSaveTheEnvironment
-    Can.Ports ports ->
-      Map.foldrWithKey letPort (constrainDecls decls CSaveTheEnvironment) ports
-    Can.Manager r0 r1 r2 manager ->
-      case manager of
-        Can.Cmd cmdName ->
-          letCmd home cmdName
-            =<< constrainDecls decls
-            =<< constrainEffects home r0 r1 r2 manager
-        Can.Sub subName ->
-          letSub home subName
-            =<< constrainDecls decls
-            =<< constrainEffects home r0 r1 r2 manager
-        Can.Fx cmdName subName ->
-          letCmd home cmdName
-            =<< letSub home subName
-            =<< constrainDecls decls
-            =<< constrainEffects home r0 r1 r2 manager
+constrain modul =
+  case modul of
+    (Can.ImplementationModule home _ _ decls _ _ _ effects) ->
+      case effects of
+        Can.NoEffects ->
+          constrainDecls decls CSaveTheEnvironment
+        Can.Ports ports ->
+          Map.foldrWithKey letPort (constrainDecls decls CSaveTheEnvironment) ports
+        Can.Manager r0 r1 r2 manager -> case manager of
+          Can.Cmd cmdName ->
+            letCmd home cmdName
+              =<< constrainDecls decls
+              =<< constrainEffects home r0 r1 r2 manager
+          Can.Sub subName ->
+            letSub home subName
+              =<< constrainDecls decls
+              =<< constrainEffects home r0 r1 r2 manager
+          Can.Fx cmdName subName ->
+            letCmd home cmdName
+              =<< letSub home subName
+              =<< constrainDecls decls
+              =<< constrainEffects home r0 r1 r2 manager
+    (Can.SignatureModule {}) ->
+      return CSaveTheEnvironment
 
 -- CONSTRAIN DECLARATIONS
 
