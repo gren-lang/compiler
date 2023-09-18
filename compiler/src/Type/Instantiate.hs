@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wall #-}
 
 module Type.Instantiate
@@ -48,6 +47,8 @@ fromSrcType freeVars sourceType =
             return EmptyRecordN
           Just ext ->
             return (freeVars ! ext)
+    Can.TAliasConstraint home name ->
+      return $ AliasConstraint home name
 
 fromSrcFieldType :: Map.Map Name.Name Type -> Can.FieldType -> IO Type
 fromSrcFieldType freeVars (Can.FieldType _ tipe) =

@@ -88,6 +88,7 @@ data Type
   | FunN Type Type
   | EmptyRecordN
   | RecordN (Map.Map Name.Name Type) Type
+  | AliasConstraint ModuleName.Canonical Name.Name
 
 -- DESCRIPTORS
 

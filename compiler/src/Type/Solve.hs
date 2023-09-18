@@ -415,6 +415,8 @@ typeToVar rank pools aliasDict tipe =
             register rank pools (Structure (Record1 fieldVars extVar))
         EmptyRecordN ->
           register rank pools emptyRecord1
+        AliasConstraint home name ->
+          register rank pools (Structure (App1 home name []))
 
 register :: Int -> Pools -> Content -> IO Variable
 register rank pools content =
@@ -479,6 +481,8 @@ srcTypeToVar rank pools flexVars srcType =
                   go tipe
 
             register rank pools (Alias home name argVars aliasVar)
+        Can.TAliasConstraint home name ->
+          register rank pools (Structure (App1 home name []))
 
 srcFieldTypeToVar :: Int -> Pools -> Map.Map Name.Name Variable -> Can.FieldType -> IO Variable
 srcFieldTypeToVar rank pools flexVars (Can.FieldType _ srcTipe) =
