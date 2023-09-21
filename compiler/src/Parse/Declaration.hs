@@ -39,6 +39,7 @@ data Decl
   | Alias (Maybe Src.DocComment) (A.Located Src.Alias)
   | Port (Maybe Src.DocComment) Src.Port
   | TopLevelComments (NonEmpty Src.Comment)
+  deriving (Show)
 
 declaration :: Space.Parser E.Decl (Decl, [Src.Comment])
 declaration =
