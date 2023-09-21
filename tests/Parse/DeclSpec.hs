@@ -1,8 +1,6 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Parse.DeclSpec where
 
-import Data.ByteString qualified as BS
+import Data.ByteString.UTF8 qualified as Utf8
 import Helpers.Instances ()
 import Parse.Declaration (declaration)
 import Parse.Primitives qualified as P
@@ -25,12 +23,12 @@ spec = do
     it "Value names can be only non-ascii characters" $ do
       parse "æøå = 1"
 
-parse :: BS.ByteString -> IO ()
+parse :: String -> IO ()
 parse str =
   P.fromByteString
     (P.specialize (\_ row col -> DeclError row col) declaration)
     (OtherError "fromByteString failed")
-    str
+    (Utf8.fromString str)
     `shouldSatisfy` valid
 
 valid :: Either x y -> Bool
