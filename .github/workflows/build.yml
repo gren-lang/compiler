@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 env:
-  ghc: "9.4.6"
+  ghc: "9.4.7"
   cabal: "3.8.1.0"
 
 jobs:
