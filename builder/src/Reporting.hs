@@ -240,7 +240,7 @@ putDownload mark pkg vsn =
       mark
         <+> D.fromPackage pkg
         <+> D.fromVersion vsn
-          <> "\n"
+        <> "\n"
 
 putTransition :: DState -> IO DState
 putTransition state@(DState total cached _ rcvd failed built broken) =
