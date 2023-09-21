@@ -340,9 +340,9 @@ decoder =
    in do
         tipe <- D.field "type" D.string
         if
-            | tipe == application -> App <$> appDecoder
-            | tipe == package -> Pkg <$> pkgDecoder
-            | otherwise -> D.failure Exit.OP_BadType
+          | tipe == application -> App <$> appDecoder
+          | tipe == package -> Pkg <$> pkgDecoder
+          | otherwise -> D.failure Exit.OP_BadType
 
 appDecoder :: Decoder AppOutline
 appDecoder =
