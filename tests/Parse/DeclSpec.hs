@@ -19,8 +19,11 @@ spec = do
     it "regression test" $
       parse "test = 1"
 
-    it "Value names can be non-ascii characters" $ do
+    it "Value names can contain non-ascii characters" $ do
       parse "vålue = 1"
+    
+    it "Value names can be only non-ascii characters" $ do
+      parse "æøå = 1"
 
 parse :: BS.ByteString -> IO ()
 parse str =
