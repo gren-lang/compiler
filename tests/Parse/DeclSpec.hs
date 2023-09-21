@@ -15,12 +15,12 @@ data ParseError
 
 spec :: Spec
 spec = do
-  describe "Top Level Variables" $ do
+  describe "Top Level Valeus" $ do
     it "regression test" $
-      parse "test = \"test\""
+      parse "test = 1"
 
-    it "Variables can be non-ascii characters" $ do
-      parse "æøå = \"test\""
+    it "Value names can be non-ascii characters" $ do
+      parse "vålue = 1"
 
 parse :: BS.ByteString -> IO ()
 parse str =

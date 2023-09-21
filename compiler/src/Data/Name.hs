@@ -223,8 +223,8 @@ fromTypeVariable name@(Utf8.Utf8 ba#) index =
     then name
     else
       let len# = sizeofByteArray# ba#
-          end# = indexWord8Array# ba# (len# -# 1#)
-       in if isTrue# (leWord8# (wordToWord8# 0x30##) end#) && isTrue# (leWord8# end# (wordToWord8# 0x39##))
+          end# = word8ToWord# (indexWord8Array# ba# (len# -# 1#))
+       in if isTrue# (leWord# 0x30## end#) && isTrue# (leWord# end# 0x39##)
             then
               runST
                 ( do
