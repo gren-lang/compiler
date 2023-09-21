@@ -21,16 +21,16 @@ spec = do
 
     it "Value names can contain non-ascii characters" $ do
       parse "vålue = 1"
-    
+
     it "Value names can be only non-ascii characters" $ do
       parse "æøå = 1"
 
 parse :: BS.ByteString -> IO ()
 parse str =
-   P.fromByteString
-      (P.specialize (\_ row col -> DeclError row col) declaration)
-      (OtherError "fromByteString failed")
-      str
+  P.fromByteString
+    (P.specialize (\_ row col -> DeclError row col) declaration)
+    (OtherError "fromByteString failed")
+    str
     `shouldSatisfy` valid
 
 valid :: Either x y -> Bool

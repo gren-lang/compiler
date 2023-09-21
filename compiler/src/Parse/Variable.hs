@@ -27,7 +27,7 @@ import Data.Name qualified as Name
 import Data.Set qualified as Set
 import Data.Word (Word8)
 import Foreign.Ptr (Ptr, plusPtr)
-import GHC.Exts (Char (C#), Int#, chr#, uncheckedIShiftL#, word8ToWord#, word2Int#, (+#), (-#))
+import GHC.Exts (Char (C#), Int#, chr#, uncheckedIShiftL#, word2Int#, word8ToWord#, (+#), (-#))
 import GHC.Word (Word8 (W8#))
 import Parse.Primitives (Col, Parser, Row, unsafeIndex)
 import Parse.Primitives qualified as P
