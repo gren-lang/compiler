@@ -37,34 +37,32 @@ type Result i w a =
 canonicalize :: Pkg.Name -> Map.Map ModuleName.Raw I.Interface -> Src.Module -> Result i [W.Warning] Can.Module
 canonicalize pkg ifaces modul =
   case modul of
-    (Src.ImplementationModule _ _ exports docs _ valuesWithSourceOrder _ _ (_, binops) _ _ effects) -> do
-      let imports = Src.getModuleImports modul
+    (Src.ImplementationModule _ parameters exports docs imports valuesWithSourceOrder _ _ (_, binops) _ _ effects) ->
       let values = fmap snd valuesWithSourceOrder
+          home = ModuleName.Canonical pkg (Src.getName modul)
+          cbinops = Map.fromList (map canonicalizeBinop binops)
+       in do
+            (env, cunions, caliases) <-
+              Local.add modul
+                =<< Foreign.createInitialEnv home ifaces (map (\(a, b) -> (a, A.toValue b)) parameters) (fmap snd imports)
+
+            cvalues <- canonicalizeValues env values
+            ceffects <- Effects.canonicalize env values cunions effects
+            cexports <- canonicalizeExports values cunions caliases cbinops ceffects exports
+
+            return $ Can.ImplementationModule home cexports docs cvalues cunions caliases cbinops ceffects
+    (Src.SignatureModule _ _ imports aliasConstraints valueConstraints) ->
       let home = ModuleName.Canonical pkg (Src.getName modul)
-      let cbinops = Map.fromList (map canonicalizeBinop binops)
+          acs = map ((\(Src.AliasConstraint (A.At _ name)) -> name) . A.toValue . snd) aliasConstraints
+          nameAndTypes = map ((\(Src.ValueConstraint (A.At _ name) tipe) -> (name, tipe)) . A.toValue . snd) valueConstraints
+       in do
+            (env, _, _) <-
+              Local.add modul
+                =<< Foreign.createInitialEnv home ifaces [] (fmap snd imports)
 
-      (env, cunions, caliases) <-
-        Local.add modul
-          =<< Foreign.createInitialEnv home ifaces (fmap snd imports)
+            vcs <- canonicalizeValueConstraints env nameAndTypes
 
-      cvalues <- canonicalizeValues env values
-      ceffects <- Effects.canonicalize env values cunions effects
-      cexports <- canonicalizeExports values cunions caliases cbinops ceffects exports
-
-      return $ Can.ImplementationModule home cexports docs cvalues cunions caliases cbinops ceffects
-    (Src.SignatureModule _ _ _ aliasConstraints valueConstraints) -> do
-      let imports = Src.getModuleImports modul
-      let home = ModuleName.Canonical pkg (Src.getName modul)
-      let acs = map ((\(Src.AliasConstraint (A.At _ name)) -> name) . A.toValue . snd) aliasConstraints
-      let nameAndTypes = map ((\(Src.ValueConstraint (A.At _ name) tipe) -> (name, tipe)) . A.toValue . snd) valueConstraints
-
-      (env, _, _) <-
-        Local.add modul
-          =<< Foreign.createInitialEnv home ifaces (fmap snd imports)
-
-      vcs <- canonicalizeValueConstraints env nameAndTypes
-
-      return $ Can.SignatureModule home acs vcs
+            return $ Can.SignatureModule home acs vcs
 
 -- CANONICALIZE BINOP
 

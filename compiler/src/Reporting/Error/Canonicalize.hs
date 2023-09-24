@@ -70,6 +70,8 @@ data Error
   | Shadowing Name.Name A.Region A.Region
   | TypeVarsUnboundInUnion A.Region Name.Name [Name.Name] (Name.Name, A.Region) [(Name.Name, A.Region)]
   | TypeVarsMessedUpInAlias A.Region Name.Name [Name.Name] [(Name.Name, A.Region)] [(Name.Name, A.Region)]
+  | ImportedSignatureWhenNotExpected A.Region Name.Name
+  | ImportedModuleIsNotSignature A.Region Name.Name
 
 data BadArityContext
   = TypeArity
@@ -866,6 +868,26 @@ toReport source err =
                               ++ ["=", "..."]
                       ]
                   )
+    ImportedSignatureWhenNotExpected region name ->
+      Report.Report "CANNOT IMPORT A SIGNATURE MODULE" region [] $
+        Code.toSnippet
+          source
+          region
+          Nothing
+          ( D.reflow $
+              "You're trying to import `" <> Name.toChars name <> "`, which is a signature module. Signature modules can only be used as parameters, or arguments to an import.",
+            mempty
+          )
+    ImportedModuleIsNotSignature region name ->
+      Report.Report "EXPECTED A SIGNATURE MODULE" region [] $
+        Code.toSnippet
+          source
+          region
+          Nothing
+          ( D.reflow $
+              "You're trying to import `" <> Name.toChars name <> "`, which is not a signature module. Only signature modules can be used as parameters.",
+            mempty
+          )
 
 -- BAD TYPE VARIABLES
 

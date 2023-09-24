@@ -27,10 +27,12 @@ import Reporting.Result qualified as Result
 type Result i w a =
   Result.Result i w Error.Error a
 
-createInitialEnv :: ModuleName.Canonical -> Map.Map ModuleName.Raw I.Interface -> [Src.Import] -> Result i w Env.Env
-createInitialEnv home ifaces imports =
+createInitialEnv :: ModuleName.Canonical -> Map.Map ModuleName.Raw I.Interface -> [(A.Located Name.Name, Name.Name)] -> [Src.Import] -> Result i w Env.Env
+createInitialEnv home ifaces parameters imports =
   do
-    (State vs ts cs bs qvs qts qcs) <- foldM (addImport ifaces) emptyState (toSafeImports home imports)
+    let paramNames = map (A.toValue . fst) parameters
+    stateWithSignatures <- foldM (addParameterImport ifaces) emptyState parameters
+    (State vs ts cs bs qvs qts qcs) <- foldM (addImplementationImport ifaces paramNames) stateWithSignatures (toSafeImports home imports)
     Result.ok (Env.Env home (Map.map infoToVar vs) ts cs bs qvs qts qcs)
 
 infoToVar :: Env.Info Can.Annotation -> Env.Var
@@ -77,11 +79,11 @@ isNormal (Src.Import (A.At _ name) _ maybeAlias _ _ _) =
 
 -- ADD IMPORTS
 
-addImport :: Map.Map ModuleName.Raw I.Interface -> State -> Src.Import -> Result i w State
-addImport ifaces (State vs ts cs bs qvs qts qcs) (Src.Import (A.At _ name) _ maybeAlias exposing _ _) =
+addImplementationImport :: Map.Map ModuleName.Raw I.Interface -> [Name.Name] -> State -> Src.Import -> Result i w State
+addImplementationImport ifaces paramNames (State vs ts cs bs qvs qts qcs) (Src.Import (A.At importRegion name) _ maybeAlias exposing _ _) =
   case Map.lookup name ifaces of
     Just (I.ImplementationInterface pkg defs unions aliases binops) ->
-      let !prefix = maybe name id (fmap fst maybeAlias)
+      let !prefix = maybe name fst maybeAlias
           !home = ModuleName.Canonical pkg name
 
           !rawTypeInfo =
@@ -108,8 +110,18 @@ addImport ifaces (State vs ts cs bs qvs qts qcs) (Src.Import (A.At _ name) _ may
                 (addExposedValue home vars rawTypeInfo binops)
                 (State vs ts cs bs qvs2 qts2 qcs2)
                 exposedList
+    Just (I.SignatureInterface {}) ->
+      Result.throw $ Error.ImportedSignatureWhenNotExpected importRegion name
+    Nothing ->
+      error $ "Failed to find interface named " ++ show name
+
+addParameterImport :: Map.Map ModuleName.Raw I.Interface -> State -> (A.Located Name.Name, Name.Name) -> Result i w State
+addParameterImport ifaces (State vs ts cs bs qvs qts qcs) (A.At aliasRegion alias, name) =
+  case Map.lookup name ifaces of
+    Just (I.ImplementationInterface {}) ->
+      Result.throw $ Error.ImportedModuleIsNotSignature aliasRegion name
     Just (I.SignatureInterface pkg aliasConstraints valueConstraints) ->
-      let !prefix = maybe name id (fmap fst maybeAlias)
+      let !prefix = alias
           !home = ModuleName.Canonical pkg name
 
           addAliasConstraint (I.AliasConstraint aliasName) acc =
