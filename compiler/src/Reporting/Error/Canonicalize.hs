@@ -72,6 +72,7 @@ data Error
   | TypeVarsMessedUpInAlias A.Region Name.Name [Name.Name] [(Name.Name, A.Region)] [(Name.Name, A.Region)]
   | ImportedSignatureWhenNotExpected A.Region Name.Name
   | ImportedModuleIsNotSignature A.Region Name.Name
+  | ImportArgumentIsSignatureModule (A.Located Name.Name)
 
 data BadArityContext
   = TypeArity
@@ -858,7 +859,7 @@ toReport source err =
                       "Type alias `" <> Name.toChars typeName <> "` has some type variable problems.",
                     D.stack
                       [ D.fillSep $ theseAreUsed ++ butTheseAreUnused,
-                        D.reflow $
+                        D.reflow
                           "My guess is that a definition like this will work better:",
                         D.indent 4 $
                           D.hsep $
@@ -886,6 +887,16 @@ toReport source err =
           Nothing
           ( D.reflow $
               "You're trying to import `" <> Name.toChars name <> "`, which is not a signature module. Only signature modules can be used as parameters.",
+            mempty
+          )
+    ImportArgumentIsSignatureModule (A.At region name) ->
+      Report.Report "SIGNATURE MODULES CANNOT BE IMPORT ARGUMENTS" region [] $
+        Code.toSnippet
+          source
+          region
+          Nothing
+          ( D.reflow $
+              "You're trying to pass `" <> Name.toChars name <> "` as an import argument. This is a signature module, only non-signature modules and module parameters can be passed as import arguments.",
             mempty
           )
 

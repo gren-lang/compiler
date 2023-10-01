@@ -80,40 +80,60 @@ isNormal (Src.Import (A.At _ name) _ maybeAlias _ _ _) =
 -- ADD IMPORTS
 
 addImplementationImport :: Map.Map ModuleName.Raw I.Interface -> [Name.Name] -> State -> Src.Import -> Result i w State
-addImplementationImport ifaces paramNames (State vs ts cs bs qvs qts qcs) (Src.Import (A.At importRegion name) _ maybeAlias exposing _ _) =
+addImplementationImport ifaces rootParamNames (State vs ts cs bs qvs qts qcs) (Src.Import (A.At importRegion name) importArgs maybeAlias exposing _ _) =
   case Map.lookup name ifaces of
     Just (I.ImplementationInterface pkg _params defs unions aliases binops) ->
-      let !prefix = maybe name fst maybeAlias
-          !home = ModuleName.Canonical pkg name
+      case detectNonRootSignatureInImportArgs ifaces rootParamNames importArgs of
+        Just err ->
+          Result.throw err
+        Nothing ->
+          let !prefix = maybe name fst maybeAlias
+              !home = ModuleName.Canonical pkg name
 
-          !rawTypeInfo =
-            Map.union
-              (Map.mapMaybeWithKey (unionToType home) unions)
-              (Map.mapMaybeWithKey (aliasToType home) aliases)
+              !rawTypeInfo =
+                Map.union
+                  (Map.mapMaybeWithKey (unionToType home) unions)
+                  (Map.mapMaybeWithKey (aliasToType home) aliases)
 
-          !vars = Map.map (Env.Specific home) defs
-          !types = Map.map (Env.Specific home . fst) rawTypeInfo
-          !ctors = Map.foldr (addExposed . snd) Map.empty rawTypeInfo
+              !vars = Map.map (Env.Specific home) defs
+              !types = Map.map (Env.Specific home . fst) rawTypeInfo
+              !ctors = Map.foldr (addExposed . snd) Map.empty rawTypeInfo
 
-          !qvs2 = addQualified prefix vars qvs
-          !qts2 = addQualified prefix types qts
-          !qcs2 = addQualified prefix ctors qcs
-       in case exposing of
-            Src.Open ->
-              let !vs2 = addExposed vs vars
-                  !ts2 = addExposed ts types
-                  !cs2 = addExposed cs ctors
-                  !bs2 = addExposed bs (Map.mapWithKey (binopToBinop home) binops)
-               in Result.ok (State vs2 ts2 cs2 bs2 qvs2 qts2 qcs2)
-            Src.Explicit exposedList ->
-              foldM
-                (addExposedValue home vars rawTypeInfo binops)
-                (State vs ts cs bs qvs2 qts2 qcs2)
-                exposedList
+              !qvs2 = addQualified prefix vars qvs
+              !qts2 = addQualified prefix types qts
+              !qcs2 = addQualified prefix ctors qcs
+           in case exposing of
+                Src.Open ->
+                  let !vs2 = addExposed vs vars
+                      !ts2 = addExposed ts types
+                      !cs2 = addExposed cs ctors
+                      !bs2 = addExposed bs (Map.mapWithKey (binopToBinop home) binops)
+                   in Result.ok (State vs2 ts2 cs2 bs2 qvs2 qts2 qcs2)
+                Src.Explicit exposedList ->
+                  foldM
+                    (addExposedValue home vars rawTypeInfo binops)
+                    (State vs ts cs bs qvs2 qts2 qcs2)
+                    exposedList
     Just (I.SignatureInterface {}) ->
       Result.throw $ Error.ImportedSignatureWhenNotExpected importRegion name
     Nothing ->
       error $ "Failed to find interface named " ++ show name
+
+detectNonRootSignatureInImportArgs :: Map.Map ModuleName.Raw I.Interface -> [Name.Name] -> [A.Located Name.Name] -> Maybe Error.Error
+detectNonRootSignatureInImportArgs ifaces rootParamNames importArgs =
+  case importArgs of
+    [] ->
+      Nothing
+    arg@(A.At region argName) : otherArgs ->
+      case Map.lookup argName ifaces of
+        Just (I.ImplementationInterface {}) ->
+          detectNonRootSignatureInImportArgs ifaces rootParamNames otherArgs
+        Just (I.SignatureInterface {}) ->
+          Just $ Error.ImportArgumentIsSignatureModule arg
+        Nothing ->
+          if List.elem argName rootParamNames
+            then detectNonRootSignatureInImportArgs ifaces rootParamNames otherArgs
+            else Just $ Error.ImportNotFound region argName []
 
 addParameterImport :: Map.Map ModuleName.Raw I.Interface -> State -> (A.Located Name.Name, Name.Name) -> Result i w State
 addParameterImport ifaces (State vs ts cs bs qvs qts qcs) (A.At aliasRegion alias, name) =
