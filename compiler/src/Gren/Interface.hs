@@ -21,12 +21,13 @@ where
 
 import AST.Canonical qualified as Can
 import AST.Utils.Binop qualified as Binop
-import Control.Monad (liftM, liftM2, liftM3, liftM4, liftM5)
+import Control.Monad (liftM, liftM2, liftM3, liftM4)
 import Data.Binary
 import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Strict ((!))
 import Data.Map.Strict qualified as Map
 import Data.Name qualified as Name
+import Gren.ModuleName qualified as ModuleName
 import Gren.Package qualified as Pkg
 import Reporting.Annotation qualified as A
 
@@ -35,6 +36,7 @@ import Reporting.Annotation qualified as A
 data Interface
   = ImplementationInterface
       { _home :: Pkg.Name,
+        _parameters :: Map.Map Name.Name ModuleName.Raw,
         _values :: Map.Map Name.Name Can.Annotation,
         _unions :: Map.Map Name.Name Union,
         _aliases :: Map.Map Name.Name Alias,
@@ -75,9 +77,10 @@ data ValueConstraint = ValueConstraint Name.Name Can.Type
 -- FROM MODULE
 
 fromModule :: Pkg.Name -> Can.Module -> Map.Map Name.Name Can.Annotation -> Interface
-fromModule home (Can.ImplementationModule _ exports _ _ unions aliases binops _) annotations =
+fromModule home (Can.ImplementationModule _ params exports _ _ unions aliases binops _) annotations =
   ImplementationInterface
     { _home = home,
+      _parameters = params,
       _values = restrict exports annotations,
       _unions = restrictUnions exports unions,
       _aliases = restrictAliases exports aliases,
@@ -163,7 +166,7 @@ public =
   Public
 
 private :: Interface -> DependencyInterface
-private (ImplementationInterface pkg _ unions aliases _) =
+private (ImplementationInterface pkg _ _ unions aliases _) =
   Private pkg (Map.map extractUnion unions) (Map.map extractAlias aliases)
 private (SignatureInterface pkg _ _) =
   Private pkg Map.empty Map.empty
@@ -193,11 +196,11 @@ instance Binary Interface where
   get = do
     v <- getWord8
     case v of
-      1 -> liftM5 ImplementationInterface get get get get get
+      1 -> ImplementationInterface <$> get <*> get <*> get <*> get <*> get <*> get
       2 -> liftM3 SignatureInterface get get get
       _ -> fail "binary encoding of Interface was corrupted"
 
-  put (ImplementationInterface a b c d e) = putWord8 1 >> put a >> put b >> put c >> put d >> put e
+  put (ImplementationInterface a b c d e f) = putWord8 1 >> put a >> put b >> put c >> put d >> put e >> put f
   put (SignatureInterface a b c) = putWord8 2 >> put a >> put b >> put c
 
 instance Binary Union where

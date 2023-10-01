@@ -38,7 +38,7 @@ type Annotations =
 optimize :: P.Platform -> Annotations -> Can.Module -> Result i [W.Warning] Opt.LocalGraph
 optimize platform annotations modul =
   case modul of
-    (Can.ImplementationModule home _ _ decls unions _ _ effects) ->
+    (Can.ImplementationModule home _ _ _ decls unions _ _ effects) ->
       addDecls platform home annotations decls $
         addEffects home effects $
           addUnions home unions $

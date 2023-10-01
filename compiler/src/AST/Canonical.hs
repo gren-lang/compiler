@@ -209,6 +209,7 @@ fieldsToList fields =
 data Module
   = ImplementationModule
       { _name :: ModuleName.Canonical,
+        _parameters :: Map.Map Name ModuleName.Raw,
         _exports :: Exports,
         _docs :: Src.Docs,
         _decls :: Decls,

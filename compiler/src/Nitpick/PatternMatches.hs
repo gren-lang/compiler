@@ -89,7 +89,7 @@ data Context
 -- CHECK
 
 check :: Can.Module -> Either (NE.List Error) ()
-check (Can.ImplementationModule _ _ _ decls _ _ _ _) =
+check (Can.ImplementationModule _ _ _ _ decls _ _ _ _) =
   case checkDecls decls [] of
     [] ->
       Right ()

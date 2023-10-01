@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
-
 module Canonicalize.Module
   ( canonicalize,
   )
@@ -15,6 +13,8 @@ import Canonicalize.Environment.Local qualified as Local
 import Canonicalize.Expression qualified as Expr
 import Canonicalize.Pattern qualified as Pattern
 import Canonicalize.Type qualified as Type
+import Data.Bifunctor (bimap)
+import Data.Bifunctor qualified as Bifunctor
 import Data.Graph qualified as Graph
 import Data.Index qualified as Index
 import Data.Map qualified as Map
@@ -39,18 +39,19 @@ canonicalize pkg ifaces modul =
   case modul of
     (Src.ImplementationModule _ parameters exports docs imports valuesWithSourceOrder _ _ (_, binops) _ _ effects) ->
       let values = fmap snd valuesWithSourceOrder
+          paramMap = Map.fromList $ map (bimap A.toValue A.toValue) parameters
           home = ModuleName.Canonical pkg (Src.getName modul)
           cbinops = Map.fromList (map canonicalizeBinop binops)
        in do
             (env, cunions, caliases) <-
               Local.add modul
-                =<< Foreign.createInitialEnv home ifaces (map (\(a, b) -> (a, A.toValue b)) parameters) (fmap snd imports)
+                =<< Foreign.createInitialEnv home ifaces (map (Bifunctor.second A.toValue) parameters) (fmap snd imports)
 
             cvalues <- canonicalizeValues env values
             ceffects <- Effects.canonicalize env values cunions effects
             cexports <- canonicalizeExports values cunions caliases cbinops ceffects exports
 
-            return $ Can.ImplementationModule home cexports docs cvalues cunions caliases cbinops ceffects
+            return $ Can.ImplementationModule home paramMap cexports docs cvalues cunions caliases cbinops ceffects
     (Src.SignatureModule _ _ imports aliasConstraints valueConstraints) ->
       let home = ModuleName.Canonical pkg (Src.getName modul)
           acs = map ((\(Src.AliasConstraint (A.At _ name)) -> name) . A.toValue . snd) aliasConstraints

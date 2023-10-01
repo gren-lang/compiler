@@ -82,7 +82,7 @@ isNormal (Src.Import (A.At _ name) _ maybeAlias _ _ _) =
 addImplementationImport :: Map.Map ModuleName.Raw I.Interface -> [Name.Name] -> State -> Src.Import -> Result i w State
 addImplementationImport ifaces paramNames (State vs ts cs bs qvs qts qcs) (Src.Import (A.At importRegion name) _ maybeAlias exposing _ _) =
   case Map.lookup name ifaces of
-    Just (I.ImplementationInterface pkg defs unions aliases binops) ->
+    Just (I.ImplementationInterface pkg _params defs unions aliases binops) ->
       let !prefix = maybe name fst maybeAlias
           !home = ModuleName.Canonical pkg name
 
