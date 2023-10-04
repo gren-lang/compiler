@@ -182,11 +182,15 @@ fancyLink word before fileName after =
 
 makeLink :: [Char] -> [Char]
 makeLink fileName =
-  "<https://gren-lang.org/" <> V.toChars V.compiler <> "/" <> fileName <> ">"
+  "<" <> makeNakedLink fileName <> ">"
 
 makeNakedLink :: [Char] -> [Char]
 makeNakedLink fileName =
-  "https://gren-lang.org/" <> V.toChars V.compiler <> "/" <> fileName
+  "https://github.com/gren-lang/compiler/blob/"
+    <> V.toChars V.compiler
+    <> "/hints/"
+    <> fileName
+    <> ".md"
 
 reflowLink :: [Char] -> [Char] -> [Char] -> P.Doc
 reflowLink before fileName after =
