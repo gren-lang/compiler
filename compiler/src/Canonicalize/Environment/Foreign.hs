@@ -82,38 +82,40 @@ isNormal (Src.Import (A.At _ name) _ maybeAlias _ _ _) =
 addImplementationImport :: Map.Map ModuleName.Raw I.Interface -> [Name.Name] -> State -> Src.Import -> Result i w State
 addImplementationImport ifaces rootParamNames (State vs ts cs bs qvs qts qcs) (Src.Import (A.At importRegion name) importArgs maybeAlias exposing _ _) =
   case Map.lookup name ifaces of
-    Just (I.ImplementationInterface pkg _params defs unions aliases binops) ->
-      case detectNonRootSignatureInImportArgs ifaces rootParamNames importArgs of
-        Just err ->
-          Result.throw err
-        Nothing ->
-          let !prefix = maybe name fst maybeAlias
-              !home = ModuleName.Canonical pkg name
+    Just (I.ImplementationInterface pkg params defs unions aliases binops) ->
+      if length params /= length importArgs
+        then Result.throw $ Error.ImportIsMissingArguments importRegion name (length params) (length importArgs)
+        else case detectNonRootSignatureInImportArgs ifaces rootParamNames importArgs of
+          Just err ->
+            Result.throw err
+          Nothing ->
+            let !prefix = maybe name fst maybeAlias
+                !home = ModuleName.Canonical pkg name
 
-              !rawTypeInfo =
-                Map.union
-                  (Map.mapMaybeWithKey (unionToType home) unions)
-                  (Map.mapMaybeWithKey (aliasToType home) aliases)
+                !rawTypeInfo =
+                  Map.union
+                    (Map.mapMaybeWithKey (unionToType home) unions)
+                    (Map.mapMaybeWithKey (aliasToType home) aliases)
 
-              !vars = Map.map (Env.Specific home) defs
-              !types = Map.map (Env.Specific home . fst) rawTypeInfo
-              !ctors = Map.foldr (addExposed . snd) Map.empty rawTypeInfo
+                !vars = Map.map (Env.Specific home) defs
+                !types = Map.map (Env.Specific home . fst) rawTypeInfo
+                !ctors = Map.foldr (addExposed . snd) Map.empty rawTypeInfo
 
-              !qvs2 = addQualified prefix vars qvs
-              !qts2 = addQualified prefix types qts
-              !qcs2 = addQualified prefix ctors qcs
-           in case exposing of
-                Src.Open ->
-                  let !vs2 = addExposed vs vars
-                      !ts2 = addExposed ts types
-                      !cs2 = addExposed cs ctors
-                      !bs2 = addExposed bs (Map.mapWithKey (binopToBinop home) binops)
-                   in Result.ok (State vs2 ts2 cs2 bs2 qvs2 qts2 qcs2)
-                Src.Explicit exposedList ->
-                  foldM
-                    (addExposedValue home vars rawTypeInfo binops)
-                    (State vs ts cs bs qvs2 qts2 qcs2)
-                    exposedList
+                !qvs2 = addQualified prefix vars qvs
+                !qts2 = addQualified prefix types qts
+                !qcs2 = addQualified prefix ctors qcs
+             in case exposing of
+                  Src.Open ->
+                    let !vs2 = addExposed vs vars
+                        !ts2 = addExposed ts types
+                        !cs2 = addExposed cs ctors
+                        !bs2 = addExposed bs (Map.mapWithKey (binopToBinop home) binops)
+                     in Result.ok (State vs2 ts2 cs2 bs2 qvs2 qts2 qcs2)
+                  Src.Explicit exposedList ->
+                    foldM
+                      (addExposedValue home vars rawTypeInfo binops)
+                      (State vs ts cs bs qvs2 qts2 qcs2)
+                      exposedList
     Just (I.SignatureInterface {}) ->
       Result.throw $ Error.ImportedSignatureWhenNotExpected importRegion name
     Nothing ->

@@ -70,6 +70,7 @@ data Error
   | Shadowing Name.Name A.Region A.Region
   | TypeVarsUnboundInUnion A.Region Name.Name [Name.Name] (Name.Name, A.Region) [(Name.Name, A.Region)]
   | TypeVarsMessedUpInAlias A.Region Name.Name [Name.Name] [(Name.Name, A.Region)] [(Name.Name, A.Region)]
+  | ImportIsMissingArguments A.Region Name.Name Int Int
   | ImportedSignatureWhenNotExpected A.Region Name.Name
   | ImportedModuleIsNotSignature A.Region Name.Name
   | ImportArgumentIsSignatureModule (A.Located Name.Name)
@@ -869,6 +870,16 @@ toReport source err =
                               ++ ["=", "..."]
                       ]
                   )
+    ImportIsMissingArguments region name expected actual ->
+      Report.Report "IMPORT IS MISSING ARGUMENTS" region [] $
+        Code.toSnippet
+          source
+          region
+          Nothing
+          ( D.reflow $
+              "You're trying to import `" <> Name.toChars name <> "` with `" <> show actual <> " arguments, but this module requires " <> show expected <> ".",
+            mempty
+          )
     ImportedSignatureWhenNotExpected region name ->
       Report.Report "CANNOT IMPORT A SIGNATURE MODULE" region [] $
         Code.toSnippet
