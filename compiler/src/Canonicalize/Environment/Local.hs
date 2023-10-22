@@ -99,7 +99,7 @@ addUnion :: ModuleName.Canonical -> Env.Exposed Env.Type -> A.Located Src.Union 
 addUnion home types union@(A.At _ (Src.Union (A.At _ name) _ _ _)) =
   do
     arity <- checkUnionFreeVars union
-    let one = Env.Specific home (Env.Union arity home)
+    let one = Env.Specific home Map.empty (Env.Union arity home)
     Result.ok $ Map.insert name one types
 
 -- ADD TYPE ALIASES
@@ -117,7 +117,7 @@ addAlias env@(Env.Env home vs ts cs bs qvs qts qcs) scc =
       do
         args <- checkAliasFreeVars alias
         ctype <- Type.canonicalize env tipe
-        let one = Env.Specific home (Env.Alias (length args) home args ctype)
+        let one = Env.Specific home Map.empty (Env.Alias (length args) home args ctype)
         let ts1 = Map.insert name one ts
         Result.ok $ Env.Env home vs ts1 cs bs qvs qts qcs
     Graph.CyclicSCC [] ->
@@ -133,7 +133,7 @@ addAlias env@(Env.Env home vs ts cs bs qvs qts qcs) scc =
 addAliasConstraint :: ModuleName.Canonical -> Env.Exposed Env.Type -> A.Located Src.AliasConstraint -> Result i w (Env.Exposed Env.Type)
 addAliasConstraint home types (A.At _ (Src.AliasConstraint (A.At _ alias))) =
   do
-    let one = Env.Specific home (Env.AliasConstraint home alias)
+    let one = Env.Specific home Map.empty (Env.AliasConstraint home alias)
     Result.ok $ Map.insert alias one types
 
 -- DETECT TYPE ALIAS CYCLES
@@ -287,5 +287,5 @@ toOpts ctors =
 toCtor :: ModuleName.Canonical -> Name.Name -> Can.Union -> A.Located Can.Ctor -> CtorDups
 toCtor home typeName union (A.At region (Can.Ctor name index _ args)) =
   Dups.one name region $
-    Env.Specific home $
+    Env.Specific home Map.empty $
       Env.Ctor home typeName union index args

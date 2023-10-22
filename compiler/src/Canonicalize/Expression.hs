@@ -541,11 +541,11 @@ findVar region (Env.Env localHome vs _ _ _ qvs _ _) name =
           logVar name (Can.VarLocal name)
         Env.TopLevel _ ->
           logVar name (Can.VarTopLevel localHome name)
-        Env.Foreign home annotation ->
+        Env.Foreign home pm annotation ->
           Result.ok $
             if home == ModuleName.debug
               then Can.VarDebug localHome name annotation
-              else Can.VarForeign home name annotation
+              else Can.VarForeign home pm name annotation
         Env.Foreigns h hs ->
           Result.throw (Error.AmbiguousVar region Nothing name h hs)
     Nothing ->
@@ -556,11 +556,11 @@ findVarQual region (Env.Env localHome vs _ _ _ qvs _ _) prefix name =
   case Map.lookup prefix qvs of
     Just qualified ->
       case Map.lookup name qualified of
-        Just (Env.Specific home annotation) ->
+        Just (Env.Specific home pm annotation) ->
           Result.ok $
             if home == ModuleName.debug
               then Can.VarDebug localHome name annotation
-              else Can.VarForeign home name annotation
+              else Can.VarForeign home pm name annotation
         Just (Env.Ambiguous h hs) ->
           Result.throw (Error.AmbiguousVar region (Just prefix) name h hs)
         Nothing ->

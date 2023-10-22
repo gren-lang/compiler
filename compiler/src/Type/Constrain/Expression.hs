@@ -40,7 +40,7 @@ constrain rtv (A.At region expression) expected =
       return (CLocal region name expected)
     Can.VarKernel _ _ ->
       return CTrue
-    Can.VarForeign _ name annotation ->
+    Can.VarForeign _ _ name annotation ->
       return $ CForeign region name annotation expected
     Can.VarCtor _ _ name _ annotation ->
       return $ CForeign region name annotation expected
@@ -184,7 +184,7 @@ getName (A.At _ expr) =
   case expr of
     Can.VarLocal name -> FuncName name
     Can.VarTopLevel _ name -> FuncName name
-    Can.VarForeign _ name _ -> FuncName name
+    Can.VarForeign _ _ name _ -> FuncName name
     Can.VarCtor _ _ name _ _ -> CtorName name
     Can.VarOperator op _ _ _ -> OpName op
     Can.VarKernel _ name -> FuncName name
@@ -195,7 +195,7 @@ getAccessName (A.At _ expr) =
   case expr of
     Can.VarLocal name -> Just name
     Can.VarTopLevel _ name -> Just name
-    Can.VarForeign _ name _ -> Just name
+    Can.VarForeign _ _ name _ -> Just name
     _ -> Nothing
 
 -- CONSTRAIN BINOP

@@ -38,7 +38,7 @@ createInitialEnv home ifaces parameters imports =
 infoToVar :: Env.Info Can.Annotation -> Env.Var
 infoToVar info =
   case info of
-    Env.Specific home tipe -> Env.Foreign home tipe
+    Env.Specific home pm tipe -> Env.Foreign home pm tipe
     Env.Ambiguous h hs -> Env.Foreigns h hs
 
 -- STATE
@@ -91,14 +91,16 @@ addImplementationImport ifaces rootParamNames (State vs ts cs bs qvs qts qcs) (S
           Nothing ->
             let !prefix = maybe name fst maybeAlias
                 !home = ModuleName.Canonical pkg name
+                -- TODO: Check the shape of each argument for correctness
+                !paramMap = Map.fromList $ zip (Map.keys params) (map A.toValue importArgs)
 
                 !rawTypeInfo =
                   Map.union
-                    (Map.mapMaybeWithKey (unionToType home) unions)
+                    (Map.mapMaybeWithKey (unionToType home paramMap) unions)
                     (Map.mapMaybeWithKey (aliasToType home) aliases)
 
-                !vars = Map.map (Env.Specific home) defs
-                !types = Map.map (Env.Specific home . fst) rawTypeInfo
+                !vars = Map.map (Env.Specific home paramMap) defs
+                !types = Map.map (Env.Specific home paramMap . fst) rawTypeInfo
                 !ctors = Map.foldr (addExposed . snd) Map.empty rawTypeInfo
 
                 !qvs2 = addQualified prefix vars qvs
@@ -113,7 +115,7 @@ addImplementationImport ifaces rootParamNames (State vs ts cs bs qvs qts qcs) (S
                      in Result.ok (State vs2 ts2 cs2 bs2 qvs2 qts2 qcs2)
                   Src.Explicit exposedList ->
                     foldM
-                      (addExposedValue home vars rawTypeInfo binops)
+                      (addExposedValue home paramMap vars rawTypeInfo binops)
                       (State vs ts cs bs qvs2 qts2 qcs2)
                       exposedList
     Just (I.SignatureInterface {}) ->
@@ -147,10 +149,10 @@ addParameterImport ifaces (State vs ts cs bs qvs qts qcs) (A.At aliasRegion alia
           !home = ModuleName.Canonical pkg name
 
           addAliasConstraint (I.AliasConstraint aliasName) acc =
-            Map.insert aliasName (Env.Specific home $ Env.AliasConstraint home aliasName) acc
+            Map.insert aliasName (Env.Specific home Map.empty $ Env.AliasConstraint home aliasName) acc
 
           mapValueConstraint (I.ValueConstraint _ tipe) =
-            Env.Specific home $ Type.annotationFromType tipe
+            Env.Specific home Map.empty $ Type.annotationFromType tipe
 
           !acs = foldr addAliasConstraint Map.empty aliasConstraints
           !vcs = Map.map mapValueConstraint valueConstraints
@@ -174,14 +176,14 @@ addQualified prefix exposed qualified =
 
 -- UNION
 
-unionToType :: ModuleName.Canonical -> Name.Name -> I.Union -> Maybe (Env.Type, Env.Exposed Env.Ctor)
-unionToType home name union =
-  unionToTypeHelp home name <$> I.toPublicUnion union
+unionToType :: ModuleName.Canonical -> Map.Map Name.Name Name.Name -> Name.Name -> I.Union -> Maybe (Env.Type, Env.Exposed Env.Ctor)
+unionToType home pm name union =
+  unionToTypeHelp home pm name <$> I.toPublicUnion union
 
-unionToTypeHelp :: ModuleName.Canonical -> Name.Name -> Can.Union -> (Env.Type, Env.Exposed Env.Ctor)
-unionToTypeHelp home name union@(Can.Union vars ctors _ _) =
+unionToTypeHelp :: ModuleName.Canonical -> Map.Map Name.Name Name.Name -> Name.Name -> Can.Union -> (Env.Type, Env.Exposed Env.Ctor)
+unionToTypeHelp home pm name union@(Can.Union vars ctors _ _) =
   let addCtor dict (Can.Ctor ctor index _ args) =
-        Map.insert ctor (Env.Specific home (Env.Ctor home name union index args)) dict
+        Map.insert ctor (Env.Specific home pm (Env.Ctor home name union index args)) dict
    in ( Env.Union (length vars) home,
         List.foldl' addCtor Map.empty ctors
       )
@@ -200,19 +202,20 @@ aliasToTypeHelp home _ (Can.Alias vars tipe) =
 
 binopToBinop :: ModuleName.Canonical -> Name.Name -> I.Binop -> Env.Info Env.Binop
 binopToBinop home op (I.Binop name annotation associativity precedence) =
-  Env.Specific home (Env.Binop op home name annotation associativity precedence)
+  Env.Specific home Map.empty (Env.Binop op home name annotation associativity precedence)
 
 -- ADD EXPOSED VALUE
 
 addExposedValue ::
   ModuleName.Canonical ->
+  Map.Map Name.Name Name.Name ->
   Env.Exposed Can.Annotation ->
   Map.Map Name.Name (Env.Type, Env.Exposed Env.Ctor) ->
   Map.Map Name.Name I.Binop ->
   State ->
   Src.Exposed ->
   Result i w State
-addExposedValue home vars types binops (State vs ts cs bs qvs qts qcs) exposed =
+addExposedValue home pm vars types binops (State vs ts cs bs qvs qts qcs) exposed =
   case exposed of
     Src.Lower (A.At region name) ->
       case Map.lookup name vars of
@@ -227,10 +230,10 @@ addExposedValue home vars types binops (State vs ts cs bs qvs qts qcs) exposed =
             Just (tipe, ctors) ->
               case tipe of
                 Env.Union _ _ ->
-                  let !ts2 = Map.insert name (Env.Specific home tipe) ts
+                  let !ts2 = Map.insert name (Env.Specific home pm tipe) ts
                    in Result.ok (State vs ts2 cs bs qvs qts qcs)
-                Env.Alias _ _ _ _ ->
-                  let !ts2 = Map.insert name (Env.Specific home tipe) ts
+                Env.Alias {} ->
+                  let !ts2 = Map.insert name (Env.Specific home pm tipe) ts
                       !cs2 = addExposed cs ctors
                    in Result.ok (State vs ts2 cs2 bs qvs qts qcs)
                 Env.AliasConstraint _ _ ->
@@ -246,10 +249,10 @@ addExposedValue home vars types binops (State vs ts cs bs qvs qts qcs) exposed =
             Just (tipe, ctors) ->
               case tipe of
                 Env.Union _ _ ->
-                  let !ts2 = Map.insert name (Env.Specific home tipe) ts
+                  let !ts2 = Map.insert name (Env.Specific home pm tipe) ts
                       !cs2 = addExposed cs ctors
                    in Result.ok (State vs ts2 cs2 bs qvs qts qcs)
-                Env.Alias _ _ _ _ ->
+                Env.Alias {} ->
                   Result.throw (Error.ImportOpenAlias dotDotRegion name)
                 Env.AliasConstraint _ _ ->
                   Result.throw $ Error.ImportExposingNotFound region home name (Map.keys types)
@@ -274,7 +277,7 @@ checkForCtorMistake givenName types =
       if ctorName /= givenName
         then matches
         else case info of
-          Env.Specific _ (Env.Ctor _ tipeName _ _ _) ->
+          Env.Specific _ _ (Env.Ctor _ tipeName _ _ _) ->
             tipeName : matches
           Env.Ambiguous _ _ ->
             matches
