@@ -7,9 +7,14 @@ import Data.ByteString qualified as BS
 import Data.Utf8 qualified as Utf8
 import Helpers.Instances ()
 import Helpers.Parse qualified as Helpers
+import Parse.Expression qualified as Expression
 import Parse.Pattern qualified as Pattern
+import Parse.Primitives qualified as P
+import Repl (Input (Help))
+import Reporting.Error.Syntax (Expr (ExpressionBadEnd))
 import Reporting.Error.Syntax qualified as Error.Syntax
 import Test.Hspec (Spec, describe, it)
+import Test.Hspec qualified as Hspec
 
 spec :: Spec
 spec = do
@@ -17,12 +22,12 @@ spec = do
     it "regression test" $
       parse
         "normal string"
-        "\"\"\"normal string\"\"\""
+        "\"\"\"\nnormal string\"\"\""
 
     it "mixing quotes work" $ do
       parse
         "string with \" in it"
-        "\"\"\"string with \" in it\"\"\""
+        "\"\"\"\nstring with \" in it\"\"\""
 
     it "first newline, and leading whitespace, is dropped" $ do
       parse
@@ -38,6 +43,11 @@ spec = do
       parse
         "this is\\na test"
         "\"\"\"\n   this is\n a test\n\"\"\""
+
+    it "does not allow non-newline characters on the first line" $ do
+      let isCorrectError ((Error.Syntax.String Error.Syntax.StringMultilineWithoutLeadingNewline _ _)) = True
+          isCorrectError _ = False
+      Helpers.checkParseError Expression.expression ExpressionBadEnd isCorrectError "\"\"\"this is not allowed\"\"\""
 
 parse :: String -> BS.ByteString -> IO ()
 parse expectedStr =

@@ -196,7 +196,8 @@ data CustomType
 -- EXPRESSIONS
 
 data Expr
-  = Let Let Row Col
+  = ExpressionBadEnd Row Col
+  | Let Let Row Col
   | Case Case Row Col
   | If If Row Col
   | Parenthesized Parenthesized Row Col
@@ -2598,6 +2599,8 @@ isWithin desiredNode context =
 toExprReport :: Code.Source -> Context -> Expr -> Row -> Col -> Report.Report
 toExprReport source context expr startRow startCol =
   case expr of
+    ExpressionBadEnd row col ->
+      toWeirdEndReport source row col
     Let let_ row col ->
       toLetReport source context let_ row col
     Case case_ row col ->
