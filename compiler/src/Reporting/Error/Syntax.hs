@@ -440,6 +440,7 @@ data String
   = StringEndless_Single
   | StringEndless_Multi
   | StringEscape Escape
+  | StringMultilineWithoutLeadingNewline
   deriving (Show)
 
 data Escape
@@ -2991,6 +2992,31 @@ toStringReport source string row col =
               )
     StringEscape escape ->
       toEscapeReport source escape row col
+    StringMultilineWithoutLeadingNewline ->
+      let region = toRegion row col
+       in Report.Report "MULTILINE STRING WITHOUT NEWLINE" region [] $
+            Code.toSnippet
+              source
+              region
+              Nothing
+              ( D.reflow "The contents of a multiline sting must start on a new line",
+                D.stack
+                  [ D.reflow "Add a \"\"\" a new line right after the opening quotes.",
+                    D.toSimpleNote "Here is a valid multi-line string for reference:",
+                    D.dullyellow $
+                      D.indent 4 $
+                        D.vcat
+                          [ "\"\"\"",
+                            "# Multi-line Strings",
+                            "",
+                            "- start with triple double quotes",
+                            "- write whatever you want",
+                            "- no need to escape newlines or double quotes",
+                            "- end with triple double quotes",
+                            "\"\"\""
+                          ]
+                  ]
+              )
 
 -- ESCAPES
 

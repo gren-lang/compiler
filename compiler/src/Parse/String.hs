@@ -179,7 +179,7 @@ multiString pos end row col initialPos sr sc =
             then
               let !pos1 = plusPtr pos 1
                in countLeadingWhiteSpaceThenMultiString 0 pos1 end (row + 1) 1 pos1 sr sc
-            else countLeadingWhiteSpaceThenMultiString 0 pos end row col initialPos sr sc
+            else Err sr sc E.StringMultilineWithoutLeadingNewline
 
 countLeadingWhiteSpaceThenMultiString :: Int -> Ptr Word8 -> Ptr Word8 -> Row -> Col -> Ptr Word8 -> Row -> Col -> StringResult
 countLeadingWhiteSpaceThenMultiString count pos end row col initialPos sr sc =
