@@ -2949,18 +2949,7 @@ toStringReport source string row col =
                     D.toSimpleNote $
                       "For a string that spans multiple lines, you can use the multi-line string\
                       \ syntax like this:",
-                    D.dullyellow $
-                      D.indent 4 $
-                        D.vcat $
-                          [ "\"\"\"",
-                            "# Multi-line Strings",
-                            "",
-                            "- start with triple double quotes",
-                            "- write whatever you want",
-                            "- no need to escape newlines or double quotes",
-                            "- end with triple double quotes",
-                            "\"\"\""
-                          ]
+                    D.dullyellow $ D.indent 3 validMultilineStringExample
                   ]
               )
     StringEndless_Multi ->
@@ -2976,18 +2965,7 @@ toStringReport source string row col =
                   [ D.reflow "Add a \"\"\" somewhere after this to end the string.",
                     D.toSimpleNote $
                       "Here is a valid multi-line string for reference:",
-                    D.dullyellow $
-                      D.indent 4 $
-                        D.vcat $
-                          [ "\"\"\"",
-                            "# Multi-line Strings",
-                            "",
-                            "- start with triple double quotes",
-                            "- write whatever you want",
-                            "- no need to escape newlines or double quotes",
-                            "- end with triple double quotes",
-                            "\"\"\""
-                          ]
+                    D.dullyellow $ D.indent 4 validMultilineStringExample
                   ]
               )
     StringEscape escape ->
@@ -3003,20 +2981,22 @@ toStringReport source string row col =
                 D.stack
                   [ D.reflow "Add a \"\"\" a new line right after the opening quotes.",
                     D.toSimpleNote "Here is a valid multi-line string for reference:",
-                    D.dullyellow $
-                      D.indent 4 $
-                        D.vcat
-                          [ "\"\"\"",
-                            "# Multi-line Strings",
-                            "",
-                            "- start with triple double quotes",
-                            "- write whatever you want",
-                            "- no need to escape newlines or double quotes",
-                            "- end with triple double quotes",
-                            "\"\"\""
-                          ]
+                    D.dullyellow $ D.indent 4 validMultilineStringExample
                   ]
               )
+
+validMultilineStringExample :: D.Doc
+validMultilineStringExample =
+  D.vcat
+    [ "\"\"\"",
+      "# Multi-line Strings",
+      "",
+      "- start with triple double quotes",
+      "- write whatever you want",
+      "- no need to escape newlines or double quotes",
+      "- end with triple double quotes",
+      "\"\"\""
+    ]
 
 -- ESCAPES
 
