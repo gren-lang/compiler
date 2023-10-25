@@ -31,7 +31,7 @@ createInitialEnv :: ModuleName.Canonical -> Map.Map ModuleName.Raw I.Interface -
 createInitialEnv home ifaces parameters imports =
   do
     let paramNames = map (A.toValue . fst) parameters
-    stateWithSignatures <- foldM (addParameterImport ifaces) emptyState parameters
+    stateWithSignatures <- foldM (addParameterImport home ifaces) emptyState parameters
     (State vs ts cs bs qvs qts qcs) <- foldM (addImplementationImport ifaces paramNames) stateWithSignatures (toSafeImports home imports)
     Result.ok (Env.Env home (Map.map infoToVar vs) ts cs bs qvs qts qcs)
 
@@ -92,7 +92,7 @@ addImplementationImport ifaces rootParamNames (State vs ts cs bs qvs qts qcs) (S
             let !prefix = maybe name fst maybeAlias
                 !home = ModuleName.Canonical pkg name
                 -- TODO: Check the shape of each argument for correctness
-                !paramMap = Map.fromList $ zip (Map.keys params) (map A.toValue importArgs)
+                !paramMap = Map.fromList $ zip (map (specializedSignatureName home) (Map.keys params)) (map A.toValue importArgs)
 
                 !rawTypeInfo =
                   Map.union
@@ -139,20 +139,21 @@ detectNonRootSignatureInImportArgs ifaces rootParamNames importArgs =
             then detectNonRootSignatureInImportArgs ifaces rootParamNames otherArgs
             else Just $ Error.ImportNotFound region argName []
 
-addParameterImport :: Map.Map ModuleName.Raw I.Interface -> State -> (A.Located Name.Name, Name.Name) -> Result i w State
-addParameterImport ifaces (State vs ts cs bs qvs qts qcs) (A.At aliasRegion alias, name) =
+addParameterImport :: ModuleName.Canonical -> Map.Map ModuleName.Raw I.Interface -> State -> (A.Located Name.Name, Name.Name) -> Result i w State
+addParameterImport currentModule ifaces (State vs ts cs bs qvs qts qcs) (A.At aliasRegion alias, name) =
   case Map.lookup name ifaces of
     Just (I.ImplementationInterface {}) ->
       Result.throw $ Error.ImportedModuleIsNotSignature aliasRegion name
     Just (I.SignatureInterface pkg aliasConstraints valueConstraints) ->
       let !prefix = alias
-          !home = ModuleName.Canonical pkg name
+          !originalHome = ModuleName.Canonical pkg name
+          !home = specializedSignatureName currentModule prefix
 
           addAliasConstraint (I.AliasConstraint aliasName) acc =
             Map.insert aliasName (Env.Specific home Map.empty $ Env.AliasConstraint home aliasName) acc
 
           mapValueConstraint (I.ValueConstraint _ tipe) =
-            Env.Specific home Map.empty $ Type.annotationFromType tipe
+            Env.Specific home Map.empty $ Type.annotationFromType $ replaceModuleNameInType originalHome home tipe
 
           !acs = foldr addAliasConstraint Map.empty aliasConstraints
           !vcs = Map.map mapValueConstraint valueConstraints
@@ -166,6 +167,39 @@ addParameterImport ifaces (State vs ts cs bs qvs qts qcs) (A.At aliasRegion alia
     Nothing ->
       error $ "Failed to find interface named " ++ show name
 
+specializedSignatureName :: ModuleName.Canonical -> Name.Name -> ModuleName.Canonical
+specializedSignatureName base alias =
+  let modNameChrs = Name.toChars $ ModuleName._module base
+      newModNameChrs = modNameChrs ++ "$" ++ Name.toChars alias
+   in base {ModuleName._module = Name.fromChars newModNameChrs}
+
+replaceModuleNameInType :: ModuleName.Canonical -> ModuleName.Canonical -> Can.Type -> Can.Type
+replaceModuleNameInType old new tipe =
+  case tipe of
+    Can.TLambda left right -> Can.TLambda (replaceModuleNameInType old new left) (replaceModuleNameInType old new right)
+    Can.TVar _ -> tipe
+    Can.TType candidate name tipes ->
+      if candidate == old
+        then Can.TType new name (map (replaceModuleNameInType old new) tipes)
+        else tipe
+    Can.TRecord {} -> tipe
+    Can.TAlias candidate name fields aliasTipe ->
+      if candidate /= old
+        then tipe
+        else
+          Can.TAlias
+            new
+            name
+            (map (\(n, t) -> (n, replaceModuleNameInType old new t)) fields)
+            ( case aliasTipe of
+                Can.Holey t -> Can.Holey $ replaceModuleNameInType old new t
+                Can.Filled t -> Can.Filled $ replaceModuleNameInType old new t
+            )
+    Can.TAliasConstraint candidate name ->
+      if candidate == old
+        then Can.TAliasConstraint new name
+        else tipe
+
 addExposed :: Env.Exposed a -> Env.Exposed a -> Env.Exposed a
 addExposed =
   Map.unionWith Env.mergeInfo
@@ -176,11 +210,11 @@ addQualified prefix exposed qualified =
 
 -- UNION
 
-unionToType :: ModuleName.Canonical -> Map.Map Name.Name Name.Name -> Name.Name -> I.Union -> Maybe (Env.Type, Env.Exposed Env.Ctor)
+unionToType :: ModuleName.Canonical -> Map.Map ModuleName.Canonical Name.Name -> Name.Name -> I.Union -> Maybe (Env.Type, Env.Exposed Env.Ctor)
 unionToType home pm name union =
   unionToTypeHelp home pm name <$> I.toPublicUnion union
 
-unionToTypeHelp :: ModuleName.Canonical -> Map.Map Name.Name Name.Name -> Name.Name -> Can.Union -> (Env.Type, Env.Exposed Env.Ctor)
+unionToTypeHelp :: ModuleName.Canonical -> Map.Map ModuleName.Canonical Name.Name -> Name.Name -> Can.Union -> (Env.Type, Env.Exposed Env.Ctor)
 unionToTypeHelp home pm name union@(Can.Union vars ctors _ _) =
   let addCtor dict (Can.Ctor ctor index _ args) =
         Map.insert ctor (Env.Specific home pm (Env.Ctor home name union index args)) dict
@@ -208,7 +242,7 @@ binopToBinop home op (I.Binop name annotation associativity precedence) =
 
 addExposedValue ::
   ModuleName.Canonical ->
-  Map.Map Name.Name Name.Name ->
+  Map.Map ModuleName.Canonical Name.Name ->
   Env.Exposed Can.Annotation ->
   Map.Map Name.Name (Env.Type, Env.Exposed Env.Ctor) ->
   Map.Map Name.Name I.Binop ->

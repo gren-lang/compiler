@@ -111,7 +111,7 @@ data FieldUpdate
   = FieldUpdate A.Region Expr
   deriving (Show)
 
-type ParameterMap = Map.Map Name Name
+type ParameterMap = Map.Map ModuleName.Canonical Name
 
 -- DEFS
 

@@ -56,7 +56,7 @@ type Qualified a =
   Map.Map Name.Name (Map.Map Name.Name (Info a))
 
 type ParameterMap =
-  Map.Map Name.Name Name.Name
+  Map.Map ModuleName.Canonical Name.Name
 
 -- INFO
 
@@ -148,8 +148,8 @@ addLocalBoth name region var =
 findType :: A.Region -> Env -> Name.Name -> Result i w Type
 findType region (Env _ _ ts _ _ _ qts _) name =
   case Map.lookup name ts of
-    Just (Specific _ _ tipe) ->
-      Result.ok tipe
+    Just (Specific _ pm tipe) ->
+      Result.ok (resolveTypeUsingParameterMap name tipe pm)
     Just (Ambiguous h hs) ->
       Result.throw (Error.AmbiguousType region Nothing name h hs)
     Nothing ->
@@ -160,14 +160,26 @@ findTypeQual region (Env _ _ ts _ _ _ qts _) prefix name =
   case Map.lookup prefix qts of
     Just qualified ->
       case Map.lookup name qualified of
-        Just (Specific _ _ tipe) ->
-          Result.ok tipe
+        Just (Specific _ pm tipe) ->
+          Result.ok (resolveTypeUsingParameterMap name tipe pm)
         Just (Ambiguous h hs) ->
           Result.throw (Error.AmbiguousType region (Just prefix) name h hs)
         Nothing ->
           Result.throw (Error.NotFoundType region (Just prefix) name (toPossibleNames ts qts))
     Nothing ->
       Result.throw (Error.NotFoundType region (Just prefix) name (toPossibleNames ts qts))
+
+resolveTypeUsingParameterMap :: Name.Name -> Type -> ParameterMap -> Type
+resolveTypeUsingParameterMap name tipe pm =
+  if Map.null pm
+    then tipe
+    else case tipe of
+      Alias {} ->
+        error "alias"
+      Union _ modName ->
+        tipe
+      AliasConstraint {} ->
+        error "constraint"
 
 -- FIND CTOR
 

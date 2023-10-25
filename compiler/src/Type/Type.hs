@@ -64,6 +64,7 @@ data Constraint
         _headerCon :: Constraint,
         _bodyCon :: Constraint
       }
+  deriving (Show)
 
 exists :: [Variable] -> Constraint -> Constraint
 exists flexVars constraint =
@@ -73,6 +74,9 @@ exists flexVars constraint =
 
 type Variable =
   UF.Point Descriptor
+
+instance Show (UF.Point a) where
+  show _ = "Point"
 
 data FlatType
   = App1 ModuleName.Canonical Name.Name [Variable]
@@ -89,6 +93,7 @@ data Type
   | EmptyRecordN
   | RecordN (Map.Map Name.Name Type) Type
   | AliasConstraint ModuleName.Canonical Name.Name
+  deriving (Show)
 
 -- DESCRIPTORS
 

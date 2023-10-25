@@ -40,8 +40,10 @@ constrain rtv (A.At region expression) expected =
       return (CLocal region name expected)
     Can.VarKernel _ _ ->
       return CTrue
-    Can.VarForeign _ _ name annotation ->
-      return $ CForeign region name annotation expected
+    Can.VarForeign _ pm name annotation ->
+      if Map.null pm
+        then return $ CForeign region name annotation expected
+        else error $ "Ref: " ++ show (CForeign region name annotation expected) ++ " PM: " ++ show pm
     Can.VarCtor _ _ name _ annotation ->
       return $ CForeign region name annotation expected
     Can.VarDebug _ name annotation ->
