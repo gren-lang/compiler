@@ -9,12 +9,9 @@ import Helpers.Instances ()
 import Helpers.Parse qualified as Helpers
 import Parse.Expression qualified as Expression
 import Parse.Pattern qualified as Pattern
-import Parse.Primitives qualified as P
-import Repl (Input (Help))
 import Reporting.Error.Syntax (Expr (ExpressionBadEnd))
 import Reporting.Error.Syntax qualified as Error.Syntax
 import Test.Hspec (Spec, describe, it)
-import Test.Hspec qualified as Hspec
 
 spec :: Spec
 spec = do
