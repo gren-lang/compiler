@@ -2975,7 +2975,7 @@ toStringReport source string row col =
       toEscapeReport source escape row col
     StringMultilineWithoutLeadingNewline ->
       let region = toRegion row col
-       in Report.Report "MULTILINE STRING WITHOUT NEWLINE" region [] $
+       in Report.Report "MULTILINE STRING WITHOUT LEADING NEWLINE" region [] $
             Code.toSnippet
               source
               region
