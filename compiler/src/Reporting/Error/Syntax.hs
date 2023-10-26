@@ -196,7 +196,8 @@ data CustomType
 -- EXPRESSIONS
 
 data Expr
-  = Let Let Row Col
+  = ExpressionBadEnd Row Col
+  | Let Let Row Col
   | Case Case Row Col
   | If If Row Col
   | Parenthesized Parenthesized Row Col
@@ -440,6 +441,7 @@ data String
   = StringEndless_Single
   | StringEndless_Multi
   | StringEscape Escape
+  | StringMultilineWithoutLeadingNewline
   deriving (Show)
 
 data Escape
@@ -2597,6 +2599,8 @@ isWithin desiredNode context =
 toExprReport :: Code.Source -> Context -> Expr -> Row -> Col -> Report.Report
 toExprReport source context expr startRow startCol =
   case expr of
+    ExpressionBadEnd row col ->
+      toWeirdEndReport source row col
     Let let_ row col ->
       toLetReport source context let_ row col
     Case case_ row col ->
@@ -2948,18 +2952,7 @@ toStringReport source string row col =
                     D.toSimpleNote $
                       "For a string that spans multiple lines, you can use the multi-line string\
                       \ syntax like this:",
-                    D.dullyellow $
-                      D.indent 4 $
-                        D.vcat $
-                          [ "\"\"\"",
-                            "# Multi-line Strings",
-                            "",
-                            "- start with triple double quotes",
-                            "- write whatever you want",
-                            "- no need to escape newlines or double quotes",
-                            "- end with triple double quotes",
-                            "\"\"\""
-                          ]
+                    D.dullyellow $ D.indent 3 validMultilineStringExample
                   ]
               )
     StringEndless_Multi ->
@@ -2975,22 +2968,38 @@ toStringReport source string row col =
                   [ D.reflow "Add a \"\"\" somewhere after this to end the string.",
                     D.toSimpleNote $
                       "Here is a valid multi-line string for reference:",
-                    D.dullyellow $
-                      D.indent 4 $
-                        D.vcat $
-                          [ "\"\"\"",
-                            "# Multi-line Strings",
-                            "",
-                            "- start with triple double quotes",
-                            "- write whatever you want",
-                            "- no need to escape newlines or double quotes",
-                            "- end with triple double quotes",
-                            "\"\"\""
-                          ]
+                    D.dullyellow $ D.indent 4 validMultilineStringExample
                   ]
               )
     StringEscape escape ->
       toEscapeReport source escape row col
+    StringMultilineWithoutLeadingNewline ->
+      let region = toRegion row col
+       in Report.Report "MULTILINE STRING WITHOUT LEADING NEWLINE" region [] $
+            Code.toSnippet
+              source
+              region
+              Nothing
+              ( D.reflow "The contents of a multiline sting must start on a new line",
+                D.stack
+                  [ D.reflow "Add a \"\"\" a new line right after the opening quotes.",
+                    D.toSimpleNote "Here is a valid multi-line string for reference:",
+                    D.dullyellow $ D.indent 4 validMultilineStringExample
+                  ]
+              )
+
+validMultilineStringExample :: D.Doc
+validMultilineStringExample =
+  D.vcat
+    [ "\"\"\"",
+      "# Multi-line Strings",
+      "",
+      "- start with triple double quotes",
+      "- write whatever you want",
+      "- no need to escape newlines or double quotes",
+      "- end with triple double quotes",
+      "\"\"\""
+    ]
 
 -- ESCAPES
 
