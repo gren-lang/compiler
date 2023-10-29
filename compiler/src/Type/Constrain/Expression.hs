@@ -43,7 +43,10 @@ constrain rtv (A.At region expression) expected =
     Can.VarForeign _ pm name annotation ->
       if Map.null pm
         then return $ CForeign region name annotation expected
-        else error $ "Ref: " ++ show (CForeign region name annotation expected) ++ " PM: " ++ show pm
+        else
+          let alteredAnnotation = resolveAnnotationUsingParameterMap pm annotation
+           in -- in return $ error $ "Ann: " ++ show alteredAnnotation
+              return $ CForeign region name alteredAnnotation expected
     Can.VarCtor _ _ name _ annotation ->
       return $ CForeign region name annotation expected
     Can.VarDebug _ name annotation ->
@@ -119,6 +122,62 @@ constrain rtv (A.At region expression) expected =
       constrainUpdate rtv region expr fields expected
     Can.Record fields ->
       constrainRecord rtv region fields expected
+
+resolveAnnotationUsingParameterMap :: Map.Map ModuleName.Canonical Name.Name -> Can.Annotation -> Can.Annotation
+resolveAnnotationUsingParameterMap pm ann@(Can.Forall freevars tipe) =
+  if Map.null pm
+    then ann
+    else
+      let newType = resolveAnnotationTypeUsingParameterMap pm tipe
+       in Can.Forall freevars newType
+
+resolveExpectationUsingParameterMap :: Map.Map ModuleName.Canonical Name.Name -> E.Expected Can.Type -> E.Expected Can.Type
+resolveExpectationUsingParameterMap pm expected =
+  if Map.null pm
+    then expected
+    else case expected of
+      E.NoExpectation tipe ->
+        E.NoExpectation tipe
+      E.FromContext region ctx tipe ->
+        E.FromContext region ctx tipe
+      E.FromAnnotation name n subCtx tipe ->
+        E.FromAnnotation name n subCtx tipe
+
+resolveAnnotationTypeUsingParameterMap :: Map.Map ModuleName.Canonical Name.Name -> Can.Type -> Can.Type
+resolveAnnotationTypeUsingParameterMap pm tipe =
+  case tipe of
+    Can.TLambda t1 t2 ->
+      Can.TLambda
+        (resolveAnnotationTypeUsingParameterMap pm t1)
+        (resolveAnnotationTypeUsingParameterMap pm t2)
+    Can.TVar _ ->
+      tipe
+    Can.TType modName name tipes ->
+      Can.TType
+        (resolveModuleNameUsingPM pm modName)
+        name
+        (map (resolveAnnotationTypeUsingParameterMap pm) tipes)
+    Can.TRecord fields maybeName ->
+      Can.TRecord
+        (Map.map (\(Can.FieldType n t) -> Can.FieldType n (resolveAnnotationTypeUsingParameterMap pm t)) fields)
+        maybeName
+    Can.TAlias modName name fields aliasTipe ->
+      Can.TAlias
+        (resolveModuleNameUsingPM pm modName)
+        name
+        (map (\(n, t) -> (n, resolveAnnotationTypeUsingParameterMap pm t)) fields)
+        ( case aliasTipe of
+            Can.Holey t -> Can.Holey $ resolveAnnotationTypeUsingParameterMap pm t
+            Can.Filled t -> Can.Filled $ resolveAnnotationTypeUsingParameterMap pm t
+        )
+    Can.TAliasConstraint modName name ->
+      Can.TAliasConstraint (resolveModuleNameUsingPM pm modName) name
+
+resolveModuleNameUsingPM :: Map.Map ModuleName.Canonical Name.Name -> ModuleName.Canonical -> ModuleName.Canonical
+resolveModuleNameUsingPM pm canMod =
+  case Map.lookup canMod pm of
+    Just v -> canMod {ModuleName._module = v}
+    Nothing -> canMod
 
 -- CONSTRAIN LAMBDA
 
