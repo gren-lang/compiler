@@ -36,7 +36,7 @@ import Reporting.Annotation qualified as A
 data Interface
   = ImplementationInterface
       { _home :: Pkg.Name,
-        _parameters :: Map.Map Name.Name ModuleName.Raw,
+        _parameters :: [(Name.Name, ModuleName.Raw)],
         _values :: Map.Map Name.Name Can.Annotation,
         _unions :: Map.Map Name.Name Union,
         _aliases :: Map.Map Name.Name Alias,

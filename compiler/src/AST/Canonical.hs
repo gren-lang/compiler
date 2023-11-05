@@ -79,7 +79,7 @@ data Expr_
   = VarLocal Name
   | VarTopLevel ModuleName.Canonical Name
   | VarKernel Name Name
-  | VarForeign ModuleName.Canonical ParameterMap Name Annotation
+  | VarForeign ModuleName.Canonical Name Annotation
   | VarCtor CtorOpts ModuleName.Canonical Name Index.ZeroBased Annotation
   | VarDebug ModuleName.Canonical Name Annotation
   | VarOperator Name ModuleName.Canonical Name Annotation -- CACHE real name for optimization
@@ -110,8 +110,6 @@ data CaseBranch
 data FieldUpdate
   = FieldUpdate A.Region Expr
   deriving (Show)
-
-type ParameterMap = Map.Map ModuleName.Canonical Name
 
 -- DEFS
 
@@ -211,7 +209,7 @@ fieldsToList fields =
 data Module
   = ImplementationModule
       { _name :: ModuleName.Canonical,
-        _parameters :: Map.Map Name ModuleName.Raw,
+        _parameters :: [(Name, ModuleName.Raw)],
         _exports :: Exports,
         _docs :: Src.Docs,
         _decls :: Decls,

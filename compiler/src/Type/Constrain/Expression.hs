@@ -8,7 +8,6 @@ module Type.Constrain.Expression
 where
 
 import AST.Canonical qualified as Can
-import Data.Bifunctor qualified as Bifunctor
 import Data.Index qualified as Index
 import Data.Map.Strict qualified as Map
 import Data.Name qualified as Name
@@ -41,13 +40,8 @@ constrain rtv (A.At region expression) expected =
       return (CLocal region name expected)
     Can.VarKernel _ _ ->
       return CTrue
-    Can.VarForeign _ pm name annotation ->
-      if Map.null pm
-        then return $ CForeign region name annotation expected
-        else
-          let alteredAnnotation = resolveAnnotationUsingParameterMap pm annotation
-              alteredExpectation = resolveExpectationUsingParameterMap pm expected
-           in return $ CForeign region name alteredAnnotation alteredExpectation
+    Can.VarForeign _ name annotation ->
+       return $ CForeign region name annotation expected
     Can.VarCtor _ _ name _ annotation ->
       return $ CForeign region name annotation expected
     Can.VarDebug _ name annotation ->
@@ -124,93 +118,6 @@ constrain rtv (A.At region expression) expected =
     Can.Record fields ->
       constrainRecord rtv region fields expected
 
-resolveAnnotationUsingParameterMap :: Map.Map ModuleName.Canonical Name.Name -> Can.Annotation -> Can.Annotation
-resolveAnnotationUsingParameterMap pm ann@(Can.Forall freevars tipe) =
-  if Map.null pm
-    then ann
-    else
-      let newType = resolveAnnotationTypeUsingParameterMap pm tipe
-       in Can.Forall freevars newType
-
-resolveAnnotationTypeUsingParameterMap :: Map.Map ModuleName.Canonical Name.Name -> Can.Type -> Can.Type
-resolveAnnotationTypeUsingParameterMap pm tipe =
-  case tipe of
-    Can.TLambda t1 t2 ->
-      Can.TLambda
-        (resolveAnnotationTypeUsingParameterMap pm t1)
-        (resolveAnnotationTypeUsingParameterMap pm t2)
-    Can.TVar _ ->
-      tipe
-    Can.TType modName name tipes ->
-      Can.TType
-        (resolveModuleNameUsingPM pm modName)
-        name
-        (map (resolveAnnotationTypeUsingParameterMap pm) tipes)
-    Can.TRecord fields maybeName ->
-      Can.TRecord
-        (Map.map (\(Can.FieldType n t) -> Can.FieldType n (resolveAnnotationTypeUsingParameterMap pm t)) fields)
-        maybeName
-    Can.TAlias modName name fields aliasTipe ->
-      Can.TAlias
-        (resolveModuleNameUsingPM pm modName)
-        name
-        (map (Bifunctor.second (resolveAnnotationTypeUsingParameterMap pm)) fields)
-        ( case aliasTipe of
-            Can.Holey t -> Can.Holey $ resolveAnnotationTypeUsingParameterMap pm t
-            Can.Filled t -> Can.Filled $ resolveAnnotationTypeUsingParameterMap pm t
-        )
-    Can.TAliasConstraint modName name ->
-      Can.TAliasConstraint (resolveModuleNameUsingPM pm modName) name
-
-resolveModuleNameUsingPM :: Map.Map ModuleName.Canonical Name.Name -> ModuleName.Canonical -> ModuleName.Canonical
-resolveModuleNameUsingPM pm canMod =
-  case Map.lookup canMod pm of
-    Just v -> canMod {ModuleName._module = v}
-    Nothing -> canMod
-
-resolveExpectationUsingParameterMap :: Map.Map ModuleName.Canonical Name.Name -> E.Expected Type -> E.Expected Type
-resolveExpectationUsingParameterMap pm expected =
-  if Map.null pm
-    then expected
-    else case expected of
-      E.NoExpectation tipe ->
-        E.NoExpectation $ resolveExpectationTypeUsingParameterMap pm tipe
-      E.FromContext region ctx tipe ->
-        E.FromContext region ctx $ resolveExpectationTypeUsingParameterMap pm tipe
-      E.FromAnnotation name n subCtx tipe ->
-        E.FromAnnotation name n subCtx $ resolveExpectationTypeUsingParameterMap pm tipe
-
-resolveExpectationTypeUsingParameterMap :: Map.Map ModuleName.Canonical Name.Name -> Type -> Type
-resolveExpectationTypeUsingParameterMap pm tipe =
-  case tipe of
-    PlaceHolder name ->
-      PlaceHolder name
-    AliasN modName name fields aliasType ->
-      AliasN
-        (resolveModuleNameUsingPM pm modName)
-        name
-        (map (Bifunctor.second (resolveExpectationTypeUsingParameterMap pm)) fields)
-        (resolveExpectationTypeUsingParameterMap pm aliasType)
-    VarN var ->
-      VarN var
-    AppN modName name tipes ->
-      AppN
-        (resolveModuleNameUsingPM pm modName)
-        name
-        (map (resolveExpectationTypeUsingParameterMap pm) tipes)
-    FunN left right ->
-      FunN
-        (resolveExpectationTypeUsingParameterMap pm left)
-        (resolveExpectationTypeUsingParameterMap pm right)
-    EmptyRecordN ->
-      EmptyRecordN
-    RecordN fields recordType ->
-      RecordN
-        (Map.map (resolveExpectationTypeUsingParameterMap pm) fields)
-        (resolveExpectationTypeUsingParameterMap pm recordType)
-    AliasConstraint modName name ->
-      AliasConstraint (resolveModuleNameUsingPM pm modName) name
-
 -- CONSTRAIN LAMBDA
 
 constrainLambda :: RTV -> A.Region -> [Can.Pattern] -> Can.Expr -> Expected Type -> IO Constraint
@@ -277,7 +184,7 @@ getName (A.At _ expr) =
   case expr of
     Can.VarLocal name -> FuncName name
     Can.VarTopLevel _ name -> FuncName name
-    Can.VarForeign _ _ name _ -> FuncName name
+    Can.VarForeign _ name _ -> FuncName name
     Can.VarCtor _ _ name _ _ -> CtorName name
     Can.VarOperator op _ _ _ -> OpName op
     Can.VarKernel _ name -> FuncName name
@@ -288,7 +195,7 @@ getAccessName (A.At _ expr) =
   case expr of
     Can.VarLocal name -> Just name
     Can.VarTopLevel _ name -> Just name
-    Can.VarForeign _ _ name _ -> Just name
+    Can.VarForeign _ name _ -> Just name
     _ -> Nothing
 
 -- CONSTRAIN BINOP

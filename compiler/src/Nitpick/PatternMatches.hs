@@ -139,7 +139,7 @@ checkExpr (A.At region expression) errors =
       errors
     Can.VarKernel _ _ ->
       errors
-    Can.VarForeign _ _ _ _ ->
+    Can.VarForeign _ _ _ ->
       errors
     Can.VarCtor _ _ _ _ _ ->
       errors

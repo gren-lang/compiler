@@ -36,7 +36,7 @@ optimize cycle (A.At region expression) =
         else Names.registerGlobal region home name
     Can.VarKernel home name ->
       Names.registerKernel home (Opt.VarKernel region home name)
-    Can.VarForeign home _ name _ ->
+    Can.VarForeign home name _ ->
       Names.registerGlobal region home name
     Can.VarCtor opts home name index _ ->
       Names.registerCtor region home (A.At region name) index opts

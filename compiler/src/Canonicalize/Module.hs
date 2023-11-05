@@ -39,7 +39,7 @@ canonicalize pkg ifaces modul =
   case modul of
     (Src.ImplementationModule _ parameters exports docs imports valuesWithSourceOrder _ _ (_, binops) _ _ effects) ->
       let values = fmap snd valuesWithSourceOrder
-          paramMap = Map.fromList $ map (bimap A.toValue A.toValue) parameters
+          paramMap = map (bimap A.toValue A.toValue) parameters
           home = ModuleName.Canonical pkg (Src.getName modul)
           cbinops = Map.fromList (map canonicalizeBinop binops)
        in do
