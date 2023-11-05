@@ -8,6 +8,7 @@ module Type.Constrain.Expression
 where
 
 import AST.Canonical qualified as Can
+import Data.Bifunctor qualified as Bifunctor
 import Data.Index qualified as Index
 import Data.Map.Strict qualified as Map
 import Data.Name qualified as Name
@@ -45,8 +46,8 @@ constrain rtv (A.At region expression) expected =
         then return $ CForeign region name annotation expected
         else
           let alteredAnnotation = resolveAnnotationUsingParameterMap pm annotation
-           in -- in return $ error $ "Ann: " ++ show alteredAnnotation
-              return $ CForeign region name alteredAnnotation expected
+              alteredExpectation = resolveExpectationUsingParameterMap pm expected
+           in return $ CForeign region name alteredAnnotation alteredExpectation
     Can.VarCtor _ _ name _ annotation ->
       return $ CForeign region name annotation expected
     Can.VarDebug _ name annotation ->
@@ -131,18 +132,6 @@ resolveAnnotationUsingParameterMap pm ann@(Can.Forall freevars tipe) =
       let newType = resolveAnnotationTypeUsingParameterMap pm tipe
        in Can.Forall freevars newType
 
-resolveExpectationUsingParameterMap :: Map.Map ModuleName.Canonical Name.Name -> E.Expected Can.Type -> E.Expected Can.Type
-resolveExpectationUsingParameterMap pm expected =
-  if Map.null pm
-    then expected
-    else case expected of
-      E.NoExpectation tipe ->
-        E.NoExpectation tipe
-      E.FromContext region ctx tipe ->
-        E.FromContext region ctx tipe
-      E.FromAnnotation name n subCtx tipe ->
-        E.FromAnnotation name n subCtx tipe
-
 resolveAnnotationTypeUsingParameterMap :: Map.Map ModuleName.Canonical Name.Name -> Can.Type -> Can.Type
 resolveAnnotationTypeUsingParameterMap pm tipe =
   case tipe of
@@ -165,7 +154,7 @@ resolveAnnotationTypeUsingParameterMap pm tipe =
       Can.TAlias
         (resolveModuleNameUsingPM pm modName)
         name
-        (map (\(n, t) -> (n, resolveAnnotationTypeUsingParameterMap pm t)) fields)
+        (map (Bifunctor.second (resolveAnnotationTypeUsingParameterMap pm)) fields)
         ( case aliasTipe of
             Can.Holey t -> Can.Holey $ resolveAnnotationTypeUsingParameterMap pm t
             Can.Filled t -> Can.Filled $ resolveAnnotationTypeUsingParameterMap pm t
@@ -178,6 +167,49 @@ resolveModuleNameUsingPM pm canMod =
   case Map.lookup canMod pm of
     Just v -> canMod {ModuleName._module = v}
     Nothing -> canMod
+
+resolveExpectationUsingParameterMap :: Map.Map ModuleName.Canonical Name.Name -> E.Expected Type -> E.Expected Type
+resolveExpectationUsingParameterMap pm expected =
+  if Map.null pm
+    then expected
+    else case expected of
+      E.NoExpectation tipe ->
+        E.NoExpectation $ resolveExpectationTypeUsingParameterMap pm tipe
+      E.FromContext region ctx tipe ->
+        E.FromContext region ctx $ resolveExpectationTypeUsingParameterMap pm tipe
+      E.FromAnnotation name n subCtx tipe ->
+        E.FromAnnotation name n subCtx $ resolveExpectationTypeUsingParameterMap pm tipe
+
+resolveExpectationTypeUsingParameterMap :: Map.Map ModuleName.Canonical Name.Name -> Type -> Type
+resolveExpectationTypeUsingParameterMap pm tipe =
+  case tipe of
+    PlaceHolder name ->
+      PlaceHolder name
+    AliasN modName name fields aliasType ->
+      AliasN
+        (resolveModuleNameUsingPM pm modName)
+        name
+        (map (Bifunctor.second (resolveExpectationTypeUsingParameterMap pm)) fields)
+        (resolveExpectationTypeUsingParameterMap pm aliasType)
+    VarN var ->
+      VarN var
+    AppN modName name tipes ->
+      AppN
+        (resolveModuleNameUsingPM pm modName)
+        name
+        (map (resolveExpectationTypeUsingParameterMap pm) tipes)
+    FunN left right ->
+      FunN
+        (resolveExpectationTypeUsingParameterMap pm left)
+        (resolveExpectationTypeUsingParameterMap pm right)
+    EmptyRecordN ->
+      EmptyRecordN
+    RecordN fields recordType ->
+      RecordN
+        (Map.map (resolveExpectationTypeUsingParameterMap pm) fields)
+        (resolveExpectationTypeUsingParameterMap pm recordType)
+    AliasConstraint modName name ->
+      AliasConstraint (resolveModuleNameUsingPM pm modName) name
 
 -- CONSTRAIN LAMBDA
 
