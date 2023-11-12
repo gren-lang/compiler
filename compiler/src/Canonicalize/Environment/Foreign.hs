@@ -12,6 +12,7 @@ import AST.Source qualified as Src
 import Canonicalize.Environment qualified as Env
 import Canonicalize.Type qualified as Type
 import Control.Monad (foldM)
+import Data.Bifunctor qualified as Bifunctor
 import Data.List qualified as List
 import Data.Map.Strict qualified as Map
 import Data.Name qualified as Name
@@ -90,16 +91,18 @@ addImplementationImport ifaces rootParamNames (State vs ts cs bs qvs qts qcs) (S
             Result.throw err
           Nothing ->
             let !prefix = maybe name fst maybeAlias
+                !unpositionedArgs = (map A.toValue importArgs)
                 !home = ModuleName.Canonical pkg name
+                -- home = ModuleName.Canonical pkg (specializedHomeName name unpositionedArgs)
                 -- TODO: Check the shape of each argument for correctness
-                !paramMap = Map.fromList $ zip (map (specializedSignatureName home . fst) params) (map A.toValue importArgs)
+                !paramMap = Map.fromList $ zip (map (specializedSignatureName home . fst) params) unpositionedArgs
 
                 !rawTypeInfo =
                   Map.union
-                    (Map.mapMaybeWithKey (unionToType home) unions)
-                    (Map.mapMaybeWithKey (aliasToType home) aliases)
+                    (Map.mapMaybeWithKey (unionToType home paramMap) unions)
+                    (Map.mapMaybeWithKey (aliasToType home paramMap) aliases)
 
-                !vars = Map.map (Env.Specific home) defs
+                !vars = Map.map (Env.Specific home) (Map.map (\(Can.Forall freevars t) -> Can.Forall freevars (specializeTypeWithParamMap paramMap t)) defs)
                 !types = Map.map (Env.Specific home . fst) rawTypeInfo
                 !ctors = Map.foldr (addExposed . snd) Map.empty rawTypeInfo
 
@@ -153,7 +156,7 @@ addParameterImport currentModule ifaces (State vs ts cs bs qvs qts qcs) (A.At al
             Map.insert aliasName (Env.Specific home $ Env.AliasConstraint home aliasName) acc
 
           mapValueConstraint (I.ValueConstraint _ tipe) =
-            Env.Specific home  $ Type.annotationFromType $ replaceModuleNameInType originalHome home tipe
+            Env.Specific home $ Type.annotationFromType $ replaceModuleNameInType originalHome home tipe
 
           !acs = foldr addAliasConstraint Map.empty aliasConstraints
           !vcs = Map.map mapValueConstraint valueConstraints
@@ -166,6 +169,15 @@ addParameterImport currentModule ifaces (State vs ts cs bs qvs qts qcs) (A.At al
        in Result.ok (State vs2 ts2 cs bs qvs2 qts2 qcs)
     Nothing ->
       error $ "Failed to find interface named " ++ show name
+
+specializedHomeName :: Name.Name -> [Name.Name] -> Name.Name
+specializedHomeName base args =
+  case args of
+    [] -> base
+    _ ->
+      let baseStr = Name.toChars base
+          argStr = unwords $ List.intersperse ", " $ map Name.toChars args
+       in Name.fromChars $ baseStr ++ "(" ++ argStr ++ ")"
 
 specializedSignatureName :: ModuleName.Canonical -> Name.Name -> ModuleName.Canonical
 specializedSignatureName base alias =
@@ -210,27 +222,65 @@ addQualified prefix exposed qualified =
 
 -- UNION
 
-unionToType :: ModuleName.Canonical -> Name.Name -> I.Union -> Maybe (Env.Type, Env.Exposed Env.Ctor)
-unionToType home name union =
-  unionToTypeHelp home name <$> I.toPublicUnion union
+type ParameterMap = Map.Map ModuleName.Canonical Name.Name
 
-unionToTypeHelp :: ModuleName.Canonical -> Name.Name -> Can.Union -> (Env.Type, Env.Exposed Env.Ctor)
-unionToTypeHelp home name union@(Can.Union vars ctors _ _) =
+unionToType :: ModuleName.Canonical -> ParameterMap -> Name.Name -> I.Union -> Maybe (Env.Type, Env.Exposed Env.Ctor)
+unionToType home paramMap name union =
+  unionToTypeHelp home paramMap name <$> I.toPublicUnion union
+
+unionToTypeHelp :: ModuleName.Canonical -> ParameterMap -> Name.Name -> Can.Union -> (Env.Type, Env.Exposed Env.Ctor)
+unionToTypeHelp home paramMap name union@(Can.Union vars ctors _ _) =
   let addCtor dict (Can.Ctor ctor index _ args) =
-        Map.insert ctor (Env.Specific home (Env.Ctor home name union index args)) dict
+        Map.insert ctor (Env.Specific home (Env.Ctor home name union index (map (specializeTypeWithParamMap paramMap) args))) dict
    in ( Env.Union (length vars) home,
         List.foldl' addCtor Map.empty ctors
       )
 
 -- ALIAS
 
-aliasToType :: ModuleName.Canonical -> Name.Name -> I.Alias -> Maybe (Env.Type, Env.Exposed Env.Ctor)
-aliasToType home name alias =
-  aliasToTypeHelp home name <$> I.toPublicAlias alias
+aliasToType :: ModuleName.Canonical -> ParameterMap -> Name.Name -> I.Alias -> Maybe (Env.Type, Env.Exposed Env.Ctor)
+aliasToType home paramMap name alias =
+  aliasToTypeHelp home paramMap name <$> I.toPublicAlias alias
 
-aliasToTypeHelp :: ModuleName.Canonical -> Name.Name -> Can.Alias -> (Env.Type, Env.Exposed Env.Ctor)
-aliasToTypeHelp home _ (Can.Alias vars tipe) =
-  (Env.Alias (length vars) home vars tipe, Map.empty)
+aliasToTypeHelp :: ModuleName.Canonical -> ParameterMap -> Name.Name -> Can.Alias -> (Env.Type, Env.Exposed Env.Ctor)
+aliasToTypeHelp home paramMap _ (Can.Alias vars tipe) =
+  (Env.Alias (length vars) home vars (specializeTypeWithParamMap paramMap tipe), Map.empty)
+
+specializeTypeWithParamMap :: ParameterMap -> Can.Type -> Can.Type
+specializeTypeWithParamMap paramMap t =
+  case t of
+    Can.TLambda left right ->
+      Can.TLambda
+        (specializeTypeWithParamMap paramMap left)
+        (specializeTypeWithParamMap paramMap right)
+    Can.TVar _ ->
+      t
+    Can.TType candidate name tipes ->
+      case Map.lookup candidate paramMap of
+        Nothing -> t
+        Just newName ->
+          Can.TType
+            (candidate {ModuleName._module = newName})
+            name
+            (map (specializeTypeWithParamMap paramMap) tipes)
+    Can.TRecord fields name ->
+      Can.TRecord
+        (Map.map (\(Can.FieldType w tipe) -> Can.FieldType w (specializeTypeWithParamMap paramMap tipe)) fields)
+        name
+    Can.TAlias candidate name fields aliasTipe ->
+      case Map.lookup candidate paramMap of
+        Nothing -> t
+        Just newName ->
+          Can.TAlias
+            (candidate {ModuleName._module = newName}) -- TODO: ParameterMap should be module -> module (not module -> name)
+            name
+            (map (Bifunctor.second (specializeTypeWithParamMap paramMap)) fields)
+            ( case aliasTipe of
+                Can.Filled tipe -> Can.Filled $ specializeTypeWithParamMap paramMap tipe
+                Can.Holey tipe -> Can.Holey $ specializeTypeWithParamMap paramMap tipe
+            )
+    Can.TAliasConstraint _ _ ->
+      t
 
 -- BINOP
 
