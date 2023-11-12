@@ -33,7 +33,7 @@ createInitialEnv home ifaces parameters imports =
   do
     let paramNames = map (A.toValue . fst) parameters
     stateWithSignatures <- foldM (addParameterImport home ifaces) emptyState parameters
-    (State vs ts cs bs qvs qts qcs) <- foldM (addImplementationImport ifaces paramNames) stateWithSignatures (toSafeImports home imports)
+    (State vs ts cs bs qvs qts qcs) <- foldM (addImplementationImport home ifaces paramNames) stateWithSignatures (toSafeImports home imports)
     Result.ok (Env.Env home (Map.map infoToVar vs) ts cs bs qvs qts qcs)
 
 infoToVar :: Env.Info Can.Annotation -> Env.Var
@@ -80,8 +80,8 @@ isNormal (Src.Import (A.At _ name) _ maybeAlias _ _ _) =
 
 -- ADD IMPORTS
 
-addImplementationImport :: Map.Map ModuleName.Raw I.Interface -> [Name.Name] -> State -> Src.Import -> Result i w State
-addImplementationImport ifaces rootParamNames (State vs ts cs bs qvs qts qcs) (Src.Import (A.At importRegion name) importArgs maybeAlias exposing _ _) =
+addImplementationImport :: ModuleName.Canonical -> Map.Map ModuleName.Raw I.Interface -> [Name.Name] -> State -> Src.Import -> Result i w State
+addImplementationImport rootHome ifaces rootParamNames (State vs ts cs bs qvs qts qcs) (Src.Import (A.At importRegion name) importArgs maybeAlias exposing _ _) =
   case Map.lookup name ifaces of
     Just (I.ImplementationInterface pkg params defs unions aliases binops) ->
       if length params /= length importArgs
@@ -92,7 +92,7 @@ addImplementationImport ifaces rootParamNames (State vs ts cs bs qvs qts qcs) (S
           Nothing ->
             let !prefix = maybe name fst maybeAlias
                 !home = ModuleName.Canonical pkg name
-                !unpositionedArgs = map (swapUnspecializedParameter rootParamNames home . A.toValue) importArgs
+                !unpositionedArgs = map (swapUnspecializedParameter rootParamNames rootHome . A.toValue) importArgs
                 -- home = ModuleName.Canonical pkg (specializedHomeName name unpositionedArgs)
                 -- TODO: Check the shape of each argument for correctness
                 !paramMap = Map.fromList $ zip (map (specializedSignatureName home . fst) params) unpositionedArgs
@@ -289,7 +289,7 @@ specializeTypeWithParamMap paramMap t =
                 Can.Holey tipe -> Can.Holey $ specializeTypeWithParamMap paramMap tipe
             )
     Can.TAliasConstraint _ _ ->
-      t
+      error "Test"
 
 -- BINOP
 
