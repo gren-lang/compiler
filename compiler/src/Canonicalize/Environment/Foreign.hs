@@ -91,8 +91,8 @@ addImplementationImport ifaces rootParamNames (State vs ts cs bs qvs qts qcs) (S
             Result.throw err
           Nothing ->
             let !prefix = maybe name fst maybeAlias
-                !unpositionedArgs = (map A.toValue importArgs)
                 !home = ModuleName.Canonical pkg name
+                !unpositionedArgs = map (swapUnspecializedParameter rootParamNames home . A.toValue) importArgs
                 -- home = ModuleName.Canonical pkg (specializedHomeName name unpositionedArgs)
                 -- TODO: Check the shape of each argument for correctness
                 !paramMap = Map.fromList $ zip (map (specializedSignatureName home . fst) params) unpositionedArgs
@@ -141,6 +141,12 @@ detectNonRootSignatureInImportArgs ifaces rootParamNames importArgs =
           if List.elem argName rootParamNames
             then detectNonRootSignatureInImportArgs ifaces rootParamNames otherArgs
             else Just $ Error.ImportNotFound region argName []
+
+swapUnspecializedParameter :: [Name.Name] -> ModuleName.Canonical -> Name.Name -> Name.Name
+swapUnspecializedParameter rootParamNames home name =
+  if List.elem name rootParamNames
+    then ModuleName._module $ specializedSignatureName home name
+    else name
 
 addParameterImport :: ModuleName.Canonical -> Map.Map ModuleName.Raw I.Interface -> State -> (A.Located Name.Name, Name.Name) -> Result i w State
 addParameterImport currentModule ifaces (State vs ts cs bs qvs qts qcs) (A.At aliasRegion alias, name) =
@@ -194,7 +200,10 @@ replaceModuleNameInType old new tipe =
       if candidate == old
         then Can.TType new name (map (replaceModuleNameInType old new) tipes)
         else tipe
-    Can.TRecord {} -> tipe
+    Can.TRecord fields name ->
+      Can.TRecord
+        (Map.map (\(Can.FieldType w t) -> Can.FieldType w $ replaceModuleNameInType old new t) fields)
+        name
     Can.TAlias candidate name fields aliasTipe ->
       if candidate /= old
         then tipe
