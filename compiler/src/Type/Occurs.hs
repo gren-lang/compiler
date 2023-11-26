@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wall #-}
 
 module Type.Occurs
@@ -47,5 +46,7 @@ occursHelp seen var foundCycle =
                     =<< foldrM (occursHelp newSeen) foundCycle (Map.elems fields)
         Alias _ _ args _ ->
           foldrM (occursHelp (var : seen)) foundCycle (map snd args)
+        AliasName _ _ ->
+          return foundCycle
         Error ->
           return foundCycle

@@ -75,9 +75,6 @@ exists flexVars constraint =
 type Variable =
   UF.Point Descriptor
 
-instance Show (UF.Point a) where
-  show _ = "Point"
-
 data FlatType
   = App1 ModuleName.Canonical Name.Name [Variable]
   | Fun1 Variable Variable
@@ -111,6 +108,7 @@ data Content
   | RigidSuper SuperType Name.Name
   | Structure FlatType
   | Alias ModuleName.Canonical Name.Name [(Name.Name, Variable)] Variable
+  | AliasName ModuleName.Canonical Name.Name
   | Error
 
 data SuperType
@@ -284,6 +282,8 @@ variableToCanType variable =
           canArgs <- traverse (traverse variableToCanType) args
           canType <- variableToCanType realVariable
           return (Can.TAlias home name canArgs (Can.Filled canType))
+      AliasName home name ->
+        return (Can.TAliasConstraint home name)
       Error ->
         error "cannot handle Error types in variableToCanType"
 
@@ -370,6 +370,8 @@ contentToErrorType variable content =
         errArgs <- traverse (traverse variableToErrorType) args
         errType <- variableToErrorType realVariable
         return (ET.Alias home name errArgs errType)
+    AliasName home name ->
+      return (ET.Type home name [])
     Error ->
       return ET.Error
 
@@ -509,6 +511,8 @@ getVarNames var takenNames =
             addName 0 name var (RigidSuper super) takenNames
           Alias _ _ args _ ->
             foldrM getVarNames takenNames (map snd args)
+          AliasName _ _ ->
+            return takenNames
           Structure flatType ->
             case flatType of
               App1 _ _ args ->

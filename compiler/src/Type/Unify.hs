@@ -1,4 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE Rank2Types #-}
 {-# OPTIONS_GHC -Wall #-}
 
@@ -157,6 +156,8 @@ actuallyUnify context@(Context _ (Descriptor firstContent _ _ _) _ (Descriptor s
       unifyRigid context (Just super) firstContent secondContent
     Alias home name args realVar ->
       unifyAlias context home name args realVar secondContent
+    AliasName _ _ ->
+      merge context secondContent
     Structure flatType ->
       unifyStructure context flatType firstContent secondContent
     Error ->
@@ -186,6 +187,8 @@ unifyFlex context content otherContent =
       merge context otherContent
     Alias _ _ _ _ ->
       merge context otherContent
+    AliasName _ _ ->
+      merge context otherContent
     Structure _ ->
       merge context otherContent
 
@@ -209,6 +212,8 @@ unifyRigid context maybeSuper content otherContent =
     RigidSuper _ _ ->
       mismatch
     Alias _ _ _ _ ->
+      mismatch
+    AliasName _ _ ->
       mismatch
     Structure _ ->
       mismatch
@@ -258,6 +263,8 @@ unifyFlexSuper context super content otherContent =
             Number -> mismatch
     Alias _ _ _ realVar ->
       subUnify (_first context) realVar
+    AliasName _ _ ->
+      mismatch
     Error ->
       merge context Error
 
@@ -354,6 +361,8 @@ unifyAlias context home name args realVar otherContent =
                     k vars1 ok err
            in unifyAliasArgs vars context args otherArgs ok1 err
         else subUnify realVar otherRealVar
+    AliasName _ _ ->
+      subUnify realVar (_second context)
     Structure _ ->
       subUnify realVar (_second context)
     Error ->
@@ -395,6 +404,8 @@ unifyStructure context flatType content otherContent =
       mismatch
     Alias _ _ _ realVar ->
       subUnify (_first context) realVar
+    AliasName _ _ ->
+      mismatch
     Structure otherFlatType ->
       case (flatType, otherFlatType) of
         (App1 home name args, App1 otherHome otherName otherArgs) | home == otherHome && name == otherName ->

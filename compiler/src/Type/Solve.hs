@@ -360,6 +360,8 @@ adjustRankContent youngMark visitMark groupRank content =
         Alias _ _ args _ ->
           -- THEORY: anything in the realVar would be outermostRank
           foldM (\rank (_, argVar) -> max rank <$> go argVar) outermostRank args
+        AliasName _ _ ->
+          return groupRank
         Error ->
           return groupRank
 
@@ -416,7 +418,7 @@ typeToVar rank pools aliasDict tipe =
         EmptyRecordN ->
           register rank pools emptyRecord1
         AliasConstraint home name ->
-          register rank pools (Structure (App1 home name []))
+          register rank pools (AliasName home name)
 
 register :: Int -> Pools -> Content -> IO Variable
 register rank pools content =
@@ -547,6 +549,8 @@ makeCopyHelp maxRank pools variable =
                   newRealType <- makeCopyHelp maxRank pools realType
                   UF.set copy $ makeDescriptor (Alias home name newArgs newRealType)
                   return copy
+              AliasName _ _ ->
+                return copy
               Error ->
                 return copy
 
@@ -593,6 +597,8 @@ restoreContent content =
       do
         mapM_ (traverse restore) args
         restore var
+    AliasName _ _ ->
+      return ()
     Error ->
       return ()
 

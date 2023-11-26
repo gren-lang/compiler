@@ -92,8 +92,8 @@ addImplementationImport rootHome ifaces rootParamNames (State vs ts cs bs qvs qt
           Nothing ->
             let !prefix = maybe name fst maybeAlias
                 !home = ModuleName.Canonical pkg name
-                !unpositionedArgs = map (swapUnspecializedParameter rootParamNames rootHome . A.toValue) importArgs
                 -- home = ModuleName.Canonical pkg (specializedHomeName name unpositionedArgs)
+                !unpositionedArgs = map (swapUnspecializedParameter rootParamNames rootHome . A.toValue) importArgs
                 -- TODO: Check the shape of each argument for correctness
                 !paramMap = Map.fromList $ zip (map (specializedSignatureName home . fst) params) unpositionedArgs
 
@@ -289,7 +289,7 @@ specializeTypeWithParamMap paramMap t =
                 Can.Holey tipe -> Can.Holey $ specializeTypeWithParamMap paramMap tipe
             )
     Can.TAliasConstraint _ _ ->
-      error "Test"
+      error "CONVERT TO ALIAS HERE PLZ"
 
 -- BINOP
 

@@ -60,6 +60,7 @@ type Qualified a =
 data Info a
   = Specific ModuleName.Canonical a
   | Ambiguous ModuleName.Canonical (OneOrMore.OneOrMore ModuleName.Canonical)
+  deriving (Show)
 
 mergeInfo :: Info a -> Info a -> Info a
 mergeInfo info1 info2 =
@@ -87,6 +88,7 @@ data Type
   = Alias Int ModuleName.Canonical [Name.Name] Can.Type
   | Union Int ModuleName.Canonical
   | AliasConstraint ModuleName.Canonical Name.Name
+  deriving (Show)
 
 -- CTORS
 
@@ -97,6 +99,7 @@ data Ctor = Ctor
     _c_index :: Index.ZeroBased,
     _c_args :: [Can.Type]
   }
+  deriving (Show)
 
 -- BINOPS
 

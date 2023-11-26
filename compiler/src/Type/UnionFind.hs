@@ -37,6 +37,9 @@ newtype Point a
   = Pt (IORef (PointInfo a))
   deriving (Eq)
 
+instance Show (Point a) where
+  show _ = "Point"
+
 data PointInfo a
   = Info {-# UNPACK #-} !(IORef Word32) {-# UNPACK #-} !(IORef a)
   | Link {-# UNPACK #-} !(Point a)

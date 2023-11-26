@@ -17,6 +17,7 @@ import Prelude hiding (map)
 data OneOrMore a
   = One a
   | More (OneOrMore a) (OneOrMore a)
+  deriving (Show)
 
 one :: a -> OneOrMore a
 one =
