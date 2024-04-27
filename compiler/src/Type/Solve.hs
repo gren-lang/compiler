@@ -205,7 +205,7 @@ isGeneric var =
             ++ show rank
             ++ "]\n\n"
             ++ "Please create an <http://sscce.org/> and then report it\n\
-               \at <https://github.com/gren/compiler/issues>\n\n"
+               \at <https://github.com/gren-lang/compiler/issues>\n\n"
 
 -- EXPECTATIONS TO VARIABLE
 

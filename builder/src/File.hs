@@ -76,7 +76,7 @@ readBinary path =
                     "|   Byte Offset: " ++ show offset,
                     "|       Message: " ++ message,
                     "|",
-                    "| Please report this to https://github.com/gren/compiler/issues",
+                    "| Please report this to https://github.com/gren-lang/compiler/issues",
                     "| Trying to continue anyway.",
                     "+-------------------------------------------------------------------------------"
                   ]

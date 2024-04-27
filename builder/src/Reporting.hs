@@ -409,7 +409,7 @@ putException e = do
           \ version that still triggers this message. Ideally in a single Main.gren and\
           \ gren.json file.",
         D.reflow $
-          "From there open a NEW issue at https://github.com/gren/compiler/issues with\
+          "From there open a NEW issue at https://github.com/gren-lang/compiler/issues with\
           \ your reduced example pasted in directly. (Not a link to a repo or gist!) Do not\
           \ worry about if someone else saw something similar. More examples is better!",
         D.reflow $

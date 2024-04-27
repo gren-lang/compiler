@@ -1641,7 +1641,7 @@ toOutlineProblemReport path source _ region problem =
                     ],
                   D.toSimpleNote
                     "I count the length in bytes, so using non-ASCII characters costs extra.\
-                    \ Please report your case at https://github.com/gren/compiler/issues if this seems\
+                    \ Please report your case at https://github.com/gren-lang/compiler/issues if this seems\
                     \ overly restrictive for your needs."
                 ]
             )
@@ -1753,7 +1753,7 @@ toOutlineProblemReport path source _ region problem =
                     ],
                   D.toSimpleNote
                     "I count the length in bytes, so using non-ASCII characters costs extra.\
-                    \ Please report your case at https://github.com/gren/compiler/issues if this seems\
+                    \ Please report your case at https://github.com/gren-lang/compiler/issues if this seems\
                     \ overly restrictive for your needs."
                 ]
             )
