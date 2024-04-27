@@ -381,7 +381,7 @@ generateBasicsCall mode parentModule pos home name args =
     [grenLeft, grenRight] ->
       case name of
         -- NOTE: removed "composeL" and "composeR" because of this issue:
-        -- https://github.com/gren/compiler/issues/1722
+        -- https://github.com/elm-lang/compiler/issues/1722
         "append" -> append mode parentModule grenLeft grenRight
         "apL" -> generateJsExpr mode parentModule $ apply grenLeft grenRight
         "apR" -> generateJsExpr mode parentModule $ apply grenRight grenLeft
