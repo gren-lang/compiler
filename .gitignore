@@ -4,3 +4,6 @@ cabal-dev
 .DS_Store
 *~
 .vscode
+.gren
+app
+index.js

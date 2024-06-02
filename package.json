@@ -1,0 +1,35 @@
+{
+  "name": "gren-lang",
+  "version": "0.3.1",
+  "description": "Compiler for the Gren programming language",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gren-lang/compiler.git"
+  },
+  "files": [
+    "index.js"
+  ],
+  "bin": {
+    "gren": "index.js"
+  },
+  "keywords": [
+    "gren",
+    "lang",
+    "language",
+    "bin",
+    "binary",
+    "install",
+    "installer"
+  ],
+  "author": "Robin Heggelund Hansen",
+  "license": "BSD-3-Clause",
+  "bugs": {
+    "url": "https://github.com/gren-lang/compiler/issues"
+  },
+  "homepage": "https://gren-lang.org",
+  "dependencies": {
+  }
+}

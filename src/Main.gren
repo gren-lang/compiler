@@ -1,0 +1,36 @@
+module Main exposing (main)
+
+import Node
+import Init
+import Stream
+import Task
+
+
+main : Node.Program Model Msg
+main =
+    Node.defineProgram
+        { init = init
+        , update = update
+        , subscriptions = always Sub.none
+        }
+
+
+type alias Model = {}
+
+
+type Msg = None
+
+
+init : Node.Environment -> Init.Task { model : Model, command : Cmd Msg }
+init env =
+    Node.startProgram
+        { model = {}
+        , command = Task.execute <| Stream.sendLine env.stdout "Hello, World!"
+        }
+
+
+update : Msg -> Model -> { model : Model, command : Cmd Msg }
+update msg model =
+    { model = model
+    , command = Cmd.none
+    }
