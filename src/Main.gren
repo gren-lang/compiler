@@ -1,9 +1,13 @@
 module Main exposing (main)
 
 import Node
+import ChildProcess
 import Init
-import Stream
+import Stream exposing (Stream)
 import Task
+import Dict
+import FileSystem
+import FileSystem.Path as Path exposing (Path)
 
 
 main : Node.Program Model Msg
@@ -15,22 +19,155 @@ main =
         }
 
 
-type alias Model = {}
+type alias Model = 
+    { args : Array String
+    , stdout : Stream
+    , stderr : Stream
+    , fsPermission : FileSystem.Permission
+    , cpPermission : ChildProcess.Permission
+    , remotePath : String
+    , localPath : Path
+    }
 
 
-type Msg = None
+compilerVersion = "0.3.0"
 
 
 init : Node.Environment -> Init.Task { model : Model, command : Cmd Msg }
 init env =
-    Node.startProgram
-        { model = {}
-        , command = Task.execute <| Stream.sendLine env.stdout "Hello, World!"
-        }
+    Init.awaitTask Node.getEnvironmentVariables <| \envVars ->
+    Init.await FileSystem.initialize <| \fsPermission ->
+    Init.await ChildProcess.initialize <| \cpPermission ->
+            let
+                userArgs =
+                    Array.dropFirst 2 env.args
+
+                xdgPathOverride =
+                    Dict.get "XDG_CACHE_HOME" envVars
+                
+                maybePaths =
+                    case { platform = env.platform, arch = env.cpuArchitecture } of
+                        { platform = Node.Win32, arch = Node.X64 } ->
+                            Just <|
+                                { args = userArgs
+                                , stdout = env.stdout
+                                , remotePath = makeRemotePath "gren.exe"
+                                , localPath = makeLocalPath xdgPathOverride "gren.exe"
+                                }
+
+                        { platform = Node.Darwin } ->
+                            Just <|
+                                { args = userArgs
+                                , stdout = env.stdout
+                                , remotePath = makeRemotePath "gren_mac"
+                                , localPath = makeLocalPath xdgPathOverride "gren"
+                                }
+
+                        { platform = Node.Linux, arch = Node.X64 } ->
+                            Just <|
+                                { args = userArgs
+                                , stdout = env.stdout
+                                , remotePath = makeRemotePath "gren_linux"
+                                , localPath = makeLocalPath xdgPathOverride "gren"
+                                }
+
+                        _ ->
+                            Nothing
+
+                model =
+                    case maybePaths of
+                        Just paths ->
+                            { args = userArgs
+                            , stdout = env.stdout
+                            , stderr = env.stderr
+                            , fsPermission = fsPermission
+                            , cpPermission = cpPermission
+                            , remotePath = paths.remotePath
+                            , localPath = paths.localPath
+                            }
+                        
+                        Nothing ->
+                            -- dummy model
+                            { args = []
+                            , stdout = env.stdout
+                            , stderr = env.stderr
+                            , fsPermission = fsPermission
+                            , cpPermission = cpPermission
+                            , remotePath = ""
+                            , localPath = Path.empty
+                            }
+            in
+            Node.startProgram
+                { model = model
+                , command =
+                    case maybePaths of
+                        Just _ ->
+                            FileSystem.checkAccess fsPermission [] model.localPath
+                                |> Task.attempt ExistanceChecked
+
+                        Nothing ->
+                            Stream.sendLine env.stderr "We currently don't support this platform/arch."
+                                |> Task.execute
+                }
+
+
+makeRemotePath : String -> String
+makeRemotePath filename =
+    String.join "/"
+        [ "https://github.com/gren-lang/compiler/releases/download"
+        , compilerVersion
+        , filename
+        ]
+
+
+makeLocalPath : Maybe String -> String -> Path
+makeLocalPath xdgPathOverride filename =
+    [ Maybe.withDefault "/Users/robin/.cache" xdgPathOverride
+    , "gren"
+    , compilerVersion
+    , "bin"
+    , filename
+    ]
+        |> String.join "/"
+        |> Path.fromPosixString
+
+
+type Msg
+    = ExistanceChecked (Result FileSystem.Error Path)
+    | CompilerExecuted (Result ChildProcess.FailedRun ChildProcess.SuccessfulRun)
+
 
 
 update : Msg -> Model -> { model : Model, command : Cmd Msg }
 update msg model =
-    { model = model
-    , command = Cmd.none
-    }
+    case msg of
+        ExistanceChecked (Err _) ->
+            { model = model
+            , command =
+                Stream.sendLine model.stdout ("Compiler not found at " ++ Path.toPosixString model.localPath ++ ". Downloading...")
+                    |> Task.execute
+            }
+
+        ExistanceChecked (Ok _) ->
+            { model = model
+            , command =
+                ChildProcess.runWithDefaultOptions model.cpPermission (Path.toPosixString model.localPath) model.args
+                    |> Task.attempt CompilerExecuted
+            }
+            
+        CompilerExecuted (Err output) ->
+            { model = model
+            , command =
+                Stream.send model.stdout output.stdout
+                    |> Task.andThen (\_ -> Stream.send model.stderr output.stderr)
+                    |> Task.andThen (\_ -> Node.exitWithCode output.exitCode)
+                    |> Task.execute
+            }
+
+        CompilerExecuted (Ok output) ->
+            { model = model
+            , command =
+                Stream.send model.stdout output.stdout
+                    |> Task.andThen (\_ -> Stream.send model.stderr output.stderr)
+                    |> Task.execute
+            }
