@@ -5,7 +5,7 @@ import ChildProcess
 import Init
 import Stream exposing (Stream)
 import Task
-import Dict
+import Dict exposing (Dict)
 import FileSystem
 import FileSystem.Path as Path exposing (Path)
 
@@ -35,16 +35,14 @@ compilerVersion = "0.3.0"
 
 init : Node.Environment -> Init.Task { model : Model, command : Cmd Msg }
 init env =
-    Init.awaitTask Node.getEnvironmentVariables <| \envVars ->
     Init.await FileSystem.initialize <| \fsPermission ->
     Init.await ChildProcess.initialize <| \cpPermission ->
+    Init.awaitTask Node.getEnvironmentVariables <| \envVars ->
+    Init.awaitTask Path.homeDirectory <| \homeDir ->
             let
                 userArgs =
                     Array.dropFirst 2 env.args
 
-                xdgPathOverride =
-                    Dict.get "XDG_CACHE_HOME" envVars
-                
                 maybePaths =
                     case { platform = env.platform, arch = env.cpuArchitecture } of
                         { platform = Node.Win32, arch = Node.X64 } ->
@@ -52,7 +50,7 @@ init env =
                                 { args = userArgs
                                 , stdout = env.stdout
                                 , remotePath = makeRemotePath "gren.exe"
-                                , localPath = makeLocalPath xdgPathOverride "gren.exe"
+                                , localPath = makeLocalPath env.platform homeDir envVars
                                 }
 
                         { platform = Node.Darwin } ->
@@ -60,7 +58,7 @@ init env =
                                 { args = userArgs
                                 , stdout = env.stdout
                                 , remotePath = makeRemotePath "gren_mac"
-                                , localPath = makeLocalPath xdgPathOverride "gren"
+                                , localPath = makeLocalPath env.platform homeDir envVars
                                 }
 
                         { platform = Node.Linux, arch = Node.X64 } ->
@@ -68,7 +66,7 @@ init env =
                                 { args = userArgs
                                 , stdout = env.stdout
                                 , remotePath = makeRemotePath "gren_linux"
-                                , localPath = makeLocalPath xdgPathOverride "gren"
+                                , localPath = makeLocalPath env.platform homeDir envVars
                                 }
 
                         _ ->
@@ -120,16 +118,50 @@ makeRemotePath filename =
         ]
 
 
-makeLocalPath : Maybe String -> String -> Path
-makeLocalPath xdgPathOverride filename =
-    [ Maybe.withDefault "/Users/robin/.cache" xdgPathOverride
-    , "gren"
-    , compilerVersion
-    , "bin"
-    , filename
-    ]
-        |> String.join "/"
-        |> Path.fromPosixString
+makeLocalPath : Node.Platform -> Path -> Dict String String -> Path
+makeLocalPath platform homeDir envVars =
+    let
+        startPath =
+            case platform of
+                Node.Win32 ->
+                    envVars
+                        |> Dict.get "LOCALAPPDATA"
+                        |> Maybe.map Path.fromWin32String
+                        |> Maybe.withDefault (
+                            "AppData/Local"
+                                |> Path.fromPosixString
+                                |> Path.prepend homeDir
+                            )
+
+                Node.Darwin ->
+                    "Library/Caches"
+                        |> Path.fromPosixString
+                        |> Path.prepend homeDir
+
+                _ ->
+                    envVars
+                        |> Dict.get "XDG_CACHE_HOME"
+                        |> Maybe.map Path.fromPosixString
+                        |> Maybe.withDefault (Path.append (Path.fromPosixString ".cache") homeDir)
+
+        filename =
+            case platform of
+                Node.Win32 ->
+                    "gren.exe"
+
+                _ ->
+                    "gren"
+        
+        endPath =
+            [ "gren"
+            , compilerVersion
+            , "bin"
+            , filename
+            ]
+                |> String.join "/"
+                |> Path.fromPosixString
+    in
+    Path.prepend startPath endPath
 
 
 type Msg
