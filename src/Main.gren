@@ -30,7 +30,9 @@ type alias Model =
     }
 
 
-compilerVersion = "0.3.0"
+compilerVersion : String
+compilerVersion =
+    "0.3.0"
 
 
 init : Node.Environment -> Init.Task { model : Model, command : Cmd Msg }
