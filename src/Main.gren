@@ -15,7 +15,7 @@ main =
     Node.defineProgram
         { init = init
         , update = update
-        , subscriptions = always Sub.none
+        , subscriptions = \_model -> Sub.none
         }
 
 
