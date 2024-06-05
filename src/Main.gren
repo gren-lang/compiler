@@ -40,7 +40,7 @@ init env =
     Init.await FileSystem.initialize <| \fsPermission ->
     Init.await ChildProcess.initialize <| \cpPermission ->
     Init.awaitTask Node.getEnvironmentVariables <| \envVars ->
-    Init.awaitTask Path.homeDirectory <| \homeDir ->
+    Init.awaitTask (FileSystem.homeDirectory fsPermission) <| \homeDir ->
             let
                 userArgs =
                     Array.dropFirst 2 env.args
