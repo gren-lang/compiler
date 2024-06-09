@@ -4,10 +4,12 @@ import Node
 import ChildProcess
 import Init
 import Stream exposing (Stream)
-import Task
+import Task exposing (Task)
 import Dict exposing (Dict)
 import FileSystem
 import FileSystem.Path as Path exposing (Path)
+import HttpClient
+import Bytes exposing (Bytes)
 
 
 main : Node.Program Model Msg
@@ -25,6 +27,7 @@ type alias Model =
     , stderr : Stream
     , fsPermission : FileSystem.Permission
     , cpPermission : ChildProcess.Permission
+    , httpPermission : HttpClient.Permission
     , remotePath : String
     , localPath : Path
     }
@@ -39,6 +42,7 @@ init : Node.Environment -> Init.Task { model : Model, command : Cmd Msg }
 init env =
     Init.await FileSystem.initialize <| \fsPermission ->
     Init.await ChildProcess.initialize <| \cpPermission ->
+    Init.await HttpClient.initialize <| \httpPermission ->
     Init.awaitTask Node.getEnvironmentVariables <| \envVars ->
     Init.awaitTask (FileSystem.homeDirectory fsPermission) <| \homeDir ->
             let
@@ -82,6 +86,7 @@ init env =
                             , stderr = env.stderr
                             , fsPermission = fsPermission
                             , cpPermission = cpPermission
+                            , httpPermission = httpPermission
                             , remotePath = paths.remotePath
                             , localPath = paths.localPath
                             }
@@ -93,6 +98,7 @@ init env =
                             , stderr = env.stderr
                             , fsPermission = fsPermission
                             , cpPermission = cpPermission
+                            , httpPermission = httpPermission
                             , remotePath = ""
                             , localPath = Path.empty
                             }
@@ -168,8 +174,8 @@ makeLocalPath platform homeDir envVars =
 
 type Msg
     = ExistanceChecked (Result FileSystem.Error Path)
+    | CompilerDownloaded (Result (HttpClient.Error Bytes) (HttpClient.Response Bytes))
     | CompilerExecuted (Result ChildProcess.FailedRun ChildProcess.SuccessfulRun)
-
 
 
 update : Msg -> Model -> { model : Model, command : Cmd Msg }
@@ -179,7 +185,8 @@ update msg model =
             { model = model
             , command =
                 Stream.sendLine model.stdout ("Compiler not found at " ++ Path.toPosixString model.localPath ++ ". Downloading...")
-                    |> Task.execute
+                    |> Task.andThen (\{} -> downloadBinary model.httpPermission model.remotePath)
+                    |> Task.attempt CompilerDownloaded
             }
 
         ExistanceChecked (Ok _) ->
@@ -187,6 +194,20 @@ update msg model =
             , command =
                 ChildProcess.runWithDefaultOptions model.cpPermission (Path.toPosixString model.localPath) model.args
                     |> Task.attempt CompilerExecuted
+            }
+
+        CompilerDownloaded (Err err) ->
+            { model = model
+            , command =
+                Stream.sendLine model.stderr (HttpClient.errorToString err)
+                    |> Task.execute
+            }
+        
+        CompilerDownloaded (Ok res) ->
+            { model = model
+            , command =
+                Stream.sendLine model.stdout (Debug.toString res)
+                    |> Task.execute
             }
             
         CompilerExecuted (Err output) ->
@@ -205,3 +226,10 @@ update msg model =
                     |> Task.andThen (\_ -> Stream.send model.stderr output.stderr)
                     |> Task.execute
             }
+
+
+downloadBinary : HttpClient.Permission -> String -> Task (HttpClient.Error Bytes) (HttpClient.Response Bytes)
+downloadBinary permission url =
+    HttpClient.get url
+        |> HttpClient.expectBytes
+        |> HttpClient.send permission
