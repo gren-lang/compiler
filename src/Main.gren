@@ -196,12 +196,36 @@ update msg model =
                     |> Task.attempt CompilerExecuted
             }
 
+        CompilerDownloaded (Err ((HttpClient.BadStatus res) as err)) ->
+            if res.statusCode == 302 then
+                case Dict.get "location" res.headers of
+                    Just [ location ] ->
+                        { model = model
+                        , command =
+                            downloadBinary model.httpPermission location
+                                |> Task.attempt CompilerDownloaded
+                        }
+
+                    _ ->
+                        { model = model
+                        , command =
+                            Stream.sendLine model.stderr "Missing, or vague, 'location' header in 302 response from server."
+                                |> Task.execute
+                        }
+
+            else
+                { model = model
+                , command =
+                    Stream.sendLine model.stderr (HttpClient.errorToString err)
+                        |> Task.execute
+                }
+        
         CompilerDownloaded (Err err) ->
-            { model = model
-            , command =
-                Stream.sendLine model.stderr (HttpClient.errorToString err)
-                    |> Task.execute
-            }
+                { model = model
+                , command =
+                    Stream.sendLine model.stderr (HttpClient.errorToString err)
+                        |> Task.execute
+                }
         
         CompilerDownloaded (Ok res) ->
             { model = model
