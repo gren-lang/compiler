@@ -175,6 +175,7 @@ makeLocalPath platform homeDir envVars =
 type Msg
     = ExistanceChecked (Result FileSystem.Error Path)
     | CompilerDownloaded (Result (HttpClient.Error Bytes) (HttpClient.Response Bytes))
+    | CompilerInstalled (Result FileSystem.Error {})
     | CompilerExecuted (Result ChildProcess.FailedRun ChildProcess.SuccessfulRun)
 
 
@@ -228,10 +229,40 @@ update msg model =
                 }
         
         CompilerDownloaded (Ok res) ->
+            let
+                cacheFolder =
+                    Path.parentPath model.localPath
+                        |> Maybe.withDefault Path.empty
+            in
             { model = model
             , command =
-                Stream.sendLine model.stdout (Debug.toString res)
+                FileSystem.makeDirectory model.fsPermission { recursive = True } cacheFolder
+                    |> Task.andThen (\_cacheFolder -> FileSystem.writeFile model.fsPermission res.data model.localPath)
+                    |> Task.andThen 
+                        (FileSystem.changeAccess
+                            model.fsPermission
+                            { owner = [ FileSystem.Read, FileSystem.Write, FileSystem.Execute ]
+                            , group = [ FileSystem.Read, FileSystem.Execute ]
+                            , others = [ FileSystem.Read, FileSystem.Execute ]
+                            , resolveLink = False
+                            }
+                        )
+                    |> Task.andThen (\_binPath -> Stream.sendLine model.stdout "Downloaded")
+                    |> Task.attempt CompilerInstalled
+            }
+        
+        CompilerInstalled (Err fsErr) ->
+            { model = model
+            , command =
+                Stream.sendLine model.stderr ("Failed to install binary after download, due to error: " ++ FileSystem.errorToString fsErr)
                     |> Task.execute
+            }
+        
+        CompilerInstalled (Ok {}) ->
+            { model = model
+            , command =
+                ChildProcess.runWithDefaultOptions model.cpPermission (Path.toPosixString model.localPath) model.args
+                    |> Task.attempt CompilerExecuted
             }
             
         CompilerExecuted (Err output) ->
