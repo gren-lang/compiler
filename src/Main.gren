@@ -268,8 +268,7 @@ update msg model =
         CompilerExecuted (Err output) ->
             { model = model
             , command =
-                Stream.send model.stdout output.stdout
-                    |> Task.andThen (\_ -> Stream.send model.stderr output.stderr)
+                Stream.send model.stderr output.stderr
                     |> Task.andThen (\_ -> Node.exitWithCode output.exitCode)
                     |> Task.execute
             }
