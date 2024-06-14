@@ -18,12 +18,14 @@ where
 import GHC.IO.Handle (hIsTerminalDevice)
 import Json.Encode ((==>))
 import Json.Encode qualified as E
+import Data.Maybe qualified as Maybe
 import Reporting.Doc ((<+>))
 import Reporting.Doc qualified as D
 import Reporting.Error qualified as Error
 import Reporting.Error.Syntax qualified as Error.Syntax
 import Reporting.Render.Code qualified as Code
 import Reporting.Report qualified as Report
+import System.Environment qualified
 import System.IO (Handle, hPutStr, stderr, stdout)
 
 -- REPORT
@@ -116,6 +118,8 @@ toHandle :: Handle -> D.Doc -> IO ()
 toHandle handle doc =
   do
     isTerminal <- hIsTerminalDevice handle
-    if isTerminal
+    forceColorEnv <- System.Environment.lookupEnv "FORCE_COLOR"
+    let forceColor = Maybe.isJust forceColorEnv
+    if isTerminal || forceColor
       then D.toAnsi handle doc
       else hPutStr handle (toString doc)
