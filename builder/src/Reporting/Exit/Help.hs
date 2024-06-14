@@ -15,10 +15,10 @@ module Reporting.Exit.Help
   )
 where
 
+import Data.Maybe qualified as Maybe
 import GHC.IO.Handle (hIsTerminalDevice)
 import Json.Encode ((==>))
 import Json.Encode qualified as E
-import Data.Maybe qualified as Maybe
 import Reporting.Doc ((<+>))
 import Reporting.Doc qualified as D
 import Reporting.Error qualified as Error

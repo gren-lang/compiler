@@ -19,11 +19,11 @@ import Data.Maybe qualified as Maybe
 import GHC.IO.Handle (hIsTerminalDevice)
 import Reporting.Doc qualified as D
 import Reporting.Suggest as Suggest
+import System.Environment qualified
 import System.Environment qualified as Env
 import System.Exit qualified as Exit
 import System.FilePath qualified as FP
 import System.IO (hPutStrLn, stderr)
-import System.Environment qualified
 import Terminal.Internal
 import Text.PrettyPrint.ANSI.Leijen qualified as P
 
