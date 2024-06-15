@@ -1,0 +1,17 @@
+{
+    "type": "application",
+    "platform": "node",
+    "source-directories": [
+        "src"
+    ],
+    "gren-version": "0.3.0",
+    "dependencies": {
+        "direct": {
+            "gren-lang/core": "local:../core",
+            "gren-lang/node": "local:../node"
+        },
+        "indirect": {
+            "gren-lang/url": "3.0.0"
+        }
+    }
+}

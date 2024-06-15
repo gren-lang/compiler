@@ -19,6 +19,7 @@ import Data.Maybe qualified as Maybe
 import GHC.IO.Handle (hIsTerminalDevice)
 import Reporting.Doc qualified as D
 import Reporting.Suggest as Suggest
+import System.Environment qualified
 import System.Environment qualified as Env
 import System.Exit qualified as Exit
 import System.FilePath qualified as FP
@@ -62,7 +63,9 @@ exitWith :: Exit.ExitCode -> [P.Doc] -> IO a
 exitWith code docs =
   do
     isTerminal <- hIsTerminalDevice stderr
-    let adjust = if isTerminal then id else P.plain
+    forceColorEnv <- System.Environment.lookupEnv "FORCE_COLOR"
+    let forceColor = Maybe.isJust forceColorEnv
+    let adjust = if isTerminal || forceColor then id else P.plain
     D.toAnsi stderr $
       adjust $
         P.vcat $
