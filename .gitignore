@@ -6,4 +6,3 @@ cabal-dev
 .vscode
 .gren
 app
-index.js
