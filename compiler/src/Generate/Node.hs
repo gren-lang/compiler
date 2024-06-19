@@ -19,6 +19,10 @@ sandwich moduleName javascript =
   let name = Name.toBuilder moduleName
    in [r|#!/usr/bin/env node
 
+if (parseInt(process.versions.node.split('.')[0]) < 20) {
+  throw new Error("This program requires Node v20 or later to run")
+}
+
 try {
 |]
         <> javascript
