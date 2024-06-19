@@ -84,6 +84,7 @@ validate env@(Env root _ outline) =
         verifyVersion env pkg vsn docs knownVersionsMaybe
         verifyTag vsn
         verifyNoChanges vsn
+        verifyNoUnsignedKernelCode root
 
         Task.io $ putStrLn "Everything looks good!"
 
@@ -189,6 +190,17 @@ verifyNoChanges vsn =
           return $ Left $ Exit.ValidateLocalChanges vsn
         Right () ->
           return $ Right ()
+
+-- VERIFY NO UNSIGNED KERNEL CODE
+
+verifyNoUnsignedKernelCode :: FilePath -> Task.Task Exit.Validate ()
+verifyNoUnsignedKernelCode path =
+  reportUnsignedKernelCodeCheck $
+    do
+      result <- Git.kernelCodeSignedByLeadDeveloper path
+      if result
+        then return $ Right ()
+        else return $ Left Exit.ValidateUnsignedKernelCode
 
 -- VERIFY VERSION
 
@@ -310,6 +322,13 @@ reportLocalChangesCheck =
     "Checking for uncommitted changes..."
     "No uncommitted changes in local code"
     "Your local code is different than the code tagged in your git repo"
+
+reportUnsignedKernelCodeCheck :: IO (Either x a) -> Task.Task x a
+reportUnsignedKernelCodeCheck =
+  reportCheck
+    "Checking for unsigned kernel code..."
+    "No unsigned kernel code found"
+    "Your project contains unsigned kernel code"
 
 reportCheck :: String -> String -> String -> IO (Either x a) -> Task.Task x a
 reportCheck waiting success failure work =

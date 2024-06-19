@@ -200,8 +200,11 @@ kernelCodeSignedByLeadDeveloper path = do
         then return False
         else do
           commitHash <- lastCommitWithChangesToJSFile git path
-          publicKey <- extractPublicKeyFromCommit git path commitHash
-          return $ publicKey == kernelCodePublicKey
+          if commitHash == ""
+            then return True -- no JS files
+            else do
+              publicKey <- extractPublicKeyFromCommit git path commitHash
+              return $ publicKey == kernelCodePublicKey
 
 noChangesToJSFilesSinceHead :: FilePath -> FilePath -> IO Bool
 noChangesToJSFilesSinceHead git path = do
