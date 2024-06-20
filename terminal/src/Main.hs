@@ -60,9 +60,9 @@ outro =
   P.fillSep $
     map P.text $
       words
-        "Be sure to ask on the Gren zulip if you run into trouble! Folks are friendly and\
-        \ happy to help out. They hang out there because it is fun, so be kind to get the\
-        \ best results!"
+        "Be sure to ask on the Gren Discord (https://discord.gg/J8aaGMfz) if you run into trouble!\
+        Folks are friendly and happy to help out. They hang out there because it is fun, so be kind\
+        to get the best results!"
 
 -- INIT
 
