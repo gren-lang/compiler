@@ -47,6 +47,6 @@ improves your chances of a merge!
 There's also a [Zulip](https://gren.zulipchat.com) with older
 `#language-design` or `#api-design` streams.
 
-This may act as a fallback for the time being, but it it may be
+This may act as a fallback for the time being, but it may be
 sunset since Discord seems preferred.
 
