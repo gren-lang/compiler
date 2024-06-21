@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 
+if (parseInt(process.versions.node.split('.')[0]) < 20) {
+  throw new Error("This program requires Node v20 or later to run")
+}
+
 try {
 (function(scope){
 'use strict';
@@ -4561,8 +4565,8 @@ var _ChildProcess_run = function (options) {
         if (err == null) {
           callback(
             _Scheduler_succeed({
-              stdout: new DataView(stdout.buffer, stdout.byteOffset),
-              stderr: new DataView(stderr.buffer, stderr.byteOffset),
+              stdout: new DataView(stdout.buffer, stdout.byteOffset, stdout.byteLength),
+              stderr: new DataView(stderr.buffer, stderr.byteOffset, stderr.byteLength),
             })
           );
         } else {
@@ -4570,8 +4574,8 @@ var _ChildProcess_run = function (options) {
             _Scheduler_fail({
               exitCode:
                 typeof err.errno === "undefined" ? err.code : err.errno,
-              stdout: new DataView(stdout.buffer, stdout.byteOffset),
-              stderr: new DataView(stderr.buffer, stderr.byteOffset),
+              stdout: new DataView(stdout.buffer, stdout.byteOffset, stdout.byteLength),
+              stderr: new DataView(stderr.buffer, stderr.byteOffset, stderr.byteLength),
             })
           );
         }
