@@ -3501,7 +3501,7 @@ var $gren_lang$node$FileSystem$Path$prepend = F2(function(left, right) {
 var $gren_lang$node$FileSystem$Path$append = F2(function(left, right) {
 		return A2($gren_lang$node$FileSystem$Path$prepend, right, left);
 	});
-var $author$project$Main$compilerVersion = '0.4.0';
+var $author$project$Main$compilerVersion = '0.4.3';
 var $gren_lang$core$Maybe$map = F2(function(f, maybe) {
 		if (maybe.$ === 'Just') {
 			var value = maybe.a;
