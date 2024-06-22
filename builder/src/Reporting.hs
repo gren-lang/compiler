@@ -31,6 +31,7 @@ where
 
 import Control.Concurrent
 import Control.Exception (AsyncException (UserInterrupt), SomeException, catch, fromException, throw)
+import GHC.IO.Handle (hIsTerminalDevice)
 import Control.Monad (when)
 import Data.ByteString.Builder qualified as B
 import Data.NonEmptyList qualified as NE
@@ -130,11 +131,13 @@ ignorer =
 
 ask :: Bool -> D.Doc -> IO Bool
 ask skipPrompts doc =
-  if skipPrompts
-    then pure True
-    else do
-      Help.toStdout doc
-      askHelp
+  do 
+    interactive <- hIsTerminalDevice stdout
+    if skipPrompts || not interactive
+      then pure True
+      else do
+        Help.toStdout doc
+        askHelp
 
 askHelp :: IO Bool
 askHelp =
