@@ -31,10 +31,10 @@ where
 
 import Control.Concurrent
 import Control.Exception (AsyncException (UserInterrupt), SomeException, catch, fromException, throw)
-import GHC.IO.Handle (hIsTerminalDevice)
 import Control.Monad (when)
 import Data.ByteString.Builder qualified as B
 import Data.NonEmptyList qualified as NE
+import GHC.IO.Handle (hIsTerminalDevice)
 import Gren.ModuleName qualified as ModuleName
 import Gren.Package qualified as Pkg
 import Gren.Version qualified as V
@@ -131,7 +131,7 @@ ignorer =
 
 ask :: Bool -> D.Doc -> IO Bool
 ask skipPrompts doc =
-  do 
+  do
     interactive <- hIsTerminalDevice stdout
     if skipPrompts || not interactive
       then pure True
