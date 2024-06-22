@@ -291,7 +291,6 @@ update msg model =
                             { owner = [ FileSystem.Read, FileSystem.Write, FileSystem.Execute ]
                             , group = [ FileSystem.Read, FileSystem.Execute ]
                             , others = [ FileSystem.Read, FileSystem.Execute ]
-                            , resolveLink = False
                             }
                         )
                     |> Task.andThen (\_binPath -> Stream.sendLine model.stdout "Downloaded")

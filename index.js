@@ -3049,18 +3049,6 @@ var _FileSystem_chmod = F2(function (mode, path) {
   });
 });
 
-var _FileSystem_lchmod = F2(function (mode, path) {
-  return _Scheduler_binding(function (callback) {
-    fs.lchmod(_FilePath_toString(path), mode, function (err) {
-      if (err != null) {
-        callback(_Scheduler_fail(_FileSystem_constructError(err)));
-      } else {
-        callback(_Scheduler_succeed(path));
-      }
-    });
-  });
-});
-
 var _FileSystem_chown = F2(function (ids, path) {
   return _Scheduler_binding(function (callback) {
     fs.chown(
@@ -3176,7 +3164,7 @@ var _FileSystem_readFile = function (path) {
       } else {
         callback(
           _Scheduler_succeed(
-            new DataView(data.buffer, data.byteOffset, data.length)
+            new DataView(data.buffer, data.byteOffset, data.byteLength)
           )
         );
       }
@@ -3808,7 +3796,7 @@ var _Stream_attachListener = F2(function (stream, sendToApp) {
   return _Scheduler_binding(function (_callback) {
     var listener = function (data) {
       _Scheduler_rawSpawn(
-        sendToApp(new DataView(data.buffer, data.byteOffset, data.length))
+        sendToApp(new DataView(data.buffer, data.byteOffset, data.byteLength))
       );
     };
 
@@ -3966,7 +3954,7 @@ var $gren_lang$node$FileSystem$accessPermissionsToInt = function(values) {
 };
 var $gren_lang$node$FileSystem$changeAccess = F3(function(_v0, permissions, path) {
 		var mode = _Utils_ap($gren_lang$core$String$fromInt($gren_lang$node$FileSystem$accessPermissionsToInt(permissions.owner)), _Utils_ap($gren_lang$core$String$fromInt($gren_lang$node$FileSystem$accessPermissionsToInt(permissions.group)), $gren_lang$core$String$fromInt($gren_lang$node$FileSystem$accessPermissionsToInt(permissions.others))));
-		return permissions.resolveLink ? A2(_FileSystem_chmod, mode, path) : A2(_FileSystem_lchmod, mode, path);
+		return A2(_FileSystem_chmod, mode, path);
 	});
 var $gren_lang$node$HttpClient$ExpectBytes = { $: 'ExpectBytes' };
 var $gren_lang$node$HttpClient$expectBytes = function(req) {
@@ -4142,7 +4130,7 @@ var _HttpClient_request = function (config) {
                   new DataView(
                     finalBuffer.buffer,
                     finalBuffer.byteOffset,
-                    finalBuffer.length
+                    finalBuffer.byteLength
                   )
                 )
               )
@@ -4273,7 +4261,7 @@ var _HttpClient_startReceive = F4(function (
               request,
               _HttpClient_formatResponse(
                 res,
-                new DataView(bytes.buffer, bytes.byteOffset, bytes.length)
+                new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
               )
             )
           )
@@ -4565,8 +4553,16 @@ var _ChildProcess_run = function (options) {
         if (err == null) {
           callback(
             _Scheduler_succeed({
-              stdout: new DataView(stdout.buffer, stdout.byteOffset, stdout.byteLength),
-              stderr: new DataView(stderr.buffer, stderr.byteOffset, stderr.byteLength),
+              stdout: new DataView(
+                stdout.buffer,
+                stdout.byteOffset,
+                stdout.byteLength
+              ),
+              stderr: new DataView(
+                stderr.buffer,
+                stderr.byteOffset,
+                stderr.byteLength
+              ),
             })
           );
         } else {
@@ -4574,8 +4570,16 @@ var _ChildProcess_run = function (options) {
             _Scheduler_fail({
               exitCode:
                 typeof err.errno === "undefined" ? err.code : err.errno,
-              stdout: new DataView(stdout.buffer, stdout.byteOffset, stdout.byteLength),
-              stderr: new DataView(stderr.buffer, stderr.byteOffset, stderr.byteLength),
+              stdout: new DataView(
+                stdout.buffer,
+                stdout.byteOffset,
+                stdout.byteLength
+              ),
+              stderr: new DataView(
+                stderr.buffer,
+                stderr.byteOffset,
+                stderr.byteLength
+              ),
             })
           );
         }
@@ -4694,7 +4698,7 @@ var $author$project$Main$update = F2(function(msg, model) {
 					var cacheFolder = A2($gren_lang$core$Maybe$withDefault, $gren_lang$node$FileSystem$Path$empty, $gren_lang$node$FileSystem$Path$parentPath(model.localPath));
 					return { command: A2($gren_lang$core$Task$attempt, $author$project$Main$CompilerInstalled, A2($gren_lang$core$Task$andThen, function(_v5) {
 								return A2($gren_lang$node$Stream$sendLine, model.stdout, 'Downloaded');
-							}, A2($gren_lang$core$Task$andThen, A2($gren_lang$node$FileSystem$changeAccess, model.fsPermission, { group: [ $gren_lang$node$FileSystem$Read, $gren_lang$node$FileSystem$Execute ], others: [ $gren_lang$node$FileSystem$Read, $gren_lang$node$FileSystem$Execute ], owner: [ $gren_lang$node$FileSystem$Read, $gren_lang$node$FileSystem$Write, $gren_lang$node$FileSystem$Execute ], resolveLink: false }), A2($gren_lang$core$Task$andThen, function(_v4) {
+							}, A2($gren_lang$core$Task$andThen, A2($gren_lang$node$FileSystem$changeAccess, model.fsPermission, { group: [ $gren_lang$node$FileSystem$Read, $gren_lang$node$FileSystem$Execute ], others: [ $gren_lang$node$FileSystem$Read, $gren_lang$node$FileSystem$Execute ], owner: [ $gren_lang$node$FileSystem$Read, $gren_lang$node$FileSystem$Write, $gren_lang$node$FileSystem$Execute ] }), A2($gren_lang$core$Task$andThen, function(_v4) {
 										return A3($gren_lang$node$FileSystem$writeFile, model.fsPermission, res.data, model.localPath);
 									}, A3($gren_lang$node$FileSystem$makeDirectory, model.fsPermission, { recursive: true }, cacheFolder))))), model: model };
 				}
