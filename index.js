@@ -3501,7 +3501,7 @@ var $gren_lang$node$FileSystem$Path$prepend = F2(function(left, right) {
 var $gren_lang$node$FileSystem$Path$append = F2(function(left, right) {
 		return A2($gren_lang$node$FileSystem$Path$prepend, right, left);
 	});
-var $author$project$Main$compilerVersion = '0.4.3';
+var $author$project$Main$compilerVersion = '0.4.4';
 var $gren_lang$core$Maybe$map = F2(function(f, maybe) {
 		if (maybe.$ === 'Just') {
 			var value = maybe.a;
@@ -3928,9 +3928,6 @@ var $author$project$Main$init = function(env) {
 var $gren_lang$core$Json$Decode$succeed = _Json_succeed;
 var $author$project$Main$CompilerDownloaded = function (a) {
 	return { $: 'CompilerDownloaded', a: a };
-};
-var $author$project$Main$CompilerExecuted = function (a) {
-	return { $: 'CompilerExecuted', a: a };
 };
 var $author$project$Main$CompilerInstalled = function (a) {
 	return { $: 'CompilerInstalled', a: a };
@@ -4459,9 +4456,6 @@ var $gren_lang$node$HttpClient$errorToString = function(err) {
 			return _Utils_ap('Unknown error: ', debugStr);
 	}
 };
-var $gren_lang$node$Node$exitWithCode = function(code) {
-	return _Node_exitWithCode(code);
-};
 var $gren_lang$node$FileSystem$makeDirectory = F3(function(_v0, options, path) {
 		return A2(_FileSystem_makeDirectory, options, path);
 	});
@@ -4514,8 +4508,12 @@ var $gren_lang$node$ChildProcess$MergeWithEnvironmentVariables = function (a) {
 var $gren_lang$node$ChildProcess$DefaultShell = { $: 'DefaultShell' };
 var $gren_lang$node$ChildProcess$InheritEnvironmentVariables = { $: 'InheritEnvironmentVariables' };
 var $gren_lang$node$ChildProcess$InheritWorkingDirectory = { $: 'InheritWorkingDirectory' };
+var $gren_lang$node$ChildProcess$Integrated = { $: 'Integrated' };
 var $gren_lang$node$ChildProcess$NoLimit = { $: 'NoLimit' };
-var $gren_lang$node$ChildProcess$defaultRunOptions = { environmentVariables: $gren_lang$node$ChildProcess$InheritEnvironmentVariables, maximumBytesWrittenToStreams: 1024 * 1024, runDuration: $gren_lang$node$ChildProcess$NoLimit, shell: $gren_lang$node$ChildProcess$DefaultShell, workingDirectory: $gren_lang$node$ChildProcess$InheritWorkingDirectory };
+var $gren_lang$node$ChildProcess$defaultSpawnOptions = { connection: $gren_lang$node$ChildProcess$Integrated, environmentVariables: $gren_lang$node$ChildProcess$InheritEnvironmentVariables, runDuration: $gren_lang$node$ChildProcess$NoLimit, shell: $gren_lang$node$ChildProcess$DefaultShell, workingDirectory: $gren_lang$node$ChildProcess$InheritWorkingDirectory };
+var $gren_lang$core$Dict$singleton = F2(function(key, value) {
+		return A5($gren_lang$core$Dict$RBNode_gren_builtin, $gren_lang$core$Dict$Black, key, value, $gren_lang$core$Dict$RBEmpty_gren_builtin, $gren_lang$core$Dict$RBEmpty_gren_builtin);
+	});
 
 
 var bufferNs = require("node:buffer");
@@ -4533,21 +4531,12 @@ var _ChildProcess_run = function (options) {
       options._arguments,
       {
         encoding: "buffer",
-        cwd: workingDir.inherit ? process.cwd() : workingDir.override,
-        env:
-          env.option === 0
-            ? process.env
-            : env.option === 1
-            ? _Utils_update(process.env, _ChildProcess_dictToObj(env.value))
-            : _ChildProcess_dictToObj(env.value),
+        timeout: options.runDuration,
+        cwd: _ChildProcess_handleCwd(workingDir),
+        env: _ChildProcess_handleEnv(env),
         timeout: options.runDuration,
         maxBuffer: options.maximumBytesWrittenToStreams,
-        shell:
-          shell.choice === 0
-            ? false
-            : shell.choice === 1
-            ? true
-            : shell.value,
+        shell: _ChildProcess_handleShell(shell),
       },
       function (err, stdout, stderr) {
         if (err == null) {
@@ -4588,6 +4577,51 @@ var _ChildProcess_run = function (options) {
   });
 };
 
+var _ChildProcess_spawn = function (options) {
+  return _Scheduler_binding(function (callback) {
+    var workingDir = options.workingDirectory;
+    var env = options.environmentVariables;
+    var shell = options.shell;
+
+    var subproc = childProcess.spawn(options.program, options._arguments, {
+      cwd: _ChildProcess_handleCwd(workingDir),
+      env: _ChildProcess_handleEnv(env),
+      timeout: options.runDuration,
+      shell: _ChildProcess_handleShell(shell),
+      stdio: options.connection === 0 ? "inherit" : "ignore",
+      detached: options.connection === 2 && process.platform === "win32",
+    });
+
+    if (options.connection === 2) {
+      subproc.unref();
+    }
+
+    return function () {
+      subproc.kill();
+    };
+  });
+};
+
+function _ChildProcess_handleCwd(cwd) {
+  return cwd.inherit ? process.cwd() : cwd.override;
+}
+
+function _ChildProcess_handleEnv(env) {
+  return env.option === 0
+    ? process.env
+    : env.option === 1
+    ? _Utils_update(process.env, _ChildProcess_dictToObj(env.value))
+    : _ChildProcess_dictToObj(env.value);
+}
+
+function _ChildProcess_handleShell(shell) {
+  return shell.choice === 0
+    ? false
+    : shell.choice === 1
+    ? true
+    : shell.value;
+}
+
 function _ChildProcess_dictToObj(dict) {
   return A3(
     $gren_lang$core$Dict$foldl,
@@ -4603,54 +4637,62 @@ var $gren_lang$core$Basics$gt = _Utils_gt;
 var $gren_lang$core$Basics$max = F2(function(x, y) {
 		return (_Utils_cmp(x, y) > 0) ? x : y;
 	});
-var $gren_lang$node$ChildProcess$run = F4(function(_v0, program, _arguments, opts) {
-		return _ChildProcess_run({ _arguments: _arguments, environmentVariables: function () {
-				var _v1 = opts.environmentVariables;
-				switch (_v1.$) {
-					case 'InheritEnvironmentVariables':
-						return { option: 0, value: $gren_lang$core$Dict$empty };
-					case 'MergeWithEnvironmentVariables':
-						var value = _v1.a;
-						return { option: 1, value: value };
-					default:
-						var value = _v1.a;
-						return { option: 2, value: value };
-				}
-			}(), maximumBytesWrittenToStreams: opts.maximumBytesWrittenToStreams, program: program, runDuration: function () {
-				var _v2 = opts.runDuration;
-				if (_v2.$ === 'NoLimit') {
-					return 0;
-				} else {
-					var ms = _v2.a;
-					return A2($gren_lang$core$Basics$max, 0, ms);
-				}
-			}(), shell: function () {
-				var _v3 = opts.shell;
-				switch (_v3.$) {
-					case 'NoShell':
-						return { choice: 0, value: '' };
-					case 'DefaultShell':
-						return { choice: 1, value: '' };
-					default:
-						var value = _v3.a;
-						return { choice: 2, value: value };
-				}
-			}(), workingDirectory: function () {
-				var _v4 = opts.workingDirectory;
-				if (_v4.$ === 'InheritWorkingDirectory') {
-					return { inherit: true, override: '' };
-				} else {
-					var value = _v4.a;
-					return { inherit: false, override: value };
-				}
-			}() });
-	});
-var $gren_lang$core$Dict$singleton = F2(function(key, value) {
-		return A5($gren_lang$core$Dict$RBNode_gren_builtin, $gren_lang$core$Dict$Black, key, value, $gren_lang$core$Dict$RBEmpty_gren_builtin, $gren_lang$core$Dict$RBEmpty_gren_builtin);
+var $gren_lang$core$Process$spawn = _Scheduler_spawn;
+var $gren_lang$node$ChildProcess$spawn = F4(function(_v0, program, _arguments, opts) {
+		return $gren_lang$core$Process$spawn(_ChildProcess_spawn({ _arguments: _arguments, connection: function () {
+					var _v1 = opts.connection;
+					switch (_v1.$) {
+						case 'Integrated':
+							return 0;
+						case 'Ignored':
+							return 1;
+						default:
+							return 2;
+					}
+				}(), environmentVariables: function () {
+					var _v2 = opts.environmentVariables;
+					switch (_v2.$) {
+						case 'InheritEnvironmentVariables':
+							return { option: 0, value: $gren_lang$core$Dict$empty };
+						case 'MergeWithEnvironmentVariables':
+							var value = _v2.a;
+							return { option: 1, value: value };
+						default:
+							var value = _v2.a;
+							return { option: 2, value: value };
+					}
+				}(), program: program, runDuration: function () {
+					var _v3 = opts.runDuration;
+					if (_v3.$ === 'NoLimit') {
+						return 0;
+					} else {
+						var ms = _v3.a;
+						return A2($gren_lang$core$Basics$max, 0, ms);
+					}
+				}(), shell: function () {
+					var _v4 = opts.shell;
+					switch (_v4.$) {
+						case 'NoShell':
+							return { choice: 0, value: '' };
+						case 'DefaultShell':
+							return { choice: 1, value: '' };
+						default:
+							var value = _v4.a;
+							return { choice: 2, value: value };
+					}
+				}(), workingDirectory: function () {
+					var _v5 = opts.workingDirectory;
+					if (_v5.$ === 'InheritWorkingDirectory') {
+						return { inherit: true, override: '' };
+					} else {
+						var value = _v5.a;
+						return { inherit: false, override: value };
+					}
+				}() }));
 	});
 var $author$project$Main$runCompiler = function(model) {
 	var colorEnvVar = model.useColor ? A2($gren_lang$core$Dict$singleton, 'FORCE_COLOR', '1') : A2($gren_lang$core$Dict$singleton, 'NO_COLOR', '1');
-	return A4($gren_lang$node$ChildProcess$run, model.cpPermission, model.pathToString(model.localPath), model.args, _Utils_update($gren_lang$node$ChildProcess$defaultRunOptions, { environmentVariables: $gren_lang$node$ChildProcess$MergeWithEnvironmentVariables(colorEnvVar), maximumBytesWrittenToStreams: 1024 * 1024 }));
+	return A4($gren_lang$node$ChildProcess$spawn, model.cpPermission, model.pathToString(model.localPath), model.args, _Utils_update($gren_lang$node$ChildProcess$defaultSpawnOptions, { environmentVariables: $gren_lang$node$ChildProcess$MergeWithEnvironmentVariables(colorEnvVar) }));
 };
 var $gren_lang$node$FileSystem$writeFile = F3(function(_v0, bytes, path) {
 		return A2(_FileSystem_writeFile, bytes, path);
@@ -4671,7 +4713,7 @@ var $author$project$Main$update = F2(function(msg, model) {
 						}
 					}(), model: model };
 				} else {
-					return { command: A2($gren_lang$core$Task$attempt, $author$project$Main$CompilerExecuted, $author$project$Main$runCompiler(model)), model: model };
+					return { command: $gren_lang$core$Task$execute($author$project$Main$runCompiler(model)), model: model };
 				}
 			case 'CompilerDownloaded':
 				if (msg.a.$ === 'Err') {
@@ -4702,24 +4744,12 @@ var $author$project$Main$update = F2(function(msg, model) {
 										return A3($gren_lang$node$FileSystem$writeFile, model.fsPermission, res.data, model.localPath);
 									}, A3($gren_lang$node$FileSystem$makeDirectory, model.fsPermission, { recursive: true }, cacheFolder))))), model: model };
 				}
-			case 'CompilerInstalled':
+			default:
 				if (msg.a.$ === 'Err') {
 					var fsErr = msg.a.a;
 					return { command: $gren_lang$core$Task$execute(A2($gren_lang$node$Stream$sendLine, model.stderr, _Utils_ap('Failed to install binary after download, due to error: ', $gren_lang$node$FileSystem$errorToString(fsErr)))), model: model };
 				} else {
-					return { command: A2($gren_lang$core$Task$attempt, $author$project$Main$CompilerExecuted, $author$project$Main$runCompiler(model)), model: model };
-				}
-			default:
-				if (msg.a.$ === 'Err') {
-					var output = msg.a.a;
-					return { command: $gren_lang$core$Task$execute(A2($gren_lang$core$Task$andThen, function(_v6) {
-								return $gren_lang$node$Node$exitWithCode(output.exitCode);
-							}, A2($gren_lang$node$Stream$send, model.stderr, output.stderr))), model: model };
-				} else {
-					var output = msg.a.a;
-					return { command: $gren_lang$core$Task$execute(A2($gren_lang$core$Task$andThen, function(_v7) {
-								return A2($gren_lang$node$Stream$send, model.stderr, output.stderr);
-							}, A2($gren_lang$node$Stream$send, model.stdout, output.stdout))), model: model };
+					return { command: $gren_lang$core$Task$execute($author$project$Main$runCompiler(model)), model: model };
 				}
 		}
 	});

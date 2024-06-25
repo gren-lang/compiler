@@ -39,7 +39,7 @@ type alias Model =
 
 compilerVersion : String
 compilerVersion =
-    "0.4.3"
+    "0.4.4"
 
 
 init : Node.Environment -> Init.Task { model : Model, command : Cmd Msg }
