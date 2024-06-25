@@ -11,6 +11,7 @@ import FileSystem.Path as Path exposing (Path)
 import HttpClient
 import Bytes exposing (Bytes)
 import Terminal
+import Process
 
 
 main : Node.Program Model Msg
@@ -217,7 +218,6 @@ type Msg
     = ExistanceChecked (Result FileSystem.Error Path)
     | CompilerDownloaded (Result (HttpClient.Error Bytes) (HttpClient.Response Bytes))
     | CompilerInstalled (Result FileSystem.Error {})
-    | CompilerExecuted (Result ChildProcess.FailedRun ChildProcess.SuccessfulRun)
 
 
 update : Msg -> Model -> { model : Model, command : Cmd Msg }
@@ -241,7 +241,7 @@ update msg model =
             { model = model
             , command =
                 runCompiler model
-                    |> Task.attempt CompilerExecuted
+                    |> Task.execute
             }
 
         CompilerDownloaded (Err ((HttpClient.BadStatus res) as err)) ->
@@ -308,22 +308,6 @@ update msg model =
             { model = model
             , command =
                 runCompiler model
-                    |> Task.attempt CompilerExecuted
-            }
-            
-        CompilerExecuted (Err output) ->
-            { model = model
-            , command =
-                Stream.send model.stderr output.stderr
-                    |> Task.andThen (\_ -> Node.exitWithCode output.exitCode)
-                    |> Task.execute
-            }
-
-        CompilerExecuted (Ok output) ->
-            { model = model
-            , command =
-                Stream.send model.stdout output.stdout
-                    |> Task.andThen (\_ -> Stream.send model.stderr output.stderr)
                     |> Task.execute
             }
 
@@ -335,7 +319,7 @@ downloadBinary permission url =
         |> HttpClient.send permission
 
 
-runCompiler : Model -> Task ChildProcess.FailedRun ChildProcess.SuccessfulRun
+runCompiler : Model -> Task x Process.Id
 runCompiler model =
     let
         colorEnvVar =
@@ -344,9 +328,8 @@ runCompiler model =
             else
                 Dict.singleton "NO_COLOR" "1"
       in
-    ChildProcess.run model.cpPermission (model.pathToString model.localPath) model.args <|
-        { ChildProcess.defaultRunOptions
-            | maximumBytesWrittenToStreams = 1024 * 1024 -- 1Mb
-            , environmentVariables = 
+    ChildProcess.spawn model.cpPermission (model.pathToString model.localPath) model.args <|
+        { ChildProcess.defaultSpawnOptions
+            | environmentVariables = 
                 ChildProcess.MergeWithEnvironmentVariables colorEnvVar
         }
