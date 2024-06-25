@@ -6,7 +6,7 @@ The package ecosystem is one of the most important parts of Gren. Right now, our
   - Adding dependencies cannot introduce runtime exceptions.
   - Patch changes cannot lead to surprise build failures.
 
-These are really important factors if you want to *quickly* create *reliable* applications. The Grencommunity thinks this is valuable.
+These are really important factors if you want to *quickly* create *reliable* applications. The Gren community thinks this is valuable.
 
 Other communities think that the *number* of packages is a better measure of ecosystem health. That is a fine metric to use, but it is not the one we use for Gren. We would rather have 50 great packages than 100k packages of wildly varying quality.
 
@@ -28,4 +28,4 @@ Our wager with the Gren package ecosystem is that it is better to get a package 
 
 Now this may not be the right choice for your particular project, and that is okay! We will be expanding our core libraries over time, as explained [here](https://github.com/gren-lang/projects/blob/master/roadmap.md#where-is-the-localstorage-package), and we hope you will circle back later to see if Gren has grown into a better fit!
 
-If you have more questions about this choice or what it means for your application, please come ask the Gren [Discord](https://discord.gg/J8aaGMfz). Folks are friendly and happy to help out! Chances are that a `port` in your application will work great for your case once you learn more about how they are meant to be used.
+If you have more questions about this choice or what it means for your application, please come ask the Gren [Discord](https://discord.gg/Chb9YB9Vmh). Folks are friendly and happy to help out! Chances are that a `port` in your application will work great for your case once you learn more about how they are meant to be used.
