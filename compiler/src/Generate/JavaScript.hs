@@ -36,12 +36,22 @@ import Prelude hiding (cycle, print)
 
 type Graph = Map.Map Opt.Global Opt.Node
 
+type FnArgLookup = ModuleName.Canonical -> Name.Name -> Maybe Int
+
 type Mains = Map.Map ModuleName.Canonical Opt.Main
 
 data GeneratedResult = GeneratedResult
   { _source :: B.Builder,
     _sourceMap :: SourceMap.SourceMap
   }
+
+makeArgLookup :: Graph -> ModuleName.Canonical -> Name.Name -> Maybe Int
+makeArgLookup graph home name =
+  case Map.lookup (Opt.Global home name) graph of
+    Just (Opt.Define _ (Opt.Function args _) _) ->
+      Just (length args)
+    _ ->
+      Nothing
 
 prelude :: B.Builder
 prelude =
@@ -140,17 +150,19 @@ addGlobalHelp :: Mode.Mode -> Graph -> Opt.Global -> State -> State
 addGlobalHelp mode graph global@(Opt.Global home _) state =
   let addDeps deps someState =
         Set.foldl' (addGlobal mode graph) someState deps
+
+      argLookup = makeArgLookup graph
    in case graph ! global of
         Opt.Define region expr deps ->
           addStmt
             (addDeps deps state)
-            ( trackedVar region global (Expr.generate mode home expr)
+            ( trackedVar region global (Expr.generate mode argLookup home expr)
             )
         Opt.DefineTailFunc region argNames body deps ->
           addStmt
             (addDeps deps state)
             ( let (Opt.Global _ name) = global
-               in trackedVar region global (Expr.generateTailDef mode home name argNames body)
+               in trackedVar region global (Expr.generateTailDef mode argLookup home name argNames body)
             )
         Opt.Ctor index arity ->
           addStmt
@@ -162,7 +174,7 @@ addGlobalHelp mode graph global@(Opt.Global home _) state =
         Opt.Cycle names values functions deps ->
           addStmt
             (addDeps deps state)
-            ( generateCycle mode global names values functions
+            ( generateCycle mode argLookup global names values functions
             )
         Opt.Manager effectsType ->
           generateManager mode graph global effectsType state
@@ -213,11 +225,11 @@ isDebugger (Opt.Global (ModuleName.Canonical _ home) _) =
 
 -- GENERATE CYCLES
 
-generateCycle :: Mode.Mode -> Opt.Global -> [Name.Name] -> [(Name.Name, Opt.Expr)] -> [Opt.Def] -> JS.Stmt
-generateCycle mode (Opt.Global home _) names values functions =
+generateCycle :: Mode.Mode -> FnArgLookup -> Opt.Global -> [Name.Name] -> [(Name.Name, Opt.Expr)] -> [Opt.Def] -> JS.Stmt
+generateCycle mode argLookup (Opt.Global home _) names values functions =
   JS.Block
-    [ JS.Block $ map (generateCycleFunc mode home) functions,
-      JS.Block $ map (generateSafeCycle mode home) values,
+    [ JS.Block $ map (generateCycleFunc mode argLookup home) functions,
+      JS.Block $ map (generateSafeCycle mode argLookup home) values,
       case map (generateRealCycle home) values of
         [] ->
           JS.EmptyStmt
@@ -238,18 +250,18 @@ generateCycle mode (Opt.Global home _) names values functions =
                       <> " to learn how to fix it!"
     ]
 
-generateCycleFunc :: Mode.Mode -> ModuleName.Canonical -> Opt.Def -> JS.Stmt
-generateCycleFunc mode home def =
+generateCycleFunc :: Mode.Mode -> FnArgLookup -> ModuleName.Canonical -> Opt.Def -> JS.Stmt
+generateCycleFunc mode argLookup home def =
   case def of
     Opt.Def _ name expr ->
-      JS.Var (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generate mode home expr))
+      JS.Var (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generate mode argLookup home expr))
     Opt.TailDef _ name args expr ->
-      JS.Var (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generateTailDef mode home name args expr))
+      JS.Var (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generateTailDef mode argLookup home name args expr))
 
-generateSafeCycle :: Mode.Mode -> ModuleName.Canonical -> (Name.Name, Opt.Expr) -> JS.Stmt
-generateSafeCycle mode home (name, expr) =
+generateSafeCycle :: Mode.Mode -> FnArgLookup -> ModuleName.Canonical -> (Name.Name, Opt.Expr) -> JS.Stmt
+generateSafeCycle mode argLookup home (name, expr) =
   JS.FunctionStmt (JsName.fromCycle home name) [] $
-    Expr.codeToStmtList (Expr.generate mode home expr)
+    Expr.codeToStmtList (Expr.generate mode argLookup home expr)
 
 generateRealCycle :: ModuleName.Canonical -> (Name.Name, expr) -> JS.Stmt
 generateRealCycle home (name, _) =
@@ -338,7 +350,7 @@ generatePort mode (Opt.Global home name) makePort converter =
     JS.Call
       (JS.Ref (JsName.fromKernel Name.platform makePort))
       [ JS.String (Name.toBuilder name),
-        Expr.codeToExpr (Expr.generate mode home converter)
+        Expr.codeToExpr (Expr.generate mode (\_ _ -> Nothing) home converter)
       ]
 
 -- GENERATE MANAGER
@@ -408,7 +420,7 @@ generateExports mode (Trie maybeMain subs) =
             "{"
           Just (home, main) ->
             "{'init':"
-              <> JS._code (JS.exprToBuilder (Expr.generateMain mode home main) (JS.emptyBuilder 0))
+              <> JS._code (JS.exprToBuilder (Expr.generateMain mode (\_ _ -> Nothing) home main) (JS.emptyBuilder 0))
               <> end
    in case Map.toList subs of
         [] ->
