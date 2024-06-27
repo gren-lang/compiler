@@ -153,6 +153,11 @@ addGlobalHelp mode graph global@(Opt.Global home _) state =
 
       argLookup = makeArgLookup graph
    in case graph ! global of
+        Opt.Define region expr@(Opt.Function _ _) deps ->
+          addStmt
+            (addDeps deps state)
+            ( trackedFn region global (Expr.generate mode argLookup home expr)
+            )
         Opt.Define region expr deps ->
           addStmt
             (addDeps deps state)
@@ -218,6 +223,14 @@ var (Opt.Global home name) code =
 trackedVar :: A.Region -> Opt.Global -> Expr.Code -> JS.Stmt
 trackedVar (A.Region startPos _) (Opt.Global home name) code =
   JS.TrackedVar home startPos (JsName.fromGlobalHumanReadable home name) (JsName.fromGlobal home name) (Expr.codeToExpr code)
+
+trackedFn :: A.Region -> Opt.Global -> Expr.Code -> JS.Stmt
+trackedFn (A.Region startPos _) (Opt.Global home name) code =
+  let directFnName = JsName.fromGlobalDirectFn home name
+  in JS.Block
+  [ JS.TrackedVar home startPos (JsName.fromGlobalHumanReadable home name) directFnName (Expr.codeToExpr code)
+  , JS.Var (JsName.fromGlobal home name) (JS.Ref directFnName)
+  ]
 
 isDebugger :: Opt.Global -> Bool
 isDebugger (Opt.Global (ModuleName.Canonical _ home) _) =
