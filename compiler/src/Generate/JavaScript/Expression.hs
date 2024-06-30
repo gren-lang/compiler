@@ -359,7 +359,7 @@ generateGlobalCall argLookup parentModule pos@(A.Position line col) home name ar
   case argLookup home name of
     Just n
       | n > 1 && n == (length args) ->
-          JS.Call (JS.Ref (JsName.fromGlobalDirectFn home name)) args
+          JS.Call (JS.TrackedRef parentModule pos (JsName.fromGlobalHumanReadable home name) (JsName.fromGlobalDirectFn home name)) args
     _ ->
       let ref =
             if line == 0 && col == 0
