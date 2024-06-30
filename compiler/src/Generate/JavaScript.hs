@@ -50,6 +50,8 @@ makeArgLookup graph home name =
   case Map.lookup (Opt.Global home name) graph of
     Just (Opt.Define _ (Opt.Function args _) _) ->
       Just (length args)
+    Just (Opt.Ctor _ arity) ->
+      Just arity
     _ ->
       Nothing
 
@@ -169,6 +171,11 @@ addGlobalHelp mode graph global@(Opt.Global home _) state =
             ( let (Opt.Global _ name) = global
                in trackedVar region global (Expr.generateTailDef mode argLookup home name argNames body)
             )
+        Opt.Ctor index arity | arity > 1 ->
+          addStmt
+            state
+            ( ctor global arity (Expr.generateCtorImplementation mode global index arity)
+            )
         Opt.Ctor index arity ->
           addStmt
             state
@@ -230,6 +237,15 @@ trackedFn (A.Region startPos _) (Opt.Global home name) args code =
       argNames = map (\(A.At _ arg) -> JsName.fromLocal arg) args
   in JS.Block
   [ JS.TrackedVar home startPos (JsName.fromGlobalHumanReadable home name) directFnName (Expr.codeToExpr code)
+  , JS.Var (JsName.fromGlobal home name) $ Expr.codeToExpr (Expr.generateCurriedFunctionRef argNames directFnName)
+  ]
+
+ctor :: Opt.Global -> Int ->  Expr.Code -> JS.Stmt
+ctor (Opt.Global home name) arity  code =
+  let directFnName = JsName.fromGlobalDirectFn home name
+      argNames = Index.indexedMap (\i _ -> JsName.fromIndex i) [1 .. arity]
+  in JS.Block
+  [ JS.Var directFnName (Expr.codeToExpr code)
   , JS.Var (JsName.fromGlobal home name) $ Expr.codeToExpr (Expr.generateCurriedFunctionRef argNames directFnName)
   ]
 

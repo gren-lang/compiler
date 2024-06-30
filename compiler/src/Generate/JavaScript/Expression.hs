@@ -3,6 +3,7 @@
 module Generate.JavaScript.Expression
   ( generate,
     generateCtor,
+    generateCtorImplementation,
     generateField,
     generateFunctionImplementation,
     generateCurriedFunctionRef,
@@ -187,6 +188,23 @@ generateCtor mode (Opt.Global home name) index arity =
           JS.Object $
             (JsName.dollar, ctorTag) : map (\n -> (n, JS.Ref n)) argNames
 
+generateCtorImplementation :: Mode.Mode -> Opt.Global -> Index.ZeroBased -> Int -> Code
+generateCtorImplementation mode (Opt.Global home name) index arity =
+  let argNames =
+        Index.indexedMap (\i _ -> JsName.fromIndex i) [1 .. arity]
+
+      ctorTag =
+        case mode of
+          Mode.Dev _ -> JS.String (Name.toBuilder name)
+          Mode.Prod _ -> JS.Int (ctorToInt home name index)
+   in
+   JsExpr $
+     JS.Function Nothing argNames $ 
+          codeToStmtList $
+            JsExpr $
+              JS.Object $
+                (JsName.dollar, ctorTag) : map (\n -> (n, JS.Ref n)) argNames
+
 ctorToInt :: ModuleName.Canonical -> Name.Name -> Index.ZeroBased -> Int
 ctorToInt home name index =
   if home == ModuleName.dict && name == "RBNode_gren_builtin" || name == "RBEmpty_gren_builtin"
@@ -315,16 +333,16 @@ generateCall mode argLookup parentModule pos func args =
           generateCoreCall mode argLookup parentModule pos global args
     Opt.VarGlobal _ (Opt.Global home name) ->
       generateGlobalCall argLookup parentModule pos home name (map (generateJsExpr mode argLookup parentModule) args)
-    Opt.VarBox _ _ ->
+    Opt.VarBox _ (Opt.Global home name)->
       case mode of
         Mode.Dev _ ->
-          generateCallHelp mode argLookup parentModule pos func args
+          generateGlobalCall argLookup parentModule pos home name (map (generateJsExpr mode argLookup parentModule) args)
         Mode.Prod _ ->
           case args of
             [arg] ->
               generateJsExpr mode argLookup parentModule arg
             _ ->
-              generateCallHelp mode argLookup parentModule pos func args
+              generateGlobalCall argLookup parentModule pos home name (map (generateJsExpr mode argLookup parentModule) args)
     _ ->
       generateCallHelp mode argLookup parentModule pos func args
 
