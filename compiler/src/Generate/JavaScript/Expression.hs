@@ -198,9 +198,8 @@ generateCtorImplementation mode (Opt.Global home name) index arity =
         case mode of
           Mode.Dev _ -> JS.String (Name.toBuilder name)
           Mode.Prod _ -> JS.Int (ctorToInt home name index)
-   in
-   JsExpr $
-     JS.Function Nothing argNames $ 
+   in JsExpr $
+        JS.Function Nothing argNames $
           codeToStmtList $
             JsExpr $
               JS.Object $
@@ -334,7 +333,7 @@ generateCall mode argLookup parentModule pos func args =
           generateCoreCall mode argLookup parentModule pos global args
     Opt.VarGlobal _ (Opt.Global home name) ->
       generateGlobalCall argLookup parentModule pos home name (map (generateJsExpr mode argLookup parentModule) args)
-    Opt.VarBox _ (Opt.Global home name)->
+    Opt.VarBox _ (Opt.Global home name) ->
       case mode of
         Mode.Dev _ ->
           generateGlobalCall argLookup parentModule pos home name (map (generateJsExpr mode argLookup parentModule) args)
@@ -631,11 +630,12 @@ generateDef mode argLookup parentModule def =
       JS.TrackedVar parentModule start (JsName.fromLocal name) (JsName.fromLocal name) $
         codeToExpr (generateTailDef mode argLookup parentModule name argNames body)
 
-generateFunctionImplementation :: Mode.Mode -> FnArgLookup -> ModuleName.Canonical  -> [A.Located Name.Name] -> Opt.Expr -> Code
-generateFunctionImplementation mode argLookup parentModule  argNames body =
+generateFunctionImplementation :: Mode.Mode -> FnArgLookup -> ModuleName.Canonical -> [A.Located Name.Name] -> Opt.Expr -> Code
+generateFunctionImplementation mode argLookup parentModule argNames body =
   JsExpr $
-   JS.TrackedFunction parentModule  (map (\(A.At region argName) -> A.At region (JsName.fromLocal argName)) argNames) $ 
-    codeToStmtList $ generate mode argLookup parentModule body
+    JS.TrackedFunction parentModule (map (\(A.At region argName) -> A.At region (JsName.fromLocal argName)) argNames) $
+      codeToStmtList $
+        generate mode argLookup parentModule body
 
 generateTailDef :: Mode.Mode -> FnArgLookup -> ModuleName.Canonical -> Name.Name -> [A.Located Name.Name] -> Opt.Expr -> Code
 generateTailDef mode argLookup parentModule name argNames body =
@@ -650,13 +650,14 @@ generateTailDef mode argLookup parentModule name argNames body =
 generateTailDefImplementation :: Mode.Mode -> FnArgLookup -> ModuleName.Canonical -> Name.Name -> [A.Located Name.Name] -> Opt.Expr -> Code
 generateTailDefImplementation mode argLookup parentModule name argNames body =
   JsExpr $
-   JS.TrackedFunction parentModule  (map (\(A.At region argName) -> A.At region (JsName.fromLocal argName)) argNames) $ 
-    codeToStmtList $ JsBlock
-      [ JS.Labelled (JsName.fromLocal name) $
-          JS.While (JS.Bool True) $
-            codeToStmt $
-              generate mode argLookup parentModule body
-      ]
+    JS.TrackedFunction parentModule (map (\(A.At region argName) -> A.At region (JsName.fromLocal argName)) argNames) $
+      codeToStmtList $
+        JsBlock
+          [ JS.Labelled (JsName.fromLocal name) $
+              JS.While (JS.Bool True) $
+                codeToStmt $
+                  generate mode argLookup parentModule body
+          ]
 
 -- PATHS
 

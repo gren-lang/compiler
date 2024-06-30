@@ -159,11 +159,12 @@ addGlobalHelp mode graph global@(Opt.Global home _) state =
 
       argLookup = makeArgLookup graph
    in case graph ! global of
-        Opt.Define region (Opt.Function args body) deps | length args > 1 ->
-          addStmt
-            (addDeps deps state)
-            ( trackedFn region global args (Expr.generateFunctionImplementation mode argLookup home args body)
-            )
+        Opt.Define region (Opt.Function args body) deps
+          | length args > 1 ->
+              addStmt
+                (addDeps deps state)
+                ( trackedFn region global args (Expr.generateFunctionImplementation mode argLookup home args body)
+                )
         Opt.Define region expr deps ->
           addStmt
             (addDeps deps state)
@@ -175,11 +176,12 @@ addGlobalHelp mode graph global@(Opt.Global home _) state =
             ( let (Opt.Global _ name) = global
                in trackedVar region global (Expr.generateTailDef mode argLookup home name argNames body)
             )
-        Opt.Ctor index arity | arity > 1 ->
-          addStmt
-            state
-            ( ctor global arity (Expr.generateCtorImplementation mode global index arity)
-            )
+        Opt.Ctor index arity
+          | arity > 1 ->
+              addStmt
+                state
+                ( ctor global arity (Expr.generateCtorImplementation mode global index arity)
+                )
         Opt.Ctor index arity ->
           addStmt
             state
@@ -239,19 +241,19 @@ trackedFn :: A.Region -> Opt.Global -> [A.Located Name.Name] -> Expr.Code -> JS.
 trackedFn (A.Region startPos _) (Opt.Global home name) args code =
   let directFnName = JsName.fromGlobalDirectFn home name
       argNames = map (\(A.At _ arg) -> JsName.fromLocal arg) args
-  in JS.Block
-  [ JS.TrackedVar home startPos (JsName.fromGlobalHumanReadable home name) directFnName (Expr.codeToExpr code)
-  , JS.Var (JsName.fromGlobal home name) $ Expr.codeToExpr (Expr.generateCurriedFunctionRef argNames directFnName)
-  ]
+   in JS.Block
+        [ JS.TrackedVar home startPos (JsName.fromGlobalHumanReadable home name) directFnName (Expr.codeToExpr code),
+          JS.Var (JsName.fromGlobal home name) $ Expr.codeToExpr (Expr.generateCurriedFunctionRef argNames directFnName)
+        ]
 
-ctor :: Opt.Global -> Int ->  Expr.Code -> JS.Stmt
-ctor (Opt.Global home name) arity  code =
+ctor :: Opt.Global -> Int -> Expr.Code -> JS.Stmt
+ctor (Opt.Global home name) arity code =
   let directFnName = JsName.fromGlobalDirectFn home name
       argNames = Index.indexedMap (\i _ -> JsName.fromIndex i) [1 .. arity]
-  in JS.Block
-  [ JS.Var directFnName (Expr.codeToExpr code)
-  , JS.Var (JsName.fromGlobal home name) $ Expr.codeToExpr (Expr.generateCurriedFunctionRef argNames directFnName)
-  ]
+   in JS.Block
+        [ JS.Var directFnName (Expr.codeToExpr code),
+          JS.Var (JsName.fromGlobal home name) $ Expr.codeToExpr (Expr.generateCurriedFunctionRef argNames directFnName)
+        ]
 
 isDebugger :: Opt.Global -> Bool
 isDebugger (Opt.Global (ModuleName.Canonical _ home) _) =
@@ -290,13 +292,14 @@ generateCycleFunc mode argLookup home def =
   case def of
     Opt.Def _ name expr ->
       JS.Var (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generate mode argLookup home expr))
-    Opt.TailDef _ name args expr | length args > 1 ->
-      let directFnName =JsName.fromGlobalDirectFn home name 
-          argNames = map (\(A.At _ arg) -> JsName.fromLocal arg) args
-      in JS.Block 
-        [ JS.Var directFnName (Expr.codeToExpr (Expr.generateTailDefImplementation mode argLookup home name args expr)),
-          JS.Var (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generateCurriedFunctionRef argNames directFnName))
-        ]
+    Opt.TailDef _ name args expr
+      | length args > 1 ->
+          let directFnName = JsName.fromGlobalDirectFn home name
+              argNames = map (\(A.At _ arg) -> JsName.fromLocal arg) args
+           in JS.Block
+                [ JS.Var directFnName (Expr.codeToExpr (Expr.generateTailDefImplementation mode argLookup home name args expr)),
+                  JS.Var (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generateCurriedFunctionRef argNames directFnName))
+                ]
     Opt.TailDef _ name args expr ->
       JS.Var (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generateTailDef mode argLookup home name args expr))
 
