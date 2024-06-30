@@ -8,6 +8,7 @@ module Generate.JavaScript.Expression
     generateFunctionImplementation,
     generateCurriedFunctionRef,
     generateTailDef,
+    generateTailDefImplementation,
     generateMain,
     Code (..),
     codeToExpr,
@@ -640,6 +641,17 @@ generateTailDef :: Mode.Mode -> FnArgLookup -> ModuleName.Canonical -> Name.Name
 generateTailDef mode argLookup parentModule name argNames body =
   generateTrackedFunction parentModule (map (\(A.At region argName) -> A.At region (JsName.fromLocal argName)) argNames) $
     JsBlock
+      [ JS.Labelled (JsName.fromLocal name) $
+          JS.While (JS.Bool True) $
+            codeToStmt $
+              generate mode argLookup parentModule body
+      ]
+
+generateTailDefImplementation :: Mode.Mode -> FnArgLookup -> ModuleName.Canonical -> Name.Name -> [A.Located Name.Name] -> Opt.Expr -> Code
+generateTailDefImplementation mode argLookup parentModule name argNames body =
+  JsExpr $
+   JS.TrackedFunction parentModule  (map (\(A.At region argName) -> A.At region (JsName.fromLocal argName)) argNames) $ 
+    codeToStmtList $ JsBlock
       [ JS.Labelled (JsName.fromLocal name) $
           JS.While (JS.Bool True) $
             codeToStmt $

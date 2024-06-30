@@ -52,6 +52,10 @@ makeArgLookup graph home name =
       Just (length args)
     Just (Opt.Ctor _ arity) ->
       Just arity
+    Just (Opt.Link (Opt.Global home2 name2)) ->
+      makeArgLookup graph home2 name2
+    Just (Opt.Cycle _ _ [Opt.TailDef _ _ args _] _) ->
+      Just (length args)
     _ ->
       Nothing
 
@@ -282,9 +286,17 @@ generateCycle mode argLookup (Opt.Global home _) names values functions =
 
 generateCycleFunc :: Mode.Mode -> FnArgLookup -> ModuleName.Canonical -> Opt.Def -> JS.Stmt
 generateCycleFunc mode argLookup home def =
+  -- TODO: Turn into TrackedVar
   case def of
     Opt.Def _ name expr ->
       JS.Var (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generate mode argLookup home expr))
+    Opt.TailDef _ name args expr | length args > 1 ->
+      let directFnName =JsName.fromGlobalDirectFn home name 
+          argNames = map (\(A.At _ arg) -> JsName.fromLocal arg) args
+      in JS.Block 
+        [ JS.Var directFnName (Expr.codeToExpr (Expr.generateTailDefImplementation mode argLookup home name args expr)),
+          JS.Var (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generateCurriedFunctionRef argNames directFnName))
+        ]
     Opt.TailDef _ name args expr ->
       JS.Var (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generateTailDef mode argLookup home name args expr))
 
