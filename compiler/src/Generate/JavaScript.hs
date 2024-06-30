@@ -153,10 +153,10 @@ addGlobalHelp mode graph global@(Opt.Global home _) state =
 
       argLookup = makeArgLookup graph
    in case graph ! global of
-        Opt.Define region expr@(Opt.Function _ _) deps ->
+        Opt.Define region (Opt.Function args body) deps | length args > 1 ->
           addStmt
             (addDeps deps state)
-            ( trackedFn region global (Expr.generate mode argLookup home expr)
+            ( trackedFn region global args (Expr.generateFunctionImplementation mode argLookup home args body)
             )
         Opt.Define region expr deps ->
           addStmt
@@ -224,12 +224,13 @@ trackedVar :: A.Region -> Opt.Global -> Expr.Code -> JS.Stmt
 trackedVar (A.Region startPos _) (Opt.Global home name) code =
   JS.TrackedVar home startPos (JsName.fromGlobalHumanReadable home name) (JsName.fromGlobal home name) (Expr.codeToExpr code)
 
-trackedFn :: A.Region -> Opt.Global -> Expr.Code -> JS.Stmt
-trackedFn (A.Region startPos _) (Opt.Global home name) code =
+trackedFn :: A.Region -> Opt.Global -> [A.Located Name.Name] -> Expr.Code -> JS.Stmt
+trackedFn (A.Region startPos _) (Opt.Global home name) args code =
   let directFnName = JsName.fromGlobalDirectFn home name
+      argNames = map (\(A.At _ arg) -> JsName.fromLocal arg) args
   in JS.Block
   [ JS.TrackedVar home startPos (JsName.fromGlobalHumanReadable home name) directFnName (Expr.codeToExpr code)
-  , JS.Var (JsName.fromGlobal home name) (JS.Ref directFnName)
+  , JS.Var (JsName.fromGlobal home name) $ Expr.codeToExpr (Expr.generateCurriedFunctionRef argNames directFnName)
   ]
 
 isDebugger :: Opt.Global -> Bool

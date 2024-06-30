@@ -4,9 +4,11 @@ module Generate.JavaScript.Expression
   ( generate,
     generateCtor,
     generateField,
+    generateFunctionImplementation,
+    generateCurriedFunctionRef,
     generateTailDef,
     generateMain,
-    Code,
+    Code (..),
     codeToExpr,
     codeToStmtList,
   )
@@ -258,6 +260,22 @@ generateFunction args body =
               JS.Function Nothing [arg] $
                 codeToStmtList code
        in foldr addArg body args
+
+generateCurriedFunctionRef :: [JsName.Name] -> JsName.Name -> Code
+generateCurriedFunctionRef args ref =
+  case IntMap.lookup (length args) funcHelpers of
+    Just helper ->
+      JsExpr $
+        JS.Call
+          helper
+          [ JS.Ref ref
+          ]
+    Nothing ->
+      let addArg arg code =
+            JsExpr $
+              JS.Function Nothing [arg] $
+                codeToStmtList code
+       in foldr addArg (JsExpr $ JS.Call (JS.Ref ref) (map JS.Ref args)) args
 
 generateTrackedFunction :: ModuleName.Canonical -> [A.Located JsName.Name] -> Code -> Code
 generateTrackedFunction parentModule args body =
@@ -594,6 +612,12 @@ generateDef mode argLookup parentModule def =
     Opt.TailDef (A.Region start _) name argNames body ->
       JS.TrackedVar parentModule start (JsName.fromLocal name) (JsName.fromLocal name) $
         codeToExpr (generateTailDef mode argLookup parentModule name argNames body)
+
+generateFunctionImplementation :: Mode.Mode -> FnArgLookup -> ModuleName.Canonical  -> [A.Located Name.Name] -> Opt.Expr -> Code
+generateFunctionImplementation mode argLookup parentModule  argNames body =
+  JsExpr $
+   JS.TrackedFunction parentModule  (map (\(A.At region argName) -> A.At region (JsName.fromLocal argName)) argNames) $ 
+    codeToStmtList $ generate mode argLookup parentModule body
 
 generateTailDef :: Mode.Mode -> FnArgLookup -> ModuleName.Canonical -> Name.Name -> [A.Located Name.Name] -> Opt.Expr -> Code
 generateTailDef mode argLookup parentModule name argNames body =
