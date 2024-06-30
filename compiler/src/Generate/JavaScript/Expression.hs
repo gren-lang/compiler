@@ -349,7 +349,6 @@ generateCall mode argLookup parentModule pos func args =
 generateCallHelp :: Mode.Mode -> FnArgLookup -> ModuleName.Canonical -> A.Position -> Opt.Expr -> [Opt.Expr] -> JS.Expr
 generateCallHelp mode argLookup parentModule pos func args =
   generateNormalCall
-    argLookup
     parentModule
     pos
     (generateJsExpr mode argLookup parentModule func)
@@ -366,10 +365,10 @@ generateGlobalCall argLookup parentModule pos@(A.Position line col) home name ar
             if line == 0 && col == 0
               then JS.Ref (JsName.fromGlobal home name)
               else JS.TrackedRef parentModule pos (JsName.fromGlobalHumanReadable home name) (JsName.fromGlobal home name)
-       in generateNormalCall argLookup parentModule pos ref args
+       in generateNormalCall parentModule pos ref args
 
-generateNormalCall :: FnArgLookup -> ModuleName.Canonical -> A.Position -> JS.Expr -> [JS.Expr] -> JS.Expr
-generateNormalCall argLookup parentModule pos func args =
+generateNormalCall :: ModuleName.Canonical -> A.Position -> JS.Expr -> [JS.Expr] -> JS.Expr
+generateNormalCall parentModule pos func args =
   case IntMap.lookup (length args) callHelpers of
     Just helper ->
       JS.TrackedNormalCall parentModule pos helper func args
