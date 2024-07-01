@@ -54,6 +54,8 @@ makeArgLookup graph home name =
       Just arity
     Just (Opt.Link (Opt.Global home2 name2)) ->
       makeArgLookup graph home2 name2
+    Just (Opt.Cycle _ _ [Opt.Def _ _ (Opt.Function args _)] _) ->
+      Just (length args)
     Just (Opt.Cycle _ _ [Opt.TailDef _ _ args _] _) ->
       Just (length args)
     _ ->
@@ -289,6 +291,9 @@ generateCycle mode argLookup (Opt.Global home _) names values functions =
 generateCycleFunc :: Mode.Mode -> FnArgLookup -> ModuleName.Canonical -> Opt.Def -> JS.Stmt
 generateCycleFunc mode argLookup home def =
   case def of
+    Opt.Def region name (Opt.Function args body)
+      | length args > 1 ->
+          trackedFn region (Opt.Global home name) args (Expr.generateFunctionImplementation mode argLookup home args body)
     Opt.Def (A.Region startPos _) name expr ->
       JS.TrackedVar home startPos (JsName.fromGlobalHumanReadable home name) (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generate mode argLookup home expr))
     Opt.TailDef (A.Region startPos _) name args expr
