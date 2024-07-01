@@ -230,8 +230,8 @@ generateField mode name =
 -- DEBUG
 
 generateDebug :: ModuleName.Canonical -> Name.Name -> ModuleName.Canonical -> A.Region -> Maybe Name.Name -> JS.Expr
-generateDebug parentMod name module_@(ModuleName.Canonical _ home) region@(A.Region startPos _) unhandledValueName =
-  let trackedRef = JS.TrackedRef parentMod startPos (JsName.fromGlobalHumanReadable module_ name) (JsName.fromGlobal module_ name)
+generateDebug parentMod name (ModuleName.Canonical _ home) region@(A.Region startPos _) unhandledValueName =
+  let trackedRef = JS.TrackedRef parentMod startPos (JsName.fromGlobalHumanReadable ModuleName.debug name) (JsName.fromGlobal ModuleName.debug name)
    in if name /= "todo"
         then trackedRef
         else case unhandledValueName of
@@ -426,8 +426,6 @@ generateBasicsCall mode argLookup parentModule pos home name args =
             _ -> generateGlobalCall argLookup parentModule pos home name [arg]
     [grenLeft, grenRight] ->
       case name of
-        -- NOTE: removed "composeL" and "composeR" because of this issue:
-        -- https://github.com/elm/compiler/issues/1722
         "append" -> append mode argLookup parentModule grenLeft grenRight
         "apL" -> generateJsExpr mode argLookup parentModule $ apply grenLeft grenRight
         "apR" -> generateJsExpr mode argLookup parentModule $ apply grenRight grenLeft
@@ -456,10 +454,6 @@ generateBasicsCall mode argLookup parentModule pos home name args =
 generateMathCall :: FnArgLookup -> ModuleName.Canonical -> A.Position -> ModuleName.Canonical -> Name.Name -> [JS.Expr] -> JS.Expr
 generateMathCall argLookup parentModule pos home name args =
   case args of
-    [arg] ->
-      case name of
-        "truncate" -> JS.Infix JS.OpBitwiseOr arg (JS.Int 0)
-        _ -> generateGlobalCall argLookup parentModule pos home name [arg]
     [left, right] ->
       case name of
         "remainderBy" -> JS.Infix JS.OpMod right left
