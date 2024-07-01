@@ -41,13 +41,6 @@ compilerVersion : String
 compilerVersion =
     "0.4.4"
 
-countDown : Int -> {} -> Int
-countDown n rec =
-    if n <= 0 then
-        0
-
-    else
-        countDown (n - 1) rec
 
 init : Node.Environment -> Init.Task { model : Model, command : Cmd Msg }
 init env =
@@ -60,8 +53,6 @@ init env =
             let
                 userArgs =
                     Array.dropFirst 2 env.args
-
-                useless = countDown 10 {}
 
                 useColor =
                     case terminalConfig of
