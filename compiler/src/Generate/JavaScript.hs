@@ -288,20 +288,19 @@ generateCycle mode argLookup (Opt.Global home _) names values functions =
 
 generateCycleFunc :: Mode.Mode -> FnArgLookup -> ModuleName.Canonical -> Opt.Def -> JS.Stmt
 generateCycleFunc mode argLookup home def =
-  -- TODO: Turn into TrackedVar
   case def of
-    Opt.Def _ name expr ->
-      JS.Var (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generate mode argLookup home expr))
-    Opt.TailDef _ name args expr
+    Opt.Def (A.Region startPos _) name expr ->
+      JS.TrackedVar home startPos (JsName.fromGlobalHumanReadable home name) (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generate mode argLookup home expr))
+    Opt.TailDef (A.Region startPos _) name args expr
       | length args > 1 ->
           let directFnName = JsName.fromGlobalDirectFn home name
               argNames = map (\(A.At _ arg) -> JsName.fromLocal arg) args
            in JS.Block
-                [ JS.Var directFnName (Expr.codeToExpr (Expr.generateTailDefImplementation mode argLookup home name args expr)),
+                [ JS.TrackedVar home startPos (JsName.fromGlobalHumanReadable home name) directFnName (Expr.codeToExpr (Expr.generateTailDefImplementation mode argLookup home name args expr)),
                   JS.Var (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generateCurriedFunctionRef argNames directFnName))
                 ]
-    Opt.TailDef _ name args expr ->
-      JS.Var (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generateTailDef mode argLookup home name args expr))
+    Opt.TailDef (A.Region startPos _) name args expr ->
+      JS.TrackedVar home startPos (JsName.fromGlobalHumanReadable home name) (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generateTailDef mode argLookup home name args expr))
 
 generateSafeCycle :: Mode.Mode -> FnArgLookup -> ModuleName.Canonical -> (Name.Name, Opt.Expr) -> JS.Stmt
 generateSafeCycle mode argLookup home (name, expr) =
