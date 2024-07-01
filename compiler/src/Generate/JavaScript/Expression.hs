@@ -83,7 +83,7 @@ generate mode argLookup parentModule expression =
     Opt.VarCycle (A.Region startPos _) home name ->
       JsExpr $ JS.Call (JS.TrackedRef parentModule startPos (JsName.fromGlobalHumanReadable home name) (JsName.fromCycle home name)) []
     Opt.VarDebug region name home unhandledValueName ->
-      JsExpr $ generateDebug name home region unhandledValueName
+      JsExpr $ generateDebug parentModule name home region unhandledValueName
     Opt.VarKernel (A.Region startPos _) home name ->
       JsExpr $ JS.TrackedRef parentModule startPos (JsName.fromKernel home name) (JsName.fromKernel home name)
     Opt.Array region entries ->
@@ -229,22 +229,23 @@ generateField mode name =
 
 -- DEBUG
 
-generateDebug :: Name.Name -> ModuleName.Canonical -> A.Region -> Maybe Name.Name -> JS.Expr
-generateDebug name (ModuleName.Canonical _ home) region unhandledValueName =
-  if name /= "todo"
-    then JS.Ref (JsName.fromGlobal ModuleName.debug name)
-    else case unhandledValueName of
-      Nothing ->
-        JS.Call (JS.Ref (JsName.fromKernel Name.debug "todo")) $
-          [ JS.String (Name.toBuilder home),
-            regionToJsExpr region
-          ]
-      Just valueName ->
-        JS.Call (JS.Ref (JsName.fromKernel Name.debug "todoCase")) $
-          [ JS.String (Name.toBuilder home),
-            regionToJsExpr region,
-            JS.Ref (JsName.fromLocal valueName)
-          ]
+generateDebug :: ModuleName.Canonical -> Name.Name -> ModuleName.Canonical -> A.Region -> Maybe Name.Name -> JS.Expr
+generateDebug parentMod name module_@(ModuleName.Canonical _ home) region@(A.Region startPos _) unhandledValueName =
+  let trackedRef = JS.TrackedRef parentMod startPos (JsName.fromGlobalHumanReadable module_ name) (JsName.fromGlobal module_ name)
+   in if name /= "todo"
+        then trackedRef
+        else case unhandledValueName of
+          Nothing ->
+            JS.Call trackedRef $
+              [ JS.String (Name.toBuilder home),
+                regionToJsExpr region
+              ]
+          Just valueName ->
+            JS.Call (JS.Ref (JsName.fromKernel Name.debug "todoCase")) $
+              [ JS.String (Name.toBuilder home),
+                regionToJsExpr region,
+                JS.Ref (JsName.fromLocal valueName)
+              ]
 
 regionToJsExpr :: A.Region -> JS.Expr
 regionToJsExpr (A.Region start end) =
