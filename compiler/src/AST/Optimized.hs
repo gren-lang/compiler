@@ -64,17 +64,21 @@ data Expr
   | Access Expr A.Region Name
   | Update A.Region Expr (Map.Map (A.Located Name) Expr)
   | Record A.Region (Map.Map (A.Located Name) Expr)
+  deriving (Show)
 
 data Global = Global ModuleName.Canonical Name
+  deriving (Show)
 
 -- DEFINITIONS
 
 data Def
   = Def A.Region Name Expr
   | TailDef A.Region Name [A.Located Name] Expr
+  deriving (Show)
 
 data Destructor
   = Destructor Name Path
+  deriving (Show)
 
 data Path
   = Index Index.ZeroBased Path
@@ -82,6 +86,7 @@ data Path
   | Field Name Path
   | Unbox Path
   | Root Name
+  deriving (Show)
 
 -- BRANCHING
 
@@ -97,11 +102,12 @@ data Decider a
         _tests :: [(DT.Test, Decider a)],
         _fallback :: Decider a
       }
-  deriving (Eq)
+  deriving (Show, Eq)
 
 data Choice
   = Inline Expr
   | Jump Int
+  deriving (Show)
 
 -- OBJECT GRAPH
 

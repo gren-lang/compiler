@@ -385,9 +385,7 @@ callHelpers =
 
 generateCoreCall :: Mode.Mode -> FnArgLookup -> ModuleName.Canonical -> A.Position -> Opt.Global -> [Opt.Expr] -> JS.Expr
 generateCoreCall mode argLookup parentModule pos (Opt.Global home@(ModuleName.Canonical _ moduleName) name) args =
-  if name == "add"
-    then error (show args)
-    else if moduleName == Name.basics
+  if moduleName == Name.basics
     then generateBasicsCall mode argLookup parentModule pos home name args
     else
       if moduleName == Name.bitwise
@@ -490,14 +488,14 @@ cmp idealOp backupOp backupInt left right =
 isLiteral :: JS.Expr -> Bool
 isLiteral expr =
   case expr of
-    JS.String _ ->
-      True
-    JS.Float _ ->
-      True
-    JS.Int _ ->
-      True
-    JS.Bool _ ->
-      True
+    JS.String _ -> True
+    JS.TrackedString _ _ _ -> True
+    JS.Float _ -> True
+    JS.TrackedFloat _ _ _ -> True
+    JS.Int _ -> True
+    JS.TrackedInt _ _ _ -> True
+    JS.Bool _ -> True
+    JS.TrackedBool _ _ _ -> True
     _ ->
       False
 
