@@ -9,6 +9,7 @@ module Generate.JavaScript.Name
     fromLocal,
     fromLocalHumanReadable,
     fromGlobal,
+    fromGlobalDirectFn,
     fromGlobalHumanReadable,
     fromCycle,
     fromKernel,
@@ -57,6 +58,10 @@ fromLocalHumanReadable name =
 fromGlobal :: ModuleName.Canonical -> Name.Name -> Name
 fromGlobal home name =
   Name $ homeToBuilder home <> usd <> Name.toBuilder name
+
+fromGlobalDirectFn :: ModuleName.Canonical -> Name.Name -> Name
+fromGlobalDirectFn home name =
+  Name $ homeToBuilder home <> usd <> Name.toBuilder name <> usd
 
 fromGlobalHumanReadable :: ModuleName.Canonical -> Name.Name -> Name
 fromGlobalHumanReadable (ModuleName.Canonical _ moduleName) name =
