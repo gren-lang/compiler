@@ -385,7 +385,9 @@ callHelpers =
 
 generateCoreCall :: Mode.Mode -> FnArgLookup -> ModuleName.Canonical -> A.Position -> Opt.Global -> [Opt.Expr] -> JS.Expr
 generateCoreCall mode argLookup parentModule pos (Opt.Global home@(ModuleName.Canonical _ moduleName) name) args =
-  if moduleName == Name.basics
+  if name == "add"
+    then error (show args)
+    else if moduleName == Name.basics
     then generateBasicsCall mode argLookup parentModule pos home name args
     else
       if moduleName == Name.bitwise
