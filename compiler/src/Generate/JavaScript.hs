@@ -52,14 +52,24 @@ makeArgLookup graph home name =
       Just (length args)
     Just (Opt.Ctor _ arity) ->
       Just arity
-    Just (Opt.Link (Opt.Global home2 name2)) ->
-      makeArgLookup graph home2 name2
-    Just (Opt.Cycle _ _ [Opt.Def _ _ (Opt.Function args _)] _) ->
-      Just (length args)
-    Just (Opt.Cycle _ _ [Opt.TailDef _ _ args _] _) ->
-      Just (length args)
+    Just (Opt.Link global) ->
+      case Map.lookup global graph of
+        Just (Opt.Cycle names _ defs _) ->
+          case List.find (\d -> defName d == name) defs of
+            Just (Opt.Def _ _ (Opt.Function args _)) ->
+              Just (length args)
+            Just (Opt.TailDef _ _ args _) ->
+              Just (length args)
+            _ ->
+              error (show names)
+        _ ->
+          Nothing
     _ ->
       Nothing
+
+defName :: Opt.Def -> Name.Name
+defName (Opt.Def _ name _) = name
+defName (Opt.TailDef _ name _ _) = name
 
 prelude :: B.Builder
 prelude =
