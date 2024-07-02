@@ -562,6 +562,8 @@ isStringLiteral expr =
   case expr of
     JS.String _ ->
       True
+    JS.TrackedString _ _ _ ->
+      True
     _ ->
       False
 
