@@ -442,6 +442,7 @@ data String
   | StringEndless_Multi
   | StringEscape Escape
   | StringMultilineWithoutLeadingNewline
+  | StringInvalidNewline
   deriving (Show)
 
 data Escape
@@ -2980,11 +2981,23 @@ toStringReport source string row col =
               source
               region
               Nothing
-              ( D.reflow "The contents of a multiline sting must start on a new line",
+              ( D.reflow "The contents of a multiline string must start on a new line",
                 D.stack
-                  [ D.reflow "Add a \"\"\" a new line right after the opening quotes.",
+                  [ D.reflow "Add a new line right after the opening quotes.",
                     D.toSimpleNote "Here is a valid multi-line string for reference:",
                     D.dullyellow $ D.indent 4 validMultilineStringExample
+                  ]
+              )
+    StringInvalidNewline ->
+      let region = toRegion row col
+       in Report.Report "MULTILINE STRING WITH INVALID NEWLINE" region [] $
+            Code.toSnippet
+              source
+              region
+              Nothing
+              ( D.reflow "New lines in multiline strings must be either \\n or \\r\\n",
+                D.stack
+                  [ D.reflow "Make sure newlines are set to either Windows (\\r\\n) or Unix (\\n)."
                   ]
               )
 

@@ -115,13 +115,18 @@ finalize start end revChunks =
         then revChunks
         else ES.Slice start (minusPtr end start) : revChunks
 
-dropMultiStringEndingNewline :: [ES.Chunk] -> [ES.Chunk]
-dropMultiStringEndingNewline revChunks =
-  case revChunks of
-    (ES.Escape 0x6E) : rest ->
-      rest
-    _ ->
-      revChunks
+finalizeMultiString :: Ptr Word8 -> Ptr Word8 -> [ES.Chunk] -> ES.String
+finalizeMultiString start end revChunks =
+  ES.fromChunks $
+    reverse $
+      if start == end
+        then {- Get rid of ending newline before """ -}
+          case revChunks of
+            (ES.Escape 0x6E) : rest ->
+              rest
+            _ ->
+              revChunks
+        else ES.Slice start (minusPtr end start) : revChunks
 
 addEscape :: ES.Chunk -> Ptr Word8 -> Ptr Word8 -> [ES.Chunk] -> [ES.Chunk]
 addEscape chunk start end revChunks =
@@ -179,7 +184,21 @@ multiString pos end row _ _ sr sc =
             then
               let !pos1 = plusPtr pos 1
                in countLeadingWhiteSpaceThenMultiString 0 pos1 end (row + 1) 1 pos1 sr sc
-            else Err sr sc E.StringMultilineWithoutLeadingNewline
+            else
+              if word == 0x0D {- \r -}
+                then
+                  if plusPtr pos 1 >= end
+                    then Err sr sc E.StringEndless_Multi
+                    else
+                      let !word1 = P.unsafeIndex (plusPtr pos 1)
+                       in if word1 == 0x0A {- \n -}
+                            then
+                              let !pos2 = plusPtr pos 2
+                               in countLeadingWhiteSpaceThenMultiString 0 pos2 end (row + 1) 1 pos2 sr sc
+                          else
+                            Err sr sc E.StringInvalidNewline
+                else
+                  Err sr sc E.StringMultilineWithoutLeadingNewline
 
 countLeadingWhiteSpaceThenMultiString :: Int -> Ptr Word8 -> Ptr Word8 -> Row -> Col -> Ptr Word8 -> Row -> Col -> StringResult
 countLeadingWhiteSpaceThenMultiString count pos end row col initialPos sr sc =
@@ -214,10 +233,7 @@ multiStringBody leadingWhitespace pos end row col initialPos sr sc revChunks =
        in if word == 0x22 {- " -} && isDoubleQuote (plusPtr pos 1) end && isDoubleQuote (plusPtr pos 2) end
             then
               Ok (plusPtr pos 3) row (col + 3) ES.MultilineString $
-                finalize initialPos pos $
-                  if initialPos == pos
-                    then dropMultiStringEndingNewline revChunks
-                    else revChunks {- only trim the last newline -}
+                finalizeMultiString initialPos pos revChunks
             else
               if word == 0x27 {- ' -}
                 then
@@ -233,9 +249,17 @@ multiStringBody leadingWhitespace pos end row col initialPos sr sc revChunks =
                     else
                       if word == 0x0D {- \r -}
                         then
-                          let !pos1 = plusPtr pos 1
-                           in dropLeadingWhiteSpaceThenMultiString 0 leadingWhitespace pos1 end row col pos1 sr sc $
-                                addEscape carriageReturn initialPos pos revChunks
+                          if plusPtr pos 1 >= end
+                            then Err sr sc E.StringEndless_Multi
+                            else
+                              let !word1 = P.unsafeIndex (plusPtr pos 1)
+                               in if word1 == 0x0A {- \n -}
+                                    then
+                                      let !pos2 = plusPtr pos 2
+                                       in dropLeadingWhiteSpaceThenMultiString 0 leadingWhitespace pos2 end (row + 1) 1 pos2 sr sc $
+                                        addEscape newline initialPos pos revChunks
+                                    else
+                                      Err row col E.StringInvalidNewline
                         else
                           if word == 0x5C {- \ -}
                             then case eatEscape (plusPtr pos 1) end row col of
@@ -309,10 +333,6 @@ doubleQuote =
 newline :: ES.Chunk
 newline =
   ES.Escape 0x6E {-n-}
-
-carriageReturn :: ES.Chunk
-carriageReturn =
-  ES.Escape 0x72 {-r-}
 
 placeholder :: ES.Chunk
 placeholder =
