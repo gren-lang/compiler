@@ -48,7 +48,7 @@ data GeneratedResult = GeneratedResult
 makeArgLookup :: Graph -> ModuleName.Canonical -> Name.Name -> Maybe Int
 makeArgLookup graph home name =
   case Map.lookup (Opt.Global home name) graph of
-    Just (Opt.Define _ (Opt.Function args _) _) ->
+    Just (Opt.Define _ (Opt.Function _ args _) _) ->
       Just (length args)
     Just (Opt.Ctor _ arity) ->
       Just arity
@@ -56,7 +56,7 @@ makeArgLookup graph home name =
       case Map.lookup global graph of
         Just (Opt.Cycle names _ defs _) ->
           case List.find (\d -> defName d == name) defs of
-            Just (Opt.Def _ _ (Opt.Function args _)) ->
+            Just (Opt.Def _ _ (Opt.Function _ args _)) ->
               Just (length args)
             Just (Opt.TailDef _ _ args _) ->
               Just (length args)
@@ -171,11 +171,11 @@ addGlobalHelp mode graph global@(Opt.Global home _) state =
 
       argLookup = makeArgLookup graph
    in case graph ! global of
-        Opt.Define region (Opt.Function args body) deps
+        Opt.Define region (Opt.Function (A.Region funcStart _) args body) deps
           | length args > 1 ->
               addStmt
                 (addDeps deps state)
-                ( trackedFn region global args (Expr.generateFunctionImplementation mode argLookup home args body)
+                ( trackedFn region global args (Expr.generateFunctionImplementation mode argLookup home funcStart args body)
                 )
         Opt.Define region expr deps ->
           addStmt
@@ -301,9 +301,9 @@ generateCycle mode argLookup (Opt.Global home _) names values functions =
 generateCycleFunc :: Mode.Mode -> FnArgLookup -> ModuleName.Canonical -> Opt.Def -> JS.Stmt
 generateCycleFunc mode argLookup home def =
   case def of
-    Opt.Def region name (Opt.Function args body)
+    Opt.Def region name (Opt.Function (A.Region funcStartPos _) args body)
       | length args > 1 ->
-          trackedFn region (Opt.Global home name) args (Expr.generateFunctionImplementation mode argLookup home args body)
+          trackedFn region (Opt.Global home name) args (Expr.generateFunctionImplementation mode argLookup home funcStartPos args body)
     Opt.Def (A.Region startPos _) name expr ->
       JS.TrackedVar home startPos (JsName.fromGlobalHumanReadable home name) (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generate mode argLookup home expr))
     Opt.TailDef (A.Region startPos _) name args expr
@@ -315,7 +315,7 @@ generateCycleFunc mode argLookup home def =
                   JS.Var (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generateCurriedFunctionRef argNames directFnName))
                 ]
     Opt.TailDef (A.Region startPos _) name args expr ->
-      JS.TrackedVar home startPos (JsName.fromGlobalHumanReadable home name) (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generateTailDef mode argLookup home name args expr))
+      JS.TrackedVar home startPos (JsName.fromGlobalHumanReadable home name) (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generateTailDef mode argLookup home  name args expr))
 
 generateSafeCycle :: Mode.Mode -> FnArgLookup -> ModuleName.Canonical -> (Name.Name, Opt.Expr) -> JS.Stmt
 generateSafeCycle mode argLookup home (name, expr) =

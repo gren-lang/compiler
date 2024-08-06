@@ -12,6 +12,7 @@ module Reporting.Annotation
     toRegion,
     mergeRegions,
     zero,
+    zeroPosition,
     one,
   )
 where
@@ -74,7 +75,11 @@ mergeRegions (Region start _) (Region _ end) =
 
 zero :: Region
 zero =
-  Region (Position 0 0) (Position 0 0)
+  Region zeroPosition zeroPosition
+
+
+zeroPosition :: Position
+zeroPosition = Position 0  0
 
 one :: Region
 one =
