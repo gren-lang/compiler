@@ -68,7 +68,7 @@ data Test
   | IsChr ES.String
   | IsStr ES.String
   | IsBool Bool
-  deriving (Eq, Ord)
+  deriving (Show, Eq, Ord)
 
 data Path
   = Index Index.ZeroBased Path
@@ -76,7 +76,7 @@ data Path
   | RecordField Name.Name Path
   | Unbox Path
   | Empty
-  deriving (Eq)
+  deriving (Show, Eq)
 
 -- ACTUALLY BUILD DECISION TREES
 

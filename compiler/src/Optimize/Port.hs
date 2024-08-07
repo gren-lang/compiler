@@ -61,7 +61,7 @@ toEncoder tipe =
             object <- encode "object"
             keyValuePairs <- traverse encodeField (Map.toList fields)
             Names.registerFieldDict fields $
-              Opt.Function [A.At A.zero Name.dollar] (Opt.Call A.zero object [Opt.Array A.zero keyValuePairs])
+              Opt.Function A.zero [A.At A.zero Name.dollar] (Opt.Call A.zero object [Opt.Array A.zero keyValuePairs])
 
 -- ENCODE HELPERS
 
@@ -72,7 +72,7 @@ encodeMaybe tipe =
     encoder <- toEncoder tipe
     destruct <- Names.registerGlobal A.zero ModuleName.maybe "destruct"
     return $
-      Opt.Function [A.At A.zero Name.dollar] $
+      Opt.Function A.zero [A.At A.zero Name.dollar] $
         Opt.Call A.zero destruct [null, encoder, Opt.VarLocal A.zero Name.dollar]
 
 encodeArray :: Can.Type -> Names.Tracker Opt.Expr
@@ -183,7 +183,7 @@ fieldAndThen decoder (key, Can.FieldType _ tipe) =
     return $
       (Opt.Call A.zero)
         andThen
-        [ Opt.Function [A.At A.zero key] decoder,
+        [ Opt.Function A.zero [A.At A.zero key] decoder,
           Opt.Call A.zero field [Opt.Str A.zero (Name.toGrenString key), typeDecoder]
         ]
 

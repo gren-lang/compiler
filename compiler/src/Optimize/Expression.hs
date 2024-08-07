@@ -70,7 +70,7 @@ optimize cycle (A.At region expression) =
       do
         (argNames, destructors) <- destructArgs args
         obody <- optimize cycle body
-        pure $ Opt.Function argNames (foldr Opt.Destruct obody destructors)
+        pure $ Opt.Function region argNames (foldr Opt.Destruct obody destructors)
     Can.Call func args ->
       Opt.Call region
         <$> optimize cycle func
@@ -158,7 +158,7 @@ optimizeDefHelp cycle region name args expr body =
       _ ->
         do
           (argNames, destructors) <- destructArgs args
-          let ofunc = Opt.Function argNames (foldr Opt.Destruct oexpr destructors)
+          let ofunc = Opt.Function region argNames (foldr Opt.Destruct oexpr destructors)
           pure $ Opt.Let (Opt.Def region name ofunc) body
 
 -- DESTRUCTURING
@@ -361,7 +361,7 @@ toTailDef :: A.Region -> Name.Name -> [A.Located Name.Name] -> [Opt.Destructor] 
 toTailDef region name argNames destructors body =
   if hasTailCall body
     then Opt.TailDef region name argNames (foldr Opt.Destruct body destructors)
-    else Opt.Def region name (Opt.Function argNames (foldr Opt.Destruct body destructors))
+    else Opt.Def region name (Opt.Function A.zero argNames (foldr Opt.Destruct body destructors))
 
 hasTailCall :: Opt.Expr -> Bool
 hasTailCall expression =

@@ -53,7 +53,7 @@ data Expr
   | VarDebug A.Region Name ModuleName.Canonical (Maybe Name)
   | VarKernel A.Region Name Name
   | Array A.Region [Expr]
-  | Function [A.Located Name] Expr
+  | Function A.Region [A.Located Name] Expr
   | Call A.Region Expr [Expr]
   | TailCall Name [(Name, Expr)]
   | If [(Expr, Expr)] Expr
@@ -64,17 +64,21 @@ data Expr
   | Access Expr A.Region Name
   | Update A.Region Expr (Map.Map (A.Located Name) Expr)
   | Record A.Region (Map.Map (A.Located Name) Expr)
+  deriving (Show)
 
 data Global = Global ModuleName.Canonical Name
+  deriving (Show)
 
 -- DEFINITIONS
 
 data Def
   = Def A.Region Name Expr
   | TailDef A.Region Name [A.Located Name] Expr
+  deriving (Show)
 
 data Destructor
   = Destructor Name Path
+  deriving (Show)
 
 data Path
   = Index Index.ZeroBased Path
@@ -82,6 +86,7 @@ data Path
   | Field Name Path
   | Unbox Path
   | Root Name
+  deriving (Show)
 
 -- BRANCHING
 
@@ -97,11 +102,12 @@ data Decider a
         _tests :: [(DT.Test, Decider a)],
         _fallback :: Decider a
       }
-  deriving (Eq)
+  deriving (Show, Eq)
 
 data Choice
   = Inline Expr
   | Jump Int
+  deriving (Show)
 
 -- OBJECT GRAPH
 
@@ -219,7 +225,7 @@ instance Binary Expr where
       VarDebug a b c d -> putWord8 10 >> put a >> put b >> put c >> put d
       VarKernel a b c -> putWord8 11 >> put a >> put b >> put c
       Array a b -> putWord8 12 >> put a >> put b
-      Function a b -> putWord8 13 >> put a >> put b
+      Function a b c -> putWord8 13 >> put a >> put b >> put c
       Call a b c -> putWord8 14 >> put a >> put b >> put c
       TailCall a b -> putWord8 15 >> put a >> put b
       If a b -> putWord8 16 >> put a >> put b
@@ -248,7 +254,7 @@ instance Binary Expr where
         10 -> liftM4 VarDebug get get get get
         11 -> liftM3 VarKernel get get get
         12 -> liftM2 Array get get
-        13 -> liftM2 Function get get
+        13 -> liftM3 Function get get get
         14 -> liftM3 Call get get get
         15 -> liftM2 TailCall get get
         16 -> liftM2 If get get

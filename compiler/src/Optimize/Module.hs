@@ -211,7 +211,7 @@ addDefNode home region name args body mainDeps graph =
                 (argNames, destructors) <- Expr.destructArgs args
                 obody <- Expr.optimize Set.empty body
                 pure $
-                  Opt.Function argNames $
+                  Opt.Function A.zero argNames $
                     foldr Opt.Destruct obody destructors
    in addToGraph (Opt.Global home name) (Opt.Define region def (Set.union deps mainDeps)) fields graph
 

@@ -12,7 +12,7 @@ import Data.Name qualified as Name
 import Text.RawString.QQ (r)
 
 leadingLines :: Int
-leadingLines = 3
+leadingLines = 7
 
 sandwich :: Name.Name -> B.Builder -> B.Builder
 sandwich moduleName javascript =

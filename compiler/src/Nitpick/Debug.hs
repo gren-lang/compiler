@@ -43,7 +43,7 @@ hasDebug expression =
     Opt.VarDebug _ _ _ _ -> True
     Opt.VarKernel _ _ _ -> False
     Opt.Array _ exprs -> any hasDebug exprs
-    Opt.Function _ expr -> hasDebug expr
+    Opt.Function _ _ expr -> hasDebug expr
     Opt.Call _ e es -> hasDebug e || any hasDebug es
     Opt.TailCall _ args -> any (hasDebug . snd) args
     Opt.If conds finally -> any (\(c, e) -> hasDebug c || hasDebug e) conds || hasDebug finally
