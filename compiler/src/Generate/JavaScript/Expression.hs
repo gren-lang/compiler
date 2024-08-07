@@ -92,7 +92,7 @@ generate mode argLookup parentModule expression =
             if region == A.zero
               then JS.Array generatedEntries
               else JS.TrackedArray parentModule region generatedEntries
-    Opt.Function (A.Region startPos _ ) args body ->
+    Opt.Function (A.Region startPos _) args body ->
       let argNames = map (\(A.At region name) -> A.At region (JsName.fromLocal name)) args
        in generateTrackedFunction parentModule startPos argNames (generate mode argLookup parentModule body)
     Opt.Call (A.Region startPos _) func args ->
@@ -634,7 +634,7 @@ generateFunctionImplementation mode argLookup parentModule funcPos argNames body
       codeToStmtList $
         generate mode argLookup parentModule body
 
-generateTailDef :: Mode.Mode -> FnArgLookup -> ModuleName.Canonical  -> Name.Name -> [A.Located Name.Name] -> Opt.Expr -> Code
+generateTailDef :: Mode.Mode -> FnArgLookup -> ModuleName.Canonical -> Name.Name -> [A.Located Name.Name] -> Opt.Expr -> Code
 generateTailDef mode argLookup parentModule name argNames body =
   generateTrackedFunction parentModule A.zeroPosition (map (\(A.At region argName) -> A.At region (JsName.fromLocal argName)) argNames) $
     JsBlock
@@ -644,7 +644,7 @@ generateTailDef mode argLookup parentModule name argNames body =
               generate mode argLookup parentModule body
       ]
 
-generateTailDefImplementation :: Mode.Mode -> FnArgLookup -> ModuleName.Canonical  -> Name.Name -> [A.Located Name.Name] -> Opt.Expr -> Code
+generateTailDefImplementation :: Mode.Mode -> FnArgLookup -> ModuleName.Canonical -> Name.Name -> [A.Located Name.Name] -> Opt.Expr -> Code
 generateTailDefImplementation mode argLookup parentModule name argNames body =
   JsExpr $
     JS.TrackedFunction parentModule A.zeroPosition (map (\(A.At region argName) -> A.At region (JsName.fromLocal argName)) argNames) $

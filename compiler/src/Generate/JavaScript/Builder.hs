@@ -629,10 +629,10 @@ fromExpr level@(Level indent nextLevel) grouping expression builder =
         & addAscii "}"
     TrackedFunction moduleName startPos args stmts ->
       builder
-        & (if startPos == A.zeroPosition
-            then addAscii "function"
-            else addTrackedByteString moduleName startPos "function"
-            )
+        & ( if startPos == A.zeroPosition
+              then addAscii "function"
+              else addTrackedByteString moduleName startPos "function"
+          )
         & addAscii "("
         & commaSepExpr (\(A.At (A.Region start _) name) -> addName moduleName start name name) args
         & addAscii ") {"

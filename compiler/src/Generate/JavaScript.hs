@@ -315,7 +315,7 @@ generateCycleFunc mode argLookup home def =
                   JS.Var (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generateCurriedFunctionRef argNames directFnName))
                 ]
     Opt.TailDef (A.Region startPos _) name args expr ->
-      JS.TrackedVar home startPos (JsName.fromGlobalHumanReadable home name) (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generateTailDef mode argLookup home  name args expr))
+      JS.TrackedVar home startPos (JsName.fromGlobalHumanReadable home name) (JsName.fromGlobal home name) (Expr.codeToExpr (Expr.generateTailDef mode argLookup home name args expr))
 
 generateSafeCycle :: Mode.Mode -> FnArgLookup -> ModuleName.Canonical -> (Name.Name, Opt.Expr) -> JS.Stmt
 generateSafeCycle mode argLookup home (name, expr) =

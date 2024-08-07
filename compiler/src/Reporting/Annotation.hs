@@ -77,9 +77,8 @@ zero :: Region
 zero =
   Region zeroPosition zeroPosition
 
-
 zeroPosition :: Position
-zeroPosition = Position 0  0
+zeroPosition = Position 0 0
 
 one :: Region
 one =
