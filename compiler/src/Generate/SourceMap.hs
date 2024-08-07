@@ -86,7 +86,7 @@ mappingMapUpdater toInsert maybeVal =
 
 parseMappingsHelp :: Word16 -> Word16 -> Map Word16 [JS.Mapping] -> Mappings -> Mappings
 parseMappingsHelp currentLine lastLine mappingMap acc =
-  if currentLine >= lastLine
+  if currentLine > lastLine
     then acc
     else case Map.lookup currentLine mappingMap of
       Nothing ->
