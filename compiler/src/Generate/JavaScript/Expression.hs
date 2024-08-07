@@ -356,14 +356,14 @@ generateCallHelp mode argLookup parentModule pos func args =
     (map (generateJsExpr mode argLookup parentModule) args)
 
 generateGlobalCall :: FnArgLookup -> ModuleName.Canonical -> A.Position -> ModuleName.Canonical -> Name.Name -> [JS.Expr] -> JS.Expr
-generateGlobalCall argLookup parentModule pos@(A.Position line col) home name args =
+generateGlobalCall argLookup parentModule pos home name args =
   case argLookup home name of
     Just n
       | n > 1 && n == (length args) ->
           JS.Call (JS.TrackedRef parentModule pos (JsName.fromGlobalHumanReadable home name) (JsName.fromGlobalDirectFn home name)) args
     _ ->
       let ref =
-            if line == 0 && col == 0
+            if pos == A.zeroPosition
               then JS.Ref (JsName.fromGlobal home name)
               else JS.TrackedRef parentModule pos (JsName.fromGlobalHumanReadable home name) (JsName.fromGlobal home name)
        in generateNormalCall parentModule pos ref args
