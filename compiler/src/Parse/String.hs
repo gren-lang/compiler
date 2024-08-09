@@ -118,7 +118,7 @@ finalize start end revChunks =
 dropMultiStringEndingNewline :: [ES.Chunk] -> [ES.Chunk]
 dropMultiStringEndingNewline revChunks =
   case revChunks of
-    (ES.Escape 110) : rest ->
+    (ES.Escape 0x6E) : rest ->
       rest
     _ ->
       revChunks
@@ -215,7 +215,9 @@ multiStringBody leadingWhitespace pos end row col initialPos sr sc revChunks =
             then
               Ok (plusPtr pos 3) row (col + 3) ES.MultilineString $
                 finalize initialPos pos $
-                  dropMultiStringEndingNewline revChunks
+                  if initialPos == pos
+                    then dropMultiStringEndingNewline revChunks
+                    else revChunks {- only trim the last newline -}
             else
               if word == 0x27 {- ' -}
                 then

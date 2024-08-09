@@ -21,6 +21,11 @@ spec = do
         "normal string"
         "\"\"\"\nnormal string\"\"\""
 
+    it "no ending newline works" $ do
+      parse
+        "this is \\na test \\nfor newlines"
+        "\"\"\"\nthis is \na test \nfor newlines\"\"\""
+
     it "mixing quotes work" $ do
       parse
         "string with \" in it"
