@@ -238,7 +238,7 @@ multiStringBody leadingWhitespace pos end row col initialPos sr sc revChunks =
               if word == 0x27 {- ' -}
                 then
                   let !pos1 = plusPtr pos 1
-                   in dropLeadingWhiteSpaceThenMultiString 0 leadingWhitespace pos1 end row (col + 1) pos1 sr sc $
+                   in multiStringBody leadingWhitespace pos1 end row (col + 1) pos1 sr sc $
                         addEscape singleQuote initialPos pos revChunks
                 else
                   if word == 0x0A {- \n -}
@@ -264,10 +264,10 @@ multiStringBody leadingWhitespace pos end row col initialPos sr sc revChunks =
                           if word == 0x5C {- \ -}
                             then case eatEscape (plusPtr pos 1) end row col of
                               EscapeNormal ->
-                                dropLeadingWhiteSpaceThenMultiString 0 leadingWhitespace (plusPtr pos 2) end row (col + 2) initialPos sr sc revChunks
+                                multiStringBody leadingWhitespace (plusPtr pos 2) end row (col + 2) initialPos sr sc revChunks
                               EscapeUnicode delta code ->
                                 let !newPos = plusPtr pos delta
-                                 in dropLeadingWhiteSpaceThenMultiString 0 leadingWhitespace newPos end row (col + fromIntegral delta) newPos sr sc $
+                                 in multiStringBody leadingWhitespace newPos end row (col + fromIntegral delta) newPos sr sc $
                                       addEscape (ES.CodePoint code) initialPos pos revChunks
                               EscapeProblem r c x ->
                                 Err r c (E.StringEscape x)
