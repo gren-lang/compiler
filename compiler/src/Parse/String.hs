@@ -195,8 +195,8 @@ multiString pos end row _ _ sr sc =
                             then
                               let !pos2 = plusPtr pos 2
                                in countLeadingWhiteSpaceThenMultiString 0 pos2 end (row + 1) 1 pos2 sr sc
-                          else
-                            Err sr sc E.StringInvalidNewline
+                            else
+                              Err sr sc E.StringInvalidNewline
                 else
                   Err sr sc E.StringMultilineWithoutLeadingNewline
 
@@ -257,7 +257,7 @@ multiStringBody leadingWhitespace pos end row col initialPos sr sc revChunks =
                                     then
                                       let !pos2 = plusPtr pos 2
                                        in dropLeadingWhiteSpaceThenMultiString 0 leadingWhitespace pos2 end (row + 1) 1 pos2 sr sc $
-                                        addEscape newline initialPos pos revChunks
+                                            addEscape newline initialPos pos revChunks
                                     else
                                       Err row col E.StringInvalidNewline
                         else
