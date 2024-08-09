@@ -26,6 +26,21 @@ spec = do
         "string with \" in it"
         "\"\"\"\nstring with \" in it\"\"\""
 
+    it "single quotes don't eat spaces" $ do
+      parse
+        "quote followed by spaces: \\'    "
+        "\"\"\"\n  quote followed by spaces: \'    \"\"\""
+
+    it "escapes don't eat spaces" $ do
+      parse
+        "quote followed by spaces: \\'    "
+        "\"\"\"\n  quote followed by spaces: \\'    \"\"\""
+
+    it "unicode escapes don't eat spaces" $ do
+      parse
+        "quote followed by spaces: \\u0020    "
+        "\"\"\"\n  quote followed by spaces: \\u{0020}    \"\"\""
+
     it "first newline, and leading whitespace, is dropped" $ do
       parse
         "this is\\na test"
