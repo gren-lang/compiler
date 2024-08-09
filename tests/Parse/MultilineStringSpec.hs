@@ -21,6 +21,21 @@ spec = do
         "normal string"
         "\"\"\"\nnormal string\"\"\""
 
+    it "crlf regression test" $ do
+      parse
+        "normal string"
+        "\"\"\"\r\nnormal string\"\"\""
+
+    it "no ending newline works" $ do
+      parse
+        "this is \\na test \\nfor newlines"
+        "\"\"\"\nthis is \na test \nfor newlines\"\"\""
+
+    it "crlfs work" $ do
+      parse
+        "this is\\na test"
+        "\"\"\"\r\n   this is\r\n   a test\r\n\"\"\""
+
     it "mixing quotes work" $ do
       parse
         "string with \" in it"
@@ -36,6 +51,16 @@ spec = do
         "this is\\n a test"
         "\"\"\"\n   this is\n    a test\n\"\"\""
 
+    it "First proper line decides how many spaces to drop for crlf" $ do
+      parse
+        "this is\\n a test"
+        "\"\"\"\r\n   this is\r\n    a test\r\n\"\"\""
+
+    it "Works with differing lines" $ do
+      parse
+        "this is\\n a test"
+        "\"\"\"\n   this is\r\n    a test\n\"\"\""
+
     it "Only leading spaces are dropped" $ do
       parse
         "this is\\na test"
@@ -45,6 +70,16 @@ spec = do
       let isCorrectError ((Error.Syntax.String Error.Syntax.StringMultilineWithoutLeadingNewline _ _)) = True
           isCorrectError _ = False
       Helpers.checkParseError Expression.expression ExpressionBadEnd isCorrectError "\"\"\"this is not allowed\"\"\""
+
+    it "does not allow CR without LF on the first line" $ do
+      let isCorrectError ((Error.Syntax.String Error.Syntax.StringInvalidNewline _ _)) = True
+          isCorrectError _ = False
+      Helpers.checkParseError Expression.expression ExpressionBadEnd isCorrectError "\"\"\"\rthis is not allowed\"\"\""
+
+    it "does not allow CR without LF on the other lines" $ do
+      let isCorrectError ((Error.Syntax.String Error.Syntax.StringInvalidNewline _ _)) = True
+          isCorrectError _ = False
+      Helpers.checkParseError Expression.expression ExpressionBadEnd isCorrectError "\"\"\"\nthis\ris not allowed\"\"\""
 
 parse :: String -> BS.ByteString -> IO ()
 parse expectedStr =
