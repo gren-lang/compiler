@@ -218,6 +218,7 @@ type Msg
     = ExistanceChecked (Result FileSystem.Error Path)
     | CompilerDownloaded (Result (HttpClient.Error Bytes) (HttpClient.Response Bytes))
     | CompilerInstalled (Result FileSystem.Error {})
+    | CompilerRan Int
 
 
 update : Msg -> Model -> { model : Model, command : Cmd Msg }
@@ -241,7 +242,6 @@ update msg model =
             { model = model
             , command =
                 runCompiler model
-                    |> Task.execute
             }
 
         CompilerDownloaded (Err ((HttpClient.BadStatus res) as err)) ->
@@ -308,6 +308,12 @@ update msg model =
             { model = model
             , command =
                 runCompiler model
+            }
+
+        CompilerRan exitCode ->
+            { model = model
+            , command =
+                Node.exitWithCode exitCode
                     |> Task.execute
             }
 
@@ -319,7 +325,7 @@ downloadBinary permission url =
         |> HttpClient.send permission
 
 
-runCompiler : Model -> Task x Process.Id
+runCompiler : Model -> Cmd Msg
 runCompiler model =
     let
         colorEnvVar =
@@ -327,8 +333,8 @@ runCompiler model =
                 Dict.singleton "FORCE_COLOR" "1"
             else
                 Dict.singleton "NO_COLOR" "1"
-      in
-    ChildProcess.spawn model.cpPermission (model.pathToString model.localPath) model.args <|
+    in
+    ChildProcess.spawnAsCmd model.cpPermission CompilerRan (model.pathToString model.localPath) model.args <|
         { ChildProcess.defaultSpawnOptions
             | environmentVariables = 
                 ChildProcess.MergeWithEnvironmentVariables colorEnvVar
