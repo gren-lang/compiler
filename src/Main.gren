@@ -334,7 +334,7 @@ runCompiler model =
             else
                 Dict.singleton "NO_COLOR" "1"
     in
-    ChildProcess.spawnAsCmd model.cpPermission CompilerRan (model.pathToString model.localPath) model.args <|
+    ChildProcess.spawnAndNotifyOnExit model.cpPermission CompilerRan (model.pathToString model.localPath) model.args <|
         { ChildProcess.defaultSpawnOptions
             | environmentVariables = 
                 ChildProcess.MergeWithEnvironmentVariables colorEnvVar
