@@ -8,7 +8,7 @@ on:
 
 env:
   ghc: "9.4.8"
-  cabal: "3.10.3.0"
+  cabal: "3.8.1.0"
 
 jobs:
   validate-code-formatting:
@@ -26,7 +26,7 @@ jobs:
     - name: Install deps
       run: apk add alpine-sdk autoconf gcc gmp gmp-dev libffi libffi-dev llvm15 make musl-dev ncurses-dev ncurses-static tree wget zlib-dev zlib-static curl
 
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Install GHCup
       run: curl https://downloads.haskell.org/~ghcup/0.1.19.4/x86_64-linux-ghcup-0.1.19.4 -o /usr/local/bin/ghcup && chmod a+x /usr/local/bin/ghcup
@@ -89,7 +89,7 @@ jobs:
     needs: validate-code-formatting
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Cache ghcup
       uses: actions/cache@v3
@@ -140,6 +140,63 @@ jobs:
         name: gren_mac
         path: gren
         retention-days: 14
+  
+  mac_m1:
+    runs-on: macos-latest
+    needs: validate-code-formatting
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Cache ghcup
+      uses: actions/cache@v3
+      with:
+        path: ~/.ghcup
+        key: ghcup-mac-m1-${{ env.ghc }}
+
+    - id: setup-haskell
+      uses: haskell-actions/setup@v2
+      with:
+        ghc-version: ${{ env.ghc }}
+        cabal-version: ${{ env.cabal }}
+
+    - name: List exact cabal deps
+      run: cabal freeze
+
+    - name: Cache cabal store
+      uses: actions/cache@v3
+      with:
+        path: ${{ steps.setup-haskell.outputs.cabal-store }}
+        key: deps-mac-m1-${{ env.ghc }}-${{ hashFiles('cabal.project.freeze') }}
+        restore-keys: deps-mac-m1-${{ env.ghc }}-
+
+    - name: Cache build artifacts
+      uses: actions/cache@v3
+      with:
+        path: dist-newstyle
+        key: dist-mac-m1-${{ env.ghc }}-${{ github.sha }}
+        restore-keys: dist-mac-m1-${{ env.ghc }}-
+
+    - name: Configure
+      run: cabal configure --enable-tests -O2
+
+    - name: Build
+      run: cabal build
+
+    - name: Tests
+      run: cabal test
+
+    - name: Move binary
+      run: cp `cabal list-bin .` ./gren
+
+    - name: Strip
+      run: strip gren
+
+    - uses: actions/upload-artifact@v3
+      with:
+        name: gren_mac_m1
+        path: gren
+        retention-days: 14
 
   windows:
     runs-on: windows-latest
@@ -150,7 +207,7 @@ jobs:
         shell: bash
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - id: setup-haskell
       uses: haskell/actions/setup@v2
