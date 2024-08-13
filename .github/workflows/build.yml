@@ -90,6 +90,12 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    
+    - name: Cache ghcup
+      uses: actions/cache@v4
+      with:
+        path: ~/.ghcup
+        key: ghcup-mac-${{ env.ghc }}
 
     - id: setup-haskell
       uses: haskell/actions/setup@v2
