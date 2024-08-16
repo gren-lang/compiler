@@ -5,7 +5,7 @@ to check if the change you're intending to make is a good fit for the project.
 
 We use the `Help Wanted` tag on github issues to indicate that a PR would be
 welcome. If you cannot find an issue for the change you're intending to make,
-head over to the Discord server (https://discord.gg/J8aaGMfz).
+head over to the [Discord server](https://discord.gg/Chb9YB9Vmh).
 
 We're a friendly bunch, so don't be afraid to drop in to say hi or ask questions!
 

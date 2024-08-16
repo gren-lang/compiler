@@ -13,7 +13,7 @@ Other communities think that the *number* of packages is a better measure of eco
 
 ## So what about ports?
 
-Imagine you install a new package that claims to support `localStorage`. You get it set up, working through any compile errors. You run it, but it does not seem to work! After trying to figure it out for hours, you realize there is some poorly documented `port` to hook up...
+Imagine you install a new package that claims to support `WebSocket`. You get it set up, working through any compile errors. You run it, but it does not seem to work! After trying to figure it out for hours, you realize there is some poorly documented `port` to hook up...
 
 Okay, now you need to hook up some JavaScript code. Is that JS file in the Gren package? Or is it on `npm`? Wait, what version on `npm` though? And is this patch version going to work as well? Also, how does this file fit into my build process? And assuming we get through all that, maybe the `port` has the same name as one of the ports in your project. Or it clashes with a `port` name in another package.
 
@@ -28,4 +28,4 @@ Our wager with the Gren package ecosystem is that it is better to get a package 
 
 Now this may not be the right choice for your particular project, and that is okay! We will be expanding our core libraries over time, as explained [here](https://github.com/gren-lang/projects/blob/master/roadmap.md#where-is-the-localstorage-package), and we hope you will circle back later to see if Gren has grown into a better fit!
 
-If you have more questions about this choice or what it means for your application, please come ask the Gren [Discord](https://discord.gg/Chb9YB9Vmh). Folks are friendly and happy to help out! Chances are that a `port` in your application will work great for your case once you learn more about how they are meant to be used.
+If you have more questions about this choice or what it means for your application, please come ask the [Gren Discord](https://discord.gg/Chb9YB9Vmh). Folks are friendly and happy to help out! Chances are that a `port` in your application will work great for your case once you learn more about how they are meant to be used.
