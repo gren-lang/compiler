@@ -1,7 +1,7 @@
 Cabal-version: 3.8
 
 Name: gren
-Version: 0.4.4
+Version: 0.4.5
 
 Synopsis:
     The `gren` command line interface.
