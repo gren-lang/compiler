@@ -93,11 +93,19 @@ init env =
                                 , localPath = makeLocalPath env.platform homeDir envVars
                                 }
 
-                        { platform = Node.Darwin } ->
+                        { platform = Node.Darwin, arch = Node.X64 } ->
                             Just <|
                                 { args = userArgs
                                 , stdout = env.stdout
                                 , remotePath = Just <| makeRemotePath "gren_mac"
+                                , localPath = makeLocalPath env.platform homeDir envVars
+                                }
+
+                        { platform = Node.Darwin, arch = Node.Arm64 } ->
+                            Just <|
+                                { args = userArgs
+                                , stdout = env.stdout
+                                , remotePath = Just <| makeRemotePath "gren_mac_aarch64"
                                 , localPath = makeLocalPath env.platform homeDir envVars
                                 }
 
