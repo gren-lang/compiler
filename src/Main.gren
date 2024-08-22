@@ -33,35 +33,60 @@ compilerVersion =
 
 cliParser : CLI.Parser.App Command
 cliParser =
-    CLI.Parser.app
-        { version = compilerVersion
-        , intro = 
-            PP.verticalBlock
-                [ PP.block
-                    [ PP.text "Hi, thank you for trying out "
-                    , PP.green <| PP.text ("Gren " ++ compilerVersion)
-                    , PP.text ". I hope you like it!"
-                    ]
-                , PP.empty
-                , PP.black <|
-                    PP.text
-                        """
-                        -------------------------------------------------------------------------------
-                        I highly recommend working through <https://gren-lang.org/learn> to get started.
-                        It teaches many important concepts, including how to use `gren` in the terminal.
-                        -------------------------------------------------------------------------------
-                        """
+    { name = "gren"
+    , version = compilerVersion
+    , intro = 
+        PP.verticalBlock
+            [ PP.block
+                [ PP.text "Hi, thank you for trying out "
+                , PP.green <| PP.text ("Gren " ++ compilerVersion)
+                , PP.text ". I hope you like it!"
                 ]
-        , outro = 
-            PP.text
-                """
-                Be sure to ask on the Gren Discord (https://discord.gg/Chb9YB9Vmh) if you run into trouble!
-                Folks are friendly and happy to help out. They hang out there because it is fun, so be kind
-                to get the best results!
-                """
-        , commands =
-            CLI.Parser.defineGroup
-        }
+            , PP.empty
+            , PP.black <|
+                PP.text
+                    """
+                    -------------------------------------------------------------------------------
+                    I highly recommend working through <https://gren-lang.org/learn> to get started.
+                    It teaches many important concepts, including how to use `gren` in the terminal.
+                    -------------------------------------------------------------------------------
+                    """
+            ]
+    , outro = 
+        PP.text
+            """
+            Be sure to ask on the Gren Discord (https://discord.gg/Chb9YB9Vmh) if you run into trouble!
+            Folks are friendly and happy to help out. They hang out there because it is fun, so be kind
+            to get the best results!
+            """
+    , commands =
+        CLI.Parser.defineGroup
+            |> CLI.Parser.withCommand
+                { word =
+                    "make"
+                , arguments =
+                    CLI.Parser.zeroOrMoreArgs CLI.Parser.grenFileParser
+                , flags =
+                    CLI.Parser.noFlags
+                    {-Parser.initFlags 
+                        (\debug output ->
+                            { debug = debug
+                            , output = output
+                            }
+                        )
+                        |> Parser.toggle "debug" "debug desc"
+                        |> Parser.flag "output" Parser.pathParser "output path"
+                        -}
+                , commonDescription =
+                    Just "make your project"
+                , summary =
+                    "Makey make make"
+                , example = 
+                    PP.text "gren make src/Main.gren"
+                , builder =
+                    \_args _flags -> Make
+                }
+    }
 
 
 type Command
