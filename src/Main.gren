@@ -12,6 +12,9 @@ import HttpClient
 import Bytes exposing (Bytes)
 import Terminal
 import Process
+import CLI.Parser
+import CLI.PrettyPrinter as PP
+
 
 
 main : Node.Program Model Msg
@@ -21,6 +24,48 @@ main =
         , update = update
         , subscriptions = \_model -> Sub.none
         }
+
+
+compilerVersion : String
+compilerVersion =
+    "0.4.5"
+
+
+cliParser : CLI.Parser.App Command
+cliParser =
+    CLI.Parser.app
+        { version = compilerVersion
+        , intro = 
+            PP.verticalBlock
+                [ PP.block
+                    [ PP.text "Hi, thank you for trying out "
+                    , PP.green <| PP.text ("Gren " ++ compilerVersion)
+                    , PP.text ". I hope you like it!"
+                    ]
+                , PP.empty
+                , PP.black <|
+                    PP.text
+                        """
+                        -------------------------------------------------------------------------------
+                        I highly recommend working through <https://gren-lang.org/learn> to get started.
+                        It teaches many important concepts, including how to use `gren` in the terminal.
+                        -------------------------------------------------------------------------------
+                        """
+                ]
+        , outro = 
+            PP.text
+                """
+                Be sure to ask on the Gren Discord (https://discord.gg/Chb9YB9Vmh) if you run into trouble!
+                Folks are friendly and happy to help out. They hang out there because it is fun, so be kind
+                to get the best results!
+                """
+        , commands =
+            CLI.Parser.defineGroup
+        }
+
+
+type Command
+    = Make
 
 
 type alias Model = 
@@ -35,11 +80,6 @@ type alias Model =
     , localPath : Path
     , pathToString : Path -> String
     }
-
-
-compilerVersion : String
-compilerVersion =
-    "0.4.5"
 
 
 init : Node.Environment -> Init.Task { model : Model, command : Cmd Msg }
@@ -158,8 +198,28 @@ init env =
                 , command =
                     case maybePaths of
                         Just _ ->
-                            FileSystem.checkAccess fsPermission [] model.localPath
-                                |> Task.attempt ExistanceChecked
+                            case CLI.Parser.run userArgs cliParser of
+                                CLI.Parser.UnknownCommand commandName ->
+                                    Stream.sendLine env.stderr ("I don't recognize this command: " ++ commandName)
+                                        |> Task.execute
+                                
+                                CLI.Parser.BadFlags err ->
+                                    Stream.sendLine env.stderr "BadFlag"
+                                        |> Task.execute
+                                
+                                CLI.Parser.BadArguments err ->
+                                    Stream.sendLine env.stderr "BadArgument"
+                                        |> Task.execute
+                                
+                                CLI.Parser.HelpText prettifiedText ->
+                                    prettifiedText
+                                        |> PP.toString
+                                        |> Stream.sendLine env.stdout
+                                        |> Task.execute
+                                
+                                CLI.Parser.Success command ->
+                                    FileSystem.checkAccess fsPermission [] model.localPath
+                                        |> Task.attempt ExistanceChecked
 
                         Nothing ->
                             Stream.sendLine env.stderr "We currently don't support this platform/arch."
