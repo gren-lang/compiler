@@ -39,11 +39,11 @@ cliParser =
         PP.verticalBlock
             [ PP.block
                 [ PP.text "Hi, thank you for trying out "
-                , PP.green <| PP.text ("Gren " ++ compilerVersion)
+                , PP.intenseColor PP.Green <| PP.text ("Gren " ++ compilerVersion)
                 , PP.text ". I hope you like it!"
                 ]
             , PP.empty
-            , PP.black <|
+            , PP.intenseColor PP.Black <|
                 PP.text
                     """
                     -------------------------------------------------------------------------------
