@@ -21,8 +21,9 @@ Gren comes from the ML-family of languages. Languages in the ML-family that **ne
 
   - Standard ML
   - OCaml
-  - Gren
+  - Elm
   - F#
+  - Gren
   - Haskell
 
 Why would so many languages from this lineage require explicit conversions though?
