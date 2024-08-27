@@ -47,13 +47,13 @@ cliParser =
                 PP.text
                     """
                     -------------------------------------------------------------------------------
-                    I highly recommend working through <https://gren-lang.org/learn> to get started.
-                    It teaches many important concepts, including how to use `gren` in the terminal.
+                    I highly recommend working through <https://gren-lang.org/learn> to get started
+                    It teaches many important concepts, including how to use `gren` in the terminal
                     -------------------------------------------------------------------------------
                     """
             ]
     , outro = 
-        PP.text
+        PP.words
             """
             Be sure to ask on the Gren Discord (https://discord.gg/Chb9YB9Vmh) if you run into trouble!
             Folks are friendly and happy to help out. They hang out there because it is fun, so be kind
@@ -238,7 +238,8 @@ init env =
                                 
                                 CLI.Parser.HelpText prettifiedText ->
                                     prettifiedText
-                                        |> PP.toString
+                                        |> PP.toStringWithOptions
+                                            { PP.defaultOptions | maxColumns = 80 }
                                         |> Stream.sendLine env.stdout
                                         |> Task.execute
                                 
