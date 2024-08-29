@@ -30,6 +30,47 @@ compilerVersion : String
 compilerVersion =
     "0.4.5"
 
+-- CLI Parsing
+
+
+type Command
+    = Init InitFlags
+    | Repl ReplFlags
+    | Make MakeFlags (Array Path)
+    | Docs DocsFlags
+
+
+type alias InitFlags =
+    { package : Bool
+    , platform : Platform
+    }
+
+
+type Platform
+    = Common
+    | Browser
+    | Node
+
+
+type alias ReplFlags =
+    { interpreter : Maybe String
+    }
+
+
+type alias MakeFlags =
+    { debug : Bool
+    , optimize : Bool
+    , sourcemaps : Bool
+    , output : Maybe Path
+    , report : Maybe String
+    }
+
+
+type alias DocsFlags =
+    { output : Maybe Path
+    , report : Maybe String
+    }
+
 
 cliParser : CLI.Parser.App Command
 cliParser =
@@ -67,9 +108,9 @@ cliParser =
                     CLI.Parser.noArgs
                 , flags =
                     CLI.Parser.initFlags 
-                        (\package platform ->
+                        (\package maybePlatform ->
                             { package = package
-                            , platform = platform
+                            , platform = Maybe.withDefault Browser maybePlatform
                             }
                         )
                         |> CLI.Parser.toggle "package" "Create a package (as opposed to an application)"
@@ -85,15 +126,19 @@ cliParser =
                         common to all Gren project.
                         """
                 , builder =
-                    \args _flags -> Init args
+                    \_args flags -> Init flags
                 }
             |> CLI.Parser.withCommand
                 { word = "repl"
                 , arguments =
                     CLI.Parser.noArgs
                 , flags =
-                    CLI.Parser.initFlags identity
-                        |> CLI.Parser.flag "interpreter" interpreterParser "Path to a alternate JS interpreter, like deno or nodejs."
+                    CLI.Parser.initFlags
+                        (\maybeInterpreter ->
+                            { interpreter = maybeInterpreter
+                            }
+                        )
+                        |> CLI.Parser.flag "interpreter" Just "Path to a alternate JS interpreter, like deno or nodejs."
                 , commonDescription =
                     Just 
                         """
@@ -130,7 +175,7 @@ cliParser =
                         |> CLI.Parser.toggle "optimize" "Turn on optimizations to make code smaller and faster. For example, the compiler renames record fields to be as short as possible and unboxes values to reduce allocation."
                         |> CLI.Parser.toggle "sourcemaps" "Add sourcemaps to the resulting JS file. This let's you debug Gren code in a JS debugger, at the cost of longer compile times and a bigger JS file."
                         |> CLI.Parser.flag "output" CLI.Parser.pathParser "Specify the name of the resulting JS file. For example --output=assets/gren.js to generate the JS at assets/gren.js. You can also use --output=/dev/stdout to output the JS to the terminal, or --output=/dev/null to generate no output at all!"
-                        |> CLI.Parser.flag "report" CLI.Parser.pathParser "You can say --report=json to get error messages as JSON. This is only really useful if you are an editor plugin. Humans should avoid it!"
+                        |> CLI.Parser.flag "report" reportParser "You can say --report=json to get error messages as JSON. This is only really useful if you are an editor plugin. Humans should avoid it!"
                 , commonDescription =
                     Nothing
                 , summary =
@@ -148,7 +193,7 @@ cliParser =
                             """
                         ]
                 , builder =
-                    \args flags -> Make args flags
+                    \args flags -> Make flags args
                 }
             |> CLI.Parser.withCommand
                 { word = "docs"
@@ -162,7 +207,7 @@ cliParser =
                             }
                         )
                         |> CLI.Parser.flag "output" CLI.Parser.pathParser "Specify the name of the resulting JSON file. For example --output=assets/docs.json to generate the JSON at assets/docs.json. You can also use --output=/dev/stdout to output the JSON to the terminal, or --output=/dev/null to verify that generating the documentation would work."
-                        |> CLI.Parser.flag "report" CLI.Parser.pathParser "You can say --report=json to get error messages as JSON. This is only really useful if you are an editor plugin. Humans should avoid it!"
+                        |> CLI.Parser.flag "report" reportParser "You can say --report=json to get error messages as JSON. This is only really useful if you are an editor plugin. Humans should avoid it!"
                 , commonDescription =
                     Nothing
                 , summary =
@@ -185,32 +230,28 @@ cliParser =
     }
 
 
-type Command
-    = Init InitFlags
-    | Repl ReplFlags
-    | Make MakeFlags (Array String)
-    | Docs DocsFlags
 
 
-type alias InitFlags =
-    {
-    }
+initPlatformParser : String -> Maybe Platform
+initPlatformParser str =
+    case str of
+        "common" -> Just Common
+        "browser" -> Just Browser
+        "node" -> Just Node
+        _ -> Nothing
 
 
-type alias ReplFlags =
-    {
-    }
+reportParser : String -> Maybe String
+reportParser str =
+    if str == "json" then
+        Just str
+
+    else
+        Nothing
 
 
-type alias MakeFlags =
-    {
-    }
+-- TEA
 
-
-type alias DocsFlags =
-    { output : String
-    , report : String
-    }
 
 type alias Model = 
     { args : Array String
