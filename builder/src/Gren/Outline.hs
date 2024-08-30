@@ -315,7 +315,7 @@ moduleNameFromFilePath root filePath =
     & reverse
     & drop 5 -- .gren
     & reverse
-    & map (\c -> if c == '/' then '.' else c)
+    & map (\c -> if c == '/' || c == '\\' then '.' else c)
     & Name.fromChars
 
 resolvePackagePaths :: Pkg.Name -> PossibleFilePath V.Version -> IO (Pkg.Name, FilePath)
