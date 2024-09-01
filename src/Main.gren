@@ -138,7 +138,7 @@ cliParser =
                             { interpreter = maybeInterpreter
                             }
                         )
-                        |> CLI.Parser.flag "interpreter" Just "Path to a alternate JS interpreter, like deno or nodejs."
+                        |> CLI.Parser.flag "interpreter" interpreterParser "Path to a alternate JS interpreter, like deno or nodejs."
                 , commonDescription =
                     Just 
                         """
@@ -183,9 +183,11 @@ cliParser =
                 , example = 
                     PP.verticalBlock
                         [ PP.words "For example:"
+                        , PP.empty
                         , PP.words "gren make src/Main.gren"
                             |> PP.indent
                             |> PP.color PP.Green
+                        , PP.empty
                         , PP.words
                             """
                             This tries to compile an Gren file named src/Main.gren, generating an index.html
@@ -232,23 +234,38 @@ cliParser =
 
 
 
-initPlatformParser : String -> Maybe Platform
-initPlatformParser str =
-    case str of
-        "common" -> Just Common
-        "browser" -> Just Browser
-        "node" -> Just Node
-        _ -> Nothing
+initPlatformParser : CLI.Parser.ValueParser Platform
+initPlatformParser =
+    { singular = "platform"
+    , plural = "platforms"
+    , fn = \str ->
+        case str of
+            "common" -> Just Common
+            "browser" -> Just Browser
+            "node" -> Just Node
+            _ -> Nothing
+    }
 
 
-reportParser : String -> Maybe String
-reportParser str =
-    if str == "json" then
-        Just str
+reportParser : CLI.Parser.ValueParser String
+reportParser =
+    { singular = "report-type"
+    , plural = "report-types"
+    , fn = \str ->
+        if str == "json" then
+            Just str
 
-    else
-        Nothing
+        else
+            Nothing
+    }
 
+
+interpreterParser : CLI.Parser.ValueParser String
+interpreterParser =
+    { singular = "interpreter"
+    , plural = "interpreters"
+    , fn = Just
+    }
 
 -- TEA
 
