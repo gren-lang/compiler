@@ -38,6 +38,12 @@ type Command
     | Repl ReplFlags
     | Make MakeFlags (Array Path)
     | Docs DocsFlags
+    | PackageInstall
+    | PackageUninstall
+    | PackageOutdated
+    | PackageValidate
+    | PackageBump
+    | PackageDiff
 
 
 type alias InitFlags =
@@ -229,9 +235,201 @@ cliParser =
                 , builder =
                     \_args flags -> Docs flags
                 }
+            |> CLI.Parser.withPrefix "package" packageCommands
     }
 
 
+packageCommands : CLI.Parser.GroupParser Command
+packageCommands =
+    CLI.Parser.defineGroup
+        |> CLI.Parser.withCommand
+            { word = "install"
+            , arguments =
+                CLI.Parser.noArgs
+            , flags =
+                CLI.Parser.noFlags 
+            , commonDescription =
+                Nothing
+            , summary =
+                "The `install` command fetches packages from github for use in your project:"
+            , example = 
+                PP.verticalBlock
+                    [ PP.words 
+                        """
+                        For example, if you want to get access to Web APIs in your project,
+                        you would say:
+                        """
+                    , PP.empty
+                    , PP.text "gren package install gren-lang/browser"
+                        |> PP.indent
+                        |> PP.color PP.Green
+                    , PP.empty
+                    , PP.words 
+                        """
+                        Notice that you must say the AUTHOR name and PROJECT name! After running those
+                        commands, you could say `import Browser` in your code.
+                        """
+                    , PP.empty
+                    , PP.words
+                        """
+                        What if two projects use different versions of the same package? No problem!
+                        Each project is independent, so there cannot be conflicts like that! 
+                        """
+                    ]
+            , builder =
+                \_args _flags -> PackageInstall
+            }
+        |> CLI.Parser.withCommand
+            { word = "uninstall"
+            , arguments =
+                CLI.Parser.noArgs
+            , flags =
+                CLI.Parser.noFlags 
+            , commonDescription =
+                Nothing
+            , summary =
+                "The `uninstall` command removes packages from your project:"
+            , example = 
+                PP.verticalBlock
+                    [ PP.words 
+                        """
+                        For example, if you want to get rid of the browser package in your project,
+                        you would say:
+                        """
+                    , PP.empty
+                    , PP.text "gren package uninstall gren-lang/browser"
+                        |> PP.indent
+                        |> PP.color PP.Green
+                    , PP.empty
+                    , PP.words 
+                        """
+                        Notice that you must say the AUTHOR name and PROJECT name!
+                        """
+                    , PP.empty
+                    , PP.words
+                        """
+                        What if another package depends on the package you're trying to remove? No problem!
+                        I'll let you know if that's the case, and help you resolve the situation. 
+                        """
+                    ]
+            , builder =
+                \_args _flags -> PackageUninstall
+            }
+        |> CLI.Parser.withCommand
+            { word = "outdated"
+            , arguments =
+                CLI.Parser.noArgs
+            , flags =
+                CLI.Parser.noFlags 
+            , commonDescription =
+                Nothing
+            , summary =
+                "The `outdated` command lists the latest version of your dependencies,"
+                    ++ " if you're not already up to date:"
+            , example = 
+                PP.text "gren package uninstall gren-lang/browser"
+                    |> PP.indent
+                    |> PP.color PP.Green
+            , builder =
+                \_args _flags -> PackageOutdated
+            }
+        |> CLI.Parser.withCommand
+            { word = "validate"
+            , arguments =
+                CLI.Parser.noArgs
+            , flags =
+                CLI.Parser.noFlags 
+            , commonDescription =
+                Nothing
+            , summary =
+                "The `validate` command checks that you've done everything necessary for"
+                    ++ " others in the Gren community to use your package as a dependency:"
+            , example = 
+                PP.verticalBlock
+                    [ PP.words 
+                        """
+                        Gren packages are \"just\" git repositories hosted on github. As
+                        long as you've tagged your repository with semver formatted tags,
+                        anyone can add your package as a dependency.
+                        """
+                    , PP.empty
+                    , PP.words 
+                        """
+                        However, a package is no better than its documentation. This command
+                        therefore checks that your package exposes a bare minimum of
+                        prose that the users of your package can read.
+                        """
+                    , PP.empty
+                    , PP.words
+                        """
+                        Keep in mind, you don't just want to tell people HOW to use
+                        your package. It's equally important to tell them WHY. What
+                        problem does it solve? Why should people use this particular
+                        package to solve their problem?
+                        """
+                    , PP.empty
+                    , PP.words
+                        """
+                        Once this command passes, you may want to add your repo to
+                        <https://packages.gren-lang.org> so it becomes easier for the Gren
+                        community to find your package, and its documentation.
+                        """
+                    ]
+            , builder =
+                \_args _flags -> PackageValidate
+            }
+        |> CLI.Parser.withCommand
+            { word = "bump"
+            , arguments =
+                CLI.Parser.noArgs
+            , flags =
+                CLI.Parser.noFlags 
+            , commonDescription =
+                Nothing
+            , summary =
+                "The `bump` command figures out the next version number based on API changes:"
+            , example = 
+                PP.words 
+                    """
+                    Say you just published version 1.0.0, but then decided to remove a function.
+                    I will compare the published API to what you have locally, figure out that
+                    it is a MAJOR change, and bump your version number to 2.0.0. I do this with
+                    all packages, so there cannot be MAJOR changes hiding in PATCH releases in Gren!
+                    """
+            , builder =
+                \_args _flags -> PackageBump
+            }
+        |> CLI.Parser.withCommand
+            { word = "diff"
+            , arguments =
+                CLI.Parser.noArgs
+            , flags =
+                CLI.Parser.noFlags 
+            , commonDescription =
+                Nothing
+            , summary =
+                "The `diff` command detects API changes:"
+            , example = 
+                PP.verticalBlock
+                    [ PP.words 
+                        """
+                        For example, to see what changed in the Browser package between
+                        versions 1.0.0 and 2.0.0, you can say:
+                        """
+                    , PP.empty
+                    , PP.text "gren package diff gren-lang/browser 1.0.0 2.0.0"
+                        |> PP.indent
+                        |> PP.color PP.Green
+                    , PP.empty
+                    , PP.words 
+                        """
+                        Sometimes a MAJOR change is not actually very big, so
+                        this can help you plan your upgrade timelines.
+                        """
+                    ]
+            , builder =
+                \_args _flags -> PackageDiff
+            }
 
 
 initPlatformParser : CLI.Parser.ValueParser Platform
