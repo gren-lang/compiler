@@ -14,7 +14,8 @@ import Terminal
 import Process
 import CLI.Parser
 import CLI.PrettyPrinter as PP
-
+import SemanticVersion exposing (SemanticVersion)
+import Package exposing (Package)
 
 
 main : Node.Program Model Msg
@@ -38,12 +39,12 @@ type Command
     | Repl ReplFlags
     | Make MakeFlags (Array Path)
     | Docs DocsFlags
-    | PackageInstall
-    | PackageUninstall
+    | PackageInstall (Maybe Package)
+    | PackageUninstall Package
     | PackageOutdated
     | PackageValidate
     | PackageBump
-    | PackageDiff
+    | PackageDiff DiffArgs
 
 
 type alias InitFlags =
@@ -76,6 +77,13 @@ type alias DocsFlags =
     { output : Maybe Path
     , report : Maybe String
     }
+
+
+type DiffArgs
+    = DiffLatest
+    | DiffVersion SemanticVersion
+    | DiffRange SemanticVersion SemanticVersion
+    | DiffGlobal Package SemanticVersion SemanticVersion
 
 
 cliParser : CLI.Parser.App Command
@@ -245,7 +253,12 @@ packageCommands =
         |> CLI.Parser.withCommand
             { word = "install"
             , arguments =
-                CLI.Parser.noArgs
+                CLI.Parser.oneOfArgs
+                    [ CLI.Parser.noArgs
+                        |> CLI.Parser.mapArgs (\_ -> Nothing)
+                    , CLI.Parser.oneArg packageParser
+                        |> CLI.Parser.mapArgs Just
+                    ]
             , flags =
                 CLI.Parser.noFlags 
             , commonDescription =
@@ -264,7 +277,7 @@ packageCommands =
                         |> PP.indent
                         |> PP.color PP.Green
                     , PP.empty
-                    , PP.words 
+                    , PP.words
                         """
                         Notice that you must say the AUTHOR name and PROJECT name! After running those
                         commands, you could say `import Browser` in your code.
@@ -272,17 +285,18 @@ packageCommands =
                     , PP.empty
                     , PP.words
                         """
-                        What if two projects use different versions of the same package? No problem!
-                        Each project is independent, so there cannot be conflicts like that! 
+                        You can also call this command without any arguments to download all dependencies
+                        listed in gren.json. This can be helpful in Continous Integration setups where
+                        you want to cache dependencies between builds.
                         """
                     ]
             , builder =
-                \_args _flags -> PackageInstall
+                \arg _flags -> PackageInstall arg
             }
         |> CLI.Parser.withCommand
             { word = "uninstall"
             , arguments =
-                CLI.Parser.noArgs
+                CLI.Parser.oneArg packageParser
             , flags =
                 CLI.Parser.noFlags 
             , commonDescription =
@@ -313,7 +327,7 @@ packageCommands =
                         """
                     ]
             , builder =
-                \_args _flags -> PackageUninstall
+                \arg _flags -> PackageUninstall arg
             }
         |> CLI.Parser.withCommand
             { word = "outdated"
@@ -327,7 +341,7 @@ packageCommands =
                 "The `outdated` command lists the latest version of your dependencies,"
                     ++ " if you're not already up to date:"
             , example = 
-                PP.text "gren package uninstall gren-lang/browser"
+                PP.text "gren package outdated"
                     |> PP.indent
                     |> PP.color PP.Green
             , builder =
@@ -402,7 +416,14 @@ packageCommands =
         |> CLI.Parser.withCommand
             { word = "diff"
             , arguments =
-                CLI.Parser.noArgs
+                CLI.Parser.oneOfArgs
+                    [ CLI.Parser.noArgs
+                        |> CLI.Parser.mapArgs (\{} -> DiffLatest)
+                    , CLI.Parser.oneArg versionParser
+                        |> CLI.Parser.mapArgs DiffVersion
+                    , CLI.Parser.twoArgs DiffRange versionParser versionParser
+                    , CLI.Parser.threeArgs DiffGlobal packageParser versionParser versionParser
+                    ]
             , flags =
                 CLI.Parser.noFlags 
             , commonDescription =
@@ -428,7 +449,7 @@ packageCommands =
                         """
                     ]
             , builder =
-                \_args _flags -> PackageDiff
+                \args _flags -> PackageDiff args
             }
 
 
@@ -464,6 +485,23 @@ interpreterParser =
     , plural = "interpreters"
     , fn = Just
     }
+
+
+packageParser : CLI.Parser.ValueParser Package
+packageParser =
+    { singular = "package"
+    , plural = "packages"
+    , fn = Package.fromString
+    }
+
+
+versionParser : CLI.Parser.ValueParser SemanticVersion
+versionParser =
+    { singular = "version"
+    , plural = "versions"
+    , fn = SemanticVersion.fromString
+    }
+
 
 -- TEA
 
@@ -619,6 +657,9 @@ init env =
                                         |> Task.execute
                                 
                                 CLI.Parser.Success command ->
+                                    let
+                                        _ = Debug.log "command: " command
+                                    in
                                     FileSystem.checkAccess fsPermission [] model.localPath
                                         |> Task.attempt ExistanceChecked
 
