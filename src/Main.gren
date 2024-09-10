@@ -16,6 +16,7 @@ import CLI.Parser
 import CLI.PrettyPrinter as PP
 import SemanticVersion exposing (SemanticVersion)
 import Package exposing (Package)
+import Json.Encode as Json
 
 
 main : Node.Program Model Msg
@@ -324,8 +325,13 @@ parseUserArgs model compilerPath =
 runCompiler : Model -> Path -> Command -> Cmd Msg
 runCompiler model compilerPath command =
     let
-        _ =
-            Debug.log "command" command
+        commandAsJson =
+            command
+                |> commandEncoder model.pathToString
+                |> Json.encode 0
+
+        escapedCommand =
+            "'" ++ commandAsJson ++ "'"
         
         colorEnvVar =
             if model.useColor then
@@ -333,7 +339,7 @@ runCompiler model compilerPath command =
             else
                 Dict.singleton "NO_COLOR" "1"
     in
-    ChildProcess.spawnAndNotifyOnExit model.cpPermission CompilerRan (model.pathToString compilerPath) model.args <|
+    ChildProcess.spawnAndNotifyOnExit model.cpPermission CompilerRan (model.pathToString compilerPath) [ escapedCommand ] <|
         { ChildProcess.defaultSpawnOptions
             | environmentVariables = 
                 ChildProcess.MergeWithEnvironmentVariables colorEnvVar
@@ -810,3 +816,120 @@ versionParser =
     , plural = "versions"
     , fn = SemanticVersion.fromString
     }
+
+
+commandEncoder : (Path -> String) -> Command -> Json.Value
+commandEncoder  pathToString command =
+    case command of
+        Init flags ->
+            Json.object
+                [ { key = "command", value = Json.string "init" }
+                , { key = "package", value = Json.bool flags.package }
+                , { key = "platform", value = platformEncoder flags.platform }
+                ]
+        
+        Repl flags ->
+            Json.object
+                [ { key = "command", value = Json.string "repl" }
+                , { key = "intepreter" , value = maybeEncoder Json.string flags.interpreter }
+                ]
+        
+        Make flags paths ->
+            Json.object
+                [ { key = "command", value = Json.string "make" }
+                , { key = "debug", value = Json.bool flags.debug }
+                , { key = "optimize", value = Json.bool flags.optimize }
+                , { key = "sourcemaps", value = Json.bool flags.sourcemaps }
+                , { key = "output", value = maybeEncoder Json.string (Maybe.map pathToString flags.output) }
+                , { key = "report", value = maybeEncoder Json.string flags.report }
+                ]
+        
+        Docs flags ->
+            Json.object
+                [ { key = "command", value = Json.string "docs" }
+                , { key = "output", value = maybeEncoder Json.string (Maybe.map pathToString flags.output) }
+                , { key = "report", value = maybeEncoder Json.string flags.report }
+                ]
+        
+        PackageInstall maybePackage ->
+            Json.object
+                [ { key = "command", value = Json.string "packageInstall" }
+                , { key = "package", value = maybeEncoder packageEncoder maybePackage }
+                ]
+        
+        PackageUninstall package ->
+            Json.object
+                [ { key = "command", value = Json.string "packageUninstall" }
+                , { key = "package", value = packageEncoder package }
+                ]
+        
+        PackageOutdated ->
+            Json.object
+                [ { key = "command", value = Json.string "packageOutdated" }
+                ]
+        
+        PackageValidate ->
+            Json.object
+                [ { key = "command", value = Json.string "packageValidate" }
+                ]
+        
+        PackageBump ->
+            Json.object
+                [ { key = "command", value = Json.string "packageBump" }
+                ]
+        
+        PackageDiff args ->
+            case args of
+                DiffLatest ->
+                    Json.object
+                        [ { key = "command", value = Json.string "packageDiffLatest" }
+                        ]
+                
+                DiffVersion ver ->
+                    Json.object
+                        [ { key = "command", value = Json.string "packageDiffVersion" }
+                        , { key = "version", value = versionEncoder ver }
+                        ]
+                
+                DiffRange ver1 ver2 ->
+                    Json.object
+                        [ { key = "command", value = Json.string "packageDiffRange" }
+                        , { key = "from", value = versionEncoder ver1 }
+                        , { key = "to", value = versionEncoder ver2 }
+                        ]
+                
+                DiffGlobal package ver1 ver2 ->
+                    Json.object
+                        [ { key = "command", value = Json.string "packageDiffGlobal" }
+                        , { key = "package", value = packageEncoder package }
+                        , { key = "from", value = versionEncoder ver1 }
+                        , { key = "to", value = versionEncoder ver2 }
+                        ]
+
+
+maybeEncoder : (a -> Json.Value) -> Maybe a -> Json.Value
+maybeEncoder enc maybeVal =
+    case maybeVal of
+        Just val ->
+            enc val
+
+        Nothing ->
+            Json.null
+
+
+platformEncoder : Platform -> Json.Value
+platformEncoder platform =
+    case platform of
+        Common -> Json.string "common"
+        Browser -> Json.string "browser"
+        Node -> Json.string "node"
+
+
+packageEncoder : Package -> Json.Value
+packageEncoder package =
+    Json.string <| Package.toString package
+
+
+versionEncoder : SemanticVersion -> Json.Value
+versionEncoder semver =
+    Json.string <| SemanticVersion.toString semver
