@@ -31,6 +31,315 @@ compilerVersion : String
 compilerVersion =
     "0.4.5"
 
+
+type alias Model = 
+    { args : Array String
+    , stdout : Stream
+    , stderr : Stream
+    , useColor : Bool
+    , fsPermission : FileSystem.Permission
+    , cpPermission : ChildProcess.Permission
+    , httpPermission : HttpClient.Permission
+    , pathToString : Path -> String
+    }
+
+
+init : Node.Environment -> Init.Task { model : Model, command : Cmd Msg }
+init env =
+    Init.await FileSystem.initialize <| \fsPermission ->
+    Init.await ChildProcess.initialize <| \cpPermission ->
+    Init.await HttpClient.initialize <| \httpPermission ->
+    Init.await Terminal.initialize <| \terminalConfig ->
+    Init.awaitTask Node.getEnvironmentVariables <| \envVars ->
+    Init.awaitTask (FileSystem.homeDirectory fsPermission) <| \homeDir ->
+            let
+                userArgs =
+                    Array.dropFirst 2 env.args
+
+                useColor =
+                    case terminalConfig of
+                        Nothing ->
+                            False
+
+                        Just _ ->
+                            case Dict.get "NO_COLOR" envVars of
+                                Just _ ->
+                                    False
+
+                                Nothing ->
+                                    True
+
+                maybePaths =
+                    case { platform = env.platform, arch = env.cpuArchitecture, override = Dict.get "GREN_BIN" envVars } of
+                        { override = Just overridePath, platform = Node.Win32 } ->
+                            Just <|
+                                { remotePath = Nothing
+                                , localPath = Path.fromWin32String overridePath
+                                }
+                        
+                        { override = Just overridePath } ->
+                            Just <|
+                                { remotePath = Nothing
+                                , localPath = Path.fromPosixString overridePath
+                                }
+                                
+                        { platform = Node.Win32, arch = Node.X64 } ->
+                            Just <|
+                                { remotePath = Just <| makeRemotePath "gren.exe"
+                                , localPath = makeLocalPath env.platform homeDir envVars
+                                }
+
+                        { platform = Node.Darwin, arch = Node.X64 } ->
+                            Just <|
+                                { remotePath = Just <| makeRemotePath "gren_mac"
+                                , localPath = makeLocalPath env.platform homeDir envVars
+                                }
+
+                        { platform = Node.Darwin, arch = Node.Arm64 } ->
+                            Just <|
+                                { remotePath = Just <| makeRemotePath "gren_mac_aarch64"
+                                , localPath = makeLocalPath env.platform homeDir envVars
+                                }
+
+                        { platform = Node.Linux, arch = Node.X64 } ->
+                            Just <|
+                                { remotePath = Just <| makeRemotePath "gren_linux"
+                                , localPath = makeLocalPath env.platform homeDir envVars
+                                }
+
+                        _ ->
+                            Nothing
+
+            in
+            Node.startProgram
+                { model =
+                    { args = userArgs
+                    , stdout = env.stdout
+                    , stderr = env.stderr
+                    , useColor = useColor
+                    , fsPermission = fsPermission
+                    , cpPermission = cpPermission
+                    , httpPermission = httpPermission
+                    , pathToString =
+                        if env.platform == Node.Win32 then
+                            Path.toWin32String
+                        else
+                            Path.toPosixString
+                    }
+                , command =
+                    case maybePaths of
+                        Just paths ->
+                            FileSystem.checkAccess fsPermission [] paths.localPath
+                                |> Task.attempt 
+                                    (\result -> 
+                                        ExistanceChecked
+                                            { maybeRemotePath = paths.remotePath
+                                            , localPath = paths.localPath
+                                            , existanceResult = result
+                                            }
+                                    )
+
+                        Nothing ->
+                            Stream.sendLine env.stderr "We currently don't support this platform/arch."
+                                |> Task.execute
+                }
+
+
+makeRemotePath : String -> String
+makeRemotePath filename =
+    String.join "/"
+        [ "https://github.com/gren-lang/compiler/releases/download"
+        , compilerVersion
+        , filename
+        ]
+
+
+makeLocalPath : Node.Platform -> Path -> Dict String String -> Path
+makeLocalPath platform homeDir envVars =
+    let
+        startPath =
+            case platform of
+                Node.Win32 ->
+                    envVars
+                        |> Dict.get "LOCALAPPDATA"
+                        |> Maybe.map Path.fromWin32String
+                        |> Maybe.withDefault (
+                            "AppData/Local"
+                                |> Path.fromPosixString
+                                |> Path.prepend homeDir
+                            )
+
+                Node.Darwin ->
+                    "Library/Caches"
+                        |> Path.fromPosixString
+                        |> Path.prepend homeDir
+
+                _ ->
+                    envVars
+                        |> Dict.get "XDG_CACHE_HOME"
+                        |> Maybe.map Path.fromPosixString
+                        |> Maybe.withDefault (Path.append (Path.fromPosixString ".cache") homeDir)
+
+        filename =
+            case platform of
+                Node.Win32 ->
+                    "gren.exe"
+
+                _ ->
+                    "gren"
+        
+        endPath =
+            [ "gren"
+            , compilerVersion
+            , "bin"
+            , filename
+            ]
+                |> String.join "/"
+                |> Path.fromPosixString
+    in
+    Path.prepend startPath endPath
+
+
+type Msg
+    = ExistanceChecked 
+        { maybeRemotePath : Maybe String
+        , localPath : Path
+        , existanceResult : Result FileSystem.Error Path
+        }
+    | CompilerDownloaded 
+        { localPath : Path
+        , downloadResult : Result (HttpClient.Error Bytes) (HttpClient.Response Bytes)
+        }
+    | CompilerInstalled (Result FileSystem.Error Path)
+    | CompilerRan Int
+
+
+update : Msg -> Model -> { model : Model, command : Cmd Msg }
+update msg model =
+    { model = model
+    , command =
+        case msg of
+            ExistanceChecked { maybeRemotePath, localPath, existanceResult = Err _ } ->
+                case maybeRemotePath of
+                    Just remotePath ->
+                        Stream.sendLine model.stdout ("Compiler not found at " ++ model.pathToString localPath ++ ". Downloading...")
+                            |> Task.andThen (\{} -> downloadBinary model.httpPermission remotePath)
+                            |> Task.attempt (\result -> CompilerDownloaded { localPath = localPath, downloadResult = result })
+            
+                    Nothing ->
+                        Stream.sendLine model.stderr ("Compiler not found at " ++ model.pathToString localPath)
+                            |> Task.execute
+
+            ExistanceChecked { existanceResult = Ok compilerPath } ->
+                parseUserArgs model compilerPath
+
+            CompilerDownloaded { localPath, downloadResult = Err ((HttpClient.BadStatus res) as err) } ->
+                if res.statusCode == 302 then
+                    case Dict.get "location" res.headers of
+                        Just [ location ] ->
+                            downloadBinary model.httpPermission location
+                                |> Task.attempt (\result -> CompilerDownloaded { localPath = localPath, downloadResult = result })
+
+                        _ ->
+                            Stream.sendLine model.stderr "Missing, or vague, 'location' header in 302 response from server."
+                                |> Task.execute
+
+                else
+                    Stream.sendLine model.stderr (HttpClient.errorToString err)
+                        |> Task.execute
+        
+            CompilerDownloaded { downloadResult = Err err } ->
+                Stream.sendLine model.stderr (HttpClient.errorToString err)
+                    |> Task.execute
+        
+            CompilerDownloaded { localPath, downloadResult = Ok res } ->
+                let
+                    cacheFolder =
+                        Path.parentPath localPath
+                            |> Maybe.withDefault Path.empty
+                in
+                FileSystem.makeDirectory model.fsPermission { recursive = True } cacheFolder
+                    |> Task.andThen (\_cacheFolder -> FileSystem.writeFile model.fsPermission res.data localPath)
+                    |> Task.andThen 
+                        (FileSystem.changeAccess
+                            model.fsPermission
+                            { owner = [ FileSystem.Read, FileSystem.Write, FileSystem.Execute ]
+                            , group = [ FileSystem.Read, FileSystem.Execute ]
+                            , others = [ FileSystem.Read, FileSystem.Execute ]
+                            }
+                        )
+                    |> Task.andThen 
+                        (\binPath -> 
+                            Stream.sendLine model.stdout "Downloaded"
+                                |> Task.map (\_ -> binPath)
+                        )
+                    |> Task.attempt CompilerInstalled
+        
+            CompilerInstalled (Err fsErr) ->
+                Stream.sendLine model.stderr ("Failed to install binary after download, due to error: " ++ FileSystem.errorToString fsErr)
+                    |> Task.execute
+        
+            CompilerInstalled (Ok compilerPath) ->
+                parseUserArgs model compilerPath
+
+            CompilerRan exitCode ->
+                Node.exitWithCode exitCode
+                    |> Task.execute
+        }
+
+
+downloadBinary : HttpClient.Permission -> String -> Task (HttpClient.Error Bytes) (HttpClient.Response Bytes)
+downloadBinary permission url =
+    HttpClient.get url
+        |> HttpClient.expectBytes
+        |> HttpClient.send permission
+
+
+parseUserArgs : Model -> Path -> Cmd Msg
+parseUserArgs model compilerPath =
+    case CLI.Parser.run model.args cliParser of
+        CLI.Parser.UnknownCommand commandName ->
+            Stream.sendLine model.stderr ("I don't recognize this command: " ++ commandName)
+                |> Task.execute
+    
+        CLI.Parser.BadFlags err ->
+            Stream.sendLine model.stderr "BadFlag"
+                |> Task.execute
+    
+        CLI.Parser.BadArguments err ->
+            Stream.sendLine model.stderr "BadArgument"
+                |> Task.execute
+    
+        CLI.Parser.HelpText prettifiedText ->
+            prettifiedText
+                |> PP.toStringWithOptions
+                    { PP.defaultOptions | maxColumns = 80 }
+                |> Stream.sendLine model.stdout
+                |> Task.execute
+    
+        CLI.Parser.Success command ->
+            runCompiler model compilerPath command
+
+
+runCompiler : Model -> Path -> Command -> Cmd Msg
+runCompiler model compilerPath command =
+    let
+        _ =
+            Debug.log "command" command
+        
+        colorEnvVar =
+            if model.useColor then
+                Dict.singleton "FORCE_COLOR" "1"
+            else
+                Dict.singleton "NO_COLOR" "1"
+    in
+    ChildProcess.spawnAndNotifyOnExit model.cpPermission CompilerRan (model.pathToString compilerPath) model.args <|
+        { ChildProcess.defaultSpawnOptions
+            | environmentVariables = 
+                ChildProcess.MergeWithEnvironmentVariables colorEnvVar
+        }
+
+
 -- CLI Parsing
 
 
@@ -501,351 +810,3 @@ versionParser =
     , plural = "versions"
     , fn = SemanticVersion.fromString
     }
-
-
--- TEA
-
-
-type alias Model = 
-    { args : Array String
-    , stdout : Stream
-    , stderr : Stream
-    , useColor : Bool
-    , fsPermission : FileSystem.Permission
-    , cpPermission : ChildProcess.Permission
-    , httpPermission : HttpClient.Permission
-    , remotePath : Maybe String
-    , localPath : Path
-    , pathToString : Path -> String
-    }
-
-
-init : Node.Environment -> Init.Task { model : Model, command : Cmd Msg }
-init env =
-    Init.await FileSystem.initialize <| \fsPermission ->
-    Init.await ChildProcess.initialize <| \cpPermission ->
-    Init.await HttpClient.initialize <| \httpPermission ->
-    Init.await Terminal.initialize <| \terminalConfig ->
-    Init.awaitTask Node.getEnvironmentVariables <| \envVars ->
-    Init.awaitTask (FileSystem.homeDirectory fsPermission) <| \homeDir ->
-            let
-                userArgs =
-                    Array.dropFirst 2 env.args
-
-                useColor =
-                    case terminalConfig of
-                        Nothing ->
-                            False
-
-                        Just _ ->
-                            case Dict.get "NO_COLOR" envVars of
-                                Just _ ->
-                                    False
-
-                                Nothing ->
-                                    True
-
-                maybePaths =
-                    case { platform = env.platform, arch = env.cpuArchitecture, override = Dict.get "GREN_BIN" envVars } of
-                        { override = Just overridePath, platform = Node.Win32 } ->
-                            Just <|
-                                { args = userArgs
-                                , stdout = env.stdout
-                                , remotePath = Nothing
-                                , localPath = Path.fromWin32String overridePath
-                                }
-                        
-                        { override = Just overridePath } ->
-                            Just <|
-                                { args = userArgs
-                                , stdout = env.stdout
-                                , remotePath = Nothing
-                                , localPath = Path.fromPosixString overridePath
-                                }
-                                
-                        { platform = Node.Win32, arch = Node.X64 } ->
-                            Just <|
-                                { args = userArgs
-                                , stdout = env.stdout
-                                , remotePath = Just <| makeRemotePath "gren.exe"
-                                , localPath = makeLocalPath env.platform homeDir envVars
-                                }
-
-                        { platform = Node.Darwin, arch = Node.X64 } ->
-                            Just <|
-                                { args = userArgs
-                                , stdout = env.stdout
-                                , remotePath = Just <| makeRemotePath "gren_mac"
-                                , localPath = makeLocalPath env.platform homeDir envVars
-                                }
-
-                        { platform = Node.Darwin, arch = Node.Arm64 } ->
-                            Just <|
-                                { args = userArgs
-                                , stdout = env.stdout
-                                , remotePath = Just <| makeRemotePath "gren_mac_aarch64"
-                                , localPath = makeLocalPath env.platform homeDir envVars
-                                }
-
-                        { platform = Node.Linux, arch = Node.X64 } ->
-                            Just <|
-                                { args = userArgs
-                                , stdout = env.stdout
-                                , remotePath = Just <| makeRemotePath "gren_linux"
-                                , localPath = makeLocalPath env.platform homeDir envVars
-                                }
-
-                        _ ->
-                            Nothing
-
-                model =
-                    case maybePaths of
-                        Just paths ->
-                            { args = userArgs
-                            , stdout = env.stdout
-                            , stderr = env.stderr
-                            , useColor = useColor
-                            , fsPermission = fsPermission
-                            , cpPermission = cpPermission
-                            , httpPermission = httpPermission
-                            , remotePath = paths.remotePath
-                            , localPath = paths.localPath
-                            , pathToString =
-                                if env.platform == Node.Win32 then
-                                    Path.toWin32String
-                                else
-                                    Path.toPosixString
-                            }
-                        
-                        Nothing ->
-                            -- dummy model
-                            { args = []
-                            , stdout = env.stdout
-                            , stderr = env.stderr
-                            , useColor = useColor
-                            , fsPermission = fsPermission
-                            , cpPermission = cpPermission
-                            , httpPermission = httpPermission
-                            , remotePath = Nothing
-                            , localPath = Path.empty
-                            , pathToString = Path.toPosixString
-                            }
-            in
-            Node.startProgram
-                { model = model
-                , command =
-                    case maybePaths of
-                        Just _ ->
-                            case CLI.Parser.run userArgs cliParser of
-                                CLI.Parser.UnknownCommand commandName ->
-                                    Stream.sendLine env.stderr ("I don't recognize this command: " ++ commandName)
-                                        |> Task.execute
-                                
-                                CLI.Parser.BadFlags err ->
-                                    Stream.sendLine env.stderr "BadFlag"
-                                        |> Task.execute
-                                
-                                CLI.Parser.BadArguments err ->
-                                    Stream.sendLine env.stderr "BadArgument"
-                                        |> Task.execute
-                                
-                                CLI.Parser.HelpText prettifiedText ->
-                                    prettifiedText
-                                        |> PP.toStringWithOptions
-                                            { PP.defaultOptions | maxColumns = 80 }
-                                        |> Stream.sendLine env.stdout
-                                        |> Task.execute
-                                
-                                CLI.Parser.Success command ->
-                                    let
-                                        _ = Debug.log "command: " command
-                                    in
-                                    FileSystem.checkAccess fsPermission [] model.localPath
-                                        |> Task.attempt ExistanceChecked
-
-                        Nothing ->
-                            Stream.sendLine env.stderr "We currently don't support this platform/arch."
-                                |> Task.execute
-                }
-
-
-makeRemotePath : String -> String
-makeRemotePath filename =
-    String.join "/"
-        [ "https://github.com/gren-lang/compiler/releases/download"
-        , compilerVersion
-        , filename
-        ]
-
-
-makeLocalPath : Node.Platform -> Path -> Dict String String -> Path
-makeLocalPath platform homeDir envVars =
-    let
-        startPath =
-            case platform of
-                Node.Win32 ->
-                    envVars
-                        |> Dict.get "LOCALAPPDATA"
-                        |> Maybe.map Path.fromWin32String
-                        |> Maybe.withDefault (
-                            "AppData/Local"
-                                |> Path.fromPosixString
-                                |> Path.prepend homeDir
-                            )
-
-                Node.Darwin ->
-                    "Library/Caches"
-                        |> Path.fromPosixString
-                        |> Path.prepend homeDir
-
-                _ ->
-                    envVars
-                        |> Dict.get "XDG_CACHE_HOME"
-                        |> Maybe.map Path.fromPosixString
-                        |> Maybe.withDefault (Path.append (Path.fromPosixString ".cache") homeDir)
-
-        filename =
-            case platform of
-                Node.Win32 ->
-                    "gren.exe"
-
-                _ ->
-                    "gren"
-        
-        endPath =
-            [ "gren"
-            , compilerVersion
-            , "bin"
-            , filename
-            ]
-                |> String.join "/"
-                |> Path.fromPosixString
-    in
-    Path.prepend startPath endPath
-
-
-type Msg
-    = ExistanceChecked (Result FileSystem.Error Path)
-    | CompilerDownloaded (Result (HttpClient.Error Bytes) (HttpClient.Response Bytes))
-    | CompilerInstalled (Result FileSystem.Error {})
-    | CompilerRan Int
-
-
-update : Msg -> Model -> { model : Model, command : Cmd Msg }
-update msg model =
-    case msg of
-        ExistanceChecked (Err _) ->
-            { model = model
-            , command =
-                case model.remotePath of
-                    Just remotePath ->
-                        Stream.sendLine model.stdout ("Compiler not found at " ++ model.pathToString model.localPath ++ ". Downloading...")
-                            |> Task.andThen (\{} -> downloadBinary model.httpPermission remotePath)
-                            |> Task.attempt CompilerDownloaded
-                    
-                    Nothing ->
-                        Stream.sendLine model.stderr ("Compiler not found at " ++ model.pathToString model.localPath)
-                            |> Task.execute
-            }
-
-        ExistanceChecked (Ok _) ->
-            { model = model
-            , command =
-                runCompiler model
-            }
-
-        CompilerDownloaded (Err ((HttpClient.BadStatus res) as err)) ->
-            if res.statusCode == 302 then
-                case Dict.get "location" res.headers of
-                    Just [ location ] ->
-                        { model = model
-                        , command =
-                            downloadBinary model.httpPermission location
-                                |> Task.attempt CompilerDownloaded
-                        }
-
-                    _ ->
-                        { model = model
-                        , command =
-                            Stream.sendLine model.stderr "Missing, or vague, 'location' header in 302 response from server."
-                                |> Task.execute
-                        }
-
-            else
-                { model = model
-                , command =
-                    Stream.sendLine model.stderr (HttpClient.errorToString err)
-                        |> Task.execute
-                }
-        
-        CompilerDownloaded (Err err) ->
-                { model = model
-                , command =
-                    Stream.sendLine model.stderr (HttpClient.errorToString err)
-                        |> Task.execute
-                }
-        
-        CompilerDownloaded (Ok res) ->
-            let
-                cacheFolder =
-                    Path.parentPath model.localPath
-                        |> Maybe.withDefault Path.empty
-            in
-            { model = model
-            , command =
-                FileSystem.makeDirectory model.fsPermission { recursive = True } cacheFolder
-                    |> Task.andThen (\_cacheFolder -> FileSystem.writeFile model.fsPermission res.data model.localPath)
-                    |> Task.andThen 
-                        (FileSystem.changeAccess
-                            model.fsPermission
-                            { owner = [ FileSystem.Read, FileSystem.Write, FileSystem.Execute ]
-                            , group = [ FileSystem.Read, FileSystem.Execute ]
-                            , others = [ FileSystem.Read, FileSystem.Execute ]
-                            }
-                        )
-                    |> Task.andThen (\_binPath -> Stream.sendLine model.stdout "Downloaded")
-                    |> Task.attempt CompilerInstalled
-            }
-        
-        CompilerInstalled (Err fsErr) ->
-            { model = model
-            , command =
-                Stream.sendLine model.stderr ("Failed to install binary after download, due to error: " ++ FileSystem.errorToString fsErr)
-                    |> Task.execute
-            }
-        
-        CompilerInstalled (Ok {}) ->
-            { model = model
-            , command =
-                runCompiler model
-            }
-
-        CompilerRan exitCode ->
-            { model = model
-            , command =
-                Node.exitWithCode exitCode
-                    |> Task.execute
-            }
-
-
-downloadBinary : HttpClient.Permission -> String -> Task (HttpClient.Error Bytes) (HttpClient.Response Bytes)
-downloadBinary permission url =
-    HttpClient.get url
-        |> HttpClient.expectBytes
-        |> HttpClient.send permission
-
-
-runCompiler : Model -> Cmd Msg
-runCompiler model =
-    let
-        colorEnvVar =
-            if model.useColor then
-                Dict.singleton "FORCE_COLOR" "1"
-            else
-                Dict.singleton "NO_COLOR" "1"
-    in
-    ChildProcess.spawnAndNotifyOnExit model.cpPermission CompilerRan (model.pathToString model.localPath) model.args <|
-        { ChildProcess.defaultSpawnOptions
-            | environmentVariables = 
-                ChildProcess.MergeWithEnvironmentVariables colorEnvVar
-        }
