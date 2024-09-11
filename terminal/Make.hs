@@ -5,8 +5,6 @@ module Make
     Output (..),
     ReportType (..),
     run,
-    reportType,
-    output,
     rereadSources,
   )
 where
@@ -37,7 +35,6 @@ import Reporting.Task qualified as Task
 import System.Directory qualified as Dir
 import System.FilePath qualified as FP
 import System.IO qualified as IO
-import Terminal (Parser (..))
 
 -- FLAGS
 
@@ -300,46 +297,3 @@ generate root details desiredMode artifacts =
       Debug -> Generate.debug root details artifacts
       Dev -> Generate.dev root details artifacts
       Prod -> Generate.prod root details artifacts
-
--- PARSERS
-
-reportType :: Parser ReportType
-reportType =
-  Parser
-    { _singular = "report type",
-      _plural = "report types",
-      _parser = \string -> if string == "json" then Just Json else Nothing,
-      _suggest = \_ -> return ["json"],
-      _examples = \_ -> return ["json"]
-    }
-
-output :: Parser Output
-output =
-  Parser
-    { _singular = "output file",
-      _plural = "output files",
-      _parser = parseOutput,
-      _suggest = \_ -> return [],
-      _examples = \_ -> return ["gren.js", "index.html", "/dev/null", "/dev/stdout"]
-    }
-
-parseOutput :: String -> Maybe Output
-parseOutput name
-  | name == "/dev/stdout" = Just DevStdOut
-  | isDevNull name = Just DevNull
-  | hasExt ".html" name = Just (Html name)
-  | hasExt ".js" name = Just (JS name)
-  | noExt name = Just (Exe name)
-  | otherwise = Nothing
-
-hasExt :: String -> String -> Bool
-hasExt ext path =
-  FP.takeExtension path == ext && length path > length ext
-
-noExt :: String -> Bool
-noExt path =
-  FP.takeExtension path == ""
-
-isDevNull :: String -> Bool
-isDevNull name =
-  name == "/dev/null" || name == "NUL" || name == "$null"

@@ -383,15 +383,29 @@ type alias MakeFlags =
     { debug : Bool
     , optimize : Bool
     , sourcemaps : Bool
-    , output : Maybe Path
-    , report : Maybe String
+    , output : Maybe MakeOutput
+    , report : Maybe {}
     }
+
+
+type MakeOutput
+    = StdOut
+    | DevNull
+    | Html String
+    | Js String
+    | Exe String
 
 
 type alias DocsFlags =
-    { output : Maybe Path
-    , report : Maybe String
+    { output : Maybe DocsOutput
+    , report : Maybe {}
     }
+
+
+type DocsOutput
+    = DocsStdOut
+    | DocsDevNull
+    | DocsJson String
 
 
 type DiffArgs
@@ -503,7 +517,7 @@ cliParser =
                         |> CLI.Parser.toggle "debug" "Turn on the time-travelling debugger for applications targetting the browser platform. It allows you to rewind and replay events. The events can be imported/exported into a file, which makes for very precise bug reports!"
                         |> CLI.Parser.toggle "optimize" "Turn on optimizations to make code smaller and faster. For example, the compiler renames record fields to be as short as possible and unboxes values to reduce allocation."
                         |> CLI.Parser.toggle "sourcemaps" "Add sourcemaps to the resulting JS file. This let's you debug Gren code in a JS debugger, at the cost of longer compile times and a bigger JS file."
-                        |> CLI.Parser.flag "output" CLI.Parser.pathParser "Specify the name of the resulting JS file. For example --output=assets/gren.js to generate the JS at assets/gren.js. You can also use --output=/dev/stdout to output the JS to the terminal, or --output=/dev/null to generate no output at all!"
+                        |> CLI.Parser.flag "output" outputParser "Specify the name of the resulting JS file. For example --output=assets/gren.js to generate the JS at assets/gren.js. You can also use --output=/dev/stdout to output the JS to the terminal, or --output=/dev/null to generate no output at all!"
                         |> CLI.Parser.flag "report" reportParser "You can say --report=json to get error messages as JSON. This is only really useful if you are an editor plugin. Humans should avoid it!"
                 , commonDescription =
                     Nothing
@@ -537,7 +551,7 @@ cliParser =
                             , report = report
                             }
                         )
-                        |> CLI.Parser.flag "output" CLI.Parser.pathParser "Specify the name of the resulting JSON file. For example --output=assets/docs.json to generate the JSON at assets/docs.json. You can also use --output=/dev/stdout to output the JSON to the terminal, or --output=/dev/null to verify that generating the documentation would work."
+                        |> CLI.Parser.flag "output" docsOutputParser "Specify the name of the resulting JSON file. For example --output=assets/docs.json to generate the JSON at assets/docs.json. You can also use --output=/dev/stdout to output the JSON to the terminal, or --output=/dev/null to verify that generating the documentation would work."
                         |> CLI.Parser.flag "report" reportParser "You can say --report=json to get error messages as JSON. This is only really useful if you are an editor plugin. Humans should avoid it!"
                 , commonDescription =
                     Nothing
@@ -781,13 +795,13 @@ initPlatformParser =
     }
 
 
-reportParser : CLI.Parser.ValueParser String
+reportParser : CLI.Parser.ValueParser {}
 reportParser =
     { singular = "report-type"
     , plural = "report-types"
     , fn = \str ->
         if str == "json" then
-            Just str
+            Just {}
 
         else
             Nothing
@@ -818,6 +832,50 @@ versionParser =
     }
 
 
+outputParser : CLI.Parser.ValueParser MakeOutput
+outputParser =
+    { singular = "output file"
+    , plural = "output files"
+    , fn = \str ->
+        case str of
+            "/dev/stdout" -> Just StdOut
+            "/dev/null" -> Just DevNull
+            "NUL" -> Just DevNull
+            "$null" -> Just DevNull
+            _ ->
+                if String.endsWith ".html" str then
+                    Just <| Html str
+                
+                else if String.endsWith ".js" str then
+                    Just <| Js str
+
+                else if not <| String.contains "." str then
+                    Just <| Exe str
+
+                else
+                    Nothing
+    }
+
+
+docsOutputParser : CLI.Parser.ValueParser DocsOutput
+docsOutputParser =
+    { singular = "output file"
+    , plural = "output files"
+    , fn = \str ->
+        case str of
+            "/dev/stdout" -> Just DocsStdOut
+            "/dev/null" -> Just DocsDevNull
+            "NUL" -> Just DocsDevNull
+            "$null" -> Just DocsDevNull
+            _ ->
+                if String.endsWith ".json" str then
+                    Just <| DocsJson str
+
+                else
+                    Nothing
+    }
+
+
 commandEncoder : (Path -> String) -> Command -> Json.Value
 commandEncoder  pathToString command =
     case command of
@@ -840,15 +898,15 @@ commandEncoder  pathToString command =
                 , { key = "debug", value = Json.bool flags.debug }
                 , { key = "optimize", value = Json.bool flags.optimize }
                 , { key = "sourcemaps", value = Json.bool flags.sourcemaps }
-                , { key = "output", value = maybeEncoder Json.string (Maybe.map pathToString flags.output) }
-                , { key = "report", value = maybeEncoder Json.string flags.report }
+                , { key = "output", value = maybeEncoder makeOutputEncoder flags.output }
+                , { key = "report", value = maybeEncoder (\_ -> Json.object []) flags.report }
                 ]
         
         Docs flags ->
             Json.object
                 [ { key = "command", value = Json.string "docs" }
-                , { key = "output", value = maybeEncoder Json.string (Maybe.map pathToString flags.output) }
-                , { key = "report", value = maybeEncoder Json.string flags.report }
+                , { key = "output", value = maybeEncoder docsOutputEncoder flags.output }
+                , { key = "report", value = maybeEncoder (\_ -> Json.object []) flags.report }
                 ]
         
         PackageInstall maybePackage ->
@@ -933,3 +991,55 @@ packageEncoder package =
 versionEncoder : SemanticVersion -> Json.Value
 versionEncoder semver =
     Json.string <| SemanticVersion.toString semver
+
+
+makeOutputEncoder : MakeOutput -> Json.Value
+makeOutputEncoder output =
+    case output of
+        StdOut -> 
+            Json.object
+                [ { key = "type", value = Json.string "stdout" }
+                ]
+        
+        DevNull ->
+            Json.object
+                [ { key = "type", value = Json.string "null" }
+                ]
+        
+        Html path ->
+            Json.object
+                [ { key = "type", value = Json.string "html" }
+                , { key = "path", value = Json.string path }
+                ]
+        
+        Js path ->
+            Json.object
+                [ { key = "type", value = Json.string "js" }
+                , { key = "path", value = Json.string path }
+                ]
+        
+        Exe path ->
+            Json.object
+                [ { key = "type", value = Json.string "exe" }
+                , { key = "path", value = Json.string path }
+                ]
+
+
+docsOutputEncoder : DocsOutput -> Json.Value
+docsOutputEncoder output =
+    case output of
+        DocsStdOut -> 
+            Json.object
+                [ { key = "type", value = Json.string "stdout" }
+                ]
+        
+        DocsDevNull ->
+            Json.object
+                [ { key = "type", value = Json.string "null" }
+                ]
+        
+        DocsJson path ->
+            Json.object
+                [ { key = "type", value = Json.string "json" }
+                , { key = "path", value = Json.string path }
+                ]

@@ -5,9 +5,6 @@ module Docs
     Output (..),
     ReportType (..),
     run,
-    reportType,
-    output,
-    docsFile,
   )
 where
 
@@ -23,9 +20,7 @@ import Json.Encode qualified as Json
 import Reporting qualified
 import Reporting.Exit qualified as Exit
 import Reporting.Task qualified as Task
-import System.FilePath qualified as FP
 import System.IO qualified as IO
-import Terminal (Parser (..))
 
 -- FLAGS
 
@@ -103,50 +98,3 @@ buildExposed :: Reporting.Style -> FilePath -> Details.Details -> Build.DocsGoal
 buildExposed style root details docsGoal exposed =
   Task.eio Exit.MakeCannotBuild $
     Build.fromExposed style root details docsGoal exposed
-
--- PARSERS
-
-reportType :: Parser ReportType
-reportType =
-  Parser
-    { _singular = "report type",
-      _plural = "report types",
-      _parser = \string -> if string == "json" then Just Json else Nothing,
-      _suggest = \_ -> return ["json"],
-      _examples = \_ -> return ["json"]
-    }
-
-output :: Parser Output
-output =
-  Parser
-    { _singular = "output file",
-      _plural = "output files",
-      _parser = parseOutput,
-      _suggest = \_ -> return [],
-      _examples = \_ -> return ["gren.js", "index.html", "/dev/null", "/dev/stdout"]
-    }
-
-parseOutput :: String -> Maybe Output
-parseOutput name
-  | name == "/dev/stdout" = Just DevStdOut
-  | isDevNull name = Just DevNull
-  | hasExt ".json" name = Just (JSON name)
-  | otherwise = Nothing
-
-docsFile :: Parser FilePath
-docsFile =
-  Parser
-    { _singular = "json file",
-      _plural = "json files",
-      _parser = \name -> if hasExt ".json" name then Just name else Nothing,
-      _suggest = \_ -> return [],
-      _examples = \_ -> return ["docs.json", "documentation.json"]
-    }
-
-hasExt :: String -> String -> Bool
-hasExt ext path =
-  FP.takeExtension path == ext && length path > length ext
-
-isDevNull :: String -> Bool
-isDevNull name =
-  name == "/dev/null" || name == "NUL" || name == "$null"

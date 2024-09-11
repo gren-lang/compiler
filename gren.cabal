@@ -47,8 +47,7 @@ Common gren-common
     Hs-Source-Dirs:
         compiler/src
         builder/src
-        terminal/impl
-        terminal/src
+        terminal
 
     other-modules:
         Format
@@ -56,20 +55,12 @@ Common gren-common
         Make
         Docs
         Repl
-        Package
         Package.Install
         Package.Uninstall
         Package.Outdated
         Package.Bump
         Package.Diff
         Package.Validate
-
-        -- terminal args
-        Terminal
-        Terminal.Chomp
-        Terminal.Error
-        Terminal.Helpers
-        Terminal.Internal
 
         -- from builder/
         AbsoluteSrcDir
