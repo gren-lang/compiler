@@ -71,6 +71,7 @@ newtype Decoder x a
 data Error x
   = DecodeProblem B.ByteString (Problem x)
   | ParseProblem B.ByteString ParseError
+  deriving (Show)
 
 -- DECODE PROBLEMS
 
@@ -80,6 +81,7 @@ data Problem x
   | OneOf (Problem x) [Problem x]
   | Failure A.Region x
   | Expecting A.Region DecodeExpectation
+  deriving (Show)
 
 data DecodeExpectation
   = TObject
@@ -89,6 +91,7 @@ data DecodeExpectation
   | TInt
   | TObjectWith B.ByteString
   | TArrayPair Int
+  deriving (Show)
 
 -- INSTANCES
 
@@ -371,6 +374,7 @@ data ParseError
   | NoLeadingZeros Row Col
   | NoFloats Row Col
   | BadEnd Row Col
+  deriving (Show)
 
 --  PIndex Int ParseError Row Col
 --  PField Json.String ParseError Row Col
@@ -380,6 +384,7 @@ data StringProblem
   | BadStringControlChar
   | BadStringEscapeChar
   | BadStringEscapeHex
+  deriving (Show)
 
 -- PARSE AST
 

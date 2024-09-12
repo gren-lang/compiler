@@ -899,14 +899,14 @@ commandEncoder  pathToString command =
                 , { key = "optimize", value = Json.bool flags.optimize }
                 , { key = "sourcemaps", value = Json.bool flags.sourcemaps }
                 , { key = "output", value = maybeEncoder makeOutputEncoder flags.output }
-                , { key = "report", value = maybeEncoder (\_ -> Json.object []) flags.report }
+                , { key = "report-json", value = maybeToBool flags.report }
                 ]
         
         Docs flags ->
             Json.object
                 [ { key = "command", value = Json.string "docs" }
                 , { key = "output", value = maybeEncoder docsOutputEncoder flags.output }
-                , { key = "report", value = maybeEncoder (\_ -> Json.object []) flags.report }
+                , { key = "report-json", value = maybeToBool flags.report }
                 ]
         
         PackageInstall maybePackage ->
@@ -973,6 +973,16 @@ maybeEncoder enc maybeVal =
 
         Nothing ->
             Json.null
+
+
+maybeToBool : Maybe a -> Json.Value
+maybeToBool maybeVal =
+    case maybeVal of
+        Just val ->
+            Json.bool True
+
+        Nothing ->
+            Json.bool False
 
 
 platformEncoder : Platform -> Json.Value
