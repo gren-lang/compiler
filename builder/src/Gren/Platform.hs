@@ -19,7 +19,7 @@ data Platform
   = Common
   | Browser
   | Node
-  deriving (Eq)
+  deriving (Show, Eq)
 
 -- COMPATIBILITY
 
