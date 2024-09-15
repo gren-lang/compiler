@@ -65,6 +65,7 @@ import Reporting.Report qualified as Report
 import Reporting.Task qualified as Task
 import System.Console.Haskeline qualified as Repl
 import System.Directory qualified as Dir
+import System.Environment qualified
 import System.Exit qualified as Exit
 import System.FilePath ((</>))
 import System.IO qualified as IO
@@ -74,12 +75,11 @@ import Prelude hiding (lines, read)
 -- RUN
 
 data Flags = Flags
-  { _maybeInterpreter :: Maybe FilePath,
-    _noColors :: Bool
+  { _maybeInterpreter :: Maybe FilePath
   }
 
-run :: () -> Flags -> IO ()
-run () flags =
+run :: Flags -> IO ()
+run flags =
   do
     settings <- initSettings
     env <- initEnv flags
@@ -112,8 +112,10 @@ data Env = Env
   }
 
 initEnv :: Flags -> IO Env
-initEnv (Flags maybeAlternateInterpreter noColors) =
+initEnv (Flags maybeAlternateInterpreter) =
   do
+    noColorsEnv <- System.Environment.lookupEnv "NO_COLOR"
+    let noColors = Maybe.isJust noColorsEnv
     root <- getRoot
     _ <- installDeps root
     interpreter <- getInterpreter maybeAlternateInterpreter

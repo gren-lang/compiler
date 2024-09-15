@@ -38,6 +38,7 @@ type alias Model =
     , stdout : Stream
     , stderr : Stream
     , useColor : Bool
+    , interactive : Bool
     , fsPermission : FileSystem.Permission
     , cpPermission : ChildProcess.Permission
     , httpPermission : HttpClient.Permission
@@ -57,18 +58,11 @@ init env =
                 userArgs =
                     Array.dropFirst 2 env.args
 
+                interactiveTerminal =
+                    terminalConfig /= Nothing
+
                 useColor =
-                    case terminalConfig of
-                        Nothing ->
-                            False
-
-                        Just _ ->
-                            case Dict.get "NO_COLOR" envVars of
-                                Just _ ->
-                                    False
-
-                                Nothing ->
-                                    True
+                    interactiveTerminal && not (Dict.member "NO_COLOR" envVars)
 
                 maybePaths =
                     case { platform = env.platform, arch = env.cpuArchitecture, override = Dict.get "GREN_BIN" envVars } of
@@ -117,6 +111,7 @@ init env =
                     { args = userArgs
                     , stdout = env.stdout
                     , stderr = env.stderr
+                    , interactive = interactiveTerminal
                     , useColor = useColor
                     , fsPermission = fsPermission
                     , cpPermission = cpPermission
@@ -327,7 +322,7 @@ runCompiler model compilerPath command =
     let
         commandAsJson =
             command
-                |> commandEncoder model.pathToString
+                |> commandEncoder model.interactive model.pathToString
                 |> Json.encode 0
 
         escapedCommand =
@@ -453,7 +448,12 @@ cliParser =
                     CLI.Parser.initFlags 
                         (\package maybePlatform ->
                             { package = package
-                            , platform = Maybe.withDefault Browser maybePlatform
+                            , platform = 
+                                if package then
+                                    Maybe.withDefault Common maybePlatform
+
+                                else
+                                    Maybe.withDefault Browser maybePlatform
                             }
                         )
                         |> CLI.Parser.toggle "package" "Create a package (as opposed to an application)"
@@ -876,12 +876,13 @@ docsOutputParser =
     }
 
 
-commandEncoder : (Path -> String) -> Command -> Json.Value
-commandEncoder  pathToString command =
+commandEncoder : Bool -> (Path -> String) -> Command -> Json.Value
+commandEncoder interactive pathToString command =
     case command of
         Init flags ->
             Json.object
                 [ { key = "command", value = Json.string "init" }
+                , { key = "interactive", value = Json.bool interactive }
                 , { key = "package", value = Json.bool flags.package }
                 , { key = "platform", value = platformEncoder flags.platform }
                 ]

@@ -28,13 +28,13 @@ import Prelude hiding (init)
 data Flags = Flags
   { _skipPrompts :: Bool,
     _isPackage :: Bool,
-    _platform :: Maybe Platform.Platform
+    _platform :: Platform.Platform
   }
 
 -- RUN
 
-run :: () -> Flags -> IO ()
-run () flags =
+run :: Flags -> IO ()
+run flags =
   Reporting.attempt Exit.initToReport $
     do
       exists <- Dir.doesFileExist "gren.json"
@@ -74,7 +74,7 @@ question =
 init :: Flags -> IO (Either Exit.Init ())
 init flags =
   do
-    let platform = selectPlatform flags
+    let platform = _platform flags
     let initialDeps = suggestDependencies platform
     (Solver.Env cache) <- Solver.initEnv
     potentialDeps <-
@@ -134,13 +134,6 @@ appOutlineFromSolverDetails platform initialDeps details =
           (NE.List (Outline.RelativeSrcDir "src") [])
           (Map.map PossibleFilePath.Other directs)
           (Map.map PossibleFilePath.Other indirects)
-
-selectPlatform :: Flags -> Platform.Platform
-selectPlatform flags =
-  case (_isPackage flags, _platform flags) of
-    (True, Nothing) -> Platform.Common
-    (False, Nothing) -> Platform.Browser
-    (_, Just platform) -> platform
 
 suggestDependencies :: Platform.Platform -> [Pkg.Name]
 suggestDependencies platform =

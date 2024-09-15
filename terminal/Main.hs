@@ -1,5 +1,3 @@
-{-# LANGUAGE MultiWayIf #-}
-
 module Main
   ( main,
   )
@@ -11,8 +9,10 @@ import GHC.IO.Encoding (setLocaleEncoding, utf8)
 import Gren.Package qualified as Package
 import Gren.Platform qualified as Platform
 import Gren.Version qualified as Version
+import Init qualified
 import Json.Decode qualified as Json
 import Json.String qualified as JS
+import Repl qualified
 import System.Environment qualified as Env
 
 -- MAIN
@@ -28,6 +28,10 @@ main =
          in case Json.fromByteString commandDecoder jsonByteString of
               Left err ->
                 error (show err)
+              Right (Init (InitFlags interactive package platform)) ->
+                Init.run $ Init.Flags (not interactive) package platform
+              Right (Repl interpreter) ->
+                Repl.run $ Repl.Flags interpreter
               Right command ->
                 print command
       _ ->
@@ -50,7 +54,8 @@ data Command
   deriving (Show)
 
 data InitFlags = InitFlags
-  { _init_package :: Bool,
+  { _init_interactive :: Bool,
+    _init_package :: Bool,
     _init_platform :: Platform.Platform
   }
   deriving (Show)
@@ -107,7 +112,8 @@ versionDecoder =
 initDecoder :: Json.Decoder CommandDecoderError InitFlags
 initDecoder =
   InitFlags
-    <$> Json.field (BS.pack "package") Json.bool
+    <$> Json.field (BS.pack "interactive") Json.bool
+    <*> Json.field (BS.pack "package") Json.bool
     <*> Json.field (BS.pack "platform") (Platform.decoder InvalidInput)
 
 makeDecoder :: Json.Decoder CommandDecoderError MakeFlags
