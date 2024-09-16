@@ -3,7 +3,6 @@
 module Docs
   ( Flags (..),
     Output (..),
-    ReportType (..),
     run,
   )
 where
@@ -26,30 +25,28 @@ import System.IO qualified as IO
 
 data Flags = Flags
   { _output :: Maybe Output,
-    _report :: Maybe ReportType
+    _report :: Bool
   }
 
 data Output
   = JSON FilePath
   | DevNull
   | DevStdOut
-
-data ReportType
-  = Json
+  deriving (Show)
 
 -- RUN
 
 type Task a = Task.Task Exit.Make a
 
-run :: () -> Flags -> IO ()
-run () flags@(Flags _ report) =
+run :: Flags -> IO ()
+run flags@(Flags _ report) =
   do
     style <- getStyle report
     maybeRoot <- Dirs.findRoot
     Reporting.attemptWithStyle style Exit.makeToReport $
       case maybeRoot of
         Just root -> runHelp root style flags
-        Nothing -> return $ Left $ Exit.MakeNoOutline
+        Nothing -> return $ Left Exit.MakeNoOutline
 
 runHelp :: FilePath -> Reporting.Style -> Flags -> IO (Either Exit.Make ())
 runHelp root style (Flags maybeOutput _) =
@@ -76,11 +73,9 @@ runHelp root style (Flags maybeOutput _) =
 
 -- GET INFORMATION
 
-getStyle :: Maybe ReportType -> IO Reporting.Style
+getStyle :: Bool -> IO Reporting.Style
 getStyle report =
-  case report of
-    Nothing -> Reporting.terminal
-    Just Json -> return Reporting.json
+  if report then return Reporting.json else Reporting.terminal
 
 getExposed :: Details.Details -> Task (NE.List ModuleName.Raw)
 getExposed (Details.Details _ validOutline _ _ _ _) =

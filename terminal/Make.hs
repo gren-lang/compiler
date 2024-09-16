@@ -3,7 +3,6 @@
 module Make
   ( Flags (..),
     Output (..),
-    ReportType (..),
     run,
     rereadSources,
   )
@@ -43,7 +42,7 @@ data Flags = Flags
     _optimize :: Bool,
     _sourceMaps :: Bool,
     _output :: Maybe Output,
-    _report :: Maybe ReportType
+    _report :: Bool
   }
 
 data Output
@@ -52,9 +51,7 @@ data Output
   | Html FilePath
   | DevNull
   | DevStdOut
-
-data ReportType
-  = Json
+  deriving (Show)
 
 -- RUN
 
@@ -157,12 +154,12 @@ runHelp root paths style (Flags debug optimize withSourceMaps maybeOutput _) =
 
 -- GET INFORMATION
 
-getStyle :: Maybe Output -> Maybe ReportType -> IO Reporting.Style
+getStyle :: Maybe Output -> Bool -> IO Reporting.Style
 getStyle maybeOutput report =
   case (maybeOutput, report) of
     (Just DevStdOut, _) -> return Reporting.silent
-    (_, Nothing) -> Reporting.terminal
-    (_, Just Json) -> return Reporting.json
+    (_, False) -> Reporting.terminal
+    (_, True) -> return Reporting.json
 
 getMode :: Bool -> Bool -> Task DesiredMode
 getMode debug optimize =

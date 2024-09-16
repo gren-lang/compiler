@@ -901,6 +901,7 @@ commandEncoder interactive pathToString command =
                 , { key = "sourcemaps", value = Json.bool flags.sourcemaps }
                 , { key = "output", value = maybeEncoder makeOutputEncoder flags.output }
                 , { key = "report-json", value = maybeToBool flags.report }
+                , { key = "paths", value = Json.array (pathToString >> Json.string) paths }
                 ]
         
         Docs flags ->
@@ -913,12 +914,14 @@ commandEncoder interactive pathToString command =
         PackageInstall maybePackage ->
             Json.object
                 [ { key = "command", value = Json.string "packageInstall" }
+                , { key = "interactive", value = Json.bool interactive }
                 , { key = "package", value = maybeEncoder packageEncoder maybePackage }
                 ]
         
         PackageUninstall package ->
             Json.object
                 [ { key = "command", value = Json.string "packageUninstall" }
+                , { key = "interactive", value = Json.bool interactive }
                 , { key = "package", value = packageEncoder package }
                 ]
         

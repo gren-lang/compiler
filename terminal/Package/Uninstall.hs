@@ -1,8 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Package.Uninstall
-  ( Args (..),
-    Flags (..),
+  ( Flags (..),
     run,
   )
 where
@@ -27,14 +26,11 @@ import Reporting.Task qualified as Task
 
 -- RUN
 
-data Args
-  = Uninstall Pkg.Name
-
 data Flags = Flags
   {_skipPrompts :: Bool}
 
-run :: Args -> Flags -> IO ()
-run args (Flags _skipPrompts) =
+run :: Pkg.Name -> Flags -> IO ()
+run pkg (Flags _skipPrompts) =
   Reporting.attempt Exit.uninstallToReport $
     do
       maybeRoot <- Dirs.findRoot
@@ -46,17 +42,15 @@ run args (Flags _skipPrompts) =
             do
               env <- Task.io Solver.initEnv
               oldOutline <- Task.eio Exit.UninstallBadOutline $ Outline.read root
-              case args of
-                Uninstall pkg ->
-                  case oldOutline of
-                    Outline.App outline ->
-                      do
-                        changes <- makeAppPlan env pkg outline
-                        attemptChanges root env _skipPrompts oldOutline (PossibleFilePath.toChars V.toChars) changes
-                    Outline.Pkg outline ->
-                      do
-                        changes <- makePkgPlan env pkg outline
-                        attemptChanges root env _skipPrompts oldOutline (PossibleFilePath.toChars C.toChars) changes
+              case oldOutline of
+                Outline.App outline ->
+                  do
+                    changes <- makeAppPlan env pkg outline
+                    attemptChanges root env _skipPrompts oldOutline (PossibleFilePath.toChars V.toChars) changes
+                Outline.Pkg outline ->
+                  do
+                    changes <- makePkgPlan env pkg outline
+                    attemptChanges root env _skipPrompts oldOutline (PossibleFilePath.toChars C.toChars) changes
 
 -- ATTEMPT CHANGES
 
