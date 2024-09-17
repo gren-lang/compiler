@@ -14,6 +14,7 @@ import Init qualified
 import Json.Decode qualified as Json
 import Make qualified
 import Package.Bump qualified as Bump
+import Package.Diff qualified as Diff
 import Package.Install qualified as Install
 import Package.Outdated qualified as Outdated
 import Package.Uninstall qualified as Uninstall
@@ -55,8 +56,14 @@ main =
                 Validate.run
               Right (PackageBump (BumpFlags interactive)) ->
                 Bump.run $ Bump.Flags (not interactive)
-              Right command ->
-                print command
+              Right PackageDiffLatest ->
+                Diff.run Diff.CodeVsLatest
+              Right (PackageDiffVersion version) ->
+                Diff.run $ Diff.CodeVsExactly version
+              Right (PackageDiffRange from to) ->
+                Diff.run $ Diff.LocalInquiry from to
+              Right (PackageDiffGlobal pkg from to) ->
+                Diff.run $ Diff.GlobalInquiry pkg from to
       _ ->
         putStrLn "Expected exactly 1 argument: a json-encoded command"
 
@@ -137,9 +144,9 @@ commandDecoder =
       "packageValidate" -> Json.succeed PackageValidate
       "packageBump" -> PackageBump <$> bumpDecoder
       "packageDiffLatest" -> Json.succeed PackageDiffLatest
-      "packageDiffVersion" -> PackageDiffVersion <$> versionDecoder
-      "packageDiffRange" -> PackageDiffRange <$> versionDecoder <*> versionDecoder
-      "packageDiffRange" -> PackageDiffGlobal <$> packageDecoder <*> versionDecoder <*> versionDecoder
+      "packageDiffVersion" -> diffVersionDecoder
+      "packageDiffRange" -> diffRangeDecoder
+      "packageDiffGlobal" -> diffGlobalDecoder
       _ -> Json.failure (UnknownCommand $ Utf8.toChars tipe)
 
 packageDecoder :: Json.Decoder CommandDecoderError Package.Name
@@ -213,6 +220,24 @@ bumpDecoder :: Json.Decoder CommandDecoderError BumpFlags
 bumpDecoder =
   BumpFlags
     <$> Json.field (BS.pack "interactive") Json.bool
+
+diffVersionDecoder :: Json.Decoder CommandDecoderError Command
+diffVersionDecoder =
+  PackageDiffVersion
+    <$> Json.field (BS.pack "version") versionDecoder
+
+diffRangeDecoder :: Json.Decoder CommandDecoderError Command
+diffRangeDecoder =
+  PackageDiffRange
+    <$> Json.field (BS.pack "from") versionDecoder
+    <*> Json.field (BS.pack "to") versionDecoder
+
+diffGlobalDecoder :: Json.Decoder CommandDecoderError Command
+diffGlobalDecoder =
+  PackageDiffGlobal
+    <$> Json.field (BS.pack "package") packageDecoder
+    <*> Json.field (BS.pack "from") versionDecoder
+    <*> Json.field (BS.pack "to") versionDecoder
 
 maybeDecoder :: Json.Decoder x a -> Json.Decoder x (Maybe a)
 maybeDecoder subDecoder =

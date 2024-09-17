@@ -41,8 +41,8 @@ data Args
   | LocalInquiry V.Version V.Version
   | GlobalInquiry Pkg.Name V.Version V.Version
 
-run :: Args -> () -> IO ()
-run args () =
+run :: Args -> IO ()
+run args =
   Reporting.attempt Exit.diffToReport $
     Task.run $
       do
