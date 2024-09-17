@@ -13,8 +13,11 @@ import Gren.Version qualified as Version
 import Init qualified
 import Json.Decode qualified as Json
 import Make qualified
+import Package.Bump qualified as Bump
 import Package.Install qualified as Install
+import Package.Outdated qualified as Outdated
 import Package.Uninstall qualified as Uninstall
+import Package.Validate qualified as Validate
 import Repl qualified
 import System.Environment qualified as Env
 
@@ -38,6 +41,7 @@ main =
               Right (Make (MakeFlags debug optimize sourcemaps output report paths)) ->
                 Make.run paths $ Make.Flags debug optimize sourcemaps output report
               Right (Docs (DocsFlags output report)) ->
+                -- TODO: fix errors
                 Docs.run $ Docs.Flags output report
               Right (PackageInstall (InstallFlags interactive Nothing)) ->
                 Install.run Install.NoArgs $ Install.Flags (not interactive)
@@ -45,6 +49,12 @@ main =
                 Install.run (Install.Install packageName) $ Install.Flags (not interactive)
               Right (PackageUninstall (UninstallFlags interactive packageName)) ->
                 Uninstall.run packageName $ Uninstall.Flags (not interactive)
+              Right PackageOutdated ->
+                Outdated.run
+              Right PackageValidate ->
+                Validate.run
+              Right (PackageBump (BumpFlags interactive)) ->
+                Bump.run $ Bump.Flags (not interactive)
               Right command ->
                 print command
       _ ->
@@ -59,7 +69,7 @@ data Command
   | PackageUninstall UninstallFlags
   | PackageOutdated
   | PackageValidate
-  | PackageBump
+  | PackageBump BumpFlags
   | PackageDiffLatest
   | PackageDiffVersion Version.Version
   | PackageDiffRange Version.Version Version.Version
@@ -101,6 +111,11 @@ data UninstallFlags = UninstallFlags
   }
   deriving (Show)
 
+data BumpFlags = BumpFlags
+  { _bump_interactive :: Bool
+  }
+  deriving (Show)
+
 data CommandDecoderError
   = UnknownCommand String
   | InvalidInput
@@ -120,7 +135,7 @@ commandDecoder =
       "packageUninstall" -> PackageUninstall <$> uninstallDecoder
       "packageOutdated" -> Json.succeed PackageOutdated
       "packageValidate" -> Json.succeed PackageValidate
-      "packageBump" -> Json.succeed PackageBump
+      "packageBump" -> PackageBump <$> bumpDecoder
       "packageDiffLatest" -> Json.succeed PackageDiffLatest
       "packageDiffVersion" -> PackageDiffVersion <$> versionDecoder
       "packageDiffRange" -> PackageDiffRange <$> versionDecoder <*> versionDecoder
@@ -193,6 +208,11 @@ uninstallDecoder =
   UninstallFlags
     <$> Json.field (BS.pack "interactive") Json.bool
     <*> Json.field (BS.pack "package") packageDecoder
+
+bumpDecoder :: Json.Decoder CommandDecoderError BumpFlags
+bumpDecoder =
+  BumpFlags
+    <$> Json.field (BS.pack "interactive") Json.bool
 
 maybeDecoder :: Json.Decoder x a -> Json.Decoder x (Maybe a)
 maybeDecoder subDecoder =

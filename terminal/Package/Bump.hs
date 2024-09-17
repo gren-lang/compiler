@@ -30,8 +30,8 @@ import Reporting.Task qualified as Task
 newtype Flags = Flags
   {_skipPrompts :: Bool}
 
-run :: () -> Flags -> IO ()
-run () flags =
+run :: Flags -> IO ()
+run flags =
   Reporting.attempt Exit.bumpToReport $
     Task.run (bump flags =<< getEnv)
 

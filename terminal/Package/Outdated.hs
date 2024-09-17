@@ -1,9 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Package.Outdated
-  ( Args (..),
-    Flags (..),
-    run,
+  ( run,
   )
 where
 
@@ -24,13 +22,8 @@ import Text.PrettyPrint.ANSI.Leijen qualified as P
 
 -- RUN
 
-data Args
-  = NoArgs
-
-data Flags = NoFlags
-
-run :: Args -> Flags -> IO ()
-run _ _ =
+run :: IO ()
+run =
   Reporting.attempt Exit.outdatedToReport $
     do
       maybeRoot <- Dirs.findRoot

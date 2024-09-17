@@ -39,8 +39,8 @@ import System.Info qualified as Info
 
 -- RUN
 
-run :: () -> () -> IO ()
-run () () =
+run :: IO ()
+run =
   Reporting.attempt Exit.validateToReport $
     Task.run $
       validate =<< getEnv

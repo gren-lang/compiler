@@ -938,6 +938,7 @@ commandEncoder interactive pathToString command =
         PackageBump ->
             Json.object
                 [ { key = "command", value = Json.string "packageBump" }
+                , { key = "interactive", value = Json.bool interactive }
                 ]
         
         PackageDiff args ->
