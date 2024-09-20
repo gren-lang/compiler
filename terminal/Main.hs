@@ -42,7 +42,6 @@ main =
               Right (Make (MakeFlags debug optimize sourcemaps output report paths)) ->
                 Make.run paths $ Make.Flags debug optimize sourcemaps output report
               Right (Docs (DocsFlags output report)) ->
-                -- TODO: fix errors
                 Docs.run $ Docs.Flags output report
               Right (PackageInstall (InstallFlags interactive Nothing)) ->
                 Install.run Install.NoArgs $ Install.Flags (not interactive)

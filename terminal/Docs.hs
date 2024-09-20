@@ -36,25 +36,25 @@ data Output
 
 -- RUN
 
-type Task a = Task.Task Exit.Make a
+type Task a = Task.Task Exit.Docs  a
 
 run :: Flags -> IO ()
 run flags@(Flags _ report) =
   do
     style <- getStyle report
     maybeRoot <- Dirs.findRoot
-    Reporting.attemptWithStyle style Exit.makeToReport $
+    Reporting.attemptWithStyle style Exit.docsToReport $
       case maybeRoot of
         Just root -> runHelp root style flags
-        Nothing -> return $ Left Exit.MakeNoOutline
+        Nothing -> return $ Left Exit.DocsNoOutline
 
-runHelp :: FilePath -> Reporting.Style -> Flags -> IO (Either Exit.Make ())
+runHelp :: FilePath -> Reporting.Style -> Flags -> IO (Either Exit.Docs ())
 runHelp root style (Flags maybeOutput _) =
   BW.withScope $ \scope ->
     Dirs.withRootLock root $
       Task.run $
         do
-          details <- Task.eio Exit.MakeBadDetails (Details.load style scope root)
+          details <- Task.eio Exit.DocsBadDetails (Details.load style scope root)
           exposed <- getExposed details
           case maybeOutput of
             Just DevNull ->
@@ -81,15 +81,15 @@ getExposed :: Details.Details -> Task (NE.List ModuleName.Raw)
 getExposed (Details.Details _ validOutline _ _ _ _) =
   case validOutline of
     Details.ValidApp _ _ ->
-      Task.throw Exit.MakeAppNeedsFileNames
+      Task.throw Exit.DocsApplication
     Details.ValidPkg _ _ exposed ->
       case exposed of
-        [] -> Task.throw Exit.MakePkgNeedsExposing
+        [] -> Task.throw Exit.DocsNoExposed
         m : ms -> return (NE.List m ms)
 
 -- BUILD PROJECTS
 
 buildExposed :: Reporting.Style -> FilePath -> Details.Details -> Build.DocsGoal a -> NE.List ModuleName.Raw -> Task a
 buildExposed style root details docsGoal exposed =
-  Task.eio Exit.MakeCannotBuild $
+  Task.eio Exit.DocsBadBuild $
     Build.fromExposed style root details docsGoal exposed

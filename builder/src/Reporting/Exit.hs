@@ -7,6 +7,8 @@ module Reporting.Exit
     diffToReport,
     Make (..),
     makeToReport,
+    Docs (..),
+    docsToReport,
     Bump (..),
     bumpToReport,
     Repl (..),
@@ -363,6 +365,71 @@ bumpToReport bump =
     BumpCannotFindDocs _ vsn problem ->
       toDocsProblemReport problem $
         "I need the docs for " ++ V.toChars vsn ++ " to compute the next version number"
+
+-- DOCS
+
+data Docs
+  = DocsNoOutline
+  | DocsBadOutline Outline
+  | DocsApplication
+  | DocsBadDetails Details
+  | DocsNoExposed
+  | DocsBadBuild BuildProblem
+
+docsToReport :: Docs -> Help.Report
+docsToReport docs =
+  case docs of
+    DocsNoOutline ->
+      Help.report
+        "BUILD DOCS FOR WHAT?"
+        Nothing
+        "I cannot find a gren.json file so I am not sure what you want me to generate docs for."
+        [ D.reflow
+            "gren packages always have a gren.json file that defines a project. If\
+            \ you run this command from a directory with an gren.json file, I will try to generate\
+            \ documentation for the modules listed in the exposed-modules field."
+        ]
+    DocsBadOutline outline ->
+      toOutlineReport outline
+    DocsApplication ->
+      Help.report
+        "CANNOT BUILD DOCS FOR APPLICATIONS"
+        (Just "gren.json")
+        "Your gren.json file says this is an application. Documentation is only generated\
+        \ for packages."
+        []
+    DocsBadDetails details ->
+      toDetailsReport details
+    DocsNoExposed ->
+      Help.docReport
+        "NO EXPOSED MODULES"
+        (Just "gren.json")
+        ( D.fillSep
+            [ "To",
+              "build",
+              "documentation",
+              "for",
+              "a",
+              "package,",
+              "the",
+              D.dullyellow "\"exposed-modules\"",
+              "field",
+              "of",
+              "your",
+              "gren.json",
+              "must",
+              "list",
+              "at",
+              "least",
+              "one",
+              "module."
+            ]
+        )
+        [ D.reflow
+            "Try adding some modules back to the \"exposed-modules\" field."
+        ]
+    DocsBadBuild problem ->
+      toBuildProblemReport problem
 
 -- OVERVIEW OF VERSIONING
 
