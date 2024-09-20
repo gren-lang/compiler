@@ -293,13 +293,30 @@ downloadBinary permission url =
 
 parseUserArgs : Model -> Path -> Cmd Msg
 parseUserArgs model compilerPath =
+    let
+        colorFilter =
+            if model.useColor then
+                identity
+
+            else
+                PP.stripColor
+
+        prettyTextToTerminal doc =
+            doc
+                |> colorFilter
+                |> PP.toStringWithOptions
+                    { PP.defaultOptions | maxColumns = 80 }
+    in
     case CLI.Parser.run model.args cliParser of
         CLI.Parser.UnknownCommand commandName ->
             Stream.sendLine model.stderr ("I don't recognize this command: " ++ commandName)
                 |> Task.execute
     
         CLI.Parser.BadFlags err ->
-            Stream.sendLine model.stderr "BadFlag"
+            err
+                |> CLI.Parser.flagErrorPrettified
+                |> prettyTextToTerminal
+                |> Stream.sendLine model.stderr
                 |> Task.execute
     
         CLI.Parser.BadArguments err ->
@@ -308,8 +325,7 @@ parseUserArgs model compilerPath =
     
         CLI.Parser.HelpText prettifiedText ->
             prettifiedText
-                |> PP.toStringWithOptions
-                    { PP.defaultOptions | maxColumns = 80 }
+                |> prettyTextToTerminal
                 |> Stream.sendLine model.stdout
                 |> Task.execute
     
