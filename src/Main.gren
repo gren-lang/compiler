@@ -320,7 +320,10 @@ parseUserArgs model compilerPath =
                 |> Task.execute
     
         CLI.Parser.BadArguments err ->
-            Stream.sendLine model.stderr "BadArgument"
+            err
+                |> CLI.Parser.argumentErrorPrettified
+                |> prettyTextToTerminal
+                |> Stream.sendLine model.stderr
                 |> Task.execute
     
         CLI.Parser.HelpText prettifiedText ->
@@ -808,6 +811,11 @@ initPlatformParser =
             "browser" -> Just Browser
             "node" -> Just Node
             _ -> Nothing
+    , examples =
+        [ "common"
+        , "browser"
+        , "node"
+        ]
     }
 
 
@@ -821,6 +829,8 @@ reportParser =
 
         else
             Nothing
+    , examples =
+        [ "json" ]
     }
 
 
@@ -829,6 +839,11 @@ interpreterParser =
     { singular = "interpreter"
     , plural = "interpreters"
     , fn = Just
+    , examples =
+        [ "node"
+        , "deno"
+        , "bun"
+        ]
     }
 
 
@@ -837,6 +852,10 @@ packageParser =
     { singular = "package"
     , plural = "packages"
     , fn = Package.fromString
+    , examples =
+        [ "gren-lang/core"
+        , "robheghan/string-diff"
+        ]
     }
 
 
@@ -845,13 +864,18 @@ versionParser =
     { singular = "version"
     , plural = "versions"
     , fn = SemanticVersion.fromString
+    , examples =
+        [ "1.0.0"
+        , "1.2.3"
+        , "5.1.0"
+        ]
     }
 
 
 outputParser : CLI.Parser.ValueParser MakeOutput
 outputParser =
-    { singular = "output file"
-    , plural = "output files"
+    { singular = "output-file"
+    , plural = "output-files"
     , fn = \str ->
         case str of
             "/dev/stdout" -> Just StdOut
@@ -870,13 +894,20 @@ outputParser =
 
                 else
                     Nothing
+    , examples =
+        [ "/dev/stdout"
+        , "/dev/null"
+        , "index.html"
+        , "index.js"
+        , "app"
+        ]
     }
 
 
 docsOutputParser : CLI.Parser.ValueParser DocsOutput
 docsOutputParser =
-    { singular = "output file"
-    , plural = "output files"
+    { singular = "output-file"
+    , plural = "output-files"
     , fn = \str ->
         case str of
             "/dev/stdout" -> Just DocsStdOut
@@ -889,6 +920,11 @@ docsOutputParser =
 
                 else
                     Nothing
+    , examples =
+        [ "/dev/stdout"
+        , "/dev/null"
+        , "docs.json"
+        ]
     }
 
 
