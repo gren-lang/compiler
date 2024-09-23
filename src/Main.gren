@@ -1,4 +1,4 @@
-module Main exposing (main)
+port module Main exposing (main)
 
 import Node
 import ChildProcess
@@ -208,6 +208,10 @@ type Msg
         }
     | CompilerInstalled (Result FileSystem.Error Path)
     | CompilerRan Int
+    | CompilerRanStatic String Int
+
+
+port completeStaticBuild : String -> Cmd msg
 
 
 update : Msg -> Model -> { model : Model, command : Cmd Msg }
@@ -281,6 +285,14 @@ update msg model =
             CompilerRan exitCode ->
                 Node.exitWithCode exitCode
                     |> Task.execute
+            
+            CompilerRanStatic output exitCode ->
+                if exitCode == 0 then
+                    completeStaticBuild output
+                
+                else
+                    Node.exitWithCode exitCode
+                        |> Task.execute
         }
 
 
@@ -352,8 +364,16 @@ runCompiler model compilerPath command =
                 Dict.singleton "FORCE_COLOR" "1"
             else
                 Dict.singleton "NO_COLOR" "1"
+
+        completionCommand =
+            case command of
+                MakeStatic opts ->
+                    CompilerRanStatic <| model.pathToString opts.output
+
+                _ ->
+                    CompilerRan
     in
-    ChildProcess.spawnAndNotifyOnExit model.cpPermission CompilerRan (model.pathToString compilerPath) [ escapedCommand ] <|
+    ChildProcess.spawnAndNotifyOnExit model.cpPermission completionCommand (model.pathToString compilerPath) [ escapedCommand ] <|
         { ChildProcess.defaultSpawnOptions
             | environmentVariables = 
                 ChildProcess.MergeWithEnvironmentVariables colorEnvVar
@@ -367,6 +387,7 @@ type Command
     = Init InitFlags
     | Repl ReplFlags
     | Make MakeFlags (Array Path)
+    | MakeStatic StaticOpts
     | Docs DocsFlags
     | PackageInstall (Maybe Package)
     | PackageUninstall Package
@@ -408,6 +429,12 @@ type MakeOutput
     | Html String
     | Js String
     | Exe String
+
+
+type alias StaticOpts =
+    { output : Path
+    , source : Path
+    }
 
 
 type alias DocsFlags =
@@ -558,6 +585,41 @@ cliParser =
                         ]
                 , builder =
                     \args flags -> Make flags args
+                }
+            |> CLI.Parser.withCommand
+                { word = "make-static"
+                , arguments =
+                    CLI.Parser.twoArgs 
+                        (\source output ->
+                            { source = source
+                            , output = output
+                            }
+                        )
+                        CLI.Parser.grenFileParser
+                        CLI.Parser.pathParser
+                , flags =
+                    CLI.Parser.noFlags
+                , commonDescription =
+                    Nothing
+                , summary =
+                    "The `make-static` command compiles Gren code into a self-contained executable:"
+                , example = 
+                    PP.verticalBlock
+                        [ PP.words "For example:"
+                        , PP.empty
+                        , PP.words "gren make-static src/Main.gren app"
+                            |> PP.indent
+                            |> PP.color PP.Green
+                        , PP.empty
+                        , PP.words
+                            """
+                            This tries to compile a Gren file named `src/Main.gren`, generating an `app`
+                            file if possible. `app` is a static executable that can be run even if `node` is
+                            not installed on the system.
+                            """
+                        ]
+                , builder =
+                    \args _flags -> MakeStatic args
                 }
             |> CLI.Parser.withCommand
                 { word = "docs"
@@ -955,6 +1017,17 @@ commandEncoder interactive pathToString command =
                 , { key = "report-json", value = maybeToBool flags.report }
                 , { key = "paths", value = Json.array (pathToString >> Json.string) paths }
                 ]
+        
+        MakeStatic opts ->
+            commandEncoder interactive pathToString <|
+                Make
+                    { debug = False
+                    , optimize = True
+                    , sourcemaps = False
+                    , output = Just (Exe <| pathToString opts.output)
+                    , report = Nothing
+                    }
+                    [ opts.source ]
         
         Docs flags ->
             Json.object
