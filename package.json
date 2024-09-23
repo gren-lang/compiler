@@ -3,17 +3,20 @@
   "version": "0.4.5",
   "description": "Compiler for the Gren programming language",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepublishOnly": "gren make src/Main.gren --optimize --output compiler.js"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/gren-lang/compiler.git"
   },
   "files": [
-    "index.js"
+    "index.js",
+    "compiler.js",
+    "app.js"
   ],
   "bin": {
-    "gren": "index.js"
+    "gren": "app.js"
   },
   "keywords": [
     "gren",

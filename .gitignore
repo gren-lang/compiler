@@ -3,6 +3,6 @@ dist-newstyle
 cabal-dev
 .DS_Store
 *~
-.vscode
 .gren
-app
+gren
+compiler.js
