@@ -13,10 +13,10 @@
   "files": [
     "index.js",
     "compiler.js",
-    "app.js"
+    "cli.js"
   ],
   "bin": {
-    "gren": "app.js"
+    "gren": "cli.js"
   },
   "keywords": [
     "gren",
