@@ -2,14 +2,13 @@
 
 There are two problems that will lead you here, both of them pretty tricky:
 
-  1. [**No Mutation**](#no-mutation) &mdash; Defining values in Gren is slightly different than defining values in languages like JavaScript.
+1. [**No Mutation**](#no-mutation) &mdash; Defining values in Gren is slightly different than defining values in languages like JavaScript.
 
-  2. [**Tricky Recursion**](#tricky-recursion) &mdash; Sometimes you need to define recursive values when creating generators, decoders, and parsers. A common case is a JSON decoder a discussion forums where a comment may have replies, which may have replies, which may have replies, etc.
-
+2. [**Tricky Recursion**](#tricky-recursion) &mdash; Sometimes you need to define recursive values when creating generators, decoders, and parsers. A common case is a JSON decoder a discussion forums where a comment may have replies, which may have replies, which may have replies, etc.
 
 ## No Mutation
 
-Languages like JavaScript let you “reassign” variables. When you say `x = x + 1` it means: whatever `x` was pointing to, have it point to `x + 1` instead. This is called *mutating* a variable. All values are immutable in Gren, so reassigning variables does not make any sense! Okay, so what *should* `x = x + 1` mean in Gren?
+Languages like JavaScript let you “reassign” variables. When you say `x = x + 1` it means: whatever `x` was pointing to, have it point to `x + 1` instead. This is called _mutating_ a variable. All values are immutable in Gren, so reassigning variables does not make any sense! Okay, so what _should_ `x = x + 1` mean in Gren?
 
 Well, what does it mean with functions? In Gren, we write recursive functions like this:
 
@@ -37,10 +36,9 @@ x1 = x + 1
 
 Now `x` is the old value and `x1` is the new value. Again, one cool thing about Gren is that whenever you see a `factorial 3` you can safely replace it with its definition. Well, the same is true of values. Wherever I see `x1`, I can replace it with `x + 1`. Thanks to the way definitions work in Gren, this is always safe!
 
-
 ## Tricky Recursion
 
-Now, there are some cases where you *do* want a recursive value. Say you are building a website with comments and replies. You may define a comment like this:
+Now, there are some cases where you _do_ want a recursive value. Say you are building a website with comments and replies. You may define a comment like this:
 
 ```gren
 type alias Comment =
@@ -100,7 +98,6 @@ This saves us from expanding the value infinitely. Instead we only expand the va
 
 > **Note:** The same kind of logic can be applied to tasks, random value generators, and parsers. Use `lazy` or `andThen` to make sure a recursive value is only expanded if needed.
 
-
 ## Understanding “Bad Recursion”
 
 The compiler tries to detect bad recursion, but how does it know the difference between good and bad situations? Writing `factorial` is fine, but writing `x = x + 1` is not. One version of `decodeComment` was bad, but the other was fine. What is the rule?
@@ -129,4 +126,4 @@ This is called [the halting problem](https://en.wikipedia.org/wiki/Halting_probl
 
 It turns out that Alan Turing wrote a proof in 1936 showing that (1) in some cases you just have to check by running the program and (2) this check will take forever for programs that do not halt!
 
-**So we cannot solve the halting problem *in general*, but our simple rule about lambdas can detect the majority of bad cases *in practice*.**
+**So we cannot solve the halting problem _in general_, but our simple rule about lambdas can detect the majority of bad cases _in practice_.**

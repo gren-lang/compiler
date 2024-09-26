@@ -4,14 +4,14 @@ Many languages automatically convert from `Int` to `Float` when they think it is
 
 Languages that will add in implicit casts for addition include:
 
-  - JavaScript
-  - Python
-  - Ruby
-  - C
-  - C++
-  - C#
-  - Java
-  - Scala
+- JavaScript
+- Python
+- Ruby
+- C
+- C++
+- C#
+- Java
+- Scala
 
 These languages generally agree that an `Int` may be implicitly cast to a `Float` when necessary. So everyone is doing it, why not Gren?!
 
@@ -19,12 +19,12 @@ These languages generally agree that an `Int` may be implicitly cast to a `Float
 
 Gren comes from the ML-family of languages. Languages in the ML-family that **never** do implicit casts include:
 
-  - Standard ML
-  - OCaml
-  - Elm
-  - F#
-  - Gren
-  - Haskell
+- Standard ML
+- OCaml
+- Elm
+- F#
+- Gren
+- Haskell
 
 Why would so many languages from this lineage require explicit conversions though?
 
@@ -34,12 +34,11 @@ For decades, the problem was that nobody could figure out how to combine type in
 
 So for any ML-family language designed before Scala, it is safe to assume that implicit conversions just was not an option. Okay, but what about Gren?! It comes after Scala, so why not do it like them?!
 
-  1. You pay performance cost to mix type inference and implicit conversions. At least as far as anyone knows, it defeats an optimization that is crucial to getting _reliably_ good performance. It is fine in most cases, but it can be a real issue in very large code bases.
+1. You pay performance cost to mix type inference and implicit conversions. At least as far as anyone knows, it defeats an optimization that is crucial to getting _reliably_ good performance. It is fine in most cases, but it can be a real issue in very large code bases.
 
-  2. Based on experience reports from Scala users, it seemed like the convenience was not worth the hidden cost. Yes, you can convert `n` in `(n + 1.5)` and everything is nice, but when you are in larger programs that are sparsely annotated, it can be quite difficult to figure out what is going on.
+2. Based on experience reports from Scala users, it seemed like the convenience was not worth the hidden cost. Yes, you can convert `n` in `(n + 1.5)` and everything is nice, but when you are in larger programs that are sparsely annotated, it can be quite difficult to figure out what is going on.
 
 This user data may be confounded by the fact that Scala allows quite extensive conversions, not just from `Int` to `Float`, but I think it is worth taking seriously nonetheless. So it is _possible_, but it has tradeoffs.
-
 
 ## Conclusion
 

@@ -2,7 +2,6 @@
 
 The REPL lets you interact with Gren values and functions in your terminal.
 
-
 ## Use
 
 You can type in expressions, definitions, custom types, and module imports using normal Gren syntax.
@@ -63,7 +62,6 @@ When you run `gren repl` in a project with an [`gren.json`](https://github.com/g
 ```
 
 If you create a module in your project named `MyThing` in your project, you can say `import MyThing` in the REPL as well. Any module that is accessible in your project should be accessible in the REPL.
-
 
 ## Exit
 
