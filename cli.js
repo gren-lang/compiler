@@ -13,9 +13,7 @@ compilerInstance.ports.completeStaticBuild.subscribe(async function(output) {
     main: jsBuildPath,
     output: blobPath,
     disableExperimentalSEAWarning: true,
-    useSnapshot: true,
-    useCodeCache: true,
-    assets: {}
+    useSnapshot: true
   };
   
   const binPath = output + ".node";
