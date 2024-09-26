@@ -26,7 +26,11 @@ async function execute(path, args, options) {
 /* Get the version of the Gren compiler
  */
 async function version() {
-  const stdout = await handleFailableExecution(process.cwd(), ["--version"], {});
+  const stdout = await handleFailableExecution(
+    process.cwd(),
+    ["--version"],
+    {},
+  );
   return stdout.trim();
 }
 

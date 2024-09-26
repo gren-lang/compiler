@@ -27,9 +27,9 @@ compilerInstance.ports.completeStaticBuild.subscribe(async function (output) {
   // For snapshots to work we need to wrap the function call that starts
   // the Gren application, with a hint that tells the V8 engine what the
   // main function is
-  
+
   const compiledSrc = await fs.readFile(jsBuildPath, "utf-8");
-  
+
   const initRegex = /this\.Gren\..+\(\{\}\);/g;
   const initCall = compiledSrc.match(initRegex)[0];
   const snapshotCompatibleSrc = compiledSrc.replace(
@@ -41,15 +41,15 @@ v8.startupSnapshot.setDeserializeMainFunction(function() {
 });
 `,
   );
-  
+
   await fs.writeFile(jsBuildPath, snapshotCompatibleSrc);
 
   // We then need to generate the snapshot
-  
+
   const nodePath = process.execPath;
   await fs.writeFile(seaConfigPath, JSON.stringify(seaConfig));
   cp.execFileSync(nodePath, ["--experimental-sea-config", seaConfigPath]);
-  
+
   // Then copy the node executable and inject the snapshot into it
   await fs.copyFile(nodePath, binPath);
 

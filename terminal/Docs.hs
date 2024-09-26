@@ -36,7 +36,7 @@ data Output
 
 -- RUN
 
-type Task a = Task.Task Exit.Docs  a
+type Task a = Task.Task Exit.Docs a
 
 run :: Flags -> IO ()
 run flags@(Flags _ report) =
