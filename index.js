@@ -1,16 +1,12 @@
 // This file gives you programmatic access to the Gren compiler from JavaScript.
-// TODO: currently copied from node-compiler-library, will need some changes.
 
-import * as fs from "fs/promises";
-import * as url from "node:url";
-import * as util from "util";
+const fs = require("fs/promises");
+const childProcess = require("child_process");
+const util = require("util");
 
 const execFile = util.promisify(childProcess.execFile);
 
-const compilerPath = url.fileURLToPath(await import.meta.resolve("gren-lang"));
-
-/* The version of the Gren compiler that will be downloaded and used for the commands in this package */
-export const compilerVersion = "0.4.5";
+const compilerPath = require.resolve("./cli.js");
 
 /* Execute an arbitrary command on the Gren compiler.
  *
@@ -18,13 +14,20 @@ export const compilerVersion = "0.4.5";
  * `args` is an array of arguments passed to the gren compiler.
  * `options` allow you to set environment variables and a timeout (milliseconds).
  */
-export async function execute(path, args, options) {
+async function execute(path, args, options) {
   return await execFile(process.argv[0], [compilerPath].concat(args), {
     cwd: path,
     env: options.env || {},
     timeout: options.timeout || 30_000,
     shell: true,
   });
+}
+
+/* Get the version of the Gren compiler
+ */
+async function version() {
+  const stdout = await handleFailableExecution(process.cwd(), ["--version"], {});
+  return stdout.trim();
 }
 
 /* Install the dependencies of a Gren project.
@@ -34,7 +37,7 @@ export async function execute(path, args, options) {
  * `path` should be set to the project directory where you wish to execute this command.
  * `options` allow you to set environment variables and a timeout (milliseconds).
  */
-export async function installDependencies(path, options) {
+async function installDependencies(path, options) {
   await execute(path, ["package", "install"], options || {});
   return true;
 }
@@ -49,7 +52,7 @@ export async function installDependencies(path, options) {
  *
  * If `options` contains a sourcemaps property that is true, sourcemaps will be generated and inlined into the output.
  */
-export async function compileProject(path, options) {
+async function compileProject(path, options) {
   let args = ["make", "--output=/dev/stdout", "--report=json"];
 
   if (options.sourcemaps) {
@@ -92,8 +95,8 @@ async function handleFailableExecution(path, args, options) {
  * `path` should be set to the project directory where you wish to execute this command.
  * `options` allow you to set environment variables and a timeout (milliseconds).
  */
-export async function compileDocs(path, options) {
-  let args = ["docs", "--output=/dev/stdout", "--report=json"];
+async function compileDocs(path, options) {
+  const args = ["docs", "--output=/dev/stdout", "--report=json"];
   const docs = await handleFailableExecution(path, args, options || {});
 
   return JSON.parse(docs);
@@ -107,7 +110,7 @@ export async function compileDocs(path, options) {
  * `path` should be set to the project directory where you wish to execute this command.
  * `options` allow you to set environment variables and a timeout (milliseconds).
  */
-export async function validateProject(path, opts) {
+async function validateProject(path, opts) {
   let options = opts || {};
   let args;
 
@@ -121,3 +124,12 @@ export async function validateProject(path, opts) {
 
   return true;
 }
+
+module.exports = {
+  execute,
+  version,
+  installDependencies,
+  compileProject,
+  compileDocs,
+  validateProject,
+};
