@@ -2,7 +2,6 @@
 
 When getting started with Gren, it is pretty common to have questions about how the `import` declarations work exactly. These questions usually arise when you start playing with the `Html` library so we will focus on that.
 
-
 <br>
 
 ## `import`
@@ -18,10 +17,10 @@ main =
   Html.div [] []
 ```
 
-After saying `import Html` we can refer to anything inside that module as long as it is *qualified*. This works for:
+After saying `import Html` we can refer to anything inside that module as long as it is _qualified_. This works for:
 
-  - **Values** &mdash; we can refer to `Html.text`, `Html.h1`, etc.
-  - **Types** &mdash; We can refer to [`Attribute`](http://package.gren-lang.org/packages/gren-lang/html/latest/Html#Attribute) as `Html.Attribute`.
+- **Values** &mdash; we can refer to `Html.text`, `Html.h1`, etc.
+- **Types** &mdash; We can refer to [`Attribute`](http://package.gren-lang.org/packages/gren-lang/html/latest/Html#Attribute) as `Html.Attribute`.
 
 So if we add a type annotation to `main` it would look like this:
 
@@ -33,16 +32,15 @@ main =
   Html.div [] []
 ```
 
-We are referring to the [`Html`](http://package.gren-lang.org/packages/gren-lang/html/latest/Html#Html) type, using its *qualified* name `Html.Html`. This can feel weird at first, but it starts feeling natural quite quickly!
+We are referring to the [`Html`](http://package.gren-lang.org/packages/gren-lang/html/latest/Html#Html) type, using its _qualified_ name `Html.Html`. This can feel weird at first, but it starts feeling natural quite quickly!
 
-> **Note:** Modules do not contain other modules. So the `Html` module *does not* contain the `Html.Attributes` module. Those are separate names that happen to have some overlap. So if you say `import Html` you *do not* get access to `Html.Attributes.style`. You must `import Html.Attributes` module separately.
-
+> **Note:** Modules do not contain other modules. So the `Html` module _does not_ contain the `Html.Attributes` module. Those are separate names that happen to have some overlap. So if you say `import Html` you _do not_ get access to `Html.Attributes.style`. You must `import Html.Attributes` module separately.
 
 <br>
 
 ## `as`
 
-It is best practice to always use *qualified* names, but sometimes module names are so long that it becomes unwieldy. This is common for the `Html.Attributes` module. We can use the `as` keyword to help with this:
+It is best practice to always use _qualified_ names, but sometimes module names are so long that it becomes unwieldy. This is common for the `Html.Attributes` module. We can use the `as` keyword to help with this:
 
 ```gren
 import Html
@@ -54,12 +52,11 @@ main =
 
 Saying `import Html.Attributes as A` lets us refer to any value or type in `Html.Attributes` as long as it is qualified with an `A`. So now we can refer to [`style`](http://package.gren-lang.org/packages/gren-lang/html/latest/Html-Attributes#style) as `A.style`.
 
-
 <br>
 
 ## `exposing`
 
-In quick drafts, maybe you want to use *unqualified* names. You can do that with the `exposing` keyword like this:
+In quick drafts, maybe you want to use _unqualified_ names. You can do that with the `exposing` keyword like this:
 
 ```gren
 import Html exposing (..)
@@ -75,7 +72,6 @@ Saying `import Html exposing (..)` means I can refer to any value or type from t
 > **Note:** It seems neat to expose types and values directly, but it can get out of hand. Say you `import` ten modules `exposing` all of their content. It quickly becomes difficult to figure out what is going on in your code. “Wait, where is this function from?” And then trying to sort through all the imports to find it. Point is, use `exposing (..)` sparingly!
 
 Saying `import Html.Attributes exposing (style)` is a bit more reasonable. It means I can refer to the `style` function without qualification, but that is it. You are still importing the `Html.Attributes` module like normal though, so you would say `Html.Attributes.class` or `Html.Attributes.id` to refer to other values and types from that module.
-
 
 <br>
 
@@ -93,7 +89,6 @@ main =
 ```
 
 Notice that I refer to `A.class` which is qualified and `style` which is unqualified.
-
 
 <br>
 
@@ -119,6 +114,6 @@ import Platform.Sub as Sub exposing (Sub)
 
 You can think of these imports being at the top of any module you write.
 
-One could argue that `Maybe` is so fundamental to how we handle errors in Gren code that it is *basically* part of the language. One could also argue that it is extraordinarily annoying to have to import `Maybe` once you get past your first couple weeks with Gren. Either way, we know that default imports are not ideal in some sense, so we have tried to keep the default imports as minimal as possible.
+One could argue that `Maybe` is so fundamental to how we handle errors in Gren code that it is _basically_ part of the language. One could also argue that it is extraordinarily annoying to have to import `Maybe` once you get past your first couple weeks with Gren. Either way, we know that default imports are not ideal in some sense, so we have tried to keep the default imports as minimal as possible.
 
 > **Note:** Gren performs dead code elimination, so if you do not use something from a module, it is not included in the generated code. So if you `import` a module with hundreds of functions, you do not need to worry about the size of your assets. You will only get what you use!

@@ -4,7 +4,6 @@ Gren checks to make sure that all possible inputs to a function or `case` are ha
 
 There are a couple techniques for making this work for you in every scenario.
 
-
 ## The danger of wildcard patterns
 
 A common scenario is that you want to add a tag to a custom type that is used in a bunch of places. For example, maybe you are working different variations of users in a chat room:
@@ -46,7 +45,6 @@ toName user =
 
 Now the compiler will say "hey, what should `toName` do when it sees a `Visitor`?" This is a tiny bit of extra work, but it is very worth it!
 
-
 ## I want to go fast!
 
 Imagine that the `User` type appears in 20 or 30 functions across your project. When we add a `Visitor` variant, the compiler points out all the places that need to be updated. That is very convenient, but in a big project, maybe you want to get through it extra quickly.
@@ -78,14 +76,13 @@ In this case it is easier to just write the implementation, but the point is tha
 
 The Gren compiler is actually aware of `Debug.todo` so when it sees it in a `case` like this, it will crash with a bunch of helpful information. It will tell you:
 
-  1. The name of the module that contains the code.
-  2. The line numbers of the `case` containing the TODO.
-  3. The particular value that led to this TODO.
+1. The name of the module that contains the code.
+2. The line numbers of the `case` containing the TODO.
+3. The particular value that led to this TODO.
 
 From that information you have a pretty good idea of what went wrong and can go fix it.
 
 I tend to use `Debug.todo` as the message when my goal is to go quick because it makes it easy to go and find all remaining todos in my code before a release.
-
 
 ## A list that definitely is not empty
 

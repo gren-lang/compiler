@@ -2,7 +2,6 @@
 
 Infinite types are probably the trickiest kind of bugs to track down. **Writing down type annotations is usually the fastest way to figure them out.** Let's work through an example to get a feel for how these errors usually work though!
 
-
 ## Example
 
 A common way to get an infinite type error is very small typos. For example, do you see the problem in the following code?

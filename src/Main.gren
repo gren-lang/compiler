@@ -1,4 +1,4 @@
-module Main exposing (main)
+port module Main exposing (main)
 
 import Node
 import ChildProcess
@@ -12,6 +12,11 @@ import HttpClient
 import Bytes exposing (Bytes)
 import Terminal
 import Process
+import CLI.Parser
+import CLI.PrettyPrinter as PP
+import SemanticVersion exposing (SemanticVersion)
+import Package exposing (Package)
+import Json.Encode as Json
 
 
 main : Node.Program Model Msg
@@ -23,23 +28,22 @@ main =
         }
 
 
+compilerVersion : String
+compilerVersion =
+    "0.4.5"
+
+
 type alias Model = 
     { args : Array String
     , stdout : Stream
     , stderr : Stream
     , useColor : Bool
+    , interactive : Bool
     , fsPermission : FileSystem.Permission
     , cpPermission : ChildProcess.Permission
     , httpPermission : HttpClient.Permission
-    , remotePath : Maybe String
-    , localPath : Path
     , pathToString : Path -> String
     }
-
-
-compilerVersion : String
-compilerVersion =
-    "0.4.5"
 
 
 init : Node.Environment -> Init.Task { model : Model, command : Cmd Msg }
@@ -54,112 +58,82 @@ init env =
                 userArgs =
                     Array.dropFirst 2 env.args
 
+                interactiveTerminal =
+                    terminalConfig /= Nothing
+
                 useColor =
-                    case terminalConfig of
-                        Nothing ->
-                            False
-
-                        Just _ ->
-                            case Dict.get "NO_COLOR" envVars of
-                                Just _ ->
-                                    False
-
-                                Nothing ->
-                                    True
+                    interactiveTerminal && not (Dict.member "NO_COLOR" envVars)
 
                 maybePaths =
                     case { platform = env.platform, arch = env.cpuArchitecture, override = Dict.get "GREN_BIN" envVars } of
                         { override = Just overridePath, platform = Node.Win32 } ->
                             Just <|
-                                { args = userArgs
-                                , stdout = env.stdout
-                                , remotePath = Nothing
+                                { remotePath = Nothing
                                 , localPath = Path.fromWin32String overridePath
                                 }
                         
                         { override = Just overridePath } ->
                             Just <|
-                                { args = userArgs
-                                , stdout = env.stdout
-                                , remotePath = Nothing
+                                { remotePath = Nothing
                                 , localPath = Path.fromPosixString overridePath
                                 }
                                 
                         { platform = Node.Win32, arch = Node.X64 } ->
                             Just <|
-                                { args = userArgs
-                                , stdout = env.stdout
-                                , remotePath = Just <| makeRemotePath "gren.exe"
+                                { remotePath = Just <| makeRemotePath "gren.exe"
                                 , localPath = makeLocalPath env.platform homeDir envVars
                                 }
 
                         { platform = Node.Darwin, arch = Node.X64 } ->
                             Just <|
-                                { args = userArgs
-                                , stdout = env.stdout
-                                , remotePath = Just <| makeRemotePath "gren_mac"
+                                { remotePath = Just <| makeRemotePath "gren_mac"
                                 , localPath = makeLocalPath env.platform homeDir envVars
                                 }
 
                         { platform = Node.Darwin, arch = Node.Arm64 } ->
                             Just <|
-                                { args = userArgs
-                                , stdout = env.stdout
-                                , remotePath = Just <| makeRemotePath "gren_mac_aarch64"
+                                { remotePath = Just <| makeRemotePath "gren_mac_aarch64"
                                 , localPath = makeLocalPath env.platform homeDir envVars
                                 }
 
                         { platform = Node.Linux, arch = Node.X64 } ->
                             Just <|
-                                { args = userArgs
-                                , stdout = env.stdout
-                                , remotePath = Just <| makeRemotePath "gren_linux"
+                                { remotePath = Just <| makeRemotePath "gren_linux"
                                 , localPath = makeLocalPath env.platform homeDir envVars
                                 }
 
                         _ ->
                             Nothing
 
-                model =
-                    case maybePaths of
-                        Just paths ->
-                            { args = userArgs
-                            , stdout = env.stdout
-                            , stderr = env.stderr
-                            , useColor = useColor
-                            , fsPermission = fsPermission
-                            , cpPermission = cpPermission
-                            , httpPermission = httpPermission
-                            , remotePath = paths.remotePath
-                            , localPath = paths.localPath
-                            , pathToString =
-                                if env.platform == Node.Win32 then
-                                    Path.toWin32String
-                                else
-                                    Path.toPosixString
-                            }
-                        
-                        Nothing ->
-                            -- dummy model
-                            { args = []
-                            , stdout = env.stdout
-                            , stderr = env.stderr
-                            , useColor = useColor
-                            , fsPermission = fsPermission
-                            , cpPermission = cpPermission
-                            , httpPermission = httpPermission
-                            , remotePath = Nothing
-                            , localPath = Path.empty
-                            , pathToString = Path.toPosixString
-                            }
             in
             Node.startProgram
-                { model = model
+                { model =
+                    { args = userArgs
+                    , stdout = env.stdout
+                    , stderr = env.stderr
+                    , interactive = interactiveTerminal
+                    , useColor = useColor
+                    , fsPermission = fsPermission
+                    , cpPermission = cpPermission
+                    , httpPermission = httpPermission
+                    , pathToString =
+                        if env.platform == Node.Win32 then
+                            Path.toWin32String
+                        else
+                            Path.toPosixString
+                    }
                 , command =
                     case maybePaths of
-                        Just _ ->
-                            FileSystem.checkAccess fsPermission [] model.localPath
-                                |> Task.attempt ExistanceChecked
+                        Just paths ->
+                            FileSystem.checkAccess fsPermission [] paths.localPath
+                                |> Task.attempt 
+                                    (\result -> 
+                                        ExistanceChecked
+                                            { maybeRemotePath = paths.remotePath
+                                            , localPath = paths.localPath
+                                            , existanceResult = result
+                                            }
+                                    )
 
                         Nothing ->
                             Stream.sendLine env.stderr "We currently don't support this platform/arch."
@@ -223,76 +197,69 @@ makeLocalPath platform homeDir envVars =
 
 
 type Msg
-    = ExistanceChecked (Result FileSystem.Error Path)
-    | CompilerDownloaded (Result (HttpClient.Error Bytes) (HttpClient.Response Bytes))
-    | CompilerInstalled (Result FileSystem.Error {})
+    = ExistanceChecked 
+        { maybeRemotePath : Maybe String
+        , localPath : Path
+        , existanceResult : Result FileSystem.Error Path
+        }
+    | CompilerDownloaded 
+        { localPath : Path
+        , downloadResult : Result (HttpClient.Error Bytes) (HttpClient.Response Bytes)
+        }
+    | CompilerInstalled (Result FileSystem.Error Path)
     | CompilerRan Int
+    | CompilerRanStatic String Int
+
+
+port completeStaticBuild : String -> Cmd msg
 
 
 update : Msg -> Model -> { model : Model, command : Cmd Msg }
 update msg model =
-    case msg of
-        ExistanceChecked (Err _) ->
-            { model = model
-            , command =
-                case model.remotePath of
+    { model = model
+    , command =
+        case msg of
+            ExistanceChecked { maybeRemotePath, localPath, existanceResult = Err _ } ->
+                case maybeRemotePath of
                     Just remotePath ->
-                        Stream.sendLine model.stdout ("Compiler not found at " ++ model.pathToString model.localPath ++ ". Downloading...")
+                        Stream.sendLine model.stdout ("Compiler not found at " ++ model.pathToString localPath ++ ". Downloading...")
                             |> Task.andThen (\{} -> downloadBinary model.httpPermission remotePath)
-                            |> Task.attempt CompilerDownloaded
-                    
+                            |> Task.attempt (\result -> CompilerDownloaded { localPath = localPath, downloadResult = result })
+            
                     Nothing ->
-                        Stream.sendLine model.stderr ("Compiler not found at " ++ model.pathToString model.localPath)
+                        Stream.sendLine model.stderr ("Compiler not found at " ++ model.pathToString localPath)
                             |> Task.execute
-            }
 
-        ExistanceChecked (Ok _) ->
-            { model = model
-            , command =
-                runCompiler model
-            }
+            ExistanceChecked { existanceResult = Ok compilerPath } ->
+                parseUserArgs model compilerPath
 
-        CompilerDownloaded (Err ((HttpClient.BadStatus res) as err)) ->
-            if res.statusCode == 302 then
-                case Dict.get "location" res.headers of
-                    Just [ location ] ->
-                        { model = model
-                        , command =
+            CompilerDownloaded { localPath, downloadResult = Err ((HttpClient.BadStatus res) as err) } ->
+                if res.statusCode == 302 then
+                    case Dict.get "location" res.headers of
+                        Just [ location ] ->
                             downloadBinary model.httpPermission location
-                                |> Task.attempt CompilerDownloaded
-                        }
+                                |> Task.attempt (\result -> CompilerDownloaded { localPath = localPath, downloadResult = result })
 
-                    _ ->
-                        { model = model
-                        , command =
+                        _ ->
                             Stream.sendLine model.stderr "Missing, or vague, 'location' header in 302 response from server."
                                 |> Task.execute
-                        }
 
-            else
-                { model = model
-                , command =
+                else
                     Stream.sendLine model.stderr (HttpClient.errorToString err)
                         |> Task.execute
-                }
         
-        CompilerDownloaded (Err err) ->
-                { model = model
-                , command =
-                    Stream.sendLine model.stderr (HttpClient.errorToString err)
-                        |> Task.execute
-                }
+            CompilerDownloaded { downloadResult = Err err } ->
+                Stream.sendLine model.stderr (HttpClient.errorToString err)
+                    |> Task.execute
         
-        CompilerDownloaded (Ok res) ->
-            let
-                cacheFolder =
-                    Path.parentPath model.localPath
-                        |> Maybe.withDefault Path.empty
-            in
-            { model = model
-            , command =
+            CompilerDownloaded { localPath, downloadResult = Ok res } ->
+                let
+                    cacheFolder =
+                        Path.parentPath localPath
+                            |> Maybe.withDefault Path.empty
+                in
                 FileSystem.makeDirectory model.fsPermission { recursive = True } cacheFolder
-                    |> Task.andThen (\_cacheFolder -> FileSystem.writeFile model.fsPermission res.data model.localPath)
+                    |> Task.andThen (\_cacheFolder -> FileSystem.writeFile model.fsPermission res.data localPath)
                     |> Task.andThen 
                         (FileSystem.changeAccess
                             model.fsPermission
@@ -301,29 +268,32 @@ update msg model =
                             , others = [ FileSystem.Read, FileSystem.Execute ]
                             }
                         )
-                    |> Task.andThen (\_binPath -> Stream.sendLine model.stdout "Downloaded")
+                    |> Task.andThen 
+                        (\binPath -> 
+                            Stream.sendLine model.stdout "Downloaded"
+                                |> Task.map (\_ -> binPath)
+                        )
                     |> Task.attempt CompilerInstalled
-            }
         
-        CompilerInstalled (Err fsErr) ->
-            { model = model
-            , command =
+            CompilerInstalled (Err fsErr) ->
                 Stream.sendLine model.stderr ("Failed to install binary after download, due to error: " ++ FileSystem.errorToString fsErr)
                     |> Task.execute
-            }
         
-        CompilerInstalled (Ok {}) ->
-            { model = model
-            , command =
-                runCompiler model
-            }
+            CompilerInstalled (Ok compilerPath) ->
+                parseUserArgs model compilerPath
 
-        CompilerRan exitCode ->
-            { model = model
-            , command =
+            CompilerRan exitCode ->
                 Node.exitWithCode exitCode
                     |> Task.execute
-            }
+            
+            CompilerRanStatic output exitCode ->
+                if exitCode == 0 then
+                    completeStaticBuild output
+                
+                else
+                    Node.exitWithCode exitCode
+                        |> Task.execute
+        }
 
 
 downloadBinary : HttpClient.Permission -> String -> Task (HttpClient.Error Bytes) (HttpClient.Response Bytes)
@@ -333,17 +303,883 @@ downloadBinary permission url =
         |> HttpClient.send permission
 
 
-runCompiler : Model -> Cmd Msg
-runCompiler model =
+parseUserArgs : Model -> Path -> Cmd Msg
+parseUserArgs model compilerPath =
     let
+        colorFilter =
+            if model.useColor then
+                identity
+
+            else
+                PP.stripColor
+
+        prettyTextToTerminal doc =
+            doc
+                |> colorFilter
+                |> PP.toStringWithOptions
+                    { PP.defaultOptions | maxColumns = 80 }
+    in
+    case CLI.Parser.run model.args cliParser of
+        CLI.Parser.UnknownCommand commandName ->
+            Stream.sendLine model.stderr ("I don't recognize this command: " ++ commandName)
+                |> Task.execute
+    
+        CLI.Parser.BadFlags err ->
+            err
+                |> CLI.Parser.flagErrorPrettified
+                |> prettyTextToTerminal
+                |> Stream.sendLine model.stderr
+                |> Task.execute
+    
+        CLI.Parser.BadArguments err ->
+            err
+                |> CLI.Parser.argumentErrorPrettified
+                |> prettyTextToTerminal
+                |> Stream.sendLine model.stderr
+                |> Task.execute
+    
+        CLI.Parser.HelpText prettifiedText ->
+            prettifiedText
+                |> prettyTextToTerminal
+                |> Stream.sendLine model.stdout
+                |> Task.execute
+    
+        CLI.Parser.Success command ->
+            runCompiler model compilerPath command
+
+
+runCompiler : Model -> Path -> Command -> Cmd Msg
+runCompiler model compilerPath command =
+    let
+        commandAsJson =
+            command
+                |> commandEncoder model.interactive model.pathToString
+                |> Json.encode 0
+
+        escapedCommand =
+            "'" ++ commandAsJson ++ "'"
+        
         colorEnvVar =
             if model.useColor then
                 Dict.singleton "FORCE_COLOR" "1"
             else
                 Dict.singleton "NO_COLOR" "1"
+
+        completionCommand =
+            case command of
+                MakeStatic opts ->
+                    CompilerRanStatic <| model.pathToString opts.output
+
+                _ ->
+                    CompilerRan
     in
-    ChildProcess.spawnAndNotifyOnExit model.cpPermission CompilerRan (model.pathToString model.localPath) model.args <|
+    ChildProcess.spawnAndNotifyOnExit model.cpPermission completionCommand (model.pathToString compilerPath) [ escapedCommand ] <|
         { ChildProcess.defaultSpawnOptions
             | environmentVariables = 
                 ChildProcess.MergeWithEnvironmentVariables colorEnvVar
         }
+
+
+-- CLI Parsing
+
+
+type Command
+    = Init InitFlags
+    | Repl ReplFlags
+    | Make MakeFlags (Array Path)
+    | MakeStatic StaticOpts
+    | Docs DocsFlags
+    | PackageInstall (Maybe Package)
+    | PackageUninstall Package
+    | PackageOutdated
+    | PackageValidate
+    | PackageBump
+    | PackageDiff DiffArgs
+
+
+type alias InitFlags =
+    { package : Bool
+    , platform : Platform
+    }
+
+
+type Platform
+    = Common
+    | Browser
+    | Node
+
+
+type alias ReplFlags =
+    { interpreter : Maybe String
+    }
+
+
+type alias MakeFlags =
+    { debug : Bool
+    , optimize : Bool
+    , sourcemaps : Bool
+    , output : Maybe MakeOutput
+    , report : Maybe {}
+    }
+
+
+type MakeOutput
+    = StdOut
+    | DevNull
+    | Html String
+    | Js String
+    | Exe String
+
+
+type alias StaticOpts =
+    { output : Path
+    , source : Path
+    }
+
+
+type alias DocsFlags =
+    { output : Maybe DocsOutput
+    , report : Maybe {}
+    }
+
+
+type DocsOutput
+    = DocsStdOut
+    | DocsDevNull
+    | DocsJson String
+
+
+type DiffArgs
+    = DiffLatest
+    | DiffVersion SemanticVersion
+    | DiffRange SemanticVersion SemanticVersion
+    | DiffGlobal Package SemanticVersion SemanticVersion
+
+
+cliParser : CLI.Parser.App Command
+cliParser =
+    { name = "gren"
+    , version = compilerVersion
+    , intro = 
+        PP.verticalBlock
+            [ PP.block
+                [ PP.text "Hi, thank you for trying out "
+                , PP.intenseColor PP.Green <| PP.text ("Gren " ++ compilerVersion)
+                , PP.text ". I hope you like it!"
+                ]
+            , PP.empty
+            , PP.intenseColor PP.Black <|
+                PP.text
+                    """
+                    -------------------------------------------------------------------------------
+                    I highly recommend working through <https://gren-lang.org/learn> to get started
+                    It teaches many important concepts, including how to use `gren` in the terminal
+                    -------------------------------------------------------------------------------
+                    """
+            ]
+    , outro = 
+        PP.words
+            """
+            Be sure to ask on the Gren Discord (https://discord.gg/Chb9YB9Vmh) if you run into trouble!
+            Folks are friendly and happy to help out. They hang out there because it is fun, so be kind
+            to get the best results!
+            """
+    , commands =
+        CLI.Parser.defineGroup
+            |> CLI.Parser.withCommand
+                { word = "init"
+                , arguments =
+                    CLI.Parser.noArgs
+                , flags =
+                    CLI.Parser.initFlags 
+                        (\package maybePlatform ->
+                            { package = package
+                            , platform = 
+                                if package then
+                                    Maybe.withDefault Common maybePlatform
+
+                                else
+                                    Maybe.withDefault Browser maybePlatform
+                            }
+                        )
+                        |> CLI.Parser.toggle "package" "Create a package (as opposed to an application)"
+                        |> CLI.Parser.flag "platform" initPlatformParser "Which platform to target"
+                , commonDescription =
+                    Just "Start a Gren project. It creates a starter gren.json file."
+                , summary =
+                    "The `init` command helps start Gren project:"
+                , example = 
+                    PP.words
+                        """
+                        It will ask permission to create a gren.json file, the one thing
+                        common to all Gren project.
+                        """
+                , builder =
+                    \_args flags -> Init flags
+                }
+            |> CLI.Parser.withCommand
+                { word = "repl"
+                , arguments =
+                    CLI.Parser.noArgs
+                , flags =
+                    CLI.Parser.initFlags
+                        (\maybeInterpreter ->
+                            { interpreter = maybeInterpreter
+                            }
+                        )
+                        |> CLI.Parser.flag "interpreter" interpreterParser "Path to a alternate JS interpreter, like deno or nodejs."
+                , commonDescription =
+                    Just 
+                        """
+                        Open up an interactive programming session. Type in Gren expressions like
+                        (2 + 2) or (String.length \"test\") and see if they equal four!
+                        """
+                , summary =
+                    "The `repl` command opens up an interactive programming session:"
+                , example = 
+                    PP.words
+                        """
+                        Start working through <https://gren-lang.org/learn> to learn how to use this!
+                        It has a whole chapter that uses the REPL for everything, so that is probably
+                        the quickest way to get started.
+                        """
+                , builder =
+                    \_args flags -> Repl flags
+                }
+            |> CLI.Parser.withCommand
+                { word = "make"
+                , arguments =
+                    CLI.Parser.zeroOrMoreArgs CLI.Parser.grenFileParser
+                , flags =
+                    CLI.Parser.initFlags 
+                        (\debug optimize sourcemaps output report ->
+                            { debug = debug
+                            , optimize = optimize
+                            , sourcemaps = sourcemaps
+                            , output = output
+                            , report = report
+                            }
+                        )
+                        |> CLI.Parser.toggle "debug" "Turn on the time-travelling debugger for applications targetting the browser platform. It allows you to rewind and replay events. The events can be imported/exported into a file, which makes for very precise bug reports!"
+                        |> CLI.Parser.toggle "optimize" "Turn on optimizations to make code smaller and faster. For example, the compiler renames record fields to be as short as possible and unboxes values to reduce allocation."
+                        |> CLI.Parser.toggle "sourcemaps" "Add sourcemaps to the resulting JS file. This let's you debug Gren code in a JS debugger, at the cost of longer compile times and a bigger JS file."
+                        |> CLI.Parser.flag "output" outputParser "Specify the name of the resulting JS file. For example --output=assets/gren.js to generate the JS at assets/gren.js. You can also use --output=/dev/stdout to output the JS to the terminal, or --output=/dev/null to generate no output at all!"
+                        |> CLI.Parser.flag "report" reportParser "You can say --report=json to get error messages as JSON. This is only really useful if you are an editor plugin. Humans should avoid it!"
+                , commonDescription =
+                    Nothing
+                , summary =
+                    "The `make` command compiles Gren code into JS or HTML:"
+                , example = 
+                    PP.verticalBlock
+                        [ PP.words "For example:"
+                        , PP.empty
+                        , PP.words "gren make src/Main.gren"
+                            |> PP.indent
+                            |> PP.color PP.Green
+                        , PP.empty
+                        , PP.words
+                            """
+                            This tries to compile an Gren file named src/Main.gren, generating an index.html
+                            file if possible.
+                            """
+                        ]
+                , builder =
+                    \args flags -> Make flags args
+                }
+            |> CLI.Parser.withCommand
+                { word = "make-static"
+                , arguments =
+                    CLI.Parser.twoArgs 
+                        (\source output ->
+                            { source = source
+                            , output = output
+                            }
+                        )
+                        CLI.Parser.grenFileParser
+                        CLI.Parser.pathParser
+                , flags =
+                    CLI.Parser.noFlags
+                , commonDescription =
+                    Nothing
+                , summary =
+                    "The `make-static` command compiles Gren code into a self-contained executable:"
+                , example = 
+                    PP.verticalBlock
+                        [ PP.words "For example:"
+                        , PP.empty
+                        , PP.words "gren make-static src/Main.gren app"
+                            |> PP.indent
+                            |> PP.color PP.Green
+                        , PP.empty
+                        , PP.words
+                            """
+                            This tries to compile a Gren file named `src/Main.gren`, generating an `app`
+                            file if possible. `app` is a static executable that can be run even if `node` is
+                            not installed on the system.
+                            """
+                        ]
+                , builder =
+                    \args _flags -> MakeStatic args
+                }
+            |> CLI.Parser.withCommand
+                { word = "docs"
+                , arguments =
+                    CLI.Parser.noArgs
+                , flags =
+                    CLI.Parser.initFlags 
+                        (\output report ->
+                            { output = output
+                            , report = report
+                            }
+                        )
+                        |> CLI.Parser.flag "output" docsOutputParser "Specify the name of the resulting JSON file. For example --output=assets/docs.json to generate the JSON at assets/docs.json. You can also use --output=/dev/stdout to output the JSON to the terminal, or --output=/dev/null to verify that generating the documentation would work."
+                        |> CLI.Parser.flag "report" reportParser "You can say --report=json to get error messages as JSON. This is only really useful if you are an editor plugin. Humans should avoid it!"
+                , commonDescription =
+                    Nothing
+                , summary =
+                    "The `docs` command collects all documentation for a package in a JSON file:"
+                , example = 
+                    PP.verticalBlock
+                        [ PP.words "For example:"
+                        , PP.words "gren docs"
+                            |> PP.indent
+                            |> PP.color PP.Green
+                        , PP.words
+                            """
+                            This collects all documentation for the current pacage and writes it to a
+                            docs.json file, if possible.
+                            """
+                        ]
+                , builder =
+                    \_args flags -> Docs flags
+                }
+            |> CLI.Parser.withPrefix "package" packageCommands
+    }
+
+
+packageCommands : CLI.Parser.GroupParser Command
+packageCommands =
+    CLI.Parser.defineGroup
+        |> CLI.Parser.withCommand
+            { word = "install"
+            , arguments =
+                CLI.Parser.oneOfArgs
+                    [ CLI.Parser.noArgs
+                        |> CLI.Parser.mapArgs (\_ -> Nothing)
+                    , CLI.Parser.oneArg packageParser
+                        |> CLI.Parser.mapArgs Just
+                    ]
+            , flags =
+                CLI.Parser.noFlags 
+            , commonDescription =
+                Nothing
+            , summary =
+                "The `install` command fetches packages from github for use in your project:"
+            , example = 
+                PP.verticalBlock
+                    [ PP.words 
+                        """
+                        For example, if you want to get access to Web APIs in your project,
+                        you would say:
+                        """
+                    , PP.empty
+                    , PP.text "gren package install gren-lang/browser"
+                        |> PP.indent
+                        |> PP.color PP.Green
+                    , PP.empty
+                    , PP.words
+                        """
+                        Notice that you must say the AUTHOR name and PROJECT name! After running those
+                        commands, you could say `import Browser` in your code.
+                        """
+                    , PP.empty
+                    , PP.words
+                        """
+                        You can also call this command without any arguments to download all dependencies
+                        listed in gren.json. This can be helpful in Continous Integration setups where
+                        you want to cache dependencies between builds.
+                        """
+                    ]
+            , builder =
+                \arg _flags -> PackageInstall arg
+            }
+        |> CLI.Parser.withCommand
+            { word = "uninstall"
+            , arguments =
+                CLI.Parser.oneArg packageParser
+            , flags =
+                CLI.Parser.noFlags 
+            , commonDescription =
+                Nothing
+            , summary =
+                "The `uninstall` command removes packages from your project:"
+            , example = 
+                PP.verticalBlock
+                    [ PP.words 
+                        """
+                        For example, if you want to get rid of the browser package in your project,
+                        you would say:
+                        """
+                    , PP.empty
+                    , PP.text "gren package uninstall gren-lang/browser"
+                        |> PP.indent
+                        |> PP.color PP.Green
+                    , PP.empty
+                    , PP.words 
+                        """
+                        Notice that you must say the AUTHOR name and PROJECT name!
+                        """
+                    , PP.empty
+                    , PP.words
+                        """
+                        What if another package depends on the package you're trying to remove? No problem!
+                        I'll let you know if that's the case, and help you resolve the situation. 
+                        """
+                    ]
+            , builder =
+                \arg _flags -> PackageUninstall arg
+            }
+        |> CLI.Parser.withCommand
+            { word = "outdated"
+            , arguments =
+                CLI.Parser.noArgs
+            , flags =
+                CLI.Parser.noFlags 
+            , commonDescription =
+                Nothing
+            , summary =
+                "The `outdated` command lists the latest version of your dependencies,"
+                    ++ " if you're not already up to date:"
+            , example = 
+                PP.text "gren package outdated"
+                    |> PP.indent
+                    |> PP.color PP.Green
+            , builder =
+                \_args _flags -> PackageOutdated
+            }
+        |> CLI.Parser.withCommand
+            { word = "validate"
+            , arguments =
+                CLI.Parser.noArgs
+            , flags =
+                CLI.Parser.noFlags 
+            , commonDescription =
+                Nothing
+            , summary =
+                "The `validate` command checks that you've done everything necessary for"
+                    ++ " others in the Gren community to use your package as a dependency:"
+            , example = 
+                PP.verticalBlock
+                    [ PP.words 
+                        """
+                        Gren packages are \"just\" git repositories hosted on github. As
+                        long as you've tagged your repository with semver formatted tags,
+                        anyone can add your package as a dependency.
+                        """
+                    , PP.empty
+                    , PP.words 
+                        """
+                        However, a package is no better than its documentation. This command
+                        therefore checks that your package exposes a bare minimum of
+                        prose that the users of your package can read.
+                        """
+                    , PP.empty
+                    , PP.words
+                        """
+                        Keep in mind, you don't just want to tell people HOW to use
+                        your package. It's equally important to tell them WHY. What
+                        problem does it solve? Why should people use this particular
+                        package to solve their problem?
+                        """
+                    , PP.empty
+                    , PP.words
+                        """
+                        Once this command passes, you may want to add your repo to
+                        <https://packages.gren-lang.org> so it becomes easier for the Gren
+                        community to find your package, and its documentation.
+                        """
+                    ]
+            , builder =
+                \_args _flags -> PackageValidate
+            }
+        |> CLI.Parser.withCommand
+            { word = "bump"
+            , arguments =
+                CLI.Parser.noArgs
+            , flags =
+                CLI.Parser.noFlags 
+            , commonDescription =
+                Nothing
+            , summary =
+                "The `bump` command figures out the next version number based on API changes:"
+            , example = 
+                PP.words 
+                    """
+                    Say you just published version 1.0.0, but then decided to remove a function.
+                    I will compare the published API to what you have locally, figure out that
+                    it is a MAJOR change, and bump your version number to 2.0.0. I do this with
+                    all packages, so there cannot be MAJOR changes hiding in PATCH releases in Gren!
+                    """
+            , builder =
+                \_args _flags -> PackageBump
+            }
+        |> CLI.Parser.withCommand
+            { word = "diff"
+            , arguments =
+                CLI.Parser.oneOfArgs
+                    [ CLI.Parser.noArgs
+                        |> CLI.Parser.mapArgs (\{} -> DiffLatest)
+                    , CLI.Parser.oneArg versionParser
+                        |> CLI.Parser.mapArgs DiffVersion
+                    , CLI.Parser.twoArgs DiffRange versionParser versionParser
+                    , CLI.Parser.threeArgs DiffGlobal packageParser versionParser versionParser
+                    ]
+            , flags =
+                CLI.Parser.noFlags 
+            , commonDescription =
+                Nothing
+            , summary =
+                "The `diff` command detects API changes:"
+            , example = 
+                PP.verticalBlock
+                    [ PP.words 
+                        """
+                        For example, to see what changed in the Browser package between
+                        versions 1.0.0 and 2.0.0, you can say:
+                        """
+                    , PP.empty
+                    , PP.text "gren package diff gren-lang/browser 1.0.0 2.0.0"
+                        |> PP.indent
+                        |> PP.color PP.Green
+                    , PP.empty
+                    , PP.words 
+                        """
+                        Sometimes a MAJOR change is not actually very big, so
+                        this can help you plan your upgrade timelines.
+                        """
+                    ]
+            , builder =
+                \args _flags -> PackageDiff args
+            }
+
+
+initPlatformParser : CLI.Parser.ValueParser Platform
+initPlatformParser =
+    { singular = "platform"
+    , plural = "platforms"
+    , fn = \str ->
+        case str of
+            "common" -> Just Common
+            "browser" -> Just Browser
+            "node" -> Just Node
+            _ -> Nothing
+    , examples =
+        [ "common"
+        , "browser"
+        , "node"
+        ]
+    }
+
+
+reportParser : CLI.Parser.ValueParser {}
+reportParser =
+    { singular = "report-type"
+    , plural = "report-types"
+    , fn = \str ->
+        if str == "json" then
+            Just {}
+
+        else
+            Nothing
+    , examples =
+        [ "json" ]
+    }
+
+
+interpreterParser : CLI.Parser.ValueParser String
+interpreterParser =
+    { singular = "interpreter"
+    , plural = "interpreters"
+    , fn = Just
+    , examples =
+        [ "node"
+        , "deno"
+        , "bun"
+        ]
+    }
+
+
+packageParser : CLI.Parser.ValueParser Package
+packageParser =
+    { singular = "package"
+    , plural = "packages"
+    , fn = Package.fromString
+    , examples =
+        [ "gren-lang/core"
+        , "robheghan/string-diff"
+        ]
+    }
+
+
+versionParser : CLI.Parser.ValueParser SemanticVersion
+versionParser =
+    { singular = "version"
+    , plural = "versions"
+    , fn = SemanticVersion.fromString
+    , examples =
+        [ "1.0.0"
+        , "1.2.3"
+        , "5.1.0"
+        ]
+    }
+
+
+outputParser : CLI.Parser.ValueParser MakeOutput
+outputParser =
+    { singular = "output-file"
+    , plural = "output-files"
+    , fn = \str ->
+        case str of
+            "/dev/stdout" -> Just StdOut
+            "/dev/null" -> Just DevNull
+            "NUL" -> Just DevNull
+            "$null" -> Just DevNull
+            _ ->
+                if String.endsWith ".html" str then
+                    Just <| Html str
+                
+                else if String.endsWith ".js" str then
+                    Just <| Js str
+
+                else if not <| String.contains "." str then
+                    Just <| Exe str
+
+                else
+                    Nothing
+    , examples =
+        [ "/dev/stdout"
+        , "/dev/null"
+        , "index.html"
+        , "index.js"
+        , "app"
+        ]
+    }
+
+
+docsOutputParser : CLI.Parser.ValueParser DocsOutput
+docsOutputParser =
+    { singular = "output-file"
+    , plural = "output-files"
+    , fn = \str ->
+        case str of
+            "/dev/stdout" -> Just DocsStdOut
+            "/dev/null" -> Just DocsDevNull
+            "NUL" -> Just DocsDevNull
+            "$null" -> Just DocsDevNull
+            _ ->
+                if String.endsWith ".json" str then
+                    Just <| DocsJson str
+
+                else
+                    Nothing
+    , examples =
+        [ "/dev/stdout"
+        , "/dev/null"
+        , "docs.json"
+        ]
+    }
+
+
+commandEncoder : Bool -> (Path -> String) -> Command -> Json.Value
+commandEncoder interactive pathToString command =
+    case command of
+        Init flags ->
+            Json.object
+                [ { key = "command", value = Json.string "init" }
+                , { key = "interactive", value = Json.bool interactive }
+                , { key = "package", value = Json.bool flags.package }
+                , { key = "platform", value = platformEncoder flags.platform }
+                ]
+        
+        Repl flags ->
+            Json.object
+                [ { key = "command", value = Json.string "repl" }
+                , { key = "intepreter" , value = maybeEncoder Json.string flags.interpreter }
+                ]
+        
+        Make flags paths ->
+            Json.object
+                [ { key = "command", value = Json.string "make" }
+                , { key = "debug", value = Json.bool flags.debug }
+                , { key = "optimize", value = Json.bool flags.optimize }
+                , { key = "sourcemaps", value = Json.bool flags.sourcemaps }
+                , { key = "output", value = maybeEncoder makeOutputEncoder flags.output }
+                , { key = "report-json", value = maybeToBool flags.report }
+                , { key = "paths", value = Json.array (pathToString >> Json.string) paths }
+                ]
+        
+        MakeStatic opts ->
+            commandEncoder interactive pathToString <|
+                Make
+                    { debug = False
+                    , optimize = True
+                    , sourcemaps = False
+                    , output = Just (Exe <| pathToString opts.output)
+                    , report = Nothing
+                    }
+                    [ opts.source ]
+        
+        Docs flags ->
+            Json.object
+                [ { key = "command", value = Json.string "docs" }
+                , { key = "output", value = maybeEncoder docsOutputEncoder flags.output }
+                , { key = "report-json", value = maybeToBool flags.report }
+                ]
+        
+        PackageInstall maybePackage ->
+            Json.object
+                [ { key = "command", value = Json.string "packageInstall" }
+                , { key = "interactive", value = Json.bool interactive }
+                , { key = "package", value = maybeEncoder packageEncoder maybePackage }
+                ]
+        
+        PackageUninstall package ->
+            Json.object
+                [ { key = "command", value = Json.string "packageUninstall" }
+                , { key = "interactive", value = Json.bool interactive }
+                , { key = "package", value = packageEncoder package }
+                ]
+        
+        PackageOutdated ->
+            Json.object
+                [ { key = "command", value = Json.string "packageOutdated" }
+                ]
+        
+        PackageValidate ->
+            Json.object
+                [ { key = "command", value = Json.string "packageValidate" }
+                ]
+        
+        PackageBump ->
+            Json.object
+                [ { key = "command", value = Json.string "packageBump" }
+                , { key = "interactive", value = Json.bool interactive }
+                ]
+        
+        PackageDiff args ->
+            case args of
+                DiffLatest ->
+                    Json.object
+                        [ { key = "command", value = Json.string "packageDiffLatest" }
+                        ]
+                
+                DiffVersion ver ->
+                    Json.object
+                        [ { key = "command", value = Json.string "packageDiffVersion" }
+                        , { key = "version", value = versionEncoder ver }
+                        ]
+                
+                DiffRange ver1 ver2 ->
+                    Json.object
+                        [ { key = "command", value = Json.string "packageDiffRange" }
+                        , { key = "from", value = versionEncoder ver1 }
+                        , { key = "to", value = versionEncoder ver2 }
+                        ]
+                
+                DiffGlobal package ver1 ver2 ->
+                    Json.object
+                        [ { key = "command", value = Json.string "packageDiffGlobal" }
+                        , { key = "package", value = packageEncoder package }
+                        , { key = "from", value = versionEncoder ver1 }
+                        , { key = "to", value = versionEncoder ver2 }
+                        ]
+
+
+maybeEncoder : (a -> Json.Value) -> Maybe a -> Json.Value
+maybeEncoder enc maybeVal =
+    case maybeVal of
+        Just val ->
+            enc val
+
+        Nothing ->
+            Json.null
+
+
+maybeToBool : Maybe a -> Json.Value
+maybeToBool maybeVal =
+    case maybeVal of
+        Just val ->
+            Json.bool True
+
+        Nothing ->
+            Json.bool False
+
+
+platformEncoder : Platform -> Json.Value
+platformEncoder platform =
+    case platform of
+        Common -> Json.string "common"
+        Browser -> Json.string "browser"
+        Node -> Json.string "node"
+
+
+packageEncoder : Package -> Json.Value
+packageEncoder package =
+    Json.string <| Package.toString package
+
+
+versionEncoder : SemanticVersion -> Json.Value
+versionEncoder semver =
+    Json.string <| SemanticVersion.toString semver
+
+
+makeOutputEncoder : MakeOutput -> Json.Value
+makeOutputEncoder output =
+    case output of
+        StdOut -> 
+            Json.object
+                [ { key = "type", value = Json.string "stdout" }
+                ]
+        
+        DevNull ->
+            Json.object
+                [ { key = "type", value = Json.string "null" }
+                ]
+        
+        Html path ->
+            Json.object
+                [ { key = "type", value = Json.string "html" }
+                , { key = "path", value = Json.string path }
+                ]
+        
+        Js path ->
+            Json.object
+                [ { key = "type", value = Json.string "js" }
+                , { key = "path", value = Json.string path }
+                ]
+        
+        Exe path ->
+            Json.object
+                [ { key = "type", value = Json.string "exe" }
+                , { key = "path", value = Json.string path }
+                ]
+
+
+docsOutputEncoder : DocsOutput -> Json.Value
+docsOutputEncoder output =
+    case output of
+        DocsStdOut -> 
+            Json.object
+                [ { key = "type", value = Json.string "stdout" }
+                ]
+        
+        DocsDevNull ->
+            Json.object
+                [ { key = "type", value = Json.string "null" }
+                ]
+        
+        DocsJson path ->
+            Json.object
+                [ { key = "type", value = Json.string "json" }
+                , { key = "path", value = Json.string path }
+                ]

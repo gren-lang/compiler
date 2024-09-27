@@ -9,7 +9,6 @@ It turns out that Gren does really well on both! We have [very small assets](htt
 
 Okay, but how do we get those numbers?
 
-
 ## Instructions
 
 Step one is to compile with the `--optimize` flag. This does things like shortening record field names and unboxing values.
@@ -55,4 +54,3 @@ echo "Gzipped size: $(cat $min | gzip -c | wc -c) bytes"
 It also prints out all the asset sizes for you! Your server should be configured to gzip the assets it sends, so the last line is telling you how many bytes would _actually_ get sent to the user.
 
 Again, the important commands are `gren` and `uglifyjs` which work on any platform, so it should not be too tough to do something similar on Windows.
-

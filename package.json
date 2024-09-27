@@ -3,17 +3,21 @@
   "version": "0.4.5",
   "description": "Compiler for the Gren programming language",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prepublishOnly": "gren make src/Main.gren --optimize --output compiler.js",
+    "prettier": "prettier -w \"!**/gren.json\" ."
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/gren-lang/compiler.git"
   },
   "files": [
-    "index.js"
+    "index.js",
+    "compiler.js",
+    "cli.js"
   ],
   "bin": {
-    "gren": "index.js"
+    "gren": "cli.js"
   },
   "keywords": [
     "gren",
@@ -31,5 +35,9 @@
   },
   "homepage": "https://gren-lang.org",
   "dependencies": {
+    "postject": "^1.0.0-alpha.6"
+  },
+  "devDependencies": {
+    "prettier": "3.3.3"
   }
 }

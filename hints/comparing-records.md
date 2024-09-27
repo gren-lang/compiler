@@ -1,8 +1,6 @@
-
 The built-in comparison operators work on a fixed set of types, like `Int` and `String`. That covers a lot of cases, but what happens when you want to compare records?
 
 This page aims to catalog these scenarios and offer alternative paths that can get you unstuck.
-
 
 ## Sorting Records
 
@@ -77,7 +75,6 @@ By using `Keyed.ul` we help the renderer move the DOM nodes around based on thei
 > **Note:** Some people are skeptical of having logic like this in `view` functions, but I think the alternative (maintaining sort order in your `Model`) has some serious downsides. Say a colleague is adding a message to `Add` students, but they do not know about the sort order rules needed for presentation. Bug! So in this alternate design, you must diligently test your `update` function to make sure that no message disturbs the sort order. This is bound to lead to bugs over time!
 >
 > With all the optimizations possible with `Html.Lazy` and `Html.Keyed`, I would always be inclined to work on optimizing my `view` functions rather than making my `update` functions more complicated and error prone.
-
 
 ## Something else?
 

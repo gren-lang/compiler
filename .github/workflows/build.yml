@@ -2,9 +2,9 @@ name: Build
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [main]
   push:
-    branches: [ main ]
+    branches: [main]
 
 env:
   ghc: "9.4.8"
@@ -14,8 +14,8 @@ jobs:
   validate-code-formatting:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
-    - uses: haskell-actions/run-ormolu@v15
+      - uses: actions/checkout@v4
+      - uses: haskell-actions/run-ormolu@v15
 
   linux:
     runs-on: ubuntu-latest
@@ -23,174 +23,174 @@ jobs:
     needs: validate-code-formatting
 
     steps:
-    - name: Install deps
-      run: apk add alpine-sdk autoconf gcc gmp gmp-dev libffi libffi-dev llvm15 make musl-dev ncurses-dev ncurses-static tree wget zlib-dev zlib-static curl
+      - name: Install deps
+        run: apk add alpine-sdk autoconf gcc gmp gmp-dev libffi libffi-dev llvm15 make musl-dev ncurses-dev ncurses-static tree wget zlib-dev zlib-static curl
 
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Install GHCup
-      run: curl https://downloads.haskell.org/~ghcup/0.1.30.0/x86_64-linux-ghcup-0.1.30.0 -o /usr/local/bin/ghcup && chmod a+x /usr/local/bin/ghcup
+      - name: Install GHCup
+        run: curl https://downloads.haskell.org/~ghcup/0.1.30.0/x86_64-linux-ghcup-0.1.30.0 -o /usr/local/bin/ghcup && chmod a+x /usr/local/bin/ghcup
 
-    - name: Cache ghcup
-      uses: actions/cache@v4
-      with:
-        path: ~/.ghcup
-        key: ghcup-linux-${{ env.ghc }}
+      - name: Cache ghcup
+        uses: actions/cache@v4
+        with:
+          path: ~/.ghcup
+          key: ghcup-linux-${{ env.ghc }}
 
-    - name: Install Haskell
-      run: ghcup install ghc ${{ env.ghc }} --set && ghcup install cabal ${{ env.cabal }} --set
+      - name: Install Haskell
+        run: ghcup install ghc ${{ env.ghc }} --set && ghcup install cabal ${{ env.cabal }} --set
 
-    - name: Update PATH
-      run: echo "$HOME/.ghcup/bin" >> $GITHUB_PATH
+      - name: Update PATH
+        run: echo "$HOME/.ghcup/bin" >> $GITHUB_PATH
 
-    - name: Cabal update
-      run: cabal update
+      - name: Cabal update
+        run: cabal update
 
-    - name: List exact cabal deps
-      run: cabal freeze
+      - name: List exact cabal deps
+        run: cabal freeze
 
-    - name: Cache cabal store
-      uses: actions/cache@v4
-      with:
-        path: ~/.cabal/store
-        key: deps-linux-${{ env.ghc }}-${{ hashFiles('cabal.project.freeze') }}
-        restore-keys: deps-linux-${{ env.ghc }}-
+      - name: Cache cabal store
+        uses: actions/cache@v4
+        with:
+          path: ~/.cabal/store
+          key: deps-linux-${{ env.ghc }}-${{ hashFiles('cabal.project.freeze') }}
+          restore-keys: deps-linux-${{ env.ghc }}-
 
-    - name: Cache build artifacts
-      uses: actions/cache@v4
-      with:
-        path: dist-newstyle
-        key: dist-linux-${{ env.ghc }}-${{ github.sha }}
-        restore-keys: dist-linux-${{ env.ghc }}-
+      - name: Cache build artifacts
+        uses: actions/cache@v4
+        with:
+          path: dist-newstyle
+          key: dist-linux-${{ env.ghc }}-${{ github.sha }}
+          restore-keys: dist-linux-${{ env.ghc }}-
 
-    - name: Configure
-      run: cabal configure --enable-tests --enable-executable-static --ghc-option=-split-sections -O2
+      - name: Configure
+        run: cabal configure --enable-tests --enable-executable-static --ghc-option=-split-sections -O2
 
-    - name: Build
-      run: cabal build
+      - name: Build
+        run: cabal build
 
-    - name: Tests
-      run: cabal test
+      - name: Tests
+        run: cabal test
 
-    - name: Move binary
-      run: cp `cabal list-bin .` ./gren
+      - name: Move binary
+        run: cp `cabal list-bin .` ./gren
 
-    - name: Strip
-      run: strip gren
+      - name: Strip
+        run: strip gren
 
-    - uses: actions/upload-artifact@v4
-      with:
-        name: gren_linux
-        path: gren
-        retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gren_linux
+          path: gren
+          retention-days: 14
 
   mac:
     runs-on: macos-latest
     needs: validate-code-formatting
 
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Cache ghcup
-      uses: actions/cache@v4
-      with:
-        path: ~/.ghcup
-        key: ghcup-mac-${{ env.ghc }}
+      - uses: actions/checkout@v4
 
-    - id: setup-haskell
-      uses: haskell/actions/setup@v2
-      with:
-        ghc-version: ${{ env.ghc }}
-        cabal-version: ${{ env.cabal }}
+      - name: Cache ghcup
+        uses: actions/cache@v4
+        with:
+          path: ~/.ghcup
+          key: ghcup-mac-${{ env.ghc }}
 
-    - name: List exact cabal deps
-      run: cabal freeze
+      - id: setup-haskell
+        uses: haskell/actions/setup@v2
+        with:
+          ghc-version: ${{ env.ghc }}
+          cabal-version: ${{ env.cabal }}
 
-    - name: Cache cabal store
-      uses: actions/cache@v4
-      with:
-        path: ${{ steps.setup-haskell.outputs.cabal-store }}
-        key: deps-mac-${{ env.ghc }}-${{ hashFiles('cabal.project.freeze') }}
-        restore-keys: deps-mac-${{ env.ghc }}-
+      - name: List exact cabal deps
+        run: cabal freeze
 
-    - name: Cache build artifacts
-      uses: actions/cache@v4
-      with:
-        path: dist-newstyle
-        key: dist-mac-${{ env.ghc }}-${{ github.sha }}
-        restore-keys: dist-mac-${{ env.ghc }}-
+      - name: Cache cabal store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.setup-haskell.outputs.cabal-store }}
+          key: deps-mac-${{ env.ghc }}-${{ hashFiles('cabal.project.freeze') }}
+          restore-keys: deps-mac-${{ env.ghc }}-
 
-    - name: Configure
-      run: cabal configure --enable-tests -O2
+      - name: Cache build artifacts
+        uses: actions/cache@v4
+        with:
+          path: dist-newstyle
+          key: dist-mac-${{ env.ghc }}-${{ github.sha }}
+          restore-keys: dist-mac-${{ env.ghc }}-
 
-    - name: Build
-      run: cabal build
+      - name: Configure
+        run: cabal configure --enable-tests -O2
 
-    - name: Tests
-      run: cabal test
+      - name: Build
+        run: cabal build
 
-    - name: Move binary
-      run: cp `cabal list-bin .` ./gren
+      - name: Tests
+        run: cabal test
 
-    - name: Strip
-      run: strip gren
+      - name: Move binary
+        run: cp `cabal list-bin .` ./gren
 
-    - uses: actions/upload-artifact@v4
-      with:
-        name: gren_mac
-        path: gren
-        retention-days: 14
-  
+      - name: Strip
+        run: strip gren
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gren_mac
+          path: gren
+          retention-days: 14
+
   mac_m1:
     runs-on: macos-latest
     needs: validate-code-formatting
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - id: setup-haskell
-      uses: haskell-actions/setup@v2
-      with:
-        ghc-version: ${{ env.ghc }}
-        cabal-version: ${{ env.cabal }}
+      - id: setup-haskell
+        uses: haskell-actions/setup@v2
+        with:
+          ghc-version: ${{ env.ghc }}
+          cabal-version: ${{ env.cabal }}
 
-    - name: List exact cabal deps
-      run: cabal freeze
+      - name: List exact cabal deps
+        run: cabal freeze
 
-    - name: Cache cabal store
-      uses: actions/cache@v4
-      with:
-        path: ${{ steps.setup-haskell.outputs.cabal-store }}
-        key: deps-mac-m1-${{ env.ghc }}-${{ hashFiles('cabal.project.freeze') }}
-        restore-keys: deps-mac-m1-${{ env.ghc }}-
+      - name: Cache cabal store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.setup-haskell.outputs.cabal-store }}
+          key: deps-mac-m1-${{ env.ghc }}-${{ hashFiles('cabal.project.freeze') }}
+          restore-keys: deps-mac-m1-${{ env.ghc }}-
 
-    - name: Cache build artifacts
-      uses: actions/cache@v4
-      with:
-        path: dist-newstyle
-        key: dist-mac-m1-${{ env.ghc }}-${{ github.sha }}
-        restore-keys: dist-mac-m1-${{ env.ghc }}-
+      - name: Cache build artifacts
+        uses: actions/cache@v4
+        with:
+          path: dist-newstyle
+          key: dist-mac-m1-${{ env.ghc }}-${{ github.sha }}
+          restore-keys: dist-mac-m1-${{ env.ghc }}-
 
-    - name: Configure
-      run: cabal configure --enable-tests -O2
+      - name: Configure
+        run: cabal configure --enable-tests -O2
 
-    - name: Build
-      run: cabal build
+      - name: Build
+        run: cabal build
 
-    - name: Tests
-      run: cabal test
+      - name: Tests
+        run: cabal test
 
-    - name: Move binary
-      run: cp `cabal list-bin .` ./gren
+      - name: Move binary
+        run: cp `cabal list-bin .` ./gren
 
-    - name: Strip
-      run: strip gren
+      - name: Strip
+        run: strip gren
 
-    - uses: actions/upload-artifact@v4
-      with:
-        name: gren_mac_m1
-        path: gren
-        retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gren_mac_m1
+          path: gren
+          retention-days: 14
 
   windows:
     runs-on: windows-latest
@@ -201,48 +201,48 @@ jobs:
         shell: bash
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - id: setup-haskell
-      uses: haskell-actions/setup@v2
-      with:
-        ghc-version: ${{ env.ghc }}
-        cabal-version: ${{ env.cabal }}
+      - id: setup-haskell
+        uses: haskell-actions/setup@v2
+        with:
+          ghc-version: ${{ env.ghc }}
+          cabal-version: ${{ env.cabal }}
 
-    - name: List exact cabal deps
-      run: cabal freeze
+      - name: List exact cabal deps
+        run: cabal freeze
 
-    - name: Cache cabal store
-      uses: actions/cache@v4
-      with:
-        path: ${{ steps.setup-haskell.outputs.cabal-store }}
-        key: deps-win-${{ env.ghc }}-${{ hashFiles('cabal.project.freeze') }}
-        restore-keys: deps-win-${{ env.ghc }}-
+      - name: Cache cabal store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.setup-haskell.outputs.cabal-store }}
+          key: deps-win-${{ env.ghc }}-${{ hashFiles('cabal.project.freeze') }}
+          restore-keys: deps-win-${{ env.ghc }}-
 
-    - name: Cache build artifacts
-      uses: actions/cache@v4
-      with:
-        path: dist-newstyle
-        key: dist-win-${{ env.ghc }}-${{ github.sha }}
-        restore-keys: dist-win-${{ env.ghc }}-
+      - name: Cache build artifacts
+        uses: actions/cache@v4
+        with:
+          path: dist-newstyle
+          key: dist-win-${{ env.ghc }}-${{ github.sha }}
+          restore-keys: dist-win-${{ env.ghc }}-
 
-    - name: Configure
-      run: cabal configure --enable-tests -O2
+      - name: Configure
+        run: cabal configure --enable-tests -O2
 
-    - name: Build
-      run: cabal build
+      - name: Build
+        run: cabal build
 
-    - name: Tests
-      run: cabal test
+      - name: Tests
+        run: cabal test
 
-    - name: Move binary
-      run: cp `cabal list-bin .` ./gren
+      - name: Move binary
+        run: cp `cabal list-bin .` ./gren
 
-    - name: Strip
-      run: strip gren
+      - name: Strip
+        run: strip gren
 
-    - uses: actions/upload-artifact@v4
-      with:
-        name: gren.exe
-        path: gren
-        retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gren.exe
+          path: gren
+          retention-days: 14

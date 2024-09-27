@@ -1,8 +1,15 @@
+.DS_Store
+*~
+
+# Haskell build stuff
 dist
 dist-newstyle
 cabal-dev
-.DS_Store
-*~
-.vscode
+gren
+
+# node build stuff
+node_modules
+
+# Gren build stuff
 .gren
-app
+compiler.js
