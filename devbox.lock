@@ -1,0 +1,231 @@
+{
+  "lockfile_version": "1",
+  "packages": {
+    "cabal-install@3.8.1.0": {
+      "last_modified": "2023-03-28T10:29:13Z",
+      "resolved": "github:NixOS/nixpkgs/98f3b08f58ff125ef02d55cd52a83f44f245f2ea#cabal-install",
+      "source": "devbox-search",
+      "version": "3.8.1.0",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/060dvanq07yffbjqqard255g3rf80npk-cabal-install-3.8.1.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/060dvanq07yffbjqqard255g3rf80npk-cabal-install-3.8.1.0"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/8wkk6h4bd8sdwnllp2dfhrra2sjss6a5-cabal-install-3.8.1.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/8wkk6h4bd8sdwnllp2dfhrra2sjss6a5-cabal-install-3.8.1.0"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/2r5gydfgs3lg3f928q0ch11x2kwz2nj5-cabal-install-3.8.1.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/2r5gydfgs3lg3f928q0ch11x2kwz2nj5-cabal-install-3.8.1.0"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/wx9yy9mq1psqzqnmqnvrchgqgfhvaz7q-cabal-install-3.8.1.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/wx9yy9mq1psqzqnmqnvrchgqgfhvaz7q-cabal-install-3.8.1.0"
+        }
+      }
+    },
+    "ghc@9.4.8": {
+      "last_modified": "2024-03-08T13:51:52Z",
+      "plugin_version": "0.0.2",
+      "resolved": "github:NixOS/nixpkgs/a343533bccc62400e8a9560423486a3b6c11a23b#ghc",
+      "source": "devbox-search",
+      "version": "9.4.8",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/ldgr8rqmkq941pwgi7zl80d3akil3va4-ghc-9.4.8",
+              "default": true
+            },
+            {
+              "name": "doc",
+              "path": "/nix/store/52c8i1i3xmnzygakwigam3npa8qkfdzw-ghc-9.4.8-doc"
+            }
+          ],
+          "store_path": "/nix/store/ldgr8rqmkq941pwgi7zl80d3akil3va4-ghc-9.4.8"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/32y2ypndq67irn7ryhnsvabmcpypvnlx-ghc-9.4.8",
+              "default": true
+            },
+            {
+              "name": "doc",
+              "path": "/nix/store/16d4chgy1ax686agmz7i46kxvml755z5-ghc-9.4.8-doc"
+            }
+          ],
+          "store_path": "/nix/store/32y2ypndq67irn7ryhnsvabmcpypvnlx-ghc-9.4.8"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/j7lqyfkfbzkn1qna9mmfdz7m72n0s9r1-ghc-9.4.8",
+              "default": true
+            },
+            {
+              "name": "doc",
+              "path": "/nix/store/mvb1r4mjw95z06pii94a10ly09fm1zpd-ghc-9.4.8-doc"
+            }
+          ],
+          "store_path": "/nix/store/j7lqyfkfbzkn1qna9mmfdz7m72n0s9r1-ghc-9.4.8"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/b29abywbk2yxl199nvf9b4b04fzqgzs0-ghc-9.4.8",
+              "default": true
+            },
+            {
+              "name": "doc",
+              "path": "/nix/store/011fj4igd8jd4wmhbn6rjfww91h908rz-ghc-9.4.8-doc"
+            }
+          ],
+          "store_path": "/nix/store/b29abywbk2yxl199nvf9b4b04fzqgzs0-ghc-9.4.8"
+        }
+      }
+    },
+    "haskell-language-server@2.9": {
+      "last_modified": "2024-10-06T12:21:13Z",
+      "resolved": "github:NixOS/nixpkgs/50b3bd3fed0442bcbf7f58355e990da84af1749d#haskell-language-server",
+      "source": "devbox-search",
+      "version": "2.9.0.0",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/8f3303gdhwqc4iaacivj62id0x0m675a-haskell-language-server-2.9.0.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/8f3303gdhwqc4iaacivj62id0x0m675a-haskell-language-server-2.9.0.0"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/v3g9bcbsq89yglc9vdi5k0b3qwf5p46r-haskell-language-server-2.9.0.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/v3g9bcbsq89yglc9vdi5k0b3qwf5p46r-haskell-language-server-2.9.0.0"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/df0hnil554xgf22y19qnw62gql7pgb3n-haskell-language-server-2.9.0.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/df0hnil554xgf22y19qnw62gql7pgb3n-haskell-language-server-2.9.0.0"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/jdy3n0wd36cmhwzqs2l63wvsj70dr96w-haskell-language-server-2.9.0.0",
+              "default": true
+            }
+          ],
+          "store_path": "/nix/store/jdy3n0wd36cmhwzqs2l63wvsj70dr96w-haskell-language-server-2.9.0.0"
+        }
+      }
+    },
+    "nodejs@20": {
+      "last_modified": "2024-09-10T15:01:03Z",
+      "plugin_version": "0.0.2",
+      "resolved": "github:NixOS/nixpkgs/5ed627539ac84809c78b2dd6d26a5cebeb5ae269#nodejs_20",
+      "source": "devbox-search",
+      "version": "20.17.0",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/hxl1k8qgmrm1vfq5f419iv4wybz9szqq-nodejs-20.17.0",
+              "default": true
+            },
+            {
+              "name": "libv8",
+              "path": "/nix/store/baf3p9zf8dn2arp6wjkdi3v0g2xgfd6y-nodejs-20.17.0-libv8"
+            }
+          ],
+          "store_path": "/nix/store/hxl1k8qgmrm1vfq5f419iv4wybz9szqq-nodejs-20.17.0"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/vc64zpxndmp3xh9699yb2vpbl81pxbk0-nodejs-20.17.0",
+              "default": true
+            },
+            {
+              "name": "libv8",
+              "path": "/nix/store/0c57mzp5bqf0pp4a0pdj8wynphsgi92c-nodejs-20.17.0-libv8"
+            }
+          ],
+          "store_path": "/nix/store/vc64zpxndmp3xh9699yb2vpbl81pxbk0-nodejs-20.17.0"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/lgyrki1i0205nwh51c1h22bhl95x0nyd-nodejs-20.17.0",
+              "default": true
+            },
+            {
+              "name": "libv8",
+              "path": "/nix/store/n4xvswmgb3ql2440bkl8xk4i3b11w46x-nodejs-20.17.0-libv8"
+            }
+          ],
+          "store_path": "/nix/store/lgyrki1i0205nwh51c1h22bhl95x0nyd-nodejs-20.17.0"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/w78sh036dyn14f29w8za9ni9syrmwm3q-nodejs-20.17.0",
+              "default": true
+            },
+            {
+              "name": "libv8",
+              "path": "/nix/store/bsqha32xvv1j20bwkhr2wsnclk4qsi3a-nodejs-20.17.0-libv8"
+            }
+          ],
+          "store_path": "/nix/store/w78sh036dyn14f29w8za9ni9syrmwm3q-nodejs-20.17.0"
+        }
+      }
+    }
+  }
+}
