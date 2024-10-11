@@ -15,6 +15,10 @@
         "ormolu --mode inplace $(git ls-files '*.hs')",
         "npm run prettier"
       ],
+      "format:check": [
+        "ormolu --check-idempotence --mode check $(git ls-files '*.hs')",
+        "npm run prettier:check"
+      ],
       "build": [
         "./build_dev_bin.sh",
         "npm run prepublishOnly"
