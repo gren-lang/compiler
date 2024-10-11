@@ -286,12 +286,12 @@ chompExprEnd start (State ops expr args end commentsBefore) =
         newStart <- getPosition
         if "-" == opName && end /= opStart && opEnd == newStart
           then -- negative terms
-            do
-              negatedExpr <- term
-              newEnd <- getPosition
-              commentsAfter <- Space.chomp E.Space
-              let arg = A.at opStart newEnd (Src.Negate negatedExpr)
-              chompExprEnd start (State ops expr ((commentsBefore, arg) : args) newEnd commentsAfter)
+          do
+            negatedExpr <- term
+            newEnd <- getPosition
+            commentsAfter <- Space.chomp E.Space
+            let arg = A.at opStart newEnd (Src.Negate negatedExpr)
+            chompExprEnd start (State ops expr ((commentsBefore, arg) : args) newEnd commentsAfter)
           else
             let err = E.OperatorRight opName
                 opComments = SC.BinopsSegmentComments commentsBefore commentsAfterOp

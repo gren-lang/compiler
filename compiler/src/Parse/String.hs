@@ -121,11 +121,11 @@ finalizeMultiString start end revChunks =
     reverse $
       if start == end
         then {- Get rid of ending newline before """ -}
-          case revChunks of
-            (ES.Escape 0x6E) : rest ->
-              rest
-            _ ->
-              revChunks
+        case revChunks of
+          (ES.Escape 0x6E) : rest ->
+            rest
+          _ ->
+            revChunks
         else ES.Slice start (minusPtr end start) : revChunks
 
 addEscape :: ES.Chunk -> Ptr Word8 -> Ptr Word8 -> [ES.Chunk] -> [ES.Chunk]
@@ -195,10 +195,8 @@ multiString pos end row _ _ sr sc =
                             then
                               let !pos2 = plusPtr pos 2
                                in countLeadingWhiteSpaceThenMultiString 0 pos2 end (row + 1) 1 pos2 sr sc
-                            else
-                              Err sr sc E.StringInvalidNewline
-                else
-                  Err sr sc E.StringMultilineWithoutLeadingNewline
+                            else Err sr sc E.StringInvalidNewline
+                else Err sr sc E.StringMultilineWithoutLeadingNewline
 
 countLeadingWhiteSpaceThenMultiString :: Int -> Ptr Word8 -> Ptr Word8 -> Row -> Col -> Ptr Word8 -> Row -> Col -> StringResult
 countLeadingWhiteSpaceThenMultiString count pos end row col initialPos sr sc =
@@ -258,8 +256,7 @@ multiStringBody leadingWhitespace pos end row col initialPos sr sc revChunks =
                                       let !pos2 = plusPtr pos 2
                                        in dropLeadingWhiteSpaceThenMultiString 0 leadingWhitespace pos2 end (row + 1) 1 pos2 sr sc $
                                             addEscape newline initialPos pos revChunks
-                                    else
-                                      Err row col E.StringInvalidNewline
+                                    else Err row col E.StringInvalidNewline
                         else
                           if word == 0x5C {- \ -}
                             then case eatEscape (plusPtr pos 1) end row col of

@@ -4,15 +4,23 @@
     "nodejs@20",
     "ghc@9.4.8",
     "cabal-install@3.8.1.0",
-    "haskell-language-server@2.9"
+    "ormolu@0.7"
   ],
   "shell": {
     "init_hook": [
       "echo 'Welcome to devbox!' > /dev/null"
     ],
     "scripts": {
+      "format": [
+        "ormolu --mode inplace $(git ls-files '*.hs')",
+        "npm run prettier"
+      ],
+      "build": [
+        "./build_dev_bin.sh",
+        "npm run prepublishOnly"
+      ],
       "test": [
-        "echo \"Error: no test specified\" && exit 1"
+        "cabal test"
       ]
     }
   }
