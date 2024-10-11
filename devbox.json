@@ -8,6 +8,7 @@
   ],
   "shell": {
     "init_hook": [
+      "npm install",
       "echo 'Welcome to devbox!' > /dev/null"
     ],
     "scripts": {

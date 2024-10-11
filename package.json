@@ -4,7 +4,7 @@
   "description": "Compiler for the Gren programming language",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "prepublishOnly": "npx gren make src/Main.gren --optimize --output=compiler.js",
+    "prepublishOnly": "gren make src/Main.gren --optimize --output=compiler.js",
     "prettier": "prettier -w \"!**/*.json\" .",
     "prettier:check": "prettier -c \"!**/*.json\" ."
   },

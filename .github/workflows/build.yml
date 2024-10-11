@@ -18,6 +18,8 @@ jobs:
 
       - name: Install devbox
         uses: jetify-com/devbox-install-action@v0.9.0
+        with:
+          enable-cache: "true"
 
       - name: Validate formatting
         run: devbox run format:check
