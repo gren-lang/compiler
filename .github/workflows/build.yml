@@ -147,15 +147,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
-      - id: setup-haskell
-        uses: haskell-actions/setup@v2
+      
+      - name: Install devbox
+        uses: jetify-com/devbox-install-action@v0.9.0
         with:
-          ghc-version: ${{ env.ghc }}
-          cabal-version: ${{ env.cabal }}
+          enable-cache: 'true'
 
       - name: List exact cabal deps
-        run: cabal freeze
+        run: devbox run -- cabal freeze
 
       - name: Cache cabal store
         uses: actions/cache@v4
@@ -172,16 +171,16 @@ jobs:
           restore-keys: dist-mac-m1-${{ env.ghc }}-
 
       - name: Configure
-        run: cabal configure --enable-tests -O2
+        run: devbox run -- cabal configure --enable-tests -O2
 
       - name: Build
-        run: cabal build
+        run: devbox run -- cabal build
 
       - name: Tests
-        run: cabal test
+        run: devbox run test
 
       - name: Move binary
-        run: cp `cabal list-bin .` ./gren
+        run: cp `devbox run -- cabal list-bin .` ./gren
 
       - name: Strip
         run: strip gren
