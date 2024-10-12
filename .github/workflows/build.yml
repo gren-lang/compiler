@@ -103,7 +103,7 @@ jobs:
   mac:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-13, macos-14]
+        os: [macos-13, macos-14]
 
     runs-on: ${{ matrix.os }}
     needs: validate-code-formatting
