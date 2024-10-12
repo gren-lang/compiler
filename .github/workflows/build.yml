@@ -25,7 +25,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: node_modules
-          key: npm-ubuntu-${{ hashFiles('devbox.lock', 'package-lock.json') }}
+          key: npm-ubuntu-latest-${{ hashFiles('devbox.lock', 'package-lock.json') }}
 
       - name: Install dependencies
         run: devbox run -- npm install
@@ -125,7 +125,6 @@ jobs:
         with:
           path: ~/.cabal/store
           key: deps-${{ matrix.os }}-${{ hashFiles('devbox.lock', 'cabal.project.freeze') }}
-          restore-keys: deps-mac-m1-${{ env.ghc }}-
 
       - name: Cache build artifacts
         uses: actions/cache@v4
