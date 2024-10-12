@@ -142,7 +142,12 @@ jobs:
       - name: Install npm dependencies
         run: devbox run -- npm install
 
-      - name: Configure
+      - name: Configure (mac)
+        if: ${{ matrix.os != 'ubuntu-latest' }}
+        run: devbox run -- cabal configure --enable-tests --ghc-option=-split-sections -O2
+
+      - name: Configure (linux)
+        if: ${{ matrix.os == 'ubuntu-latest' }}
         run: devbox run -- cabal configure --enable-tests --enable-executable-static --ghc-option=-split-sections -O2
 
       - name: Build
