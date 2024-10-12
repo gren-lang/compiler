@@ -101,11 +101,12 @@ jobs:
           retention-days: 14
 
   mac:
-    needs: validate-code-formatting
-
     strategy:
       matrix:
         os: [macos-13, macos-14]
+    
+    runs-on: ${{ matrix.os }}
+    needs: validate-code-formatting
 
     steps:
       - uses: actions/checkout@v4
