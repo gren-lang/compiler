@@ -21,6 +21,16 @@ jobs:
         with:
           enable-cache: "true"
 
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: npm-ubuntu-${{ hashFiles('devbox.lock', 'package-lock.json') }}
+          restore-keys: npm-ubuntu-
+
+      - name: Install dependencies
+        run: devbox run -- npm install
+
       - name: Validate formatting
         run: devbox run format:check
 
@@ -174,6 +184,16 @@ jobs:
           path: dist-newstyle
           key: dist-mac-m1-${{ env.ghc }}-${{ github.sha }}
           restore-keys: dist-mac-m1-${{ env.ghc }}-
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: npm-mac-m1-${{ hashFiles('devbox.lock', 'package-lock.json') }}
+          restore-keys: npm-mac-m1-
+
+      - name: Install npm dependencies
+        run: devbox run -- npm install
 
       - name: Configure
         run: devbox run -- cabal configure --enable-tests -O2
