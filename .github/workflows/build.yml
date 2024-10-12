@@ -144,7 +144,7 @@ jobs:
 
       - name: Configure (mac)
         if: ${{ matrix.os != 'ubuntu-latest' }}
-        run: devbox run -- cabal configure --enable-tests --ghc-option=-split-sections -O2
+        run: devbox run -- cabal configure --enable-tests -O2
 
       - name: Configure (linux)
         if: ${{ matrix.os == 'ubuntu-latest' }}
@@ -158,9 +158,6 @@ jobs:
 
       - name: Move binary
         run: cp `devbox run -- cabal list-bin .` ./gren
-
-      - name: Strip
-        run: strip gren
 
       - uses: actions/upload-artifact@v4
         with:
@@ -203,7 +200,7 @@ jobs:
           restore-keys: dist-win-${{ env.ghc }}-
 
       - name: Configure
-        run: cabal configure --enable-tests --ghc-option=-split-sections -O2
+        run: cabal configure --enable-tests -O2
 
       - name: Build
         run: cabal build
