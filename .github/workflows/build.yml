@@ -203,7 +203,7 @@ jobs:
           restore-keys: dist-win-${{ env.ghc }}-
 
       - name: Configure
-        run: cabal configure --enable-tests -O2
+        run: cabal configure --enable-tests --ghc-option=-split-sections -O2
 
       - name: Build
         run: cabal build
