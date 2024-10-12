@@ -26,7 +26,6 @@ jobs:
         with:
           path: node_modules
           key: npm-ubuntu-${{ hashFiles('devbox.lock', 'package-lock.json') }}
-          restore-keys: npm-ubuntu-
 
       - name: Install dependencies
         run: devbox run -- npm install
@@ -168,6 +167,9 @@ jobs:
       - name: Install devbox
         uses: jetify-com/devbox-install-action@v0.9.0
 
+      - name: Update cabal registry
+        run: devbox run -- cabal update
+
       - name: List exact cabal deps
         run: devbox run -- cabal freeze
 
@@ -190,7 +192,6 @@ jobs:
         with:
           path: node_modules
           key: npm-mac-m1-${{ hashFiles('devbox.lock', 'package-lock.json') }}
-          restore-keys: npm-mac-m1-
 
       - name: Install npm dependencies
         run: devbox run -- npm install
