@@ -115,6 +115,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install deps
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: apk add alpine-sdk autoconf gcc gmp gmp-dev libffi libffi-dev llvm15 make musl-dev ncurses-dev ncurses-static tree wget zlib-dev zlib-static curl
+
       - name: Install devbox
         uses: jetify-com/devbox-install-action@v0.11.0
         with:
