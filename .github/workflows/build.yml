@@ -17,9 +17,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install devbox
-        uses: jetify-com/devbox-install-action@v0.9.0
+        uses: jetify-com/devbox-install-action@v0.11.0
         with:
-          enable-cache: "true"
+          enable-cache: true
 
       - name: Cache node_modules
         uses: actions/cache@v4
@@ -112,7 +112,9 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install devbox
-        uses: jetify-com/devbox-install-action@v0.9.0
+        uses: jetify-com/devbox-install-action@v0.11.0
+        with:
+          enable-cache: true
 
       - name: Update cabal registry
         run: devbox run -- cabal update
@@ -142,13 +144,8 @@ jobs:
       - name: Install npm dependencies
         run: devbox run -- npm install
 
-      - name: Configure (mac)
-        if: ${{ matrix.os != 'ubuntu-latest' }}
+      - name: Configure
         run: devbox run -- cabal configure --enable-tests -O2
-
-      - name: Configure (linux)
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        run: devbox run -- cabal configure --enable-tests --enable-executable-static --ghc-option=-split-sections -O2
 
       - name: Build
         run: devbox run -- cabal build
