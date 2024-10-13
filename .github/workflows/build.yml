@@ -101,24 +101,16 @@ jobs:
           retention-days: 14
 
   mac:
+    needs: validate-code-formatting
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-13, macos-14]
-        include:
-          - os: ubuntu-latest
-            container: alpine:3.17
-
+        os: [macos-13, macos-14]
+    
     runs-on: ${{ matrix.os }}
-    container: ${{ matrix.container }}
-    needs: validate-code-formatting
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install deps
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        run: apk add alpine-sdk autoconf gcc gmp gmp-dev libffi libffi-dev llvm15 make musl-dev ncurses-dev ncurses-static tree wget zlib-dev zlib-static curl
-
+      
       - name: Install devbox
         uses: jetify-com/devbox-install-action@v0.11.0
         with:
@@ -152,13 +144,8 @@ jobs:
       - name: Install npm dependencies
         run: devbox run -- npm install
 
-      - name: Configure (mac)
-        if: ${{ matrix.os != 'ubuntu-latest'}}
+      - name: Configure
         run: devbox run -- cabal configure --enable-tests -O2
-
-      - name: Configure (linux)
-        if: ${{ matrix.os == 'ubuntu-latest'}}
-        run: devbox run -- cabal configure --enable-tests --enable-executable-static --ghc-option=-split-sections -O2
 
       - name: Build
         run: devbox run -- cabal build
