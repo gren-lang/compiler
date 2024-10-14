@@ -122,7 +122,7 @@ jobs:
 
       - name: List exact cabal deps
         run: |
-          cabal freeze --only-dependencies
+          devbox run -- cabal freeze --only-dependencies
           sed -i '$ d' cabal.project.freeze
 
       - name: Cache cabal store
