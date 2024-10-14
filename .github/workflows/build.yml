@@ -63,14 +63,15 @@ jobs:
         run: cabal update
 
       - name: List exact cabal deps
-        run: cabal freeze
+        run: |
+          cabal freeze --only-dependencies
+          sed -i '$ d' cabal.project.freeze
 
       - name: Cache cabal store
         uses: actions/cache@v4
         with:
           path: ~/.cabal/store
           key: deps-linux-${{ env.ghc }}-${{ hashFiles('cabal.project.freeze') }}
-          restore-keys: deps-linux-${{ env.ghc }}-
 
       - name: Cache build artifacts
         uses: actions/cache@v4
@@ -120,7 +121,9 @@ jobs:
         run: devbox run -- cabal update
 
       - name: List exact cabal deps
-        run: devbox run -- cabal freeze
+        run: |
+          cabal freeze --only-dependencies
+          sed -i '$ d' cabal.project.freeze
 
       - name: Cache cabal store
         uses: actions/cache@v4
@@ -180,14 +183,15 @@ jobs:
           cabal-version: ${{ env.cabal }}
 
       - name: List exact cabal deps
-        run: cabal freeze
+        run: |
+          cabal freeze --only-dependencies
+          sed -i '$ d' cabal.project.freeze
 
       - name: Cache cabal store
         uses: actions/cache@v4
         with:
           path: ${{ steps.setup-haskell.outputs.cabal-store }}
           key: deps-win-${{ env.ghc }}-${{ hashFiles('cabal.project.freeze') }}
-          restore-keys: deps-win-${{ env.ghc }}-
 
       - name: Cache build artifacts
         uses: actions/cache@v4
