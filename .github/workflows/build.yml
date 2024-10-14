@@ -123,7 +123,7 @@ jobs:
       - name: List exact cabal deps
         run: |
           devbox run -- cabal freeze --only-dependencies
-          sed -i '$ d' cabal.project.freeze
+          sed -i '' -e '$ d' cabal.project.freeze
 
       - name: Cache cabal store
         uses: actions/cache@v4
@@ -175,6 +175,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Configure choco cache
+        run: choco config set cacheLocation ./.choco-cache
+
+      - uses: actions/cache@v4
+        with:
+          path: ./.choco-cache
+          key: choco-cache-${{ env.ghc }}-${{ env.cabal }}
 
       - id: setup-haskell
         uses: haskell-actions/setup@v2
