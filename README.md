@@ -20,3 +20,5 @@ The end goal is for the entire compiler to be written in Gren, but for now you n
 4. You can now execute your local build with `GREN_BIN=./gren node ./cli.js`
 
 `GREN_BIN` tells the compiler which Haskell-binary to communicate with. If not specified, it will be downloaded.
+
+Don't forget to check the `scripts` defined in `devbox.json`. They can be executed using `devbox run <script>`.
