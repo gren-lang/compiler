@@ -6,10 +6,17 @@ There are easier ways to install the compiler than compiling the source, you mig
 
 ## Build from source
 
-The Gren compiler is written in Haskell, so to build from source you need to have GHC 9.4 (Haskell compiler) and Cabal 3.8 (haskell build tool) installed on your system.
+This project uses [devbox](https://www.jetify.com/devbox) for managing dependencies required to build the project. If you don't want to use devbox,
+you can find a list of the requried dependencies and their specific versions in `devbox.json`.
 
-You can install these using [ghcup](https://www.haskell.org/ghcup/). By default, ghcup will install an older version of Haskell and Cabal, so you can install and set the required versions using `ghcup tui`.
+Since Gren 0.4 the compiler is implemented in two parts. The Gren-portion of the compiler lives in `src`, and once built it acts
+as a frontend to the Haskell-portion of the compiler.
 
-Compiling and installing the project should just be a matter of `cabal install`, after which you should be able to run the `gren` command from your command line.
+The end goal is for the entire compiler to be written in Gren, but for now you need to build both Gren- and Haskell-portions of the compiler.
 
-Read the `CONTRIBUTING.md` file for some helpful commands for working on the compiler itself.
+1. Use `devbox shell` to get a terminal with the required dependencies installed.
+2. Use `./build_dev_bin.sh` to build the Haskell-based compiler. You should now have a `./gren` file in your directory.
+3. Build the Gren compiler with `npm run prepublishOnly`
+4. You can now execute your local build with `GREN_BIN=./gren node ./cli.js`
+
+`GREN_BIN` tells the compiler which Haskell-binary to communicate with. If not specified, it will be downloaded.
