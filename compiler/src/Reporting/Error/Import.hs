@@ -72,7 +72,7 @@ toReport source (Error region name unimportedModules problem) =
                         D.fromChars (Pkg.toChars dependency),
                         "package?",
                         "Running",
-                        D.green (D.fromChars ("gren install " ++ Pkg.toChars dependency)),
+                        D.green (D.fromChars ("gren package install " ++ Pkg.toChars dependency)),
                         "should",
                         "make",
                         "it",
