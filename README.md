@@ -7,18 +7,20 @@ There are easier ways to install the compiler than compiling the source, you mig
 ## Build from source
 
 This project uses [devbox](https://www.jetify.com/devbox) for managing dependencies required to build the project. If you don't want to use devbox,
-you can find a list of the requried dependencies and their specific versions in `devbox.json`.
+you can find a list of the requried dependencies and the commands for building the compiler in `devbox.json`.
 
-Since Gren 0.4 the compiler is implemented in two parts. The Gren-portion of the compiler lives in `src`, and once built it acts
-as a frontend to the Haskell-portion of the compiler.
+Since Gren 0.4 the compiler is implemented in two parts. The Gren-part of the compiler lives in `src`, and once built it acts
+as a frontend to the Haskell-part of the compiler.
 
-The end goal is for the entire compiler to be written in Gren, but for now you need to build both Gren- and Haskell-portions of the compiler.
+The end goal is for the entire compiler to be written in Gren.
 
-1. Use `devbox shell` to get a terminal with the required dependencies installed.
-2. Use `./build_dev_bin.sh` to build the Haskell-based compiler. You should now have a `./gren` file in your directory.
-3. Build the Gren compiler with `npm run prepublishOnly`
-4. You can now execute your local build with `GREN_BIN=./gren node ./cli.js`
+To build the compiler:
 
-`GREN_BIN` tells the compiler which Haskell-binary to communicate with. If not specified, it will be downloaded.
+1. Use `devbox run prepare-deps` to setup the required dependencies. The first time you run this it might take a while.
+2. Build the compiler with `devbox run build`.
+
+You can now execute the compiler with `node ./cli.js` or just `./cli.js`. The Gren-part of the compiler will download a pre-built
+binary of the Haskell-part from Github. If you want to run the compiler with the Haskell-part you've built yourself, set the path
+to the Haskell-binary in a `GREN_BIN` environment variable.
 
 Don't forget to check the `scripts` defined in `devbox.json`. They can be executed using `devbox run <script>`.

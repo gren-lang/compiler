@@ -39,6 +39,7 @@
     "postject": "^1.0.0-alpha.6"
   },
   "devDependencies": {
-    "prettier": "3.3.3"
+    "prettier": "3.3.3",
+    "gren-lang": "^0.4.5"
   }
 }
