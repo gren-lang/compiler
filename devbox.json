@@ -1,5 +1,5 @@
 {
-  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.13.4/.schema/devbox.schema.json",
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.13.5/.schema/devbox.schema.json",
   "packages": [
     "nodejs@20",
     "ghc@9.4.8",
@@ -11,6 +11,20 @@
       "echo 'Welcome to devbox!' > /dev/null"
     ],
     "scripts": {
+      "prepare-deps": [
+        "cabal update",
+        "npm ci"
+      ],
+      "build": [
+        "npm run prepublishOnly",
+        "./build_dev_bin.sh"
+      ],
+      "test": [
+        "cabal test"
+      ],
+      "compiler": [
+        "GREN_BIN=$PWD/gren node cli.js"
+      ],
       "format": [
         "ormolu --mode inplace $(git ls-files '*.hs')",
         "npm run prettier"
@@ -18,13 +32,6 @@
       "format:check": [
         "ormolu --check-idempotence --mode check $(git ls-files '*.hs')",
         "npm run prettier:check"
-      ],
-      "build": [
-        "./build_dev_bin.sh",
-        "npm run prepublishOnly"
-      ],
-      "test": [
-        "cabal test"
       ]
     }
   }

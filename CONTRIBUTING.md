@@ -35,12 +35,6 @@ To do so:
 All PRs will be considered, but going through the above process significantly
 improves your chances of a merge!
 
-## Local development commands
-
-- build: `cabal build -f dev`
-- run tests: `cabal test -f dev`
-- format files: `ormolu --mode inplace $(git ls-files '*.hs')`
-
 ## Back-up / Historic Archives
 
 There's also a [Zulip](https://gren.zulipchat.com) with older

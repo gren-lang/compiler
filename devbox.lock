@@ -115,9 +115,9 @@
       }
     },
     "nodejs@20": {
-      "last_modified": "2024-09-10T15:01:03Z",
+      "last_modified": "2024-10-13T23:44:06Z",
       "plugin_version": "0.0.2",
-      "resolved": "github:NixOS/nixpkgs/5ed627539ac84809c78b2dd6d26a5cebeb5ae269#nodejs_20",
+      "resolved": "github:NixOS/nixpkgs/d4f247e89f6e10120f911e2e2d2254a050d0f732#nodejs_20",
       "source": "devbox-search",
       "version": "20.17.0",
       "systems": {
@@ -125,63 +125,63 @@
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/hxl1k8qgmrm1vfq5f419iv4wybz9szqq-nodejs-20.17.0",
+              "path": "/nix/store/fkapwdcjn9fm1n071jv7a75cw66x4wq7-nodejs-20.17.0",
               "default": true
             },
             {
               "name": "libv8",
-              "path": "/nix/store/baf3p9zf8dn2arp6wjkdi3v0g2xgfd6y-nodejs-20.17.0-libv8"
+              "path": "/nix/store/17gly8aw2qa535bw1014xbc264v496g1-nodejs-20.17.0-libv8"
             }
           ],
-          "store_path": "/nix/store/hxl1k8qgmrm1vfq5f419iv4wybz9szqq-nodejs-20.17.0"
+          "store_path": "/nix/store/fkapwdcjn9fm1n071jv7a75cw66x4wq7-nodejs-20.17.0"
         },
         "aarch64-linux": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/vc64zpxndmp3xh9699yb2vpbl81pxbk0-nodejs-20.17.0",
+              "path": "/nix/store/icf1zdxjpik986hqwa9vj33zk9ir5r7h-nodejs-20.17.0",
               "default": true
             },
             {
               "name": "libv8",
-              "path": "/nix/store/0c57mzp5bqf0pp4a0pdj8wynphsgi92c-nodejs-20.17.0-libv8"
+              "path": "/nix/store/yqira4250smxxpnxg3jc7r1csrsdz9yx-nodejs-20.17.0-libv8"
             }
           ],
-          "store_path": "/nix/store/vc64zpxndmp3xh9699yb2vpbl81pxbk0-nodejs-20.17.0"
+          "store_path": "/nix/store/icf1zdxjpik986hqwa9vj33zk9ir5r7h-nodejs-20.17.0"
         },
         "x86_64-darwin": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/lgyrki1i0205nwh51c1h22bhl95x0nyd-nodejs-20.17.0",
+              "path": "/nix/store/pfg4yz6c5kvk8wp29kvp56dl0yjahwgn-nodejs-20.17.0",
               "default": true
             },
             {
               "name": "libv8",
-              "path": "/nix/store/n4xvswmgb3ql2440bkl8xk4i3b11w46x-nodejs-20.17.0-libv8"
+              "path": "/nix/store/qm9202yha093jx33jkgxv2ra6yzgw6d2-nodejs-20.17.0-libv8"
             }
           ],
-          "store_path": "/nix/store/lgyrki1i0205nwh51c1h22bhl95x0nyd-nodejs-20.17.0"
+          "store_path": "/nix/store/pfg4yz6c5kvk8wp29kvp56dl0yjahwgn-nodejs-20.17.0"
         },
         "x86_64-linux": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/w78sh036dyn14f29w8za9ni9syrmwm3q-nodejs-20.17.0",
+              "path": "/nix/store/dcdc33kdjdhjnzg6rkmd0cx4kpwl8cac-nodejs-20.17.0",
               "default": true
             },
             {
               "name": "libv8",
-              "path": "/nix/store/bsqha32xvv1j20bwkhr2wsnclk4qsi3a-nodejs-20.17.0-libv8"
+              "path": "/nix/store/bv92rqliq5vnpwa2pwsdiphz48j87l47-nodejs-20.17.0-libv8"
             }
           ],
-          "store_path": "/nix/store/w78sh036dyn14f29w8za9ni9syrmwm3q-nodejs-20.17.0"
+          "store_path": "/nix/store/dcdc33kdjdhjnzg6rkmd0cx4kpwl8cac-nodejs-20.17.0"
         }
       }
     },
     "ormolu@0.7": {
-      "last_modified": "2024-10-06T02:39:15Z",
-      "resolved": "github:NixOS/nixpkgs/7d49afd36b5590f023ec56809c02e05d8164fbc4#ormolu",
+      "last_modified": "2024-10-13T23:44:06Z",
+      "resolved": "github:NixOS/nixpkgs/d4f247e89f6e10120f911e2e2d2254a050d0f732#ormolu",
       "source": "devbox-search",
       "version": "0.7.2.0",
       "systems": {
@@ -189,57 +189,57 @@
           "outputs": [
             {
               "name": "bin",
-              "path": "/nix/store/m628xcmly4v168zrijnlvqd2vm64cs78-ormolu-0.7.2.0-bin",
+              "path": "/nix/store/6ldik7pz7ivf2krr706rhb40zi1921xg-ormolu-0.7.2.0-bin",
               "default": true
             },
             {
               "name": "out",
-              "path": "/nix/store/lgjigpsgmqi54pmpmrzbpzxp8swh3dmc-ormolu-0.7.2.0"
+              "path": "/nix/store/gan5i2l229qp3mwyhsxvzsynjj3jl7vh-ormolu-0.7.2.0"
             }
           ],
-          "store_path": "/nix/store/m628xcmly4v168zrijnlvqd2vm64cs78-ormolu-0.7.2.0-bin"
+          "store_path": "/nix/store/6ldik7pz7ivf2krr706rhb40zi1921xg-ormolu-0.7.2.0-bin"
         },
         "aarch64-linux": {
           "outputs": [
             {
               "name": "bin",
-              "path": "/nix/store/clvpg96xy2wg0hn6z1vylfkbha6rvsqf-ormolu-0.7.2.0-bin",
+              "path": "/nix/store/37vh0cnlj4lk58m3c0nna5azf8l9lyxw-ormolu-0.7.2.0-bin",
               "default": true
             },
             {
               "name": "out",
-              "path": "/nix/store/3jjl8awy6g0l3158szvlil6siy9ijp35-ormolu-0.7.2.0"
+              "path": "/nix/store/nm6sr2zmk1j8hrkrrzs6kr2igsa6vqsi-ormolu-0.7.2.0"
             }
           ],
-          "store_path": "/nix/store/clvpg96xy2wg0hn6z1vylfkbha6rvsqf-ormolu-0.7.2.0-bin"
+          "store_path": "/nix/store/37vh0cnlj4lk58m3c0nna5azf8l9lyxw-ormolu-0.7.2.0-bin"
         },
         "x86_64-darwin": {
           "outputs": [
             {
               "name": "bin",
-              "path": "/nix/store/xjnq2hb0wza1msy3pq1avqf5h8gj48hz-ormolu-0.7.2.0-bin",
+              "path": "/nix/store/6zvrcw031fl96zj1579gakszxhng92vc-ormolu-0.7.2.0-bin",
               "default": true
             },
             {
               "name": "out",
-              "path": "/nix/store/vp7q2lyar4wvkcyf89a7b8f6grjmmciz-ormolu-0.7.2.0"
+              "path": "/nix/store/wjn200gcgbxlh5l9pnn9g2pqz3rl2mmd-ormolu-0.7.2.0"
             }
           ],
-          "store_path": "/nix/store/xjnq2hb0wza1msy3pq1avqf5h8gj48hz-ormolu-0.7.2.0-bin"
+          "store_path": "/nix/store/6zvrcw031fl96zj1579gakszxhng92vc-ormolu-0.7.2.0-bin"
         },
         "x86_64-linux": {
           "outputs": [
             {
               "name": "bin",
-              "path": "/nix/store/vlp9vbp2yibfcwpax8xp3yqfvagwm8sb-ormolu-0.7.2.0-bin",
+              "path": "/nix/store/31wjfy7cwhma9q2rkyp3w7hlw5szpj02-ormolu-0.7.2.0-bin",
               "default": true
             },
             {
               "name": "out",
-              "path": "/nix/store/pnyfjx2mv5x5c7ic75694f9n6fks4mnk-ormolu-0.7.2.0"
+              "path": "/nix/store/v3n11ji64ibvggji9m8hq1cr6pl90b5k-ormolu-0.7.2.0"
             }
           ],
-          "store_path": "/nix/store/vlp9vbp2yibfcwpax8xp3yqfvagwm8sb-ormolu-0.7.2.0-bin"
+          "store_path": "/nix/store/31wjfy7cwhma9q2rkyp3w7hlw5szpj02-ormolu-0.7.2.0-bin"
         }
       }
     }
