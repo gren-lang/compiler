@@ -261,11 +261,25 @@ parseUserArgs model compilerPath =
                 |> Stream.sendLine model.stdout
                 |> Task.execute
     
-        CLI.Parser.Success command ->
+        CLI.Parser.Success parsedCommand ->
             let
+                actualCommand =
+                    case parsedCommand of
+                        MakeStatic opts ->
+                            Compiler.Make
+                                { optimize = True
+                                , sourcemaps = False
+                                , output = Just (Compiler.Exe <| model.pathToString opts.output)
+                                , report = Nothing
+                                }
+                                [ opts.source ]
+
+                        CompilerCommand cmd ->
+                            cmd
+                
                 completionCommand =
-                    case command of
-                        Compiler.MakeStatic opts ->
+                    case parsedCommand of
+                        MakeStatic opts ->
                             CompilerRanStatic <| model.pathToString opts.output
 
                         _ ->
@@ -273,7 +287,7 @@ parseUserArgs model compilerPath =
             in
             Compiler.run
                 model.cpPermission
-                { command = command
+                { command = actualCommand
                 , interactiveSession = model.interactive
                 , useColor = model.useColor
                 , compilerPath = compilerPath
@@ -285,7 +299,18 @@ parseUserArgs model compilerPath =
 -- CLI Parsing
 
 
-cliParser : CLI.Parser.App Compiler.Command
+type ParsedCommand
+    = MakeStatic MakeStaticOpts
+    | CompilerCommand Compiler.Command
+
+
+type alias MakeStaticOpts =
+    { output : Path
+    , source : Path
+    }
+
+
+cliParser : CLI.Parser.App ParsedCommand
 cliParser =
     { name = "gren"
     , version = Compiler.version
@@ -344,7 +369,7 @@ cliParser =
                         common to all Gren project.
                         """
                 , builder =
-                    \_args flags -> Compiler.Init flags
+                    \_args flags -> CompilerCommand <| Compiler.Init flags
                 }
             |> CLI.Parser.withCommand
                 { word = "repl"
@@ -373,7 +398,7 @@ cliParser =
                         the quickest way to get started.
                         """
                 , builder =
-                    \_args flags -> Compiler.Repl flags
+                    \_args flags -> CompilerCommand <| Compiler.Repl flags
                 }
             |> CLI.Parser.withCommand
                 { word = "make"
@@ -411,7 +436,7 @@ cliParser =
                             """
                         ]
                 , builder =
-                    \args flags -> Compiler.Make flags args
+                    \args flags -> CompilerCommand <| Compiler.Make flags args
                 }
             |> CLI.Parser.withCommand
                 { word = "make-static"
@@ -446,7 +471,7 @@ cliParser =
                             """
                         ]
                 , builder =
-                    \args _flags -> Compiler.MakeStatic args
+                    \args _flags -> MakeStatic args
                 }
             |> CLI.Parser.withCommand
                 { word = "docs"
@@ -478,13 +503,13 @@ cliParser =
                             """
                         ]
                 , builder =
-                    \_args flags -> Compiler.Docs flags
+                    \_args flags -> CompilerCommand <| Compiler.Docs flags
                 }
             |> CLI.Parser.withPrefix "package" packageCommands
     }
 
 
-packageCommands : CLI.Parser.GroupParser Compiler.Command
+packageCommands : CLI.Parser.GroupParser ParsedCommand
 packageCommands =
     CLI.Parser.defineGroup
         |> CLI.Parser.withCommand
@@ -528,7 +553,7 @@ packageCommands =
                         """
                     ]
             , builder =
-                \arg _flags -> Compiler.PackageInstall arg
+                \arg _flags -> CompilerCommand <| Compiler.PackageInstall arg
             }
         |> CLI.Parser.withCommand
             { word = "uninstall"
@@ -564,7 +589,7 @@ packageCommands =
                         """
                     ]
             , builder =
-                \arg _flags -> Compiler.PackageUninstall arg
+                \arg _flags -> CompilerCommand <| Compiler.PackageUninstall arg
             }
         |> CLI.Parser.withCommand
             { word = "outdated"
@@ -582,7 +607,7 @@ packageCommands =
                     |> PP.indent
                     |> PP.color PP.Green
             , builder =
-                \_args _flags -> Compiler.PackageOutdated
+                \_args _flags -> CompilerCommand Compiler.PackageOutdated
             }
         |> CLI.Parser.withCommand
             { word = "validate"
@@ -627,7 +652,7 @@ packageCommands =
                         """
                     ]
             , builder =
-                \_args _flags -> Compiler.PackageValidate
+                \_args _flags -> CompilerCommand Compiler.PackageValidate
             }
         |> CLI.Parser.withCommand
             { word = "bump"
@@ -648,7 +673,7 @@ packageCommands =
                     all packages, so there cannot be MAJOR changes hiding in PATCH releases in Gren!
                     """
             , builder =
-                \_args _flags -> Compiler.PackageBump
+                \_args _flags -> CompilerCommand Compiler.PackageBump
             }
         |> CLI.Parser.withCommand
             { word = "diff"
@@ -686,7 +711,7 @@ packageCommands =
                         """
                     ]
             , builder =
-                \args _flags -> Compiler.PackageDiff args
+                \args _flags -> CompilerCommand <| Compiler.PackageDiff args
             }
 
 
