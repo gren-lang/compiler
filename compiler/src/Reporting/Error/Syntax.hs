@@ -1339,7 +1339,7 @@ toExposingReport source exposing startRow startCol =
                         "or",
                         "nothing,",
                         "otherwise",
-                        "`case`",
+                        "`when`",
                         "expressions",
                         "could",
                         "miss",
@@ -1351,7 +1351,7 @@ toExposingReport source exposing startRow startCol =
                     D.toSimpleNote $
                       "It is often best to keep the variants hidden! If someone pattern matches on\
                       \ the variants, it is a MAJOR change if any new variants are added. Suddenly\
-                      \ their `case` expressions do not cover all variants! So if you do not need\
+                      \ their `when` expressions do not cover all variants! So if you do not need\
                       \ people to pattern match, keep the variants hidden and expose functions to\
                       \ construct values of this type. This way you can add new variants as a MINOR change!"
                   ]
@@ -1511,17 +1511,17 @@ toDeclStartReport source row col =
                       "It is reserved for declaring imports at the top of your module. If you want\
                       \ another import, try moving it up top with the other imports. If you want to\
                       \ define a value or function, try changing the name to something else!"
-                  "case" ->
+                  "when" ->
                     D.stack
                       [ D.reflow $
-                          "It is reserved for writing `case` expressions. Try using a different name?",
+                          "It is reserved for writing `when` expressions. Try using a different name?",
                         D.toSimpleNote $
-                          "If you are trying to write a `case` expression, it needs to be part of a\
+                          "If you are trying to write a `when` expression, it needs to be part of a\
                           \ definition. So you could write something like this instead:",
                         D.indent 4 $
                           D.vcat $
                             [ D.indent 0 $ D.fillSep ["getWidth", "maybeWidth", "="],
-                              D.indent 2 $ D.fillSep [D.cyan "case", "maybeWidth", D.cyan "of"],
+                              D.indent 2 $ D.fillSep [D.cyan "when", "maybeWidth", D.cyan "of"],
                               D.indent 4 $ D.fillSep [D.blue "Just", "width", "->"],
                               D.indent 6 $ D.fillSep ["width", "+", D.dullyellow "200"],
                               "",
@@ -2759,8 +2759,8 @@ toExprReport source context expr startRow startCol =
               InNode NCond r c _ -> (r, c, "an `if` expression")
               InNode NThen r c _ -> (r, c, "an `if` expression")
               InNode NElse r c _ -> (r, c, "an `if` expression")
-              InNode NCase r c _ -> (r, c, "a `case` expression")
-              InNode NBranch r c _ -> (r, c, "a `case` expression")
+              InNode NCase r c _ -> (r, c, "a `when` expression")
+              InNode NBranch r c _ -> (r, c, "a `when` expression")
 
           surroundings = A.Region (A.Position contextRow contextCol) (A.Position row col)
           region = toRegion row col
@@ -3241,7 +3241,7 @@ toOperatorReport source context operator row col =
               if isWithin NCase context
                 then
                   ( D.reflow $
-                      "I am parsing a `case` expression right now, but this arrow is confusing me:",
+                      "I am parsing a `when` expression right now, but this arrow is confusing me:",
                     D.stack
                       [ D.reflow "Maybe the `of` keyword is missing on a previous line?",
                         noteForCaseError
@@ -3251,7 +3251,7 @@ toOperatorReport source context operator row col =
                   if isWithin NBranch context
                     then
                       ( D.reflow $
-                          "I am parsing a `case` expression right now, but this arrow is confusing me:",
+                          "I am parsing a `when` expression right now, but this arrow is confusing me:",
                         D.stack
                           [ D.reflow $
                               "It makes sense to see arrows around here, so I suspect it is something earlier. Maybe this pattern is indented a bit farther than the previous patterns?",
@@ -3262,7 +3262,7 @@ toOperatorReport source context operator row col =
                       ( D.reflow $
                           "I was partway through parsing an expression when I got stuck on this arrow:",
                         D.stack
-                          [ "Arrows should only appear in `case` expressions and anonymous functions.\n\
+                          [ "Arrows should only appear in `when` expressions and anonymous functions.\n\
                             \Maybe it was supposed to be a > sign instead?",
                             D.toSimpleNote $
                               "The syntax for anonymous functions is (\\x -> x + 1) so the arguments all appear\
@@ -3880,7 +3880,7 @@ toCaseReport source context case_ startRow startCol =
                   surroundings
                   (Just region)
                   ( D.reflow $
-                      "I am partway through parsing a `case` expression, but I got stuck here:",
+                      "I am partway through parsing a `when` expression, but I got stuck here:",
                     D.reflow $
                       "It looks like you are trying to use `"
                         ++ keyword
@@ -3896,7 +3896,7 @@ toCaseReport source context case_ startRow startCol =
                   surroundings
                   (Just region)
                   ( D.reflow $
-                      "I am partway through parsing a `case` expression, but I got stuck here:",
+                      "I am partway through parsing a `when` expression, but I got stuck here:",
                     D.fillSep $
                       [ "I",
                         "am",
@@ -3919,7 +3919,7 @@ toCaseReport source context case_ startRow startCol =
                   surroundings
                   (Just region)
                   ( D.reflow $
-                      "I am partway through parsing a `case` expression, but I got stuck here:",
+                      "I am partway through parsing a `when` expression, but I got stuck here:",
                     D.stack
                       [ D.reflow "I was expecting to see an arrow next.",
                         noteForCaseIndentError
@@ -3970,13 +3970,13 @@ toUnfinishCaseReport :: Code.Source -> Row -> Col -> Row -> Col -> D.Doc -> Repo
 toUnfinishCaseReport source row col startRow startCol message =
   let surroundings = A.Region (A.Position startRow startCol) (A.Position row col)
       region = toRegion row col
-   in Report.Report "UNFINISHED CASE" region [] $
+   in Report.Report "UNFINISHED WHEN" region [] $
         Code.toSnippet
           source
           surroundings
           (Just region)
           ( D.reflow $
-              "I was partway through parsing a `case` expression, but I got stuck here:",
+              "I was partway through parsing a `when` expression, but I got stuck here:",
             D.stack
               [ message,
                 noteForCaseError
@@ -3987,9 +3987,9 @@ noteForCaseError :: D.Doc
 noteForCaseError =
   D.stack
     [ D.toSimpleNote $
-        "Here is an example of a valid `case` expression for reference.",
+        "Here is an example of a valid `when` expression for reference.",
       D.vcat $
-        [ D.indent 4 $ D.fillSep [D.cyan "case", "maybeWidth", D.cyan "of"],
+        [ D.indent 4 $ D.fillSep [D.cyan "when", "maybeWidth", D.cyan "of"],
           D.indent 6 $ D.fillSep [D.blue "Just", "width", "->"],
           D.indent 8 $ D.fillSep ["width", "+", D.dullyellow "200"],
           "",
@@ -4005,10 +4005,10 @@ noteForCaseIndentError :: D.Doc
 noteForCaseIndentError =
   D.stack
     [ D.toSimpleNote $
-        "Sometimes I get confused by indentation, so try to make your `case` look\
+        "Sometimes I get confused by indentation, so try to make your `when` look\
         \ something like this:",
       D.vcat $
-        [ D.indent 4 $ D.fillSep [D.cyan "case", "maybeWidth", D.cyan "of"],
+        [ D.indent 4 $ D.fillSep [D.cyan "when", "maybeWidth", D.cyan "of"],
           D.indent 6 $ D.fillSep [D.blue "Just", "width", "->"],
           D.indent 8 $ D.fillSep ["width", "+", D.dullyellow "200"],
           "",

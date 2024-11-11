@@ -47,7 +47,7 @@ toReport source err =
                     unhandledPatternsToDocBlock unhandled,
                     D.reflow $
                       "I would have to crash if I saw one of those! So rather than\
-                      \ pattern matching in function arguments, put a `case` in\
+                      \ pattern matching in function arguments, put a `when` in\
                       \ the function body to account for all possibilities."
                   ]
               )
@@ -64,7 +64,7 @@ toReport source err =
                     D.reflow $
                       "I would have to crash if I saw one of those! You can use\
                       \ `let` to deconstruct values only if there is ONE possibility.\
-                      \ Switch to a `case` expression to account for all possibilities.",
+                      \ Switch to a `when` expression to account for all possibilities.",
                     D.toSimpleHint $
                       "Are you calling a function that definitely returns values\
                       \ with a very specific shape? Try making the return type of\
@@ -77,7 +77,7 @@ toReport source err =
               source
               region
               Nothing
-              ( "This `case` does not have branches for all possibilities:",
+              ( "This `when` does not have branches for all possibilities:",
                 D.stack
                   [ "Missing possibilities include:",
                     unhandledPatternsToDocBlock unhandled,

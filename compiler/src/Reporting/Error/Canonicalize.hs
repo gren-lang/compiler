@@ -257,7 +257,7 @@ toReport source err =
           DPFuncArgs funcName ->
             "The `" <> Name.toChars funcName <> "` function has multiple `" <> Name.toChars name <> "` arguments."
           DPCaseBranch ->
-            "This `case` pattern has multiple `" <> Name.toChars name <> "` variables."
+            "This `when` pattern has multiple `" <> Name.toChars name <> "` variables."
           DPLetBinding ->
             "This `let` expression defines `" <> Name.toChars name <> "` more than once!"
           DPDestruct ->
