@@ -1,6 +1,6 @@
 # Hints for Missing Patterns
 
-Gren checks to make sure that all possible inputs to a function or `case` are handled. This gives us the guarantee that no Gren code is ever going to crash because data had an unexpected shape.
+Gren checks to make sure that all possible inputs to a function or `when` are handled. This gives us the guarantee that no Gren code is ever going to crash because data had an unexpected shape.
 
 There are a couple techniques for making this work for you in every scenario.
 
@@ -15,7 +15,7 @@ type User
 
 toName : User -> String
 toName user =
-  case user of
+  when user is
     Regular name _ ->
       name
 
@@ -35,7 +35,7 @@ type User
 
 toName : User -> String
 toName user =
-  case user of
+  when user is
     Regular name _ ->
       name
 
@@ -59,7 +59,7 @@ type User
 
 toName : User -> String
 toName user =
-  case user of
+  when user is
     Regular name _ ->
       name
 
@@ -74,10 +74,10 @@ toName user =
 
 In this case it is easier to just write the implementation, but the point is that on more complex functions, you can put things off a bit.
 
-The Gren compiler is actually aware of `Debug.todo` so when it sees it in a `case` like this, it will crash with a bunch of helpful information. It will tell you:
+The Gren compiler is actually aware of `Debug.todo` so when it sees it in a `when` like this, it will crash with a bunch of helpful information. It will tell you:
 
 1. The name of the module that contains the code.
-2. The line numbers of the `case` containing the TODO.
+2. The line numbers of the `when` containing the TODO.
 3. The particular value that led to this TODO.
 
 From that information you have a pretty good idea of what went wrong and can go fix it.
@@ -91,7 +91,7 @@ This can come up from time to time, but Gren **will not** let you write code lik
 ```gren
 last : List a -> a
 last list =
-  case list of
+  when list is
     [x] ->
         x
 
@@ -104,7 +104,7 @@ This is no good. It does not handle the empty list. There are two ways to handle
 ```gren
 last : List a -> Maybe a
 last list =
-  case list of
+  when list is
     [] ->
         Nothing
 
@@ -122,7 +122,7 @@ The other option is to “unroll the list” one level to ensure that no one can
 ```gren
 last : a -> List a -> a
 last first rest =
-  case rest of
+  when rest is
     [] ->
       first
 

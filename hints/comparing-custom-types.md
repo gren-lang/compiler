@@ -75,14 +75,14 @@ trafficLightToInt trafficLight =
 
 We have heard that some people would prefer to use a dictionary for this sort of thing. That way you do not need to write the numbers yourself, they can be generated such that you never have a typo.
 
-I would recommend using a `case` expression though:
+I would recommend using a `when` expression though:
 
 ```gren
 type TrafficLight = Green | Yellow | Red
 
 trafficLightToInt : TrafficLight -> Int
 trafficLightToInt trafficLight =
-  case trafficLight of
+  when trafficLight is
     Green  -> 1
     Yellow -> 2
     Red    -> 3
