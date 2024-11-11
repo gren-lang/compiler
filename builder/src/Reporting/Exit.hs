@@ -2023,8 +2023,8 @@ toDetailsReport details =
                 "I ran into a compilation error when trying to build the following package:"
                 [ D.indent 4 $ D.red $ D.fromChars $ Pkg.toChars pkg ++ " " ++ V.toChars vsn,
                   D.reflow
-                    "This package contains kernel code which has not been signed by the lead\
-                    \ developer of Gren. Kernel code can violate all the guarantees that Gren\
+                    "This package contains kernel code which has not been signed by Gren's core\
+                    \ team. Kernel code can violate all the guarantees that Gren\
                     \ provide, and is therefore carefully managed.",
                   D.toSimpleNote $
                     "To help with the root problem, please report this to the package author."
