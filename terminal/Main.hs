@@ -39,8 +39,8 @@ main =
                 Init.run $ Init.Flags (not interactive) package platform
               Right (Repl interpreter) ->
                 Repl.run $ Repl.Flags interpreter
-              Right (Make (MakeFlags debug optimize sourcemaps output report paths)) ->
-                Make.run paths $ Make.Flags debug optimize sourcemaps output report
+              Right (Make (MakeFlags optimize sourcemaps output report paths)) ->
+                Make.run paths $ Make.Flags optimize sourcemaps output report
               Right (Docs (DocsFlags output report)) ->
                 Docs.run $ Docs.Flags output report
               Right (PackageInstall (InstallFlags interactive Nothing)) ->
@@ -90,8 +90,7 @@ data InitFlags = InitFlags
   deriving (Show)
 
 data MakeFlags = MakeFlags
-  { _make_debug :: Bool,
-    _make_optimize :: Bool,
+  { _make_optimize :: Bool,
     _make_sourcemaps :: Bool,
     _make_output :: Maybe Make.Output,
     _make_report_json :: Bool,
@@ -166,8 +165,7 @@ initDecoder =
 makeDecoder :: Json.Decoder CommandDecoderError MakeFlags
 makeDecoder =
   MakeFlags
-    <$> Json.field (BS.pack "debug") Json.bool
-    <*> Json.field (BS.pack "optimize") Json.bool
+    <$> Json.field (BS.pack "optimize") Json.bool
     <*> Json.field (BS.pack "sourcemaps") Json.bool
     <*> Json.field (BS.pack "output") (maybeDecoder makeOutputDecoder)
     <*> Json.field (BS.pack "report-json") Json.bool

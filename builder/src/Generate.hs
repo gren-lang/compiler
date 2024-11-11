@@ -1,8 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 
 module Generate
-  ( debug,
-    dev,
+  ( dev,
     prod,
     repl,
   )
@@ -37,22 +36,11 @@ import Prelude hiding (cycle, print)
 type Task a =
   Task.Task Exit.Generate a
 
-debug :: FilePath -> Details.Details -> Build.Artifacts -> Task JS.GeneratedResult
-debug root details (Build.Artifacts pkg ifaces roots modules) =
-  do
-    loading <- loadObjects root details modules
-    types <- loadTypes root ifaces modules
-    objects <- finalizeObjects loading
-    let mode = Mode.Dev (Just types)
-    let graph = objectsToGlobalGraph objects
-    let mains = gatherMains pkg objects roots
-    return $ JS.generate mode graph mains
-
 dev :: FilePath -> Details.Details -> Build.Artifacts -> Task JS.GeneratedResult
 dev root details (Build.Artifacts pkg _ roots modules) =
   do
     objects <- finalizeObjects =<< loadObjects root details modules
-    let mode = Mode.Dev Nothing
+    let mode = Mode.Dev
     let graph = objectsToGlobalGraph objects
     let mains = gatherMains pkg objects roots
     return $ JS.generate mode graph mains
@@ -144,38 +132,3 @@ finalizeObjects (LoadingObjects mvar mvars) =
 objectsToGlobalGraph :: Objects -> Opt.GlobalGraph
 objectsToGlobalGraph (Objects globals locals) =
   foldr Opt.addLocalGraph globals locals
-
--- LOAD TYPES
-
-loadTypes :: FilePath -> Map.Map ModuleName.Canonical I.DependencyInterface -> [Build.Module] -> Task Extract.Types
-loadTypes root ifaces modules =
-  Task.eio id $
-    do
-      mvars <- traverse (loadTypesHelp root) modules
-      let !foreigns = Extract.mergeMany (Map.elems (Map.mapWithKey Extract.fromDependencyInterface ifaces))
-      results <- traverse readMVar mvars
-      case sequence results of
-        Just ts -> return (Right (Extract.merge foreigns (Extract.mergeMany ts)))
-        Nothing -> return (Left Exit.GenerateCannotLoadArtifacts)
-
-loadTypesHelp :: FilePath -> Build.Module -> IO (MVar (Maybe Extract.Types))
-loadTypesHelp root modul =
-  case modul of
-    Build.Fresh name iface _ ->
-      newMVar (Just (Extract.fromInterface name iface))
-    Build.Cached name _ ciMVar ->
-      do
-        cachedInterface <- readMVar ciMVar
-        case cachedInterface of
-          Build.Unneeded ->
-            do
-              mvar <- newEmptyMVar
-              _ <- forkIO $
-                do
-                  maybeIface <- File.readBinary (Dirs.greni root name)
-                  putMVar mvar (Extract.fromInterface name <$> maybeIface)
-              return mvar
-          Build.Loaded iface ->
-            newMVar (Just (Extract.fromInterface name iface))
-          Build.Corrupted ->
-            newMVar Nothing

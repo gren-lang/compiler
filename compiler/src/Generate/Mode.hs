@@ -1,6 +1,5 @@
 module Generate.Mode
   ( Mode (..),
-    isDebug,
     ShortFieldNames,
     shortenFieldNames,
   )
@@ -17,14 +16,8 @@ import Gren.Compiler.Type.Extract qualified as Extract
 -- MODE
 
 data Mode
-  = Dev (Maybe Extract.Types)
+  = Dev
   | Prod ShortFieldNames
-
-isDebug :: Mode -> Bool
-isDebug mode =
-  case mode of
-    Dev mi -> Maybe.isJust mi
-    Prod _ -> False
 
 -- SHORTEN FIELD NAMES
 

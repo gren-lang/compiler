@@ -102,7 +102,7 @@ addMain mode graph home _ state =
 
 generateForRepl :: Bool -> L.Localizer -> Opt.GlobalGraph -> ModuleName.Canonical -> Name.Name -> Can.Annotation -> B.Builder
 generateForRepl ansi localizer (Opt.GlobalGraph graph _) home name (Can.Forall _ tipe) =
-  let mode = Mode.Dev Nothing
+  let mode = Mode.Dev
       debugState = addGlobal mode graph (emptyState 0) (Opt.Global ModuleName.debug "toString")
       evalState = addGlobal mode graph debugState (Opt.Global home name)
    in "process.on('uncaughtException', function(err) { process.stderr.write(err.toString() + '\\n'); process.exit(1); });"
@@ -209,9 +209,7 @@ addGlobalHelp mode graph global@(Opt.Global home _) state =
         Opt.Manager effectsType ->
           generateManager mode graph global effectsType state
         Opt.Kernel chunks deps ->
-          if isDebugger global && not (Mode.isDebug mode)
-            then state
-            else addDeps deps (addKernel state (generateKernel mode chunks))
+          addDeps deps (addKernel state (generateKernel mode chunks))
         Opt.Enum index ->
           addStmt
             state
@@ -267,10 +265,6 @@ ctor (Opt.Global home name) arity code =
           JS.Var (JsName.fromGlobal home name) $ Expr.codeToExpr (Expr.generateCurriedFunctionRef argNames directFnName)
         ]
 
-isDebugger :: Opt.Global -> Bool
-isDebugger (Opt.Global (ModuleName.Canonical _ home) _) =
-  home == Name.debugger
-
 -- GENERATE CYCLES
 
 generateCycle :: Mode.Mode -> FnArgLookup -> Opt.Global -> [Name.Name] -> [(Name.Name, Opt.Expr)] -> [Opt.Def] -> JS.Stmt
@@ -285,7 +279,7 @@ generateCycle mode argLookup (Opt.Global home _) names values functions =
           case mode of
             Mode.Prod _ ->
               JS.Block realBlock
-            Mode.Dev _ ->
+            Mode.Dev ->
               JS.Try (JS.Block realBlock) JsName.dollar $
                 JS.Throw $
                   JS.String $
@@ -364,13 +358,13 @@ addChunk mode chunk builder =
       B.intDec int <> builder
     K.Debug ->
       case mode of
-        Mode.Dev _ ->
+        Mode.Dev ->
           builder
         Mode.Prod _ ->
           "_UNUSED" <> builder
     K.Prod ->
       case mode of
-        Mode.Dev _ ->
+        Mode.Dev ->
           "_UNUSED" <> builder
         Mode.Prod _ ->
           builder
@@ -381,7 +375,7 @@ generateEnum :: Mode.Mode -> Opt.Global -> Index.ZeroBased -> JS.Stmt
 generateEnum mode global@(Opt.Global home name) index =
   JS.Var (JsName.fromGlobal home name) $
     case mode of
-      Mode.Dev _ ->
+      Mode.Dev ->
         Expr.codeToExpr (Expr.generateCtor mode global index 0)
       Mode.Prod _ ->
         JS.Int (Index.toMachine index)
@@ -392,7 +386,7 @@ generateBox :: Mode.Mode -> Opt.Global -> JS.Stmt
 generateBox mode global@(Opt.Global home name) =
   JS.Var (JsName.fromGlobal home name) $
     case mode of
-      Mode.Dev _ ->
+      Mode.Dev ->
         Expr.codeToExpr (Expr.generateCtor mode global Index.first 1)
       Mode.Prod _ ->
         JS.Ref (JsName.fromGlobal ModuleName.basics Name.identity)
