@@ -250,11 +250,14 @@ canonicalizeUnion env@(Env.Env home _ _ _ _ _ _ _) (A.At _ (Src.Union (A.At _ na
 
 canonicalizeCtor :: Env.Env -> Index.ZeroBased -> Src.UnionVariant -> Result i w (A.Located Can.Ctor)
 canonicalizeCtor env index (_, A.At region ctor, tipes, _) =
-  do
-    ctipes <- traverse (Type.canonicalize env) (fmap snd tipes)
-    Result.ok $
-      A.At region $
-        Can.Ctor ctor index (length ctipes) ctipes
+  let argLength = length tipes
+   in if argLength > 1
+        then Result.throw (Error.CustomTypeTooManyParams region ctor argLength)
+        else do
+          ctipes <- traverse (Type.canonicalize env) (fmap snd tipes)
+          Result.ok $
+            A.At region $
+              Can.Ctor ctor index (length ctipes) ctipes
 
 toOpts :: [Src.UnionVariant] -> Can.CtorOpts
 toOpts ctors =

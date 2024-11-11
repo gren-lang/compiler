@@ -41,6 +41,7 @@ data Error
   | AmbiguousBinop A.Region Name.Name ModuleName.Canonical (OneOrMore.OneOrMore ModuleName.Canonical)
   | BadArity A.Region BadArityContext Name.Name Int Int
   | Binop A.Region Name.Name Name.Name
+  | CustomTypeTooManyParams A.Region Name.Name Int
   | DuplicateDecl Name.Name A.Region A.Region
   | DuplicateType Name.Name A.Region A.Region
   | DuplicateCtor Name.Name A.Region A.Region
@@ -209,6 +210,23 @@ toReport source err =
               "You cannot mix (" <> Name.toChars op1 <> ") and (" <> Name.toChars op2 <> ") without parentheses.",
             D.reflow
               "I do not know how to group these expressions. Add parentheses for me!"
+          )
+    CustomTypeTooManyParams region name actual ->
+      Report.Report "TOO MANY PARAMETERS" region [] $
+        Code.toSnippet
+          source
+          region
+          Nothing
+          ( D.reflow $
+              "The `"
+                <> Name.toChars name
+                <> "` "
+                <> " variant can have at most 1 parameter, but I see "
+                <> show actual
+                <> ".",
+            D.reflow $
+              "Reduce the number of parameters to 1 or 0. You can always use a record to attach\
+              \ multiple pieces of information."
           )
     DuplicateDecl name r1 r2 ->
       nameClash source r1 r2 $
