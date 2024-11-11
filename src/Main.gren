@@ -415,8 +415,7 @@ type alias ReplFlags =
 
 
 type alias MakeFlags =
-    { debug : Bool
-    , optimize : Bool
+    { optimize : Bool
     , sourcemaps : Bool
     , output : Maybe MakeOutput
     , report : Maybe {}
@@ -552,15 +551,13 @@ cliParser =
                     CLI.Parser.zeroOrMoreArgs CLI.Parser.grenFileParser
                 , flags =
                     CLI.Parser.initFlags 
-                        (\debug optimize sourcemaps output report ->
-                            { debug = debug
-                            , optimize = optimize
+                        (\optimize sourcemaps output report ->
+                            { optimize = optimize
                             , sourcemaps = sourcemaps
                             , output = output
                             , report = report
                             }
                         )
-                        |> CLI.Parser.toggle "debug" "Turn on the time-travelling debugger for applications targetting the browser platform. It allows you to rewind and replay events. The events can be imported/exported into a file, which makes for very precise bug reports!"
                         |> CLI.Parser.toggle "optimize" "Turn on optimizations to make code smaller and faster. For example, the compiler renames record fields to be as short as possible and unboxes values to reduce allocation."
                         |> CLI.Parser.toggle "sourcemaps" "Add sourcemaps to the resulting JS file. This let's you debug Gren code in a JS debugger, at the cost of longer compile times and a bigger JS file."
                         |> CLI.Parser.flag "output" outputParser "Specify the name of the resulting JS file. For example --output=assets/gren.js to generate the JS at assets/gren.js. You can also use --output=/dev/stdout to output the JS to the terminal, or --output=/dev/null to generate no output at all!"
@@ -1010,7 +1007,6 @@ commandEncoder interactive pathToString command =
         Make flags paths ->
             Json.object
                 [ { key = "command", value = Json.string "make" }
-                , { key = "debug", value = Json.bool flags.debug }
                 , { key = "optimize", value = Json.bool flags.optimize }
                 , { key = "sourcemaps", value = Json.bool flags.sourcemaps }
                 , { key = "output", value = maybeEncoder makeOutputEncoder flags.output }
@@ -1021,8 +1017,7 @@ commandEncoder interactive pathToString command =
         MakeStatic opts ->
             commandEncoder interactive pathToString <|
                 Make
-                    { debug = False
-                    , optimize = True
+                    { optimize = True
                     , sourcemaps = False
                     , output = Just (Exe <| pathToString opts.output)
                     , report = Nothing
