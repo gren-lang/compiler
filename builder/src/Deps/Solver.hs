@@ -249,15 +249,10 @@ addVersion reportKey (Goals rootPlatform pending solved) name source =
     if C.goodGren gren
       then
         if Platform.compatible rootPlatform platform
-          then
-            if any PossibleFilePath.is deps
-              then
-                solverError $
-                  Exit.SolverTransientLocalDep name
-              else do
-                depsConstraintSources <- Map.traverseWithKey resolveToConstraintSource deps
-                newPending <- foldM (addConstraint name solved) pending (Map.toList depsConstraintSources)
-                return (Goals rootPlatform newPending (Map.insert name source solved))
+          then do
+            depsConstraintSources <- Map.traverseWithKey resolveToConstraintSource deps
+            newPending <- foldM (addConstraint name solved) pending (Map.toList depsConstraintSources)
+            return (Goals rootPlatform newPending (Map.insert name source solved))
           else
             solverError $
               Exit.SolverIncompatiblePlatforms name rootPlatform platform
@@ -268,26 +263,49 @@ addConstraint sourcePkg solved unsolved (name, newConstraintSource) =
   let newConstraint = constraintFromCS newConstraintSource
    in case Map.lookup name solved of
         Just solvedConstraintSource ->
-          let solvedVersion = C.lowerBound $ constraintFromCS solvedConstraintSource
-           in if C.satisfies newConstraint solvedVersion
-                then return unsolved
-                else
-                  solverError $
-                    Exit.SolverIncompatibleSolvedVersion sourcePkg name newConstraint solvedVersion
+          if not $ compatibleConstraintSources solvedConstraintSource newConstraintSource
+            then
+              solverError $
+                Exit.SolverTransientLocalDep sourcePkg name
+            else
+              let solvedVersion = C.lowerBound $ constraintFromCS solvedConstraintSource
+               in if C.satisfies newConstraint solvedVersion
+                    then return unsolved
+                    else
+                      solverError $
+                        Exit.SolverIncompatibleSolvedVersion sourcePkg name newConstraint solvedVersion
         Nothing ->
           case Map.lookup name unsolved of
             Nothing ->
               return $ Map.insert name newConstraintSource unsolved
             Just oldConstraintSource ->
-              let oldConstraint = constraintFromCS oldConstraintSource
-               in case C.intersect oldConstraint newConstraint of
-                    Nothing ->
-                      solverError $
-                        Exit.SolverIncompatibleVersionRanges sourcePkg name oldConstraint newConstraint
-                    Just mergedConstraint ->
-                      if oldConstraint == mergedConstraint
-                        then return unsolved
-                        else return (Map.insert name (setConstraintInCS mergedConstraint newConstraintSource) unsolved)
+              if not $ compatibleConstraintSources oldConstraintSource newConstraintSource
+                then
+                  solverError $
+                    Exit.SolverTransientLocalDep sourcePkg name
+                else
+                  let oldConstraint = constraintFromCS oldConstraintSource
+                   in case C.intersect oldConstraint newConstraint of
+                        Nothing ->
+                          solverError $
+                            Exit.SolverIncompatibleVersionRanges sourcePkg name oldConstraint newConstraint
+                        Just mergedConstraint ->
+                          if oldConstraint == mergedConstraint
+                            then return unsolved
+                            else return (Map.insert name (setConstraintInCS mergedConstraint newConstraintSource) unsolved)
+
+compatibleConstraintSources :: ConstraintSource -> ConstraintSource -> Bool
+compatibleConstraintSources a b =
+  case (a, b) of
+    (Local _ aPath, Local _ bPath) ->
+      aPath == bPath
+    (Remote _, Remote _) ->
+      True
+    (Remote _, Local _ _) ->
+      False
+    (Local _ _, Remote _) ->
+      -- Application is allowed to override
+      True
 
 -- GET CONSTRAINTS
 

@@ -1088,7 +1088,7 @@ data Solver
   | SolverBadLocalDepExpectedPkg FilePath Pkg.Name
   | SolverBadLocalDepInvalidGrenJson FilePath Pkg.Name
   | SolverLocalDepNotFound FilePath Pkg.Name
-  | SolverTransientLocalDep Pkg.Name
+  | SolverTransientLocalDep Pkg.Name Pkg.Name
   | SolverBadGitOperationUnversionedPkg Pkg.Name Git.Error
   | SolverBadGitOperationVersionedPkg Pkg.Name V.Version Git.Error
   | SolverIncompatibleSolvedVersion Pkg.Name Pkg.Name C.Constraint V.Version
@@ -1170,16 +1170,23 @@ toSolverReport problem =
         [ D.reflow
             "Verify that the path is correct."
         ]
-    SolverTransientLocalDep pkgName ->
+    SolverTransientLocalDep pkgName depName ->
       Help.report
         "PROBLEM SOLVING PACKAGE CONSTRAINTS"
         Nothing
         ( Pkg.toChars pkgName
-            ++ " has defined one or more local dependencies."
+            ++ " has defined a dependency on "
+            ++ Pkg.toChars depName
+            ++ " with an incompatible source."
         )
-        [ D.reflow
-            "Dependencies are not allowed to define their own local dependencies. Contact the package \
-            \author to resolve this issue."
+        [ D.reflow $
+            "This could mean that your application has specified "
+              ++ Pkg.toChars depName
+              ++ " as a versioned dependency while "
+              ++ Pkg.toChars pkgName
+              ++ " has defined it as a local dependency. It could also mean that "
+              ++ " the package has been defined as a local dependency in both places, but"
+              ++ " with different paths."
         ]
     SolverBadGitOperationUnversionedPkg pkg gitError ->
       toGitErrorReport "PROBLEM SOLVING PACKAGE CONSTRAINTS" gitError $

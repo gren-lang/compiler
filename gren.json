@@ -7,7 +7,7 @@
     "gren-version": "0.4.5",
     "dependencies": {
         "direct": {
-            "gren-lang/core": "5.1.0",
+            "gren-lang/core": "local:../core",
             "gren-lang/node": "local:../node",
             "gren-lang/compiler-node": "local:../compiler-node"
         },
