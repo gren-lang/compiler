@@ -705,12 +705,12 @@ formatExpr = \case
       Block.stack $
         spaceSeparatedOrStack
           [ spaceSeparatedOrIndent
-              [ Block.line (Block.string7 "case"),
+              [ Block.line (Block.string7 "when"),
                 withCommentsAround commentsAfterCaseKeyword commentsBeforeOfKeyword $
                   exprParensNone $
                     formatExpr (A.toValue subject)
               ],
-            Block.line (Block.string7 "of")
+            Block.line (Block.string7 "is")
           ]
           :| List.intersperse Block.blankLine (fmap (Block.indent . formatCaseBranch) branches)
     where

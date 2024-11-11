@@ -63,7 +63,7 @@ when_ :: (Row -> Col -> x) -> Parser x ()
 when_ tx = k4 0x77 0x68 0x65 0x6E tx
 
 is_ :: (Row -> Col -> x) -> Parser x ()
-is_ tx = k2 0x69 0x66 tx
+is_ tx = k2 0x69 0x73 tx
 
 -- LET EXPRESSIONS
 
