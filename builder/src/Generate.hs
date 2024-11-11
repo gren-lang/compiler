@@ -21,9 +21,7 @@ import Directories qualified as Dirs
 import File qualified
 import Generate.JavaScript qualified as JS
 import Generate.Mode qualified as Mode
-import Gren.Compiler.Type.Extract qualified as Extract
 import Gren.Details qualified as Details
-import Gren.Interface qualified as I
 import Gren.ModuleName qualified as ModuleName
 import Gren.Package qualified as Pkg
 import Nitpick.Debug qualified as Nitpick
