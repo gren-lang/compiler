@@ -2102,7 +2102,6 @@ toGitErrorReport title err context =
 
 data Make
   = MakeNoOutline
-  | MakeCannotOptimizeAndDebug
   | MakeCannotOutputForPackage
   | MakeCannotOutputMainForPackage ModuleName.Raw [ModuleName.Raw]
   | MakeBadDetails Details
@@ -2127,29 +2126,6 @@ makeToReport make =
         [ D.indent 4 $ D.green $ "gren init",
           D.reflow $
             "It will help you get set up. It is really simple!"
-        ]
-    MakeCannotOptimizeAndDebug ->
-      Help.docReport
-        "CLASHING FLAGS"
-        Nothing
-        ( D.fillSep
-            [ "I",
-              "cannot",
-              "compile",
-              "with",
-              D.red "--optimize",
-              "and",
-              D.red "--debug",
-              "at",
-              "the",
-              "same",
-              "time."
-            ]
-        )
-        [ D.reflow
-            "I need to take away information to optimize things, and I need to\
-            \ add information to add the debugger. It is impossible to do both\
-            \ at once though! Pick just one of those flags and it should work!"
         ]
     MakeCannotOutputForPackage ->
       Help.docReport
