@@ -419,12 +419,12 @@ chompArgs revArgs commentsBefore =
 
 case_ :: A.Position -> Space.Parser E.Expr (Src.Expr, [Src.Comment])
 case_ start =
-  inContext E.Case (Keyword.case_ E.Start) $
+  inContext E.Case (Keyword.when_ E.Start) $
     do
       commentsBeforeExpr <- Space.chompAndCheckIndent E.CaseSpace E.CaseIndentExpr
       ((expr, commentsAfterExpr), exprEnd) <- specialize E.CaseExpr expression
       Space.checkIndent exprEnd E.CaseIndentOf
-      Keyword.of_ E.CaseOf
+      Keyword.is_ E.CaseOf
       commentsAfterOf <- Space.chompAndCheckIndent E.CaseSpace E.CaseIndentPattern
       withIndent $
         do
