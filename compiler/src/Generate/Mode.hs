@@ -1,6 +1,5 @@
 module Generate.Mode
   ( Mode (..),
-    isDebug,
     ShortFieldNames,
     shortenFieldNames,
   )
@@ -9,22 +8,14 @@ where
 import AST.Optimized qualified as Opt
 import Data.List qualified as List
 import Data.Map qualified as Map
-import Data.Maybe qualified as Maybe
 import Data.Name qualified as Name
 import Generate.JavaScript.Name qualified as JsName
-import Gren.Compiler.Type.Extract qualified as Extract
 
 -- MODE
 
 data Mode
-  = Dev (Maybe Extract.Types)
+  = Dev
   | Prod ShortFieldNames
-
-isDebug :: Mode -> Bool
-isDebug mode =
-  case mode of
-    Dev mi -> Maybe.isJust mi
-    Prod _ -> False
 
 -- SHORTEN FIELD NAMES
 

@@ -38,8 +38,7 @@ import System.IO qualified as IO
 -- FLAGS
 
 data Flags = Flags
-  { _debug :: Bool,
-    _optimize :: Bool,
+  { _optimize :: Bool,
     _sourceMaps :: Bool,
     _output :: Maybe Output,
     _report :: Bool
@@ -58,7 +57,7 @@ data Output
 type Task a = Task.Task Exit.Make a
 
 run :: [FilePath] -> Flags -> IO ()
-run paths flags@(Flags _ _ _ maybeOutput report) =
+run paths flags@(Flags _ _ maybeOutput report) =
   do
     style <- getStyle maybeOutput report
     maybeRoot <- Dirs.findRoot
@@ -68,12 +67,12 @@ run paths flags@(Flags _ _ _ maybeOutput report) =
         Nothing -> return $ Left Exit.MakeNoOutline
 
 runHelp :: FilePath -> [FilePath] -> Reporting.Style -> Flags -> IO (Either Exit.Make ())
-runHelp root paths style (Flags debug optimize withSourceMaps maybeOutput _) =
+runHelp root paths style (Flags optimize withSourceMaps maybeOutput _) =
   BW.withScope $ \scope ->
     Dirs.withRootLock root $
       Task.run $
         do
-          desiredMode <- getMode debug optimize
+          desiredMode <- getMode optimize
           details <- Task.eio Exit.MakeBadDetails (Details.load style scope root)
           let platform = getPlatform details
           let projectType = getProjectType details
@@ -161,13 +160,11 @@ getStyle maybeOutput report =
     (_, False) -> Reporting.terminal
     (_, True) -> return Reporting.json
 
-getMode :: Bool -> Bool -> Task DesiredMode
-getMode debug optimize =
-  case (debug, optimize) of
-    (True, True) -> Task.throw Exit.MakeCannotOptimizeAndDebug
-    (True, False) -> return Debug
-    (False, False) -> return Dev
-    (False, True) -> return Prod
+getMode :: Bool -> Task DesiredMode
+getMode optimize =
+  case optimize of
+    False -> return Dev
+    True -> return Prod
 
 rereadSources :: FilePath -> IO (Map ModuleName.Canonical String)
 rereadSources root =
@@ -285,12 +282,11 @@ writeToDisk style target builder names =
 
 -- GENERATE
 
-data DesiredMode = Debug | Dev | Prod
+data DesiredMode = Dev | Prod
 
 generate :: FilePath -> Details.Details -> DesiredMode -> Build.Artifacts -> Task JS.GeneratedResult
 generate root details desiredMode artifacts =
   Task.mapError Exit.MakeBadGenerate $
     case desiredMode of
-      Debug -> Generate.debug root details artifacts
       Dev -> Generate.dev root details artifacts
       Prod -> Generate.prod root details artifacts

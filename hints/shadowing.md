@@ -5,7 +5,7 @@ Variable shadowing is when you define the same variable name twice in an ambiguo
 ```gren
 viewName : Maybe String -> Html msg
 viewName name =
-  case name of
+  when name is
     Nothing ->
       ...
 

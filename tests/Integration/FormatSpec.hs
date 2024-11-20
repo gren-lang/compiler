@@ -269,13 +269,13 @@ spec = do
                                    ]
     it "formats comments after value declarations ending in a case expression" $
       [ "f =",
-        "    case x of",
+        "    when x is",
         "        _ -> {}",
         "-- A",
         "g = {}"
       ]
         `shouldFormatModuleBodyAs` [ "f =",
-                                     "    case x of",
+                                     "    when x is",
                                      "        _ ->",
                                      "            {}",
                                      "",
@@ -552,7 +552,7 @@ spec = do
 
     describe "case" $ do
       it "formats comments" $
-        [ "case{-A-}x{-B-}of{-C-}",
+        [ "when{-A-}x{-B-}is{-C-}",
           " {-D1-}",
           "{-D2-}",
           " Nothing{-E-}->{-F-}y",
@@ -560,7 +560,7 @@ spec = do
           "{-H2-}",
           " _{-J-}->{-K-}z"
         ]
-          `shouldFormatExpressionAs` [ "case {- A -} x {- B -} of",
+          `shouldFormatExpressionAs` [ "when {- A -} x {- B -} is",
                                        "    {- C -} {- D1 -} {- D2 -}",
                                        "    Nothing {- E -} ->",
                                        "        {- F -}",
@@ -572,13 +572,13 @@ spec = do
                                        "        z"
                                      ]
       it "formats indented comments after branches" $
-        [ "case x of",
+        [ "when x is",
           " Nothing -> y{-A-}",
           "  {-B-}",
           " _ -> z{-C-}",
           "  {-D-}"
         ]
-          `shouldFormatExpressionAs` [ "case x of",
+          `shouldFormatExpressionAs` [ "when x is",
                                        "    Nothing ->",
                                        "        y",
                                        "        {- A -} {- B -}",

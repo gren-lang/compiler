@@ -23,7 +23,7 @@ viewStudents : Order -> List Student -> Html msg
 viewStudents order students =
   let
     orderlyStudents =
-      case order of
+      when order is
         Name -> List.sortBy .name students
         Age -> List.sortBy .age students
         GPA -> List.sortBy .gpa students
@@ -54,7 +54,7 @@ viewStudents : Order -> List Student -> Html msg
 viewStudents order students =
   let
     orderlyStudents =
-      case order of
+      when order is
         Name -> List.sortBy .name students
         Age -> List.sortBy .age students
         GPA -> List.sortBy .gpa students

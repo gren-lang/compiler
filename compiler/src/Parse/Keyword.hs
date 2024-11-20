@@ -8,8 +8,8 @@ module Parse.Keyword
     if_,
     then_,
     else_,
-    case_,
-    of_,
+    when_,
+    is_,
     let_,
     in_,
     infix_,
@@ -59,11 +59,11 @@ else_ tx = k4 0x65 0x6C 0x73 0x65 tx
 
 -- CASE EXPRESSIONS
 
-case_ :: (Row -> Col -> x) -> Parser x ()
-case_ tx = k4 0x63 0x61 0x73 0x65 tx
+when_ :: (Row -> Col -> x) -> Parser x ()
+when_ tx = k4 0x77 0x68 0x65 0x6E tx
 
-of_ :: (Row -> Col -> x) -> Parser x ()
-of_ tx = k2 0x6F 0x66 tx
+is_ :: (Row -> Col -> x) -> Parser x ()
+is_ tx = k2 0x69 0x73 tx
 
 -- LET EXPRESSIONS
 

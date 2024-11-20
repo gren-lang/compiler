@@ -42,7 +42,7 @@ The same can be done with definitions and custom types:
 |   | Visitor String
 |
 
-> case Regular "Tom" of
+> when Regular "Tom" is
 |   Regular name -> "Hey again!"
 |   Visitor name -> "Nice to meet you!"
 |

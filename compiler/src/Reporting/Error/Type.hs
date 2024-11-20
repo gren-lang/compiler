@@ -183,20 +183,20 @@ toPatternReport source localizer patternRegion category tipe expected =
               if index == Index.first
                 then
                   ( D.reflow $
-                      "The 1st pattern in this `case` causing a mismatch:",
+                      "The 1st pattern in this `when` causing a mismatch:",
                     patternTypeComparison
                       localizer
                       tipe
                       expectedType
                       (addPatternCategory "The first pattern is trying to match" category)
-                      "But the expression between `case` and `of` is:"
+                      "But the expression between `when` and `of` is:"
                       [ D.reflow $
                           "These can never match! Is the pattern the problem? Or is it the expression?"
                       ]
                   )
                 else
                   ( D.reflow $
-                      "The " <> D.ordinal index <> " pattern in this `case` does not match the previous ones.",
+                      "The " <> D.ordinal index <> " pattern in this `when` does not match the previous ones.",
                     patternTypeComparison
                       localizer
                       tipe
@@ -205,7 +205,7 @@ toPatternReport source localizer patternRegion category tipe expected =
                       "But all the previous patterns match:"
                       [ D.link
                           "Note"
-                          "A `case` expression can only handle one type of value, so you may want to use"
+                          "A `when` expression can only handle one type of value, so you may want to use"
                           "custom-types"
                           "to handle “mixing” types."
                       ]
@@ -305,7 +305,7 @@ addCategory thisIs category =
     Access field -> "The value at ." <> Name.toChars field <> " is a:"
     Accessor field -> "This ." <> Name.toChars field <> " field access function has type:"
     If -> "This `if` expression produces:"
-    Case -> "This `case` expression produces:"
+    Case -> "This `when` expression produces:"
     Array -> thisIs <> " an array of type:"
     Number -> thisIs <> " a number of type:"
     Float -> thisIs <> " a float of type:"
@@ -446,7 +446,7 @@ problemToHint problem =
             "out",
             "the",
             "full",
-            "`case`",
+            "`when`",
             "though!"
           ]
       ]
@@ -672,7 +672,7 @@ toExprReport source localizer exprRegion category tipe expected =
       let thing =
             case subContext of
               TypedIfBranch index -> D.ordinal index <> " branch of this `if` expression:"
-              TypedCaseBranch index -> D.ordinal index <> " branch of this `case` expression:"
+              TypedCaseBranch index -> D.ordinal index <> " branch of this `when` expression:"
               TypedBody -> "body of the `" <> Name.toChars name <> "` definition:"
 
           itIs =
@@ -787,12 +787,12 @@ toExprReport source localizer exprRegion category tipe expected =
               let ith = D.ordinal index
                in mismatch
                     ( Just exprRegion,
-                      "The " <> ith <> " branch of this `case` does not match all the previous branches:",
+                      "The " <> ith <> " branch of this `when` does not match all the previous branches:",
                       "The " <> ith <> " branch is",
                       "But all the previous branches result in:",
                       [ D.link
                           "Hint"
-                          "All branches in a `case` must produce the same type of values. This way, no\
+                          "All branches in a `when` must produce the same type of values. This way, no\
                           \ matter which branch we take, the result is always a consistent shape. Read"
                           "custom-types"
                           "to learn how to “mix” types."
