@@ -2,7 +2,7 @@ port module Main exposing (main)
 
 import Node
 import ChildProcess
-import Compiler
+import CompilerBlob
 import Init
 import Stream exposing (Stream)
 import Task exposing (Task)
@@ -75,11 +75,11 @@ init env =
                                 }
 
                         _ ->
-                            Compiler.binaryDownloadUrl env.platform env.cpuArchitecture
+                            CompilerBlob.downloadUrl env.platform env.cpuArchitecture
                                 |> Result.map 
                                     (\url ->
                                         { remotePath = Just url
-                                        , localPath = Compiler.binaryCachePath env.platform envVars homeDir
+                                        , localPath = CompilerBlob.cachePath env.platform envVars homeDir
                                         }
                                     )
                                 |> Result.toMaybe
@@ -147,7 +147,7 @@ update msg model =
                 case maybeRemotePath of
                     Just remotePath ->
                         Stream.sendLine model.stdout ("Compiler not found at " ++ model.pathToString localPath ++ ". Downloading...")
-                            |> Task.andThen (\{} -> Compiler.downloadBinary model.httpPermission remotePath)
+                            |> Task.andThen (\{} -> CompilerBlob.download model.httpPermission remotePath)
                             |> Task.attempt (\result -> CompilerDownloaded { localPath = localPath, downloadResult = result })
             
                     Nothing ->
@@ -161,7 +161,7 @@ update msg model =
                 if res.statusCode == 302 then
                     case Dict.get "location" res.headers of
                         Just [ location ] ->
-                            Compiler.downloadBinary model.httpPermission location
+                            CompilerBlob.download model.httpPermission location
                                 |> Task.attempt (\result -> CompilerDownloaded { localPath = localPath, downloadResult = result })
 
                         _ ->
@@ -266,10 +266,10 @@ parseUserArgs model compilerPath =
                 actualCommand =
                     case parsedCommand of
                         MakeStatic opts ->
-                            Compiler.Make
+                            CompilerBlob.Make
                                 { optimize = True
                                 , sourcemaps = False
-                                , output = Just (Compiler.Exe <| model.pathToString opts.output)
+                                , output = Just (CompilerBlob.Exe <| model.pathToString opts.output)
                                 , report = Nothing
                                 }
                                 [ opts.source ]
@@ -285,7 +285,7 @@ parseUserArgs model compilerPath =
                         _ ->
                             CompilerRan
             in
-            Compiler.run
+            CompilerBlob.run
                 model.cpPermission
                 { command = actualCommand
                 , interactiveSession = model.interactive
@@ -301,7 +301,7 @@ parseUserArgs model compilerPath =
 
 type ParsedCommand
     = MakeStatic MakeStaticOpts
-    | CompilerCommand Compiler.Command
+    | CompilerCommand CompilerBlob.Command
 
 
 type alias MakeStaticOpts =
@@ -313,12 +313,12 @@ type alias MakeStaticOpts =
 cliParser : CLI.Parser.App ParsedCommand
 cliParser =
     { name = "gren"
-    , version = Compiler.version
+    , version = CompilerBlob.version
     , intro = 
         PP.verticalBlock
             [ PP.block
                 [ PP.text "Hi, thank you for trying out "
-                , PP.intenseColor PP.Green <| PP.text ("Gren " ++ Compiler.version)
+                , PP.intenseColor PP.Green <| PP.text ("Gren " ++ CompilerBlob.version)
                 , PP.text ". I hope you like it!"
                 ]
             , PP.empty
@@ -350,10 +350,10 @@ cliParser =
                             { package = package
                             , platform = 
                                 if package then
-                                    Maybe.withDefault Compiler.Common maybePlatform
+                                    Maybe.withDefault CompilerBlob.Common maybePlatform
 
                                 else
-                                    Maybe.withDefault Compiler.Browser maybePlatform
+                                    Maybe.withDefault CompilerBlob.Browser maybePlatform
                             }
                         )
                         |> CLI.Parser.toggle "package" "Create a package (as opposed to an application)"
@@ -369,7 +369,7 @@ cliParser =
                         common to all Gren project.
                         """
                 , builder =
-                    \_args flags -> CompilerCommand <| Compiler.Init flags
+                    \_args flags -> CompilerCommand <| CompilerBlob.Init flags
                 }
             |> CLI.Parser.withCommand
                 { word = "repl"
@@ -398,7 +398,7 @@ cliParser =
                         the quickest way to get started.
                         """
                 , builder =
-                    \_args flags -> CompilerCommand <| Compiler.Repl flags
+                    \_args flags -> CompilerCommand <| CompilerBlob.Repl flags
                 }
             |> CLI.Parser.withCommand
                 { word = "make"
@@ -436,7 +436,7 @@ cliParser =
                             """
                         ]
                 , builder =
-                    \args flags -> CompilerCommand <| Compiler.Make flags args
+                    \args flags -> CompilerCommand <| CompilerBlob.Make flags args
                 }
             |> CLI.Parser.withCommand
                 { word = "make-static"
@@ -503,7 +503,7 @@ cliParser =
                             """
                         ]
                 , builder =
-                    \_args flags -> CompilerCommand <| Compiler.Docs flags
+                    \_args flags -> CompilerCommand <| CompilerBlob.Docs flags
                 }
             |> CLI.Parser.withPrefix "package" packageCommands
     }
@@ -553,7 +553,7 @@ packageCommands =
                         """
                     ]
             , builder =
-                \arg _flags -> CompilerCommand <| Compiler.PackageInstall arg
+                \arg _flags -> CompilerCommand <| CompilerBlob.PackageInstall arg
             }
         |> CLI.Parser.withCommand
             { word = "uninstall"
@@ -589,7 +589,7 @@ packageCommands =
                         """
                     ]
             , builder =
-                \arg _flags -> CompilerCommand <| Compiler.PackageUninstall arg
+                \arg _flags -> CompilerCommand <| CompilerBlob.PackageUninstall arg
             }
         |> CLI.Parser.withCommand
             { word = "outdated"
@@ -607,7 +607,7 @@ packageCommands =
                     |> PP.indent
                     |> PP.color PP.Green
             , builder =
-                \_args _flags -> CompilerCommand Compiler.PackageOutdated
+                \_args _flags -> CompilerCommand CompilerBlob.PackageOutdated
             }
         |> CLI.Parser.withCommand
             { word = "validate"
@@ -652,7 +652,7 @@ packageCommands =
                         """
                     ]
             , builder =
-                \_args _flags -> CompilerCommand Compiler.PackageValidate
+                \_args _flags -> CompilerCommand CompilerBlob.PackageValidate
             }
         |> CLI.Parser.withCommand
             { word = "bump"
@@ -673,18 +673,18 @@ packageCommands =
                     all packages, so there cannot be MAJOR changes hiding in PATCH releases in Gren!
                     """
             , builder =
-                \_args _flags -> CompilerCommand Compiler.PackageBump
+                \_args _flags -> CompilerCommand CompilerBlob.PackageBump
             }
         |> CLI.Parser.withCommand
             { word = "diff"
             , arguments =
                 CLI.Parser.oneOfArgs
                     [ CLI.Parser.noArgs
-                        |> CLI.Parser.mapArgs (\{} -> Compiler.DiffLatest)
+                        |> CLI.Parser.mapArgs (\{} -> CompilerBlob.DiffLatest)
                     , CLI.Parser.oneArg SemanticVersion.cliParser
-                        |> CLI.Parser.mapArgs Compiler.DiffVersion
-                    , CLI.Parser.twoArgs Compiler.DiffRange SemanticVersion.cliParser SemanticVersion.cliParser
-                    , CLI.Parser.threeArgs Compiler.DiffGlobal Package.cliParser SemanticVersion.cliParser SemanticVersion.cliParser
+                        |> CLI.Parser.mapArgs CompilerBlob.DiffVersion
+                    , CLI.Parser.twoArgs CompilerBlob.DiffRange SemanticVersion.cliParser SemanticVersion.cliParser
+                    , CLI.Parser.threeArgs CompilerBlob.DiffGlobal Package.cliParser SemanticVersion.cliParser SemanticVersion.cliParser
                     ]
             , flags =
                 CLI.Parser.noFlags 
@@ -711,19 +711,19 @@ packageCommands =
                         """
                     ]
             , builder =
-                \args _flags -> CompilerCommand <| Compiler.PackageDiff args
+                \args _flags -> CompilerCommand <| CompilerBlob.PackageDiff args
             }
 
 
-initPlatformParser : CLI.Parser.ValueParser Compiler.Platform
+initPlatformParser : CLI.Parser.ValueParser CompilerBlob.Platform
 initPlatformParser =
     { singular = "platform"
     , plural = "platforms"
     , fn = \str ->
         case str of
-            "common" -> Just Compiler.Common
-            "browser" -> Just Compiler.Browser
-            "node" -> Just Compiler.Node
+            "common" -> Just CompilerBlob.Common
+            "browser" -> Just CompilerBlob.Browser
+            "node" -> Just CompilerBlob.Node
             _ -> Nothing
     , examples =
         [ "common"
@@ -761,25 +761,25 @@ interpreterParser =
     }
 
 
-outputParser : CLI.Parser.ValueParser Compiler.MakeOutput
+outputParser : CLI.Parser.ValueParser CompilerBlob.MakeOutput
 outputParser =
     { singular = "output-file"
     , plural = "output-files"
     , fn = \str ->
         case str of
-            "/dev/stdout" -> Just Compiler.StdOut
-            "/dev/null" -> Just Compiler.DevNull
-            "NUL" -> Just Compiler.DevNull
-            "$null" -> Just Compiler.DevNull
+            "/dev/stdout" -> Just CompilerBlob.StdOut
+            "/dev/null" -> Just CompilerBlob.DevNull
+            "NUL" -> Just CompilerBlob.DevNull
+            "$null" -> Just CompilerBlob.DevNull
             _ ->
                 if String.endsWith ".html" str then
-                    Just <| Compiler.Html str
+                    Just <| CompilerBlob.Html str
                 
                 else if String.endsWith ".js" str then
-                    Just <| Compiler.Js str
+                    Just <| CompilerBlob.Js str
 
                 else if not <| String.contains "." str then
-                    Just <| Compiler.Exe str
+                    Just <| CompilerBlob.Exe str
 
                 else
                     Nothing
@@ -793,19 +793,19 @@ outputParser =
     }
 
 
-docsOutputParser : CLI.Parser.ValueParser Compiler.DocsOutput
+docsOutputParser : CLI.Parser.ValueParser CompilerBlob.DocsOutput
 docsOutputParser =
     { singular = "output-file"
     , plural = "output-files"
     , fn = \str ->
         case str of
-            "/dev/stdout" -> Just Compiler.DocsStdOut
-            "/dev/null" -> Just Compiler.DocsDevNull
-            "NUL" -> Just Compiler.DocsDevNull
-            "$null" -> Just Compiler.DocsDevNull
+            "/dev/stdout" -> Just CompilerBlob.DocsStdOut
+            "/dev/null" -> Just CompilerBlob.DocsDevNull
+            "NUL" -> Just CompilerBlob.DocsDevNull
+            "$null" -> Just CompilerBlob.DocsDevNull
             _ ->
                 if String.endsWith ".json" str then
-                    Just <| Compiler.DocsJson str
+                    Just <| CompilerBlob.DocsJson str
 
                 else
                     Nothing
