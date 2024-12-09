@@ -54,14 +54,14 @@ makeArgLookup graph home name =
       Just arity
     Just (Opt.Link global) ->
       case Map.lookup global graph of
-        Just (Opt.Cycle names _ defs _) ->
+        Just (Opt.Cycle _ _ defs _) ->
           case List.find (\d -> defName d == name) defs of
             Just (Opt.Def _ _ (Opt.Function _ args _)) ->
               Just (length args)
             Just (Opt.TailDef _ _ args _) ->
               Just (length args)
             _ ->
-              error (show names)
+              Nothing
         _ ->
           Nothing
     _ ->
