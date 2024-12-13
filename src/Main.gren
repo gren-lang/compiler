@@ -778,11 +778,8 @@ outputParser =
                 else if String.endsWith ".js" str then
                     Just <| CompilerBlob.Js str
 
-                else if not <| String.contains "." str then
-                    Just <| CompilerBlob.Exe str
-
                 else
-                    Nothing
+                    Just <| CompilerBlob.Exe str
     , examples =
         [ "/dev/stdout"
         , "/dev/null"
