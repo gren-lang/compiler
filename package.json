@@ -1,11 +1,11 @@
 {
   "name": "gren-lang",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Compiler for the Gren programming language",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "prepublishOnly": "npm run build",
-    "build": "npx --package=gren-lang@0.4.5 -- gren make src/Main.gren --optimize --output=compiler.js",
+    "build": "npx --package=gren-lang@0.4.5 -- gren make src/Main.gren --output=compiler.js",
     "prettier": "prettier -w \"!**/*.json\" .",
     "prettier:check": "prettier -c \"!**/*.json\" ."
   },
