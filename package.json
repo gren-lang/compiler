@@ -5,7 +5,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "prepublishOnly": "npm run build",
-    "build": "npx --package=gren-lang@0.4.5 -- gren make src/Main.gren --output=compiler.js",
+    "build": "npx --package=gren-lang@0.4.5 --yes -- gren make src/Main.gren --output=compiler.js",
     "prettier": "prettier -w \"!**/*.json\" .",
     "prettier:check": "prettier -c \"!**/*.json\" ."
   },
@@ -36,7 +36,6 @@
     "postject": "^1.0.0-alpha.6"
   },
   "devDependencies": {
-    "prettier": "3.3.3",
-    "gren-lang": "0.4.5"
+    "prettier": "3.3.3"
   }
 }
