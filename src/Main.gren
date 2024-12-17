@@ -313,7 +313,7 @@ type alias MakeStaticOpts =
 cliParser : CLI.Parser.App ParsedCommand
 cliParser =
     { name = "gren"
-    , version = CompilerBlob.version
+    , version = "0.5.2"
     , intro = 
         PP.verticalBlock
             [ PP.block
