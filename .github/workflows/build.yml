@@ -110,60 +110,59 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      steps:
-        - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-        - name: Cache ghcup
-          uses: actions/cache@v4
-          with:
-            path: ~/.ghcup
-            key: ghcup-${{ matrix.os }}-${{ env.ghc }}
+      - name: Cache ghcup
+        uses: actions/cache@v4
+        with:
+          path: ~/.ghcup
+          key: ghcup-${{ matrix.os }}-${{ env.ghc }}
 
-        - id: setup-haskell
-          uses: haskell/actions/setup@v2
-          with:
-            ghc-version: ${{ env.ghc }}
-            cabal-version: ${{ env.cabal }}
+      - id: setup-haskell
+        uses: haskell/actions/setup@v2
+        with:
+          ghc-version: ${{ env.ghc }}
+          cabal-version: ${{ env.cabal }}
 
-        - name: List exact cabal deps
-          run: |
-            cabal freeze --only-dependencies
-            sed -i '' -e '$ d' cabal.project.freeze
+      - name: List exact cabal deps
+        run: |
+          cabal freeze --only-dependencies
+          sed -i '' -e '$ d' cabal.project.freeze
 
-        - name: Cache cabal store
-          uses: actions/cache@v4
-          with:
-            path: ${{ steps.setup-haskell.outputs.cabal-store }}
-            key: deps-${{ matrix.os }}-${{ env.ghc }}-${{ hashFiles('cabal.project.freeze') }}
-            restore-keys: deps-${{ matrix.os }}-${{ env.ghc }}-
+      - name: Cache cabal store
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.setup-haskell.outputs.cabal-store }}
+          key: deps-${{ matrix.os }}-${{ env.ghc }}-${{ hashFiles('cabal.project.freeze') }}
+          restore-keys: deps-${{ matrix.os }}-${{ env.ghc }}-
 
-        - name: Cache build artifacts
-          uses: actions/cache@v4
-          with:
-            path: dist-newstyle
-            key: dist-${{ matrix.os }}-${{ env.ghc }}-${{ github.sha }}
-            restore-keys: dist-${{ matrix.os }}-${{ env.ghc }}-
+      - name: Cache build artifacts
+        uses: actions/cache@v4
+        with:
+          path: dist-newstyle
+          key: dist-${{ matrix.os }}-${{ env.ghc }}-${{ github.sha }}
+          restore-keys: dist-${{ matrix.os }}-${{ env.ghc }}-
 
-        - name: Configure
-          run: cabal configure --enable-tests -O2
+      - name: Configure
+        run: cabal configure --enable-tests -O2
 
-        - name: Build
-          run: cabal build
+      - name: Build
+        run: cabal build
 
-        - name: Tests
-          run: cabal test
+      - name: Tests
+        run: cabal test
 
-        - name: Move binary
-          run: cp `cabal list-bin .` ./gren
+      - name: Move binary
+        run: cp `cabal list-bin .` ./gren
 
-        - name: Strip
-          run: strip gren
+      - name: Strip
+        run: strip gren
 
-        - uses: actions/upload-artifact@v4
-          with:
-            name: gren-${{ matrix.os }}
-            path: gren
-            retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gren-${{ matrix.os }}
+          path: gren
+          retention-days: 14
 
   windows:
     runs-on: windows-latest
