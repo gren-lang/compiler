@@ -9,7 +9,7 @@
         "direct": {
             "gren-lang/core": "5.1.1",
             "gren-lang/node": "4.2.1",
-            "gren-lang/compiler-node": "1.0.0"
+            "gren-lang/compiler-node": "1.0.1"
         },
         "indirect": {
             "gren-lang/url": "4.0.0"
