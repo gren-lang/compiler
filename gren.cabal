@@ -29,18 +29,17 @@ source-repository head
     type:     git
     location: git://github.com/gren/compiler.git
 
-
 Flag dev {
   Description: Turn off optimization and make warnings errors
   Default: False
 }
 
 
-Common gren-common
+Library common
     if flag(dev)
         ghc-options: -O0 -Wall
     else
-        ghc-options: -O2 -Wall -Werror -threaded "-with-rtsopts=-N"
+        ghc-options: -O2 -Wall -Werror
 
     default-language: GHC2021
 
@@ -49,7 +48,7 @@ Common gren-common
         builder/src
         terminal
 
-    other-modules:
+    Exposed-Modules:
         Format
         Init
         Make
@@ -219,19 +218,23 @@ Common gren-common
         indexed-traversable
 
 Executable gren
-    Import:
-        gren-common
-
     default-language: GHC2021
+    main-is: terminal/Main.hs
+    
+    if flag(dev)
+        ghc-options: -O0 -Wall
+    else
+        ghc-options: -O2 -Wall -Werror -threaded "-with-rtsopts=-N"
 
-    Main-Is:
-        Main.hs
+    build-depends:
+        gren:common,
+        base >= 4.17 && <5,
+        bytestring >= 0.11 && < 0.12,
 
 Test-Suite gren-tests
-    Import:
-        gren-common
-
     default-language: GHC2021
+    
+    ghc-options: -O0 -Wall
 
     Type:
         exitcode-stdio-1.0
@@ -257,6 +260,11 @@ Test-Suite gren-tests
         Parse.DeclSpec
 
     Build-Depends:
+        gren:common,
+        base >= 4.17 && <5,
+        text >= 2 && < 3,
+        utf8-string,
+        bytestring >= 0.11 && < 0.12,
         hspec >= 2.7.10 && < 3
 
     Build-Tool-Depends:

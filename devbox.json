@@ -20,7 +20,7 @@
         "./build_dev_bin.sh"
       ],
       "test": [
-        "cabal test"
+        "cabal test -f dev"
       ],
       "compiler": [
         "GREN_BIN=$PWD/gren node cli.js"
