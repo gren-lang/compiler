@@ -70,7 +70,7 @@ jobs:
       - name: Cache cabal store
         uses: actions/cache@v4
         with:
-          path: ~/.cabal/store
+          path: ~/.cache/cabal/packages
           key: deps-linux-${{ env.ghc }}-${{ hashFiles('cabal.project.freeze') }}
 
       - name: Cache build artifacts
