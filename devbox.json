@@ -2,9 +2,9 @@
   "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.13.5/.schema/devbox.schema.json",
   "packages": [
     "nodejs@20",
-    "ghc@9.4.8",
-    "cabal-install@3.8.1.0",
-    "ormolu@0.7"
+    "ormolu@0.7",
+    "ghc@9.6",
+    "cabal-install@3.10"
   ],
   "shell": {
     "init_hook": [
