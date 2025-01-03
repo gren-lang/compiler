@@ -195,7 +195,7 @@ Library common
     Build-depends:
         ansi-terminal >= 0.11 && < 0.12,
         ansi-wl-pprint >= 0.6.8 && < 0.7,
-        base >= 4.17 && <5,
+        base >= 4.18 && <5,
         binary >= 0.8 && < 0.9,
         bytestring >= 0.11 && < 0.12,
         containers >= 0.6 && < 0.7,
@@ -228,7 +228,7 @@ Executable gren
 
     build-depends:
         gren:common,
-        base >= 4.17 && <5,
+        base >= 4.18 && <5,
         bytestring >= 0.11 && < 0.12,
 
 Test-Suite gren-tests
@@ -261,7 +261,7 @@ Test-Suite gren-tests
 
     Build-Depends:
         gren:common,
-        base >= 4.17 && <5,
+        base >= 4.18 && <5,
         text >= 2 && < 3,
         utf8-string,
         bytestring >= 0.11 && < 0.12,
