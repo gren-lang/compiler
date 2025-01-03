@@ -134,7 +134,6 @@ jobs:
         with:
           path: ${{ steps.setup-haskell.outputs.cabal-store }}
           key: deps-${{ matrix.os }}-${{ env.ghc }}-${{ hashFiles('cabal.project.freeze') }}
-          restore-keys: deps-${{ matrix.os }}-${{ env.ghc }}-
 
       - name: Cache build artifacts
         uses: actions/cache@v4
