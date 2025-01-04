@@ -174,14 +174,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure choco cache
-        run: choco config set cacheLocation ./.choco-cache
-
-      - uses: actions/cache@v4
-        with:
-          path: ./.choco-cache
-          key: choco-cache-${{ env.ghc }}-${{ env.cabal }}
-
       - id: setup-haskell
         uses: haskell-actions/setup@v2
         with:
