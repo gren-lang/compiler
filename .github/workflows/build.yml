@@ -8,7 +8,7 @@ on:
 
 env:
   ghc: "9.6.6"
-  cabal: "3.10.3.0"
+  cabal: "3.12.1.0"
 
 jobs:
   validate-code-formatting:
@@ -187,6 +187,9 @@ jobs:
         with:
           ghc-version: ${{ env.ghc }}
           cabal-version: ${{ env.cabal }}
+
+      - name: output cabal store
+        run: cabal path
 
       - name: List exact cabal deps
         run: |
