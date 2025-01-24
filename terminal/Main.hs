@@ -67,11 +67,9 @@ main =
         do
           putStrLn "Expected exactly 1 argument: a json-encoded command."
           putStrLn ""
-          putStrLn "You tried to execute the backend of the Gren compiler, which isn't meant for \
-                   \direct invocation. Try to run the frontend instead."
-          putStrLn ""
-          putStrLn "For more information, read the README.md in the gren-lang/compiler repo."
-
+          putStrLn
+            "It looks like you are trying to run Gren's internal backend directly.\
+            \ To properly install Gren, see https://gren-lang.org/install"
 
 data Command
   = Init InitFlags
