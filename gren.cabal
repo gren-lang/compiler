@@ -49,7 +49,6 @@ Library common
         terminal
 
     Exposed-Modules:
-        Format
         Init
         Make
         Docs
@@ -90,8 +89,6 @@ Library common
         Gren.Docs
         Gren.Int
         Gren.Float
-        Gren.Format
-        Gren.Format.Normalize
         Gren.Interface
         Gren.Kernel
         Gren.Licenses
@@ -206,7 +203,6 @@ Library common
         ghc-prim >= 0.5.2,
         haskeline,
         mtl >= 2.2.1 && < 3,
-        prettyprint-avh4 >= 0.1.1.0 && < 0.2,
         process,
         raw-strings-qq,
         scientific,
@@ -251,7 +247,6 @@ Test-Suite gren-tests
 
         -- tests
         Generate.VLQSpec
-        Integration.FormatSpec
         Parse.AliasSpec
         Parse.RecordUpdateSpec
         Parse.SpaceSpec
