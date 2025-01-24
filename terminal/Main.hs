@@ -64,7 +64,14 @@ main =
               Right (PackageDiffGlobal pkg from to) ->
                 Diff.run $ Diff.GlobalInquiry pkg from to
       _ ->
-        putStrLn "Expected exactly 1 argument: a json-encoded command"
+        do
+          putStrLn "Expected exactly 1 argument: a json-encoded command."
+          putStrLn ""
+          putStrLn "You tried to execute the backend of the Gren compiler, which isn't meant for \
+                   \direct invocation. Try to run the frontend instead."
+          putStrLn ""
+          putStrLn "For more information, read the README.md in the gren-lang/compiler repo."
+
 
 data Command
   = Init InitFlags
