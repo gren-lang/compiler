@@ -6,6 +6,7 @@ dist
 dist-newstyle
 cabal-dev
 gren
+cabal.project.local
 
 # node build stuff
 node_modules
