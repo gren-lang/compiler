@@ -64,7 +64,12 @@ main =
               Right (PackageDiffGlobal pkg from to) ->
                 Diff.run $ Diff.GlobalInquiry pkg from to
       _ ->
-        putStrLn "Expected exactly 1 argument: a json-encoded command"
+        do
+          putStrLn "Expected exactly 1 argument: a json-encoded command."
+          putStrLn ""
+          putStrLn
+            "It looks like you are trying to run Gren's internal backend directly.\
+            \ To properly install Gren, see https://gren-lang.org/install"
 
 data Command
   = Init InitFlags
