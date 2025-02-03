@@ -2,9 +2,11 @@ port module Main exposing (main)
 
 import Node
 import ChildProcess
-import CompilerBlob
+import Compiler.Backend
+import Compiler.PackageName as PackageName exposing (PackageName)
+import Compiler.Platform as Platform exposing (Platform)
 import Init
-import Stream exposing (Stream)
+import Stream
 import Task exposing (Task)
 import Dict exposing (Dict)
 import FileSystem
@@ -16,7 +18,6 @@ import Process
 import CLI.Parser
 import CLI.PrettyPrinter as PP
 import SemanticVersion exposing (SemanticVersion)
-import Package exposing (Package)
 import Json.Encode as Json
 
 
@@ -31,8 +32,8 @@ main =
 
 type alias Model = 
     { args : Array String
-    , stdout : Stream
-    , stderr : Stream
+    , stdout : Stream.Writable Bytes
+    , stderr : Stream.Writable Bytes
     , useColor : Bool
     , interactive : Bool
     , fsPermission : FileSystem.Permission
@@ -61,7 +62,7 @@ init env =
                     interactiveTerminal && not (Dict.member "NO_COLOR" envVars)
 
                 maybePaths =
-                    case { platform = env.platform, override = Dict.get "GREN_BIN" envVars } of
+                    when { platform = env.platform, override = Dict.get "GREN_BIN" envVars } is
                         { override = Just overridePath, platform = Node.Win32 } ->
                             Just <|
                                 { remotePath = Nothing
@@ -75,11 +76,11 @@ init env =
                                 }
 
                         _ ->
-                            CompilerBlob.downloadUrl env.platform env.cpuArchitecture
+                            Compiler.Backend.downloadUrl env.platform env.cpuArchitecture
                                 |> Result.map 
                                     (\url ->
                                         { remotePath = Just url
-                                        , localPath = CompilerBlob.cachePath env.platform envVars homeDir
+                                        , localPath = Compiler.Backend.cachePath env.platform envVars homeDir
                                         }
                                     )
                                 |> Result.toMaybe
@@ -102,7 +103,7 @@ init env =
                             Path.toPosixString
                     }
                 , command =
-                    case maybePaths of
+                    when maybePaths is
                         Just paths ->
                             FileSystem.checkAccess fsPermission [] paths.localPath
                                 |> Task.attempt 
@@ -115,13 +116,14 @@ init env =
                                     )
 
                         Nothing ->
-                            Stream.sendLine env.stderr "We currently don't support this platform/arch."
+                            logLine env.stderr "We currently don't support this platform/arch."
                                 |> Task.execute
                 }
 
 
 type Msg
-    = ExistanceChecked 
+    = NoOp
+    | ExistanceChecked 
         { maybeRemotePath : Maybe String
         , localPath : Path
         , existanceResult : Result FileSystem.Error Path
@@ -132,7 +134,7 @@ type Msg
         }
     | CompilerInstalled (Result FileSystem.Error Path)
     | CompilerRan Int
-    | CompilerRanStatic String Int
+    | CompilerRanStatic { path : String, exitCode : Int }
 
 
 port completeStaticBuild : String -> Cmd msg
@@ -142,16 +144,19 @@ update : Msg -> Model -> { model : Model, command : Cmd Msg }
 update msg model =
     { model = model
     , command =
-        case msg of
+        when msg is
+            NoOp ->
+                Cmd.none
+
             ExistanceChecked { maybeRemotePath, localPath, existanceResult = Err _ } ->
-                case maybeRemotePath of
+                when maybeRemotePath is
                     Just remotePath ->
-                        Stream.sendLine model.stdout ("Compiler not found at " ++ model.pathToString localPath ++ ". Downloading...")
-                            |> Task.andThen (\{} -> CompilerBlob.download model.httpPermission remotePath)
+                        logLine model.stdout ("Compiler not found at " ++ model.pathToString localPath ++ ". Downloading...")
+                            |> Task.andThen (\_ -> Compiler.Backend.download model.httpPermission remotePath)
                             |> Task.attempt (\result -> CompilerDownloaded { localPath = localPath, downloadResult = result })
             
                     Nothing ->
-                        Stream.sendLine model.stderr ("Compiler not found at " ++ model.pathToString localPath)
+                        logLine model.stderr ("Compiler not found at " ++ model.pathToString localPath)
                             |> Task.execute
 
             ExistanceChecked { existanceResult = Ok compilerPath } ->
@@ -159,21 +164,21 @@ update msg model =
 
             CompilerDownloaded { localPath, downloadResult = Err ((HttpClient.BadStatus res) as err) } ->
                 if res.statusCode == 302 then
-                    case Dict.get "location" res.headers of
+                    when Dict.get "location" res.headers is
                         Just [ location ] ->
-                            CompilerBlob.download model.httpPermission location
+                            Compiler.Backend.download model.httpPermission location
                                 |> Task.attempt (\result -> CompilerDownloaded { localPath = localPath, downloadResult = result })
 
                         _ ->
-                            Stream.sendLine model.stderr "Missing, or vague, 'location' header in 302 response from server."
+                            logLine model.stderr "Missing, or vague, 'location' header in 302 response from server."
                                 |> Task.execute
 
                 else
-                    Stream.sendLine model.stderr (HttpClient.errorToString err)
+                    logLine model.stderr (HttpClient.errorToString err)
                         |> Task.execute
         
             CompilerDownloaded { downloadResult = Err err } ->
-                Stream.sendLine model.stderr (HttpClient.errorToString err)
+                logLine model.stderr (HttpClient.errorToString err)
                     |> Task.execute
         
             CompilerDownloaded { localPath, downloadResult = Ok res } ->
@@ -194,13 +199,13 @@ update msg model =
                         )
                     |> Task.andThen 
                         (\binPath -> 
-                            Stream.sendLine model.stdout "Downloaded"
+                            logLine model.stdout "Downloaded"
                                 |> Task.map (\_ -> binPath)
                         )
                     |> Task.attempt CompilerInstalled
         
             CompilerInstalled (Err fsErr) ->
-                Stream.sendLine model.stderr ("Failed to install binary after download, due to error: " ++ FileSystem.errorToString fsErr)
+                logLine model.stderr ("Failed to install binary after download, due to error: " ++ FileSystem.errorToString fsErr)
                     |> Task.execute
         
             CompilerInstalled (Ok compilerPath) ->
@@ -210,9 +215,9 @@ update msg model =
                 Node.exitWithCode exitCode
                     |> Task.execute
             
-            CompilerRanStatic output exitCode ->
+            CompilerRanStatic { path, exitCode } ->
                 if exitCode == 0 then
-                    completeStaticBuild output
+                    completeStaticBuild path
                 
                 else
                     Node.exitWithCode exitCode
@@ -236,72 +241,81 @@ parseUserArgs model compilerPath =
                 |> PP.toStringWithOptions
                     { PP.defaultOptions | maxColumns = 80 }
     in
-    case CLI.Parser.run model.args cliParser of
+    when CLI.Parser.run model.args cliParser is
         CLI.Parser.UnknownCommand commandName ->
-            Stream.sendLine model.stderr ("I don't recognize this command: " ++ commandName)
+            logLine model.stderr ("I don't recognize this command: " ++ commandName)
                 |> Task.execute
     
         CLI.Parser.BadFlags err ->
             err
                 |> CLI.Parser.flagErrorPrettified
                 |> prettyTextToTerminal
-                |> Stream.sendLine model.stderr
+                |> logLine model.stderr
                 |> Task.execute
     
         CLI.Parser.BadArguments err ->
             err
                 |> CLI.Parser.argumentErrorPrettified
                 |> prettyTextToTerminal
-                |> Stream.sendLine model.stderr
+                |> logLine model.stderr
                 |> Task.execute
     
         CLI.Parser.HelpText prettifiedText ->
             prettifiedText
                 |> prettyTextToTerminal
-                |> Stream.sendLine model.stdout
+                |> logLine model.stdout
                 |> Task.execute
     
         CLI.Parser.Success parsedCommand ->
             let
                 actualCommand =
-                    case parsedCommand of
+                    when parsedCommand is
                         MakeStatic opts ->
-                            CompilerBlob.Make
-                                { optimize = True
-                                , sourcemaps = False
-                                , output = Just (CompilerBlob.Exe <| model.pathToString opts.output)
-                                , report = Nothing
+                            Compiler.Backend.Make
+                                { flags =
+                                    { optimize = True
+                                    , sourcemaps = False
+                                    , output = Just (Compiler.Backend.Exe <| model.pathToString opts.output)
+                                    , report = Nothing
+                                    }
+                                , paths =
+                                    [ opts.source ]
                                 }
-                                [ opts.source ]
 
                         CompilerCommand cmd ->
                             cmd
                 
                 completionCommand =
-                    case parsedCommand of
+                    when parsedCommand is
                         MakeStatic opts ->
-                            CompilerRanStatic <| model.pathToString opts.output
+                            (\exitCode -> CompilerRanStatic { path = model.pathToString opts.output, exitCode = exitCode })
 
                         _ ->
                             CompilerRan
             in
-            CompilerBlob.run
+            Compiler.Backend.run
                 model.cpPermission
                 { command = actualCommand
                 , interactiveSession = model.interactive
                 , useColor = model.useColor
                 , compilerPath = compilerPath
                 , pathToString = model.pathToString
+                , onInit = (\_ -> NoOp)
                 , onComplete = completionCommand
                 }
 
+
+logLine : Stream.Writable Bytes -> String -> Task x (Stream.Writable Bytes)
+logLine stream line =
+    Stream.writeLineAsBytes line stream
+        |> Task.onError (\_ -> Task.succeed stream)
 
 -- CLI Parsing
 
 
 type ParsedCommand
     = MakeStatic MakeStaticOpts
-    | CompilerCommand CompilerBlob.Command
+    | CompilerCommand Compiler.Backend.Command
 
 
 type alias MakeStaticOpts =
@@ -318,7 +332,7 @@ cliParser =
         PP.verticalBlock
             [ PP.block
                 [ PP.text "Hi, thank you for trying out "
-                , PP.intenseColor PP.Green <| PP.text ("Gren " ++ CompilerBlob.version)
+                , PP.intenseColor PP.Green <| PP.text ("Gren " ++ Compiler.Backend.version)
                 , PP.text ". I hope you like it!"
                 ]
             , PP.empty
@@ -350,10 +364,10 @@ cliParser =
                             { package = package
                             , platform = 
                                 if package then
-                                    Maybe.withDefault CompilerBlob.Common maybePlatform
+                                    Maybe.withDefault Platform.Common maybePlatform
 
                                 else
-                                    Maybe.withDefault CompilerBlob.Browser maybePlatform
+                                    Maybe.withDefault Platform.Browser maybePlatform
                             }
                         )
                         |> CLI.Parser.toggle "package" "Create a package (as opposed to an application)"
@@ -369,7 +383,7 @@ cliParser =
                         common to all Gren project.
                         """
                 , builder =
-                    \_args flags -> CompilerCommand <| CompilerBlob.Init flags
+                    \_args flags -> CompilerCommand <| Compiler.Backend.Init flags
                 }
             |> CLI.Parser.withCommand
                 { word = "repl"
@@ -398,7 +412,7 @@ cliParser =
                         the quickest way to get started.
                         """
                 , builder =
-                    \_args flags -> CompilerCommand <| CompilerBlob.Repl flags
+                    \_args flags -> CompilerCommand <| Compiler.Backend.Repl flags
                 }
             |> CLI.Parser.withCommand
                 { word = "make"
@@ -436,7 +450,7 @@ cliParser =
                             """
                         ]
                 , builder =
-                    \args flags -> CompilerCommand <| CompilerBlob.Make flags args
+                    \args flags -> CompilerCommand <| Compiler.Backend.Make { flags = flags, paths = args }
                 }
             |> CLI.Parser.withCommand
                 { word = "make-static"
@@ -503,7 +517,7 @@ cliParser =
                             """
                         ]
                 , builder =
-                    \_args flags -> CompilerCommand <| CompilerBlob.Docs flags
+                    \_args flags -> CompilerCommand <| Compiler.Backend.Docs flags
                 }
             |> CLI.Parser.withPrefix "package" packageCommands
     }
@@ -518,7 +532,7 @@ packageCommands =
                 CLI.Parser.oneOfArgs
                     [ CLI.Parser.noArgs
                         |> CLI.Parser.mapArgs (\_ -> Nothing)
-                    , CLI.Parser.oneArg Package.cliParser
+                    , CLI.Parser.oneArg PackageName.cliParser
                         |> CLI.Parser.mapArgs Just
                     ]
             , flags =
@@ -553,12 +567,12 @@ packageCommands =
                         """
                     ]
             , builder =
-                \arg _flags -> CompilerCommand <| CompilerBlob.PackageInstall arg
+                \arg _flags -> CompilerCommand <| Compiler.Backend.PackageInstall arg
             }
         |> CLI.Parser.withCommand
             { word = "uninstall"
             , arguments =
-                CLI.Parser.oneArg Package.cliParser
+                CLI.Parser.oneArg PackageName.cliParser
             , flags =
                 CLI.Parser.noFlags 
             , commonDescription =
@@ -589,7 +603,7 @@ packageCommands =
                         """
                     ]
             , builder =
-                \arg _flags -> CompilerCommand <| CompilerBlob.PackageUninstall arg
+                \arg _flags -> CompilerCommand <| Compiler.Backend.PackageUninstall arg
             }
         |> CLI.Parser.withCommand
             { word = "outdated"
@@ -607,7 +621,7 @@ packageCommands =
                     |> PP.indent
                     |> PP.color PP.Green
             , builder =
-                \_args _flags -> CompilerCommand CompilerBlob.PackageOutdated
+                \_args _flags -> CompilerCommand Compiler.Backend.PackageOutdated
             }
         |> CLI.Parser.withCommand
             { word = "validate"
@@ -652,7 +666,7 @@ packageCommands =
                         """
                     ]
             , builder =
-                \_args _flags -> CompilerCommand CompilerBlob.PackageValidate
+                \_args _flags -> CompilerCommand Compiler.Backend.PackageValidate
             }
         |> CLI.Parser.withCommand
             { word = "bump"
@@ -673,18 +687,36 @@ packageCommands =
                     all packages, so there cannot be MAJOR changes hiding in PATCH releases in Gren!
                     """
             , builder =
-                \_args _flags -> CompilerCommand CompilerBlob.PackageBump
+                \_args _flags -> CompilerCommand Compiler.Backend.PackageBump
             }
         |> CLI.Parser.withCommand
             { word = "diff"
             , arguments =
                 CLI.Parser.oneOfArgs
                     [ CLI.Parser.noArgs
-                        |> CLI.Parser.mapArgs (\{} -> CompilerBlob.DiffLatest)
+                        |> CLI.Parser.mapArgs (\{} -> Compiler.Backend.DiffLatest)
                     , CLI.Parser.oneArg SemanticVersion.cliParser
-                        |> CLI.Parser.mapArgs CompilerBlob.DiffVersion
-                    , CLI.Parser.twoArgs CompilerBlob.DiffRange SemanticVersion.cliParser SemanticVersion.cliParser
-                    , CLI.Parser.threeArgs CompilerBlob.DiffGlobal Package.cliParser SemanticVersion.cliParser SemanticVersion.cliParser
+                        |> CLI.Parser.mapArgs Compiler.Backend.DiffVersion
+                    , CLI.Parser.twoArgs
+                        (\lower upper ->
+                            Compiler.Backend.DiffRange
+                                { lower = lower
+                                , upper = upper
+                                }
+                        )
+                        SemanticVersion.cliParser
+                        SemanticVersion.cliParser
+                    , CLI.Parser.threeArgs
+                        (\package lower upper ->
+                            Compiler.Backend.DiffGlobal
+                                { package = package
+                                , lower = lower
+                                , upper = upper
+                                }
+                        )
+                        PackageName.cliParser
+                        SemanticVersion.cliParser
+                        SemanticVersion.cliParser
                     ]
             , flags =
                 CLI.Parser.noFlags 
@@ -711,19 +743,19 @@ packageCommands =
                         """
                     ]
             , builder =
-                \args _flags -> CompilerCommand <| CompilerBlob.PackageDiff args
+                \args _flags -> CompilerCommand <| Compiler.Backend.PackageDiff args
             }
 
 
-initPlatformParser : CLI.Parser.ValueParser CompilerBlob.Platform
+initPlatformParser : CLI.Parser.ValueParser Platform
 initPlatformParser =
     { singular = "platform"
     , plural = "platforms"
     , fn = \str ->
-        case str of
-            "common" -> Just CompilerBlob.Common
-            "browser" -> Just CompilerBlob.Browser
-            "node" -> Just CompilerBlob.Node
+        when str is
+            "common" -> Just Platform.Common
+            "browser" -> Just Platform.Browser
+            "node" -> Just Platform.Node
             _ -> Nothing
     , examples =
         [ "common"
@@ -761,25 +793,25 @@ interpreterParser =
     }
 
 
-outputParser : CLI.Parser.ValueParser CompilerBlob.MakeOutput
+outputParser : CLI.Parser.ValueParser Compiler.Backend.MakeOutput
 outputParser =
     { singular = "output-file"
     , plural = "output-files"
     , fn = \str ->
-        case str of
-            "/dev/stdout" -> Just CompilerBlob.StdOut
-            "/dev/null" -> Just CompilerBlob.DevNull
-            "NUL" -> Just CompilerBlob.DevNull
-            "$null" -> Just CompilerBlob.DevNull
+        when str is
+            "/dev/stdout" -> Just Compiler.Backend.StdOut
+            "/dev/null" -> Just Compiler.Backend.DevNull
+            "NUL" -> Just Compiler.Backend.DevNull
+            "$null" -> Just Compiler.Backend.DevNull
             _ ->
                 if String.endsWith ".html" str then
-                    Just <| CompilerBlob.Html str
+                    Just <| Compiler.Backend.Html str
                 
                 else if String.endsWith ".js" str then
-                    Just <| CompilerBlob.Js str
+                    Just <| Compiler.Backend.Js str
 
                 else
-                    Just <| CompilerBlob.Exe str
+                    Just <| Compiler.Backend.Exe str
     , examples =
         [ "/dev/stdout"
         , "/dev/null"
@@ -790,19 +822,19 @@ outputParser =
     }
 
 
-docsOutputParser : CLI.Parser.ValueParser CompilerBlob.DocsOutput
+docsOutputParser : CLI.Parser.ValueParser Compiler.Backend.DocsOutput
 docsOutputParser =
     { singular = "output-file"
     , plural = "output-files"
     , fn = \str ->
-        case str of
-            "/dev/stdout" -> Just CompilerBlob.DocsStdOut
-            "/dev/null" -> Just CompilerBlob.DocsDevNull
-            "NUL" -> Just CompilerBlob.DocsDevNull
-            "$null" -> Just CompilerBlob.DocsDevNull
+        when str is
+            "/dev/stdout" -> Just Compiler.Backend.DocsStdOut
+            "/dev/null" -> Just Compiler.Backend.DocsDevNull
+            "NUL" -> Just Compiler.Backend.DocsDevNull
+            "$null" -> Just Compiler.Backend.DocsDevNull
             _ ->
                 if String.endsWith ".json" str then
-                    Just <| CompilerBlob.DocsJson str
+                    Just <| Compiler.Backend.DocsJson str
 
                 else
                     Nothing

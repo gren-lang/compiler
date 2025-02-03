@@ -4,8 +4,8 @@
   "description": "Compiler for the Gren programming language",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "prepublishOnly": "npx --package=gren-lang@0.4.5 --yes -- gren make src/Main.gren --output=/dev/stdout | terser -c -m -o compiler.js",
-    "build": "npx --package=gren-lang@0.4.5 --yes -- gren make src/Main.gren --output=compiler.js",
+    "prepublishOnly": "npx --package=gren-lang@0.5.2 --yes -- gren make src/Main.gren --optimize --output=/dev/stdout | terser -c -m -o compiler.js",
+    "build": "npx --package=gren-lang@0.5.2 --yes -- gren make src/Main.gren --output=compiler.js",
     "prettier": "prettier -w \"!**/*.json\" .",
     "prettier:check": "prettier -c \"!**/*.json\" ."
   },
