@@ -267,10 +267,15 @@ parseUserArgs model compilerPath =
                 |> Task.execute
     
         CLI.Parser.Success parsedCommand ->
-            let
-                actualCommand =
-                    when parsedCommand is
-                        MakeStatic opts ->
+            when parsedCommand is
+                PackageInstall ->
+                    logLine model.stdout "Install all packages"
+                        |> Task.execute
+
+                MakeStatic opts ->
+                    Compiler.Backend.run
+                        model.cpPermission
+                        { command =
                             Compiler.Backend.Make
                                 { flags =
                                     { optimize = True
@@ -281,28 +286,31 @@ parseUserArgs model compilerPath =
                                 , paths =
                                     [ opts.source ]
                                 }
+                        , interactiveSession = model.interactive
+                        , useColor = model.useColor
+                        , compilerPath = compilerPath
+                        , pathToString = model.pathToString
+                        , onInit = (\_ -> NoOp)
+                        , onComplete =
+                            (\exitCode ->
+                                CompilerRanStatic
+                                    { path = model.pathToString opts.output
+                                    , exitCode = exitCode
+                                    }
+                            )
+                        }
 
-                        CompilerCommand cmd ->
-                            cmd
-                
-                completionCommand =
-                    when parsedCommand is
-                        MakeStatic opts ->
-                            (\exitCode -> CompilerRanStatic { path = model.pathToString opts.output, exitCode = exitCode })
-
-                        _ ->
-                            CompilerRan
-            in
-            Compiler.Backend.run
-                model.cpPermission
-                { command = actualCommand
-                , interactiveSession = model.interactive
-                , useColor = model.useColor
-                , compilerPath = compilerPath
-                , pathToString = model.pathToString
-                , onInit = (\_ -> NoOp)
-                , onComplete = completionCommand
-                }
+                CompilerCommand cmd ->
+                    Compiler.Backend.run
+                        model.cpPermission
+                        { command = cmd
+                        , interactiveSession = model.interactive
+                        , useColor = model.useColor
+                        , compilerPath = compilerPath
+                        , pathToString = model.pathToString
+                        , onInit = (\_ -> NoOp)
+                        , onComplete = CompilerRan
+                        }
 
 
 logLine : Stream.Writable Bytes -> String -> Task x (Stream.Writable Bytes)
@@ -310,12 +318,14 @@ logLine stream line =
     Stream.writeLineAsBytes line stream
         |> Task.onError (\_ -> Task.succeed stream)
 
+
 -- CLI Parsing
 
 
 type ParsedCommand
     = MakeStatic MakeStaticOpts
     | CompilerCommand Compiler.Backend.Command
+    | PackageInstall
 
 
 type alias MakeStaticOpts =
@@ -567,7 +577,13 @@ packageCommands =
                         """
                     ]
             , builder =
-                \arg _flags -> CompilerCommand <| Compiler.Backend.PackageInstall arg
+                \arg _flags ->
+                    when arg is
+                        Nothing ->
+                            PackageInstall
+
+                        Just _ ->
+                            CompilerCommand <| Compiler.Backend.PackageInstall arg
             }
         |> CLI.Parser.withCommand
             { word = "uninstall"
