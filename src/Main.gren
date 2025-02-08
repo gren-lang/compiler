@@ -5,6 +5,7 @@ import ChildProcess
 import Compiler.Backend
 import Compiler.PackageName as PackageName exposing (PackageName)
 import Compiler.Platform as Platform exposing (Platform)
+import Compiler.Paths
 import Init
 import Stream
 import Task exposing (Task)
@@ -36,6 +37,7 @@ type alias Model =
     , stderr : Stream.Writable Bytes
     , useColor : Bool
     , interactive : Bool
+    , backendPath : Path
     , fsPermission : FileSystem.Permission
     , cpPermission : ChildProcess.Permission
     , httpPermission : HttpClient.Permission
@@ -93,6 +95,13 @@ init env =
                     , stderr = env.stderr
                     , interactive = interactiveTerminal
                     , useColor = useColor
+                    , backendPath =
+                        when maybePaths is
+                            Nothing ->
+                                Compiler.Backend.cachePath env.platform envVars homeDir
+
+                            Just paths ->
+                                paths.localPath
                     , fsPermission = fsPermission
                     , cpPermission = cpPermission
                     , httpPermission = httpPermission
@@ -272,6 +281,98 @@ parseUserArgs model compilerPath =
                     logLine model.stdout "Install all packages"
                         |> Task.execute
 
+                Paths opts ->
+                    when opts is
+                        { project = False, packageCache = False, backend = False, json = False } ->
+                            Compiler.Paths.projectRoot model.fsPermission
+                                |> Task.andThen
+                                    (\project ->
+                                        [ "project: " ++ model.pathToString project
+                                        , "package-cache: " ++ model.pathToString (Path.append (Path.fromPosixString "gren_packages") project)
+                                        , "backend: " ++ model.pathToString model.backendPath
+                                        ]
+                                            |> String.join "\n"
+                                            |> logLine model.stdout
+                                    )
+                                |> Task.onError (\_ -> logLine model.stdout "Couldn't find project!")
+                                |> Task.execute
+
+                        { project = False, packageCache = False, backend = False, json = True } ->
+                            Compiler.Paths.projectRoot model.fsPermission
+                                |> Task.andThen
+                                    (\project ->
+                                        Json.object
+                                            [ { key = "project", value = Json.string (model.pathToString project) }
+                                            , { key = "packageCache", value = Json.string (model.pathToString (Path.append (Path.fromPosixString "gren_packages") project)) }
+                                            , { key = "backend", value = Json.string (model.pathToString model.backendPath) }
+                                            ]
+                                            |> Json.encode 4
+                                            |> logLine model.stdout
+                                    )
+                                |> Task.onError (\_ -> logLine model.stdout "Couldn't find project!")
+                                |> Task.execute
+
+                        { project = True, packageCache = False, backend = False, json = False } ->
+                            Compiler.Paths.projectRoot model.fsPermission
+                                |> Task.andThen
+                                    (\project ->
+                                        logLine model.stdout (model.pathToString project)
+                                    )
+                                |> Task.onError (\_ -> logLine model.stdout "Couldn't find project!")
+                                |> Task.execute
+
+                        { project = True, packageCache = False, backend = False, json = True } ->
+                            Compiler.Paths.projectRoot model.fsPermission
+                                |> Task.andThen
+                                    (\project ->
+                                        Json.object
+                                            [ { key = "project", value = Json.string (model.pathToString project) }
+                                            ]
+                                            |> Json.encode 4
+                                            |> logLine model.stdout
+                                    )
+                                |> Task.onError (\_ -> logLine model.stdout "Couldn't find project!")
+                                |> Task.execute
+
+                        { project = False, packageCache = True, backend = False, json = False } ->
+                            Compiler.Paths.projectRoot model.fsPermission
+                                |> Task.andThen
+                                    (\project ->
+                                         model.pathToString (Path.append (Path.fromPosixString "gren_packages") project)
+                                            |> logLine model.stdout
+                                    )
+                                |> Task.onError (\_ -> logLine model.stdout "Couldn't find project!")
+                                |> Task.execute
+
+                        { project = False, packageCache = True, backend = False, json = True } ->
+                            Compiler.Paths.projectRoot model.fsPermission
+                                |> Task.andThen
+                                    (\project ->
+                                        Json.object
+                                            [ { key = "packageCache", value = Json.string (model.pathToString (Path.append (Path.fromPosixString "gren_packages") project)) }
+                                            ]
+                                            |> Json.encode 4
+                                            |> logLine model.stdout
+                                    )
+                                |> Task.onError (\_ -> logLine model.stdout "Couldn't find project!")
+                                |> Task.execute
+
+                        { project = False, packageCache = False, backend = True, json = False } ->
+                            logLine model.stdout (model.pathToString model.backendPath)
+                                |> Task.execute
+
+                        { project = False, packageCache = False, backend = True, json = True } ->
+                            Json.object
+                                [ { key = "backend", value = Json.string (model.pathToString model.backendPath) }
+                                ]
+                                |> Json.encode 4
+                                |> logLine model.stdout
+                                |> Task.execute
+
+                        _ ->
+                            logLine model.stdout "You can only use one of --project, --package-cache and --backend!"
+                                |> Task.execute
+
                 MakeStatic opts ->
                     Compiler.Backend.run
                         model.cpPermission
@@ -326,6 +427,12 @@ type ParsedCommand
     = MakeStatic MakeStaticOpts
     | CompilerCommand Compiler.Backend.Command
     | PackageInstall
+    | Paths
+        { project : Bool
+        , packageCache : Bool
+        , backend : Bool
+        , json : Bool
+        }
 
 
 type alias MakeStaticOpts =
@@ -405,7 +512,7 @@ cliParser =
                             { interpreter = maybeInterpreter
                             }
                         )
-                        |> CLI.Parser.flag "interpreter" interpreterParser "Path to a alternate JS interpreter, like deno or nodejs."
+                        |> CLI.Parser.flag "interpreter" interpreterParser "Path to a alternate JS interpreter, like deno or nodejs"
                 , commonDescription =
                     Just 
                         """
@@ -423,6 +530,43 @@ cliParser =
                         """
                 , builder =
                     \_args flags -> CompilerCommand <| Compiler.Backend.Repl flags
+                }
+            |> CLI.Parser.withCommand
+                { word = "paths"
+                , arguments =
+                    CLI.Parser.noArgs
+                , flags =
+                    CLI.Parser.initFlags
+                        (\project packageCache backend json ->
+                            { project = project
+                            , packageCache = packageCache
+                            , backend = backend
+                            , json = json
+                            }
+                        )
+                        |> CLI.Parser.toggle "project" "Only output the path to the project"
+                        |> CLI.Parser.toggle "package-cache" "Only output the path to the package cache"
+                        |> CLI.Parser.toggle "backend" "Only output the path to the compiler backend"
+                        |> CLI.Parser.toggle "json" "Output in JSON format"
+                , commonDescription = Nothing
+                , summary =
+                    "Return the paths used for compiling a project."
+                , example = 
+                    PP.verticalBlock
+                        [ PP.words "For example:"
+                        , PP.empty
+                        , PP.words "gren paths --backend"
+                            |> PP.indent
+                            |> PP.color PP.Green
+                        , PP.empty
+                        , PP.words
+                            """
+                            This will write the path to the compiler backend.
+                            Executing the command without any flags will print _all_ relevant paths.
+                            """
+                        ]
+                , builder =
+                    \_args flags -> Paths flags
                 }
             |> CLI.Parser.withCommand
                 { word = "make"
