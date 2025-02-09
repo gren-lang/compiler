@@ -311,14 +311,53 @@ update msg model =
                             |> Task.execute
 
                     Compiler.Dependencies.Missing { name, version } ->
-                        gitClonePackage projectPath name (SemanticVersionRange.lowerBound version)
-                            |> Task.andThen (\p -> logLine model.stdout (Path.toPosixString p))
+                        gitClonePackage model.cpPermission projectPath name (SemanticVersionRange.lowerBound version)
+                            |> Task.andThen (\{ stdout } -> logBytes model.stdout stdout)
+                            |> Task.onError (\{ stderr } -> logBytes model.stdout stderr)
                             |> Task.execute
 
                     Compiler.Dependencies.Conflict _ ->
                         "TODO: CONFLICT"
                             |> logLine model.stdout
                             |> Task.execute
+        }
+
+
+gitClonePackage : ChildProcess.Permission -> Path -> PackageName -> SemanticVersion -> Task ChildProcess.FailedRun ChildProcess.SuccessfulRun
+gitClonePackage cpPerm projectPath name version =
+    let
+        githubUrl =
+            "https://github.com/" ++ PackageName.toString name ++ ".git"
+
+        normalizedName =
+            (PackageName.toString name ++ "__" ++ SemanticVersion.toString version)
+                |> String.replace "-" "_"
+                |> String.replace "." "_"
+                |> String.replace "/" "_"
+
+        repoPath =
+            Path.join
+                [ projectPath
+                , Path.fromPosixString ".gren/git"
+                , Path.fromPosixString normalizedName
+                ]
+    in
+    ChildProcess.run
+        cpPerm
+        "git"
+        [ "clone"
+        , "--branch"
+        , SemanticVersion.toString version
+        , "--depth"
+        , "1"
+        , githubUrl
+        , Path.toPosixString repoPath
+        ]
+        { shell = ChildProcess.NoShell
+        , workingDirectory = ChildProcess.InheritWorkingDirectory
+        , environmentVariables = ChildProcess.InheritEnvironmentVariables
+        , maximumBytesWrittenToStreams = 4096
+        , runDuration = ChildProcess.Milliseconds 30000
         }
 
 
@@ -380,7 +419,9 @@ parseUserArgs model compilerPath =
                                             when decodeResult is
                                                 Ok outline ->
                                                     Task.succeed
-                                                        { projectPath = projectPath
+                                                        { projectPath =
+                                                            Path.parentPath projectPath
+                                                                |> Maybe.withDefault projectPath
                                                         , outline = outline
                                                         }
 
@@ -526,6 +567,12 @@ parseUserArgs model compilerPath =
 logLine : Stream.Writable Bytes -> String -> Task x (Stream.Writable Bytes)
 logLine stream line =
     Stream.writeLineAsBytes line stream
+        |> Task.onError (\_ -> Task.succeed stream)
+
+
+logBytes : Stream.Writable Bytes -> Bytes -> Task x (Stream.Writable Bytes)
+logBytes stream bytes =
+    Stream.write bytes stream
         |> Task.onError (\_ -> Task.succeed stream)
 
 
