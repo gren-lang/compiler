@@ -6,6 +6,8 @@ import Compiler.Backend
 import Compiler.PackageName as PackageName exposing (PackageName)
 import Compiler.Platform as Platform exposing (Platform)
 import Compiler.Paths
+import Compiler.Outline
+import Compiler.Dependencies
 import Init
 import Stream
 import Task exposing (Task)
@@ -19,7 +21,9 @@ import Process
 import CLI.Parser
 import CLI.PrettyPrinter as PP
 import SemanticVersion exposing (SemanticVersion)
+import SemanticVersionRange exposing (SemanticVersionRange)
 import Json.Encode as Json
+import Json.Decode as Decode
 
 
 main : Node.Program Model Msg
@@ -144,6 +148,20 @@ type Msg
     | CompilerInstalled (Result FileSystem.Error Path)
     | CompilerRan Int
     | CompilerRanStatic { path : String, exitCode : Int }
+    | InitiatePackageInstall (Result PackageInstallError { projectPath : Path, outline : Compiler.Outline.Outline })
+    | InstallPackages
+        { projectPath : Path
+        , outline : Compiler.Outline.Outline
+        , rootPackages : Array { name : PackageName, version : SemanticVersionRange }
+        , loadedPackages : Dict String Compiler.Outline.Outline
+        , solvedPackages : Dict String Compiler.Dependencies.SimplifiedOutline
+        }
+
+
+type PackageInstallError
+    = PackageInstallNoProject FileSystem.Error
+    | PackageInstallNoGrenJson FileSystem.Error
+    | PackageInstallInvalidGrenJson Decode.Error
 
 
 port completeStaticBuild : String -> Cmd msg
@@ -231,6 +249,76 @@ update msg model =
                 else
                     Node.exitWithCode exitCode
                         |> Task.execute
+
+            InitiatePackageInstall (Err err) ->
+                logLine model.stdout (Debug.toString msg)
+                    |> Task.execute
+
+            InitiatePackageInstall (Ok { projectPath, outline }) ->
+                let
+                    rootDeps =
+                        when outline is
+                            Compiler.Outline.App appOutline ->
+                                Dict.union
+                                    appOutline.dependencies.direct
+                                    appOutline.dependencies.indirect
+                                    |> Dict.mapAndKeepJust extractVersion
+                                    |> Dict.foldl
+                                        (\key value acc ->
+                                            Array.pushLast
+                                                { name = PackageName.fromString key |> Maybe.withDefault PackageName.example
+                                                , version = SemanticVersionRange.fromExact value
+                                                }
+                                                acc
+                                        )
+                                        []
+
+                            Compiler.Outline.Pkg pkgOutline ->
+                                pkgOutline.dependencies
+                                    |> Dict.mapAndKeepJust extractVersion
+                                    |> Dict.foldl
+                                        (\key value acc ->
+                                            Array.pushLast
+                                                { name = PackageName.fromString key |> Maybe.withDefault PackageName.example
+                                                , version = value
+                                                }
+                                                acc
+                                        )
+                                        []
+                                
+                    extractVersion _name version =
+                        when version is
+                            Compiler.Outline.Version vsn ->
+                                Just vsn
+
+                            Compiler.Outline.LocalPath _ ->
+                                Nothing
+                in
+                { projectPath = projectPath
+                , outline = outline
+                , rootPackages = rootDeps
+                , loadedPackages = Dict.empty
+                , solvedPackages = Dict.empty
+                }
+                    |> Task.succeed
+                    |> Task.perform InstallPackages
+
+            InstallPackages { projectPath, outline, rootPackages, loadedPackages, solvedPackages } ->
+                when Compiler.Dependencies.solve rootPackages solvedPackages is
+                    Compiler.Dependencies.Complete ->
+                        "All done"
+                            |> logLine model.stdout
+                            |> Task.execute
+
+                    Compiler.Dependencies.Missing { name, version } ->
+                        gitClonePackage projectPath name (SemanticVersionRange.lowerBound version)
+                            |> Task.andThen (\p -> logLine model.stdout (Path.toPosixString p))
+                            |> Task.execute
+
+                    Compiler.Dependencies.Conflict _ ->
+                        "TODO: CONFLICT"
+                            |> logLine model.stdout
+                            |> Task.execute
         }
 
 
@@ -278,8 +366,29 @@ parseUserArgs model compilerPath =
         CLI.Parser.Success parsedCommand ->
             when parsedCommand is
                 PackageInstall ->
-                    logLine model.stdout "Install all packages"
-                        |> Task.execute
+                    Compiler.Paths.projectRoot model.fsPermission
+                        |> Task.mapError PackageInstallNoProject
+                        |> Task.map (Path.append (Path.fromPosixString "gren.json"))
+                        |> Task.andThen
+                            (\projectPath ->
+                                FileSystem.readFile model.fsPermission projectPath
+                                    |> Task.mapError PackageInstallNoGrenJson
+                                    |> Task.map (Bytes.toString >> Maybe.withDefault "")
+                                    |> Task.map (Decode.decodeString Compiler.Outline.jsonDecoder)
+                                    |> Task.andThen
+                                        (\decodeResult ->
+                                            when decodeResult is
+                                                Ok outline ->
+                                                    Task.succeed
+                                                        { projectPath = projectPath
+                                                        , outline = outline
+                                                        }
+
+                                                Err err ->
+                                                    Task.fail (PackageInstallInvalidGrenJson err)
+                                        )
+                            )
+                        |> Task.attempt InitiatePackageInstall
 
                 Paths opts ->
                     when opts is
