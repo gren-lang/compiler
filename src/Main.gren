@@ -6,7 +6,7 @@ import Compiler.Backend
 import Compiler.PackageName as PackageName exposing (PackageName)
 import Compiler.Platform as Platform exposing (Platform)
 import Compiler.Paths
-import Compiler.Outline
+import Compiler.Outline as Outline exposing (Outline)
 import Compiler.Dependencies
 import Init
 import Stream
@@ -148,12 +148,12 @@ type Msg
     | CompilerInstalled (Result FileSystem.Error Path)
     | CompilerRan Int
     | CompilerRanStatic { path : String, exitCode : Int }
-    | InitiatePackageInstall (Result PackageInstallError { projectPath : Path, outline : Compiler.Outline.Outline })
+    | InitiatePackageInstall (Result PackageInstallError { projectPath : Path, outline : Outline })
     | InstallPackages
         { projectPath : Path
-        , outline : Compiler.Outline.Outline
+        , outline : Outline
         , rootPackages : Array { name : PackageName, version : SemanticVersionRange }
-        , loadedPackages : Dict String Compiler.Outline.Outline
+        , loadedPackages : Dict String Outline
         , solvedPackages : Dict String Compiler.Dependencies.SimplifiedOutline
         }
 
@@ -258,7 +258,7 @@ update msg model =
                 let
                     rootDeps =
                         when outline is
-                            Compiler.Outline.App appOutline ->
+                            Outline.App appOutline ->
                                 Dict.union
                                     appOutline.dependencies.direct
                                     appOutline.dependencies.indirect
@@ -273,7 +273,7 @@ update msg model =
                                         )
                                         []
 
-                            Compiler.Outline.Pkg pkgOutline ->
+                            Outline.Pkg pkgOutline ->
                                 pkgOutline.dependencies
                                     |> Dict.mapAndKeepJust extractVersion
                                     |> Dict.foldl
@@ -288,10 +288,10 @@ update msg model =
                                 
                     extractVersion _name version =
                         when version is
-                            Compiler.Outline.Version vsn ->
+                            Outline.Version vsn ->
                                 Just vsn
 
-                            Compiler.Outline.LocalPath _ ->
+                            Outline.LocalPath _ ->
                                 Nothing
                 in
                 { projectPath = projectPath
@@ -311,9 +311,78 @@ update msg model =
                             |> Task.execute
 
                     Compiler.Dependencies.Missing { name, version } ->
-                        gitClonePackage model.cpPermission projectPath name (SemanticVersionRange.lowerBound version)
-                            |> Task.andThen (\{ stdout } -> logBytes model.stdout stdout)
-                            |> Task.onError (\{ stderr } -> logBytes model.stdout stderr)
+                        let
+                            lowerBound =
+                                SemanticVersionRange.lowerBound version
+
+                            bundlePath =
+                                packageBundlePath name lowerBound projectPath
+
+                            repoPath =
+                                localRepoPath name lowerBound projectPath
+                        in
+                        gitClonePackage model.cpPermission repoPath name lowerBound
+                            |> Task.mapError (\{ stderr } -> Maybe.withDefault "" <| Bytes.toString stderr)
+                            |> Task.andThen (\{} ->
+                                (Path.append (Path.fromPosixString "gren.json") repoPath)
+                                    |> readOutline model.fsPermission
+                                    |> Task.mapError FileSystem.errorToString
+                                    |> Task.andThen
+                                        (\decodeResult ->
+                                            when decodeResult is
+                                                Ok packageOutline ->
+                                                    findSourceFiles model.fsPermission packageOutline repoPath
+                                                        |> Task.mapError FileSystem.errorToString
+                                                        |> Task.map
+                                                            (\f ->
+                                                                Array.map
+                                                                    (\{ moduleName, source } ->
+                                                                        { key = moduleName
+                                                                        , value = Json.string source
+                                                                        }
+                                                                    )
+                                                                    f
+                                                                    |> Array.pushFirst
+                                                                        { key = "gren.json"
+                                                                        , value = Outline.toJson packageOutline
+                                                                        }
+                                                                    |> Json.object
+                                                                    |> Json.encode 0
+                                                            )
+
+                                                Err err ->
+                                                    Task.fail <| Debug.toString err
+                                        )
+                            )
+                            |> Task.andThen
+                                (\str ->
+                                    let
+                                        packagesDir =
+                                            Path.append (Path.fromPosixString "gren_packages") projectPath
+                                    in
+                                    packagesDir
+                                        |> FileSystem.makeDirectory model.fsPermission { recursive = False }
+                                        |> Task.onError
+                                            (\err ->
+                                                if FileSystem.errorIsFileExists err then
+                                                    Task.succeed packagesDir
+
+                                                else
+                                                    Task.fail err
+                                            )
+                                        |> Task.andThen (\_ -> FileSystem.writeFileStream model.fsPermission bundlePath)
+                                        |> Task.mapError FileSystem.errorToString
+                                        |> Task.andThen
+                                            (\stream ->
+                                                Stream.fromArray [ str ]
+                                                    |> Task.andThen (Stream.awaitAndPipeThrough Stream.textEncoder)
+                                                    |> Task.andThen (Stream.awaitAndPipeThrough Stream.gzipCompression)
+                                                    |> Task.andThen (Stream.pipeTo stream)
+                                                    |> Task.mapError Stream.errorToString
+                                            )
+                                )
+                            |> Task.andThen (\_ -> logLine model.stdout "Done")
+                            |> Task.onError (\err -> logLine model.stdout ("Error: " ++ err))
                             |> Task.execute
 
                     Compiler.Dependencies.Conflict _ ->
@@ -323,24 +392,44 @@ update msg model =
         }
 
 
-gitClonePackage : ChildProcess.Permission -> Path -> PackageName -> SemanticVersion -> Task ChildProcess.FailedRun ChildProcess.SuccessfulRun
-gitClonePackage cpPerm projectPath name version =
+packageBundlePath : PackageName -> SemanticVersion -> Path -> Path
+packageBundlePath name version projectPath =
     let
-        githubUrl =
-            "https://github.com/" ++ PackageName.toString name ++ ".git"
-
         normalizedName =
             (PackageName.toString name ++ "__" ++ SemanticVersion.toString version)
                 |> String.replace "-" "_"
                 |> String.replace "." "_"
                 |> String.replace "/" "_"
+                |> String.append ".gz"
+    in
+    Path.join
+        [ projectPath
+        , Path.fromPosixString "gren_packages"
+        , Path.fromPosixString normalizedName
+        ]
 
-        repoPath =
-            Path.join
-                [ projectPath
-                , Path.fromPosixString ".gren/git"
-                , Path.fromPosixString normalizedName
-                ]
+
+localRepoPath : PackageName -> SemanticVersion -> Path -> Path
+localRepoPath name version projectPath =
+    let
+        normalizedName =
+            (PackageName.toString name ++ "__" ++ SemanticVersion.toString version)
+                |> String.replace "-" "_"
+                |> String.replace "." "_"
+                |> String.replace "/" "_"
+    in
+    Path.join
+        [ projectPath
+        , Path.fromPosixString ".gren/git"
+        , Path.fromPosixString normalizedName
+        ]
+
+
+gitClonePackage : ChildProcess.Permission -> Path -> PackageName -> SemanticVersion -> Task ChildProcess.FailedRun ChildProcess.SuccessfulRun
+gitClonePackage cpPerm repo name version =
+    let
+        githubUrl =
+            "https://github.com/" ++ PackageName.toString name ++ ".git"
     in
     ChildProcess.run
         cpPerm
@@ -351,7 +440,7 @@ gitClonePackage cpPerm projectPath name version =
         , "--depth"
         , "1"
         , githubUrl
-        , Path.toPosixString repoPath
+        , Path.toPosixString repo
         ]
         { shell = ChildProcess.NoShell
         , workingDirectory = ChildProcess.InheritWorkingDirectory
@@ -359,6 +448,69 @@ gitClonePackage cpPerm projectPath name version =
         , maximumBytesWrittenToStreams = 4096
         , runDuration = ChildProcess.Milliseconds 30000
         }
+
+
+findSourceFiles : FileSystem.Permission -> Outline -> Path -> Task FileSystem.Error (Array { moduleName : String, source : String })
+findSourceFiles fsPerm outline outlinePath =
+    let
+        sourceDirs =
+            when outline is
+                Outline.App appOutline ->
+                    appOutline.sourceDirectories
+
+                Outline.Pkg _ ->
+                    [ Path.fromPosixString "src"
+                    ]
+    in
+    Array.map (\srcDir -> Path.append srcDir outlinePath) sourceDirs
+        |> Array.map (findSourceFilesHelp fsPerm Path.empty)
+        |> Task.sequence
+        |> Task.map Array.flatten
+        |> Task.andThen (\paths -> Task.sequence <| Array.map (readSourceFile fsPerm) paths)
+
+
+findSourceFilesHelp : FileSystem.Permission -> Path -> Path -> Task FileSystem.Error (Array { absolute : Path, relative : Path })
+findSourceFilesHelp fsPerm local root =
+    FileSystem.listDirectory fsPerm root
+        |> Task.andThen
+            (\paths ->
+                paths
+                    |> Array.mapAndKeepJust
+                        (\entry ->
+                            when entry.entityType is
+                                FileSystem.Directory ->
+                                    Just <| findSourceFilesHelp fsPerm (Path.append entry.path local) (Path.append entry.path root)
+
+                                FileSystem.File ->
+                                    if entry.path.extension == "js" || entry.path.extension == "gren" then
+                                        Just <| Task.succeed [ { absolute = Path.append entry.path root, relative = Path.append entry.path local } ]
+
+                                    else
+                                        Nothing
+
+                                _ ->
+                                    Nothing
+                        )
+                    |> Task.sequence
+                    |> Task.map Array.flatten
+            )
+
+
+readSourceFile : FileSystem.Permission -> { absolute : Path, relative : Path } -> Task FileSystem.Error { moduleName : String, source : String }
+readSourceFile fsPerm { absolute, relative } =
+    FileSystem.readFile fsPerm absolute
+        |> Task.map
+            (\source ->
+                { moduleName =
+                    Path.toPosixString relative
+                        |> String.dropLast (String.unitLength ".gren")
+                        |> String.replace "/" "."
+                , source =
+                    -- Should be ok, as compile errors will be reported at a later stage
+                    Bytes.toString source
+                        |> Maybe.withDefault ""
+                }
+            )
 
 
 parseUserArgs : Model -> Path -> Cmd Msg
@@ -409,19 +561,17 @@ parseUserArgs model compilerPath =
                         |> Task.mapError PackageInstallNoProject
                         |> Task.map (Path.append (Path.fromPosixString "gren.json"))
                         |> Task.andThen
-                            (\projectPath ->
-                                FileSystem.readFile model.fsPermission projectPath
+                            (\grenJsonPath ->
+                                readOutline model.fsPermission grenJsonPath
                                     |> Task.mapError PackageInstallNoGrenJson
-                                    |> Task.map (Bytes.toString >> Maybe.withDefault "")
-                                    |> Task.map (Decode.decodeString Compiler.Outline.jsonDecoder)
                                     |> Task.andThen
                                         (\decodeResult ->
                                             when decodeResult is
                                                 Ok outline ->
                                                     Task.succeed
                                                         { projectPath =
-                                                            Path.parentPath projectPath
-                                                                |> Maybe.withDefault projectPath
+                                                            Path.parentPath grenJsonPath
+                                                                |> Maybe.withDefault grenJsonPath
                                                         , outline = outline
                                                         }
 
@@ -562,6 +712,13 @@ parseUserArgs model compilerPath =
                         , onInit = (\_ -> NoOp)
                         , onComplete = CompilerRan
                         }
+
+
+readOutline : FileSystem.Permission -> Path -> Task FileSystem.Error (Result Decode.Error Outline)
+readOutline fsPerm path =
+    FileSystem.readFile fsPerm path
+        |> Task.map (Bytes.toString >> Maybe.withDefault "")
+        |> Task.map (Decode.decodeString Outline.jsonDecoder)
 
 
 logLine : Stream.Writable Bytes -> String -> Task x (Stream.Writable Bytes)
