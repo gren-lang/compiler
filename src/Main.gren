@@ -400,7 +400,7 @@ packageBundlePath name version projectPath =
                 |> String.replace "-" "_"
                 |> String.replace "." "_"
                 |> String.replace "/" "_"
-                |> String.append ".gz"
+                |> String.append ".pkg.gz"
     in
     Path.join
         [ projectPath
@@ -502,8 +502,8 @@ readSourceFile fsPerm { absolute, relative } =
         |> Task.map
             (\source ->
                 { moduleName =
-                    Path.toPosixString relative
-                        |> String.dropLast (String.unitLength ".gren")
+                    { relative | extension = "" }
+                        |> Path.toPosixString
                         |> String.replace "/" "."
                 , source =
                     -- Should be ok, as compile errors will be reported at a later stage
