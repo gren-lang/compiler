@@ -148,16 +148,32 @@ type Msg
     | CompilerInstalled (Result FileSystem.Error Path)
     | CompilerRan Int
     | CompilerRanStatic { path : String, exitCode : Int }
-    | InitiatePackageInstall (Result PackageInstallError { projectPath : Path, outline : Outline })
+    | InitiatePackageInstall
+        (Result PackageInstallError
+            { projectPath : Path
+            , outline : Outline
+            , andThen : PackageResolution -> Cmd Msg
+            }
+        )
     | InstallPackages
         (Result String
             { projectPath : Path
             , outline : Outline
+            , projectSources : Dict String String
             , rootPackages : Array { name : PackageName, version : SemanticVersionRange }
             , loadedPackages : Dict String { outline : Outline, sources : Dict String String }
             , solvedPackages : Dict String Compiler.Dependencies.SimplifiedOutline
+            , andThen : PackageResolution -> Cmd Msg
             }
         )
+
+
+type alias PackageResolution =
+    { projectPath : Path
+    , outline : Outline
+    , rootSources : Dict String String
+    , dependencies : Dict String { outline : Outline, sources : Dict String String }
+    }
 
 
 type PackageInstallError
@@ -256,7 +272,7 @@ update msg model =
                 logLine model.stdout (Debug.toString msg)
                     |> Task.execute
 
-            InitiatePackageInstall (Ok { projectPath, outline }) ->
+            InitiatePackageInstall (Ok { projectPath, outline, andThen }) ->
                 let
                     rootDeps =
                         when outline is
@@ -357,23 +373,34 @@ update msg model =
                             )
                         )
                     |> Task.andThen Task.sequence
-                    |> Task.map
+                    |> Task.andThen
                         (\pkgs ->
-                            { projectPath = projectPath
-                            , outline = outline
-                            , rootPackages = rootDeps
-                            , loadedPackages =
-                                Array.foldl
-                                    (\pkg dict ->
-                                        Dict.set
-                                            (PackageName.toString pkg.name)
-                                            { outline = pkg.outline, sources = pkg.sources }
-                                            dict
+                            findSourceFiles model.fsPermission outline projectPath
+                                |> Task.mapError FileSystem.errorToString
+                                |> Task.map
+                                    (\sourceFiles ->
+                                        { projectPath = projectPath
+                                        , outline = outline
+                                        , projectSources =
+                                            Array.foldl
+                                                (\{ moduleName, source } dict -> Dict.set moduleName source dict)
+                                                Dict.empty
+                                                sourceFiles
+                                        , rootPackages = rootDeps
+                                        , loadedPackages =
+                                            Array.foldl
+                                                (\pkg dict ->
+                                                    Dict.set
+                                                        (PackageName.toString pkg.name)
+                                                        { outline = pkg.outline, sources = pkg.sources }
+                                                        dict
+                                                )
+                                                Dict.empty
+                                                pkgs
+                                        , solvedPackages = Dict.empty
+                                        , andThen = andThen
+                                        }
                                     )
-                                    Dict.empty
-                                    pkgs
-                            , solvedPackages = Dict.empty
-                            }
                         )
                     |> Task.attempt InstallPackages
 
@@ -382,12 +409,17 @@ update msg model =
                     |> logLine model.stdout
                     |> Task.execute
 
-            InstallPackages (Ok { projectPath, outline, rootPackages, loadedPackages, solvedPackages }) ->
+            -- TODO: just use a local variable for args
+            InstallPackages (Ok { projectPath, projectSources, outline, rootPackages, loadedPackages, solvedPackages, andThen }) ->
                 when Compiler.Dependencies.solve rootPackages solvedPackages is
                     Compiler.Dependencies.Complete ->
-                        "All done"
-                            |> logLine model.stdout
-                            |> Task.execute
+                        -- TODO: can 'andThen' (onComplete?) be changed to a Task?
+                        andThen
+                            { projectPath = projectPath
+                            , outline = outline
+                            , rootSources = projectSources
+                            , dependencies = loadedPackages
+                            }
 
                     Compiler.Dependencies.Missing { name, version } ->
                         let
@@ -396,38 +428,48 @@ update msg model =
                         in
                         when Dict.get packageNameString loadedPackages is
                             Just loadedPackage ->
-                                Task.succeed
-                                    { projectPath = projectPath
-                                    , outline = outline
-                                    , rootPackages = rootPackages
-                                    , loadedPackages = loadedPackages
-                                    , solvedPackages =
-                                        Dict.set
-                                            packageNameString
-                                            -- TODO: loaded packages should be guaranteed package outlines
-                                            { name = name
-                                            , version = version
-                                            , dependencies =
-                                                when loadedPackage.outline is
-                                                    Outline.App _ ->
-                                                        Dict.empty
+                                findSourceFiles model.fsPermission outline projectPath
+                                    |> Task.mapError FileSystem.errorToString
+                                    |> Task.map
+                                        (\sourceFiles ->
+                                            { projectPath = projectPath
+                                            , outline = outline
+                                            , projectSources =
+                                                Array.foldl
+                                                    (\{ moduleName, source } dict -> Dict.set moduleName source dict)
+                                                    Dict.empty
+                                                    sourceFiles
+                                            , rootPackages = rootPackages
+                                            , loadedPackages = loadedPackages
+                                            , solvedPackages =
+                                                Dict.set
+                                                    packageNameString
+                                                    -- TODO: loaded packages should be guaranteed package outlines
+                                                    { name = name
+                                                    , version = version
+                                                    , dependencies =
+                                                        when loadedPackage.outline is
+                                                            Outline.App _ ->
+                                                                Dict.empty
 
-                                                    Outline.Pkg pkgOutline ->
-                                                        Dict.mapAndKeepJust
-                                                            (\_ constraint ->
-                                                                when constraint is
-                                                                    -- TODO: Error
-                                                                    Outline.Version vsn ->
-                                                                        Just vsn
+                                                            Outline.Pkg pkgOutline ->
+                                                                Dict.mapAndKeepJust
+                                                                    (\_ constraint ->
+                                                                        when constraint is
+                                                                            -- TODO: Error
+                                                                            Outline.Version vsn ->
+                                                                                Just vsn
 
-                                                                    Outline.LocalPath _ ->
-                                                                        Nothing
-                                                            )
-                                                            pkgOutline.dependencies
+                                                                            Outline.LocalPath _ ->
+                                                                                Nothing
+                                                                    )
+                                                                    pkgOutline.dependencies
+                                                    }
+                                                    solvedPackages
+                                            , andThen = andThen
                                             }
-                                            solvedPackages
-                                    }
-                                    |> Task.attempt InstallPackages
+                                        )
+                                        |> Task.attempt InstallPackages
                                 
                             Nothing ->
                                 let
@@ -511,18 +553,29 @@ update msg model =
                                                     )
                                                 |> Task.map (\_ -> pkg)
                                         )
-                                    |> Task.map
+                                    |> Task.andThen
                                         (\pkg ->
-                                            { projectPath = projectPath
-                                            , outline = outline
-                                            , rootPackages = rootPackages
-                                            , loadedPackages =
-                                                Dict.set
-                                                    (PackageName.toString name)
-                                                    { outline = pkg.outline, sources = pkg.sources }
-                                                    loadedPackages
-                                            , solvedPackages = solvedPackages
-                                            }
+                                            findSourceFiles model.fsPermission outline projectPath
+                                                |> Task.mapError FileSystem.errorToString
+                                                |> Task.map
+                                                    (\sourceFiles ->
+                                                        { projectPath = projectPath
+                                                        , outline = outline
+                                                        , projectSources =
+                                                            Array.foldl
+                                                                (\{ moduleName, source } dict -> Dict.set moduleName source dict)
+                                                                Dict.empty
+                                                                sourceFiles
+                                                        , rootPackages = rootPackages
+                                                        , loadedPackages =
+                                                            Dict.set
+                                                                (PackageName.toString name)
+                                                                { outline = pkg.outline, sources = pkg.sources }
+                                                                loadedPackages
+                                                        , solvedPackages = solvedPackages
+                                                        , andThen = andThen
+                                                        }
+                                                    )
                                         )
                                     -- TODO: Print progress
                                     |> Task.attempt InstallPackages
@@ -718,7 +771,32 @@ parseUserArgs model compilerPath =
     
         CLI.Parser.Success parsedCommand ->
             when parsedCommand is
-                PackageInstall ->
+                Init flags ->
+                    Compiler.Backend.run
+                        model.cpPermission
+                        { command = Compiler.Backend.Init flags
+                        , interactiveSession = model.interactive
+                        , useColor = model.useColor
+                        , compilerPath = compilerPath
+                        , pathToString = model.pathToString
+                        , onInit = (\_ -> NoOp)
+                        , onComplete = CompilerRan
+                        }
+
+                Repl flags ->
+                    Compiler.Backend.run
+                        model.cpPermission
+                        { command = Compiler.Backend.Repl flags
+                        , interactiveSession = model.interactive
+                        , useColor = model.useColor
+                        , compilerPath = compilerPath
+                        , pathToString = model.pathToString
+                        , onInit = (\_ -> NoOp)
+                        , onComplete = CompilerRan
+                        }
+
+                Make flags ->
+                    -- TODO: DRY
                     Compiler.Paths.projectRoot model.fsPermission
                         |> Task.mapError PackageInstallNoProject
                         |> Task.map (Path.append (Path.fromPosixString "gren.json"))
@@ -735,6 +813,30 @@ parseUserArgs model compilerPath =
                                                             Path.parentPath grenJsonPath
                                                                 |> Maybe.withDefault grenJsonPath
                                                         , outline = outline
+                                                        , andThen =
+                                                            (\resolved->
+                                                                Compiler.Backend.run
+                                                                    model.cpPermission
+                                                                    { command =
+                                                                        Compiler.Backend.Make
+                                                                            { optimize = flags.optimize
+                                                                            , sourcemaps = flags.sourcemaps
+                                                                            , output = flags.output
+                                                                            , report = flags.report
+                                                                            , projectPath = resolved.projectPath
+                                                                            , entryPoints = flags.entryPoints
+                                                                            , outline = resolved.outline
+                                                                            , rootSources = resolved.rootSources
+                                                                            , dependencies = resolved.dependencies
+                                                                            }
+                                                                    , interactiveSession = model.interactive
+                                                                    , useColor = model.useColor
+                                                                    , compilerPath = compilerPath
+                                                                    , pathToString = model.pathToString
+                                                                    , onInit = (\_ -> NoOp)
+                                                                    , onComplete = CompilerRan
+                                                                    }
+                                                            )
                                                         }
 
                                                 Err err ->
@@ -742,6 +844,161 @@ parseUserArgs model compilerPath =
                                         )
                             )
                         |> Task.attempt InitiatePackageInstall
+
+                MakeStatic opts ->
+                    -- TODO: DRY
+                    Compiler.Paths.projectRoot model.fsPermission
+                        |> Task.mapError PackageInstallNoProject
+                        |> Task.map (Path.append (Path.fromPosixString "gren.json"))
+                        |> Task.andThen
+                            (\grenJsonPath ->
+                                readOutline model.fsPermission grenJsonPath
+                                    |> Task.mapError PackageInstallNoGrenJson
+                                    |> Task.andThen
+                                        (\decodeResult ->
+                                            when decodeResult is
+                                                Ok outline ->
+                                                    Task.succeed
+                                                        { projectPath =
+                                                            Path.parentPath grenJsonPath
+                                                                |> Maybe.withDefault grenJsonPath
+                                                        , outline = outline
+                                                        , andThen =
+                                                            (\resolved ->
+                                                                Compiler.Backend.run
+                                                                    model.cpPermission
+                                                                    { command =
+                                                                        Compiler.Backend.Make
+                                                                            { optimize = True
+                                                                            , sourcemaps = False
+                                                                            , output = Just (Compiler.Backend.Exe <| model.pathToString opts.output)
+                                                                            , report = Nothing
+                                                                            , projectPath = resolved.projectPath
+                                                                            , entryPoints = [ opts.source ]
+                                                                            , outline = resolved.outline
+                                                                            , rootSources = resolved.rootSources
+                                                                            , dependencies = resolved.dependencies
+                                                                            }
+                                                                    , interactiveSession = model.interactive
+                                                                    , useColor = model.useColor
+                                                                    , compilerPath = compilerPath
+                                                                    , pathToString = model.pathToString
+                                                                    , onInit = (\_ -> NoOp)
+                                                                    , onComplete =
+                                                                        (\exitCode ->
+                                                                            CompilerRanStatic
+                                                                                { path = model.pathToString opts.output
+                                                                                , exitCode = exitCode
+                                                                                }
+                                                                        )
+                                                                    }
+                                                            )
+                                                        }
+
+                                                Err err ->
+                                                    Task.fail (PackageInstallInvalidGrenJson err)
+                                        )
+                            )
+                        |> Task.attempt InitiatePackageInstall
+
+                Docs flags ->
+                    Compiler.Backend.run
+                        model.cpPermission
+                        { command = Compiler.Backend.Docs flags
+                        , interactiveSession = model.interactive
+                        , useColor = model.useColor
+                        , compilerPath = compilerPath
+                        , pathToString = model.pathToString
+                        , onInit = (\_ -> NoOp)
+                        , onComplete = CompilerRan
+                        }
+
+                -- TODO: test installing single package
+                PackageInstall _ ->
+                    Compiler.Paths.projectRoot model.fsPermission
+                        |> Task.mapError PackageInstallNoProject
+                        |> Task.map (Path.append (Path.fromPosixString "gren.json"))
+                        |> Task.andThen
+                            (\grenJsonPath ->
+                                readOutline model.fsPermission grenJsonPath
+                                    |> Task.mapError PackageInstallNoGrenJson
+                                    |> Task.andThen
+                                        (\decodeResult ->
+                                            when decodeResult is
+                                                Ok outline ->
+                                                    Task.succeed
+                                                        { projectPath =
+                                                            Path.parentPath grenJsonPath
+                                                                |> Maybe.withDefault grenJsonPath
+                                                        , outline = outline
+                                                        , andThen = (\_ -> Task.succeed NoOp |> Task.perform identity)
+                                                        }
+
+                                                Err err ->
+                                                    Task.fail (PackageInstallInvalidGrenJson err)
+                                        )
+                            )
+                        |> Task.attempt InitiatePackageInstall
+
+                PackageUninstall packageName ->
+                    Compiler.Backend.run
+                        model.cpPermission
+                        { command = Compiler.Backend.PackageUninstall packageName
+                        , interactiveSession = model.interactive
+                        , useColor = model.useColor
+                        , compilerPath = compilerPath
+                        , pathToString = model.pathToString
+                        , onInit = (\_ -> NoOp)
+                        , onComplete = CompilerRan
+                        }
+
+                PackageOutdated ->
+                    Compiler.Backend.run
+                        model.cpPermission
+                        { command = Compiler.Backend.PackageOutdated
+                        , interactiveSession = model.interactive
+                        , useColor = model.useColor
+                        , compilerPath = compilerPath
+                        , pathToString = model.pathToString
+                        , onInit = (\_ -> NoOp)
+                        , onComplete = CompilerRan
+                        }
+
+                PackageValidate ->
+                    Compiler.Backend.run
+                        model.cpPermission
+                        { command = Compiler.Backend.PackageValidate
+                        , interactiveSession = model.interactive
+                        , useColor = model.useColor
+                        , compilerPath = compilerPath
+                        , pathToString = model.pathToString
+                        , onInit = (\_ -> NoOp)
+                        , onComplete = CompilerRan
+                        }
+
+                PackageBump ->
+                    Compiler.Backend.run
+                        model.cpPermission
+                        { command = Compiler.Backend.PackageBump
+                        , interactiveSession = model.interactive
+                        , useColor = model.useColor
+                        , compilerPath = compilerPath
+                        , pathToString = model.pathToString
+                        , onInit = (\_ -> NoOp)
+                        , onComplete = CompilerRan
+                        }
+
+                PackageDiff args ->
+                    Compiler.Backend.run
+                        model.cpPermission
+                        { command = Compiler.Backend.PackageDiff args
+                        , interactiveSession = model.interactive
+                        , useColor = model.useColor
+                        , compilerPath = compilerPath
+                        , pathToString = model.pathToString
+                        , onInit = (\_ -> NoOp)
+                        , onComplete = CompilerRan
+                        }
 
                 Paths opts ->
                     when opts is
@@ -835,46 +1092,6 @@ parseUserArgs model compilerPath =
                             logLine model.stdout "You can only use one of --project, --package-cache and --backend!"
                                 |> Task.execute
 
-                MakeStatic opts ->
-                    Compiler.Backend.run
-                        model.cpPermission
-                        { command =
-                            Compiler.Backend.Make
-                                { flags =
-                                    { optimize = True
-                                    , sourcemaps = False
-                                    , output = Just (Compiler.Backend.Exe <| model.pathToString opts.output)
-                                    , report = Nothing
-                                    }
-                                , paths =
-                                    [ opts.source ]
-                                }
-                        , interactiveSession = model.interactive
-                        , useColor = model.useColor
-                        , compilerPath = compilerPath
-                        , pathToString = model.pathToString
-                        , onInit = (\_ -> NoOp)
-                        , onComplete =
-                            (\exitCode ->
-                                CompilerRanStatic
-                                    { path = model.pathToString opts.output
-                                    , exitCode = exitCode
-                                    }
-                            )
-                        }
-
-                CompilerCommand cmd ->
-                    Compiler.Backend.run
-                        model.cpPermission
-                        { command = cmd
-                        , interactiveSession = model.interactive
-                        , useColor = model.useColor
-                        , compilerPath = compilerPath
-                        , pathToString = model.pathToString
-                        , onInit = (\_ -> NoOp)
-                        , onComplete = CompilerRan
-                        }
-
 
 readOutline : FileSystem.Permission -> Path -> Task FileSystem.Error (Result Decode.Error Outline)
 readOutline fsPerm path =
@@ -899,15 +1116,32 @@ logBytes stream bytes =
 
 
 type ParsedCommand
-    = MakeStatic MakeStaticOpts
-    | CompilerCommand Compiler.Backend.Command
-    | PackageInstall
+    = Init Compiler.Backend.InitFlags
+    | Repl Compiler.Backend.ReplFlags
+    | Make MakeFlags
+    | MakeStatic MakeStaticOpts
+    | Docs Compiler.Backend.DocsFlags
+    | PackageInstall (Maybe PackageName)
+    | PackageUninstall PackageName
+    | PackageOutdated
+    | PackageValidate
+    | PackageBump
+    | PackageDiff Compiler.Backend.DiffArgs
     | Paths
         { project : Bool
         , packageCache : Bool
         , backend : Bool
         , json : Bool
         }
+
+
+type alias MakeFlags =
+    { optimize : Bool
+    , sourcemaps : Bool
+    , output : Maybe Compiler.Backend.MakeOutput
+    , report : Maybe {}
+    , entryPoints : Array Path
+    }
 
 
 type alias MakeStaticOpts =
@@ -975,7 +1209,7 @@ cliParser =
                         common to all Gren project.
                         """
                 , builder =
-                    \_args flags -> CompilerCommand <| Compiler.Backend.Init flags
+                    \_args flags -> Init flags
                 }
             |> CLI.Parser.withCommand
                 { word = "repl"
@@ -1004,7 +1238,7 @@ cliParser =
                         the quickest way to get started.
                         """
                 , builder =
-                    \_args flags -> CompilerCommand <| Compiler.Backend.Repl flags
+                    \_args flags -> Repl flags
                 }
             |> CLI.Parser.withCommand
                 { word = "paths"
@@ -1079,7 +1313,14 @@ cliParser =
                             """
                         ]
                 , builder =
-                    \args flags -> CompilerCommand <| Compiler.Backend.Make { flags = flags, paths = args }
+                    \args flags ->
+                        Make
+                            { optimize = flags.optimize
+                            , sourcemaps = flags.sourcemaps
+                            , output = flags.output
+                            , report = flags.report
+                            , entryPoints = args
+                            }
                 }
             |> CLI.Parser.withCommand
                 { word = "make-static"
@@ -1146,7 +1387,7 @@ cliParser =
                             """
                         ]
                 , builder =
-                    \_args flags -> CompilerCommand <| Compiler.Backend.Docs flags
+                    \_args flags -> Docs flags
                 }
             |> CLI.Parser.withPrefix "package" packageCommands
     }
@@ -1197,12 +1438,7 @@ packageCommands =
                     ]
             , builder =
                 \arg _flags ->
-                    when arg is
-                        Nothing ->
-                            PackageInstall
-
-                        Just _ ->
-                            CompilerCommand <| Compiler.Backend.PackageInstall arg
+                    PackageInstall arg
             }
         |> CLI.Parser.withCommand
             { word = "uninstall"
@@ -1238,7 +1474,7 @@ packageCommands =
                         """
                     ]
             , builder =
-                \arg _flags -> CompilerCommand <| Compiler.Backend.PackageUninstall arg
+                \arg _flags -> PackageUninstall arg
             }
         |> CLI.Parser.withCommand
             { word = "outdated"
@@ -1256,7 +1492,7 @@ packageCommands =
                     |> PP.indent
                     |> PP.color PP.Green
             , builder =
-                \_args _flags -> CompilerCommand Compiler.Backend.PackageOutdated
+                \_args _flags -> PackageOutdated
             }
         |> CLI.Parser.withCommand
             { word = "validate"
@@ -1301,7 +1537,7 @@ packageCommands =
                         """
                     ]
             , builder =
-                \_args _flags -> CompilerCommand Compiler.Backend.PackageValidate
+                \_args _flags -> PackageValidate
             }
         |> CLI.Parser.withCommand
             { word = "bump"
@@ -1322,7 +1558,7 @@ packageCommands =
                     all packages, so there cannot be MAJOR changes hiding in PATCH releases in Gren!
                     """
             , builder =
-                \_args _flags -> CompilerCommand Compiler.Backend.PackageBump
+                \_args _flags -> PackageBump
             }
         |> CLI.Parser.withCommand
             { word = "diff"
@@ -1378,7 +1614,7 @@ packageCommands =
                         """
                     ]
             , builder =
-                \args _flags -> CompilerCommand <| Compiler.Backend.PackageDiff args
+                \args _flags -> PackageDiff args
             }
 
 
