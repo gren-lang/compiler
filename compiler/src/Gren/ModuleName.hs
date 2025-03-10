@@ -10,6 +10,7 @@ module Gren.ModuleName
     --
     encode,
     decoder,
+    keyDecoder,
     parser,
     --
     Canonical (..),
@@ -70,6 +71,12 @@ encode =
 decoder :: D.Decoder (Row, Col) Raw
 decoder =
   D.customString parser (,)
+
+keyDecoder :: (Row -> Col -> x) -> D.KeyDecoder x Raw
+keyDecoder toError =
+  let keyParser =
+        P.specialize (\(r, c) _ _ -> toError r c) parser
+   in D.KeyDecoder keyParser toError
 
 -- PARSER
 

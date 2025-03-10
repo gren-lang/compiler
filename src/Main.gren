@@ -23,7 +23,7 @@ import CLI.PrettyPrinter as PP
 import SemanticVersion exposing (SemanticVersion)
 import SemanticVersionRange exposing (SemanticVersionRange)
 import Json.Encode as Json
-import Json.Decode as Decode
+import Json.Decode as Decode exposing (Decoder)
 
 
 main : Node.Program Model Msg
@@ -347,26 +347,16 @@ update msg model =
                     |> Task.map
                         (Array.map
                             (\pkg ->
-                                when Decode.decodeString (Decode.dict Decode.string) pkg.data is
-                                    Ok decodedSources ->
-                                        when Dict.get "gren.json" decodedSources is
-                                            Nothing ->
-                                                Task.fail "No gren.json"
-
-                                            Just grenJson ->
-                                                when Decode.decodeString Outline.jsonDecoder grenJson is
-                                                    Ok decodedOutline ->
-                                                        -- TODO: Verify name
-                                                        -- TODO: Verify version
-                                                        -- TODO: Verify outline type
-                                                        Task.succeed
-                                                            { name = pkg.name
-                                                            , outline = decodedOutline
-                                                            , sources = decodedSources
-                                                            }
-
-                                                    Err jsonErr ->
-                                                        Task.fail <| Decode.errorToString jsonErr
+                                when Decode.decodeString packageBundleDecoder pkg.data is
+                                    Ok bundle ->
+                                        -- TODO: Verify name
+                                        -- TODO: Verify version
+                                        -- TODO: Verify outline type
+                                        Task.succeed
+                                            { name = pkg.name
+                                            , outline = bundle.outline
+                                            , sources = bundle.sources
+                                            }
 
                                     Err jsonErr ->
                                         Task.fail <| Decode.errorToString jsonErr
@@ -499,24 +489,18 @@ update msg model =
                                                                     (\files ->
                                                                         let
                                                                             sources =
-                                                                                files
-                                                                                    |> Array.foldl
-                                                                                        (\{ moduleName, source } dict ->
-                                                                                            Dict.set moduleName source dict
-                                                                                        )
-                                                                                        Dict.empty
-                                                                                    |> Dict.set
-                                                                                        "gren.json"
-                                                                                        (Outline.toJson packageOutline
-                                                                                            |> Json.encode 0
-                                                                                        )
+                                                                                Array.foldl
+                                                                                    (\{ moduleName, source } dict ->
+                                                                                        Dict.set moduleName source dict
+                                                                                    )
+                                                                                    Dict.empty
+                                                                                    files
                                                                         in
                                                                         { name = name
                                                                         , outline = packageOutline
                                                                         , sources = sources
                                                                         , data =
-                                                                            sources
-                                                                                |> Json.dict identity Json.string
+                                                                            packageBundleEncoder outline sources
                                                                                 |> Json.encode 0
                                                                         }
                                                                     )
@@ -585,6 +569,21 @@ update msg model =
                             |> logLine model.stdout
                             |> Task.execute
         }
+
+
+packageBundleEncoder : Outline -> Dict String String -> Json.Value
+packageBundleEncoder outline sources =
+    Json.object
+        [ { key = "outline", value = Outline.toJson outline }
+        , { key = "sources", value = Json.dict identity Json.string sources }
+        ]
+
+
+packageBundleDecoder : Decoder { outline : Outline, sources : Dict String String }
+packageBundleDecoder =
+    Decode.map2 (\outline sources -> { outline = outline, sources = sources })
+        (Decode.field "outline" Outline.jsonDecoder)
+        (Decode.field "sources" (Decode.dict Decode.string))
 
 
 readUntilStreamEnd : Stream.Readable String -> Task Stream.Error String

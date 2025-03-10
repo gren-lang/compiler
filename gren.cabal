@@ -226,6 +226,7 @@ Executable gren
         gren:common,
         base >= 4.18 && <5,
         bytestring >= 0.11 && < 0.12,
+        containers >= 0.6 && < 0.7,
 
 Test-Suite gren-tests
     default-language: GHC2021

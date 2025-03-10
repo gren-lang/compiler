@@ -3,10 +3,15 @@ module Main
   )
 where
 
+import Data.ByteString qualified
 import Data.ByteString.Char8 qualified as BS
+import Data.Map (Map)
 import Data.Utf8 qualified as Utf8
 import Docs qualified
 import GHC.IO.Encoding (setLocaleEncoding, utf8)
+import Gren.ModuleName qualified as ModuleName
+import Gren.Outline (Outline)
+import Gren.Outline qualified as Outline
 import Gren.Package qualified as Package
 import Gren.Platform qualified as Platform
 import Gren.Version qualified as Version
@@ -30,39 +35,39 @@ main =
     setLocaleEncoding utf8
     argStrings <- Env.getArgs
     case argStrings of
-      [json] ->
-        let jsonByteString = BS.pack json
-         in case Json.fromByteString commandDecoder jsonByteString of
-              Left err ->
-                error (show err)
-              Right (Init (InitFlags interactive package platform)) ->
-                Init.run $ Init.Flags (not interactive) package platform
-              Right (Repl interpreter) ->
-                Repl.run $ Repl.Flags interpreter
-              Right (Make (MakeFlags optimize sourcemaps output report paths)) ->
-                Make.run paths $ Make.Flags optimize sourcemaps output report
-              Right (Docs (DocsFlags output report)) ->
-                Docs.run $ Docs.Flags output report
-              Right (PackageInstall (InstallFlags interactive Nothing)) ->
-                Install.run Install.NoArgs $ Install.Flags (not interactive)
-              Right (PackageInstall (InstallFlags interactive (Just packageName))) ->
-                Install.run (Install.Install packageName) $ Install.Flags (not interactive)
-              Right (PackageUninstall (UninstallFlags interactive packageName)) ->
-                Uninstall.run packageName $ Uninstall.Flags (not interactive)
-              Right PackageOutdated ->
-                Outdated.run
-              Right PackageValidate ->
-                Validate.run
-              Right (PackageBump (BumpFlags interactive)) ->
-                Bump.run $ Bump.Flags (not interactive)
-              Right PackageDiffLatest ->
-                Diff.run Diff.CodeVsLatest
-              Right (PackageDiffVersion version) ->
-                Diff.run $ Diff.CodeVsExactly version
-              Right (PackageDiffRange from to) ->
-                Diff.run $ Diff.LocalInquiry from to
-              Right (PackageDiffGlobal pkg from to) ->
-                Diff.run $ Diff.GlobalInquiry pkg from to
+      [] -> do
+        json <- Data.ByteString.getContents
+        case Json.fromByteString commandDecoder json of
+          Left err ->
+            error (show err)
+          Right (Init (InitFlags interactive package platform)) ->
+            Init.run $ Init.Flags (not interactive) package platform
+          Right (Repl interpreter) ->
+            Repl.run $ Repl.Flags interpreter
+          Right (Make (MakeFlags optimize sourcemaps output report paths _ _ _ _)) ->
+            Make.run paths $ Make.Flags optimize sourcemaps output report
+          Right (Docs (DocsFlags output report)) ->
+            Docs.run $ Docs.Flags output report
+          Right (PackageInstall (InstallFlags interactive Nothing)) ->
+            Install.run Install.NoArgs $ Install.Flags (not interactive)
+          Right (PackageInstall (InstallFlags interactive (Just packageName))) ->
+            Install.run (Install.Install packageName) $ Install.Flags (not interactive)
+          Right (PackageUninstall (UninstallFlags interactive packageName)) ->
+            Uninstall.run packageName $ Uninstall.Flags (not interactive)
+          Right PackageOutdated ->
+            Outdated.run
+          Right PackageValidate ->
+            Validate.run
+          Right (PackageBump (BumpFlags interactive)) ->
+            Bump.run $ Bump.Flags (not interactive)
+          Right PackageDiffLatest ->
+            Diff.run Diff.CodeVsLatest
+          Right (PackageDiffVersion version) ->
+            Diff.run $ Diff.CodeVsExactly version
+          Right (PackageDiffRange from to) ->
+            Diff.run $ Diff.LocalInquiry from to
+          Right (PackageDiffGlobal pkg from to) ->
+            Diff.run $ Diff.GlobalInquiry pkg from to
       _ ->
         do
           putStrLn "Expected exactly 1 argument: a json-encoded command."
@@ -99,7 +104,17 @@ data MakeFlags = MakeFlags
     _make_sourcemaps :: Bool,
     _make_output :: Maybe Make.Output,
     _make_report_json :: Bool,
-    _make_paths :: [String]
+    _make_paths :: [String],
+    _make_project_path :: String,
+    _make_outline :: Outline,
+    _make_root_sources :: Map ModuleName.Raw String,
+    _make_dependencies :: Map Package.Name MakeDependency
+  }
+  deriving (Show)
+
+data MakeDependency = MakeDependency
+  { _makedep_outline :: Outline,
+    _makedep_sources :: Map ModuleName.Raw String
   }
   deriving (Show)
 
@@ -174,7 +189,11 @@ makeDecoder =
     <*> Json.field (BS.pack "sourcemaps") Json.bool
     <*> Json.field (BS.pack "output") (maybeDecoder makeOutputDecoder)
     <*> Json.field (BS.pack "report-json") Json.bool
-    <*> Json.field (BS.pack "paths") (Json.list (fmap Utf8.toChars Json.string))
+    <*> Json.field (BS.pack "entry-points") (Json.list (fmap Utf8.toChars Json.string))
+    <*> Json.field (BS.pack "project-path") (fmap Utf8.toChars Json.string)
+    <*> Json.field (BS.pack "project-outline") (Json.mapError (const InvalidInput) Outline.decoder)
+    <*> Json.field (BS.pack "sources") (Json.dict (ModuleName.keyDecoder (\_ _ -> InvalidInput)) (fmap Utf8.toChars Json.string))
+    <*> Json.field (BS.pack "dependencies") (Json.dict (Package.keyDecoder (\_ _ -> InvalidInput)) makeDependencyDecoder)
 
 makeOutputDecoder :: Json.Decoder CommandDecoderError Make.Output
 makeOutputDecoder =
@@ -188,6 +207,12 @@ makeOutputDecoder =
       "js" -> Make.JS <$> Json.field (BS.pack "path") (fmap Utf8.toChars Json.string)
       "exe" -> Make.Exe <$> Json.field (BS.pack "path") (fmap Utf8.toChars Json.string)
       _ -> Json.failure InvalidInput
+
+makeDependencyDecoder :: Json.Decoder CommandDecoderError MakeDependency
+makeDependencyDecoder =
+  MakeDependency
+    <$> Json.field (BS.pack "outline") (Json.mapError (const InvalidInput) Outline.decoder)
+    <*> Json.field (BS.pack "sources") (Json.dict (ModuleName.keyDecoder (\_ _ -> InvalidInput)) (fmap Utf8.toChars Json.string))
 
 docsDecoder :: Json.Decoder CommandDecoderError DocsFlags
 docsDecoder =
