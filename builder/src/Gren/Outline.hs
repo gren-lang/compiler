@@ -62,6 +62,7 @@ import Prelude hiding (read)
 data Outline
   = App AppOutline
   | Pkg PkgOutline
+  deriving (Show)
 
 data AppOutline = AppOutline
   { _app_gren_version :: V.Version,
@@ -70,6 +71,7 @@ data AppOutline = AppOutline
     _app_deps_direct :: Map.Map Pkg.Name (PossibleFilePath V.Version),
     _app_deps_indirect :: Map.Map Pkg.Name (PossibleFilePath V.Version)
   }
+  deriving (Show)
 
 data PkgOutline = PkgOutline
   { _pkg_name :: Pkg.Name,
@@ -81,14 +83,17 @@ data PkgOutline = PkgOutline
     _pkg_gren_version :: Con.Constraint,
     _pkg_platform :: Platform.Platform
   }
+  deriving (Show)
 
 data Exposed
   = ExposedList [ModuleName.Raw]
   | ExposedDict [(Json.String, [ModuleName.Raw])]
+  deriving (Show)
 
 data SrcDir
   = AbsoluteSrcDir FilePath
   | RelativeSrcDir FilePath
+  deriving (Show)
 
 -- DEFAULTS
 
