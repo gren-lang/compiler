@@ -146,6 +146,7 @@ type Msg
         , downloadResult : Result (HttpClient.Error Bytes) (HttpClient.Response Bytes)
         }
     | CompilerInstalled (Result FileSystem.Error Path)
+    | CompilerInitialized { backendStreams : ChildProcess.StreamIO, encodedCommand : Bytes }
     | CompilerRan Int
     | CompilerRanStatic { path : String, exitCode : Int }
     | InitiatePackageInstall
@@ -255,6 +256,34 @@ update msg model =
         
             CompilerInstalled (Ok compilerPath) ->
                 parseUserArgs model compilerPath
+
+            CompilerInitialized { backendStreams, encodedCommand } ->
+                Stream.write encodedCommand backendStreams.input
+                    |> Task.andThen (\_ -> Stream.closeWritable backendStreams.input)
+                    |> Task.onError
+                        (\streamErr ->
+                            logLine model.stderr ("Failed to send command to compiler backend due to error: " ++ Stream.errorToString streamErr)
+                                |> Task.map (\_ -> {})
+                        )
+                    |> Task.andThen
+                        (\_ ->
+                            backendStreams.output
+                                |> Stream.awaitAndPipeThrough Stream.textDecoder
+                                |> Task.andThen readUntilStreamEnd
+                                |> Task.andThen (\str -> Stream.writeStringAsBytes str model.stdout)
+                        )
+                    |> Task.andThen
+                        (\_ ->
+                            backendStreams.error
+                                |> Stream.awaitAndPipeThrough Stream.textDecoder
+                                |> Task.andThen readUntilStreamEnd
+                                |> Task.andThen (\str -> Stream.writeStringAsBytes str model.stderr)
+                        )
+                    |> Task.onError
+                        (\streamErr ->
+                            logLine model.stderr ("Something went wrong when reading from backend: " ++ Stream.errorToString streamErr)
+                        )
+                    |> Task.execute
 
             CompilerRan exitCode ->
                 Node.exitWithCode exitCode
@@ -769,28 +798,42 @@ parseUserArgs model compilerPath =
                 |> Task.execute
     
         CLI.Parser.Success parsedCommand ->
+            let
+                initWithCommand backendCommand cpOpts =
+                    when cpOpts.streams is
+                        Nothing ->
+                            -- TODO: error handling
+                            Debug.todo "no stream for child process"
+
+                        Just streams ->
+                            CompilerInitialized
+                                { backendStreams = streams
+                                , encodedCommand =
+                                    Compiler.Backend.encodeCommand
+                                        { interactiveSession = model.interactive
+                                        , pathToString = model.pathToString
+                                        }
+                                        backendCommand
+                                }
+            in
             when parsedCommand is
                 Init flags ->
                     Compiler.Backend.run
                         model.cpPermission
-                        { command = Compiler.Backend.Init flags
-                        , interactiveSession = model.interactive
-                        , useColor = model.useColor
+                        { useColor = model.useColor
                         , compilerPath = compilerPath
                         , pathToString = model.pathToString
-                        , onInit = (\_ -> NoOp)
+                        , onInit = initWithCommand <| Compiler.Backend.Init flags 
                         , onComplete = CompilerRan
                         }
 
                 Repl flags ->
                     Compiler.Backend.run
                         model.cpPermission
-                        { command = Compiler.Backend.Repl flags
-                        , interactiveSession = model.interactive
-                        , useColor = model.useColor
+                        { useColor = model.useColor
                         , compilerPath = compilerPath
                         , pathToString = model.pathToString
-                        , onInit = (\_ -> NoOp)
+                        , onInit = initWithCommand <| Compiler.Backend.Repl flags 
                         , onComplete = CompilerRan
                         }
 
@@ -816,7 +859,10 @@ parseUserArgs model compilerPath =
                                                             (\resolved->
                                                                 Compiler.Backend.run
                                                                     model.cpPermission
-                                                                    { command =
+                                                                    { useColor = model.useColor
+                                                                    , compilerPath = compilerPath
+                                                                    , pathToString = model.pathToString
+                                                                    , onInit = initWithCommand <|
                                                                         Compiler.Backend.Make
                                                                             { optimize = flags.optimize
                                                                             , sourcemaps = flags.sourcemaps
@@ -828,11 +874,6 @@ parseUserArgs model compilerPath =
                                                                             , rootSources = resolved.rootSources
                                                                             , dependencies = resolved.dependencies
                                                                             }
-                                                                    , interactiveSession = model.interactive
-                                                                    , useColor = model.useColor
-                                                                    , compilerPath = compilerPath
-                                                                    , pathToString = model.pathToString
-                                                                    , onInit = (\_ -> NoOp)
                                                                     , onComplete = CompilerRan
                                                                     }
                                                             )
@@ -866,7 +907,10 @@ parseUserArgs model compilerPath =
                                                             (\resolved ->
                                                                 Compiler.Backend.run
                                                                     model.cpPermission
-                                                                    { command =
+                                                                    { useColor = model.useColor
+                                                                    , compilerPath = compilerPath
+                                                                    , pathToString = model.pathToString
+                                                                    , onInit = initWithCommand <|
                                                                         Compiler.Backend.Make
                                                                             { optimize = True
                                                                             , sourcemaps = False
@@ -878,11 +922,6 @@ parseUserArgs model compilerPath =
                                                                             , rootSources = resolved.rootSources
                                                                             , dependencies = resolved.dependencies
                                                                             }
-                                                                    , interactiveSession = model.interactive
-                                                                    , useColor = model.useColor
-                                                                    , compilerPath = compilerPath
-                                                                    , pathToString = model.pathToString
-                                                                    , onInit = (\_ -> NoOp)
                                                                     , onComplete =
                                                                         (\exitCode ->
                                                                             CompilerRanStatic
@@ -903,12 +942,10 @@ parseUserArgs model compilerPath =
                 Docs flags ->
                     Compiler.Backend.run
                         model.cpPermission
-                        { command = Compiler.Backend.Docs flags
-                        , interactiveSession = model.interactive
-                        , useColor = model.useColor
+                        { useColor = model.useColor
                         , compilerPath = compilerPath
                         , pathToString = model.pathToString
-                        , onInit = (\_ -> NoOp)
+                        , onInit = initWithCommand <| Compiler.Backend.Docs flags 
                         , onComplete = CompilerRan
                         }
 
@@ -942,60 +979,50 @@ parseUserArgs model compilerPath =
                 PackageUninstall packageName ->
                     Compiler.Backend.run
                         model.cpPermission
-                        { command = Compiler.Backend.PackageUninstall packageName
-                        , interactiveSession = model.interactive
-                        , useColor = model.useColor
+                        { useColor = model.useColor
                         , compilerPath = compilerPath
                         , pathToString = model.pathToString
-                        , onInit = (\_ -> NoOp)
+                        , onInit = initWithCommand <| Compiler.Backend.PackageUninstall packageName
                         , onComplete = CompilerRan
                         }
 
                 PackageOutdated ->
                     Compiler.Backend.run
                         model.cpPermission
-                        { command = Compiler.Backend.PackageOutdated
-                        , interactiveSession = model.interactive
+                        { onInit = initWithCommand <| Compiler.Backend.PackageOutdated
                         , useColor = model.useColor
                         , compilerPath = compilerPath
                         , pathToString = model.pathToString
-                        , onInit = (\_ -> NoOp)
                         , onComplete = CompilerRan
                         }
 
                 PackageValidate ->
                     Compiler.Backend.run
                         model.cpPermission
-                        { command = Compiler.Backend.PackageValidate
-                        , interactiveSession = model.interactive
+                        { onInit = initWithCommand <| Compiler.Backend.PackageValidate
                         , useColor = model.useColor
                         , compilerPath = compilerPath
                         , pathToString = model.pathToString
-                        , onInit = (\_ -> NoOp)
                         , onComplete = CompilerRan
                         }
 
                 PackageBump ->
                     Compiler.Backend.run
                         model.cpPermission
-                        { command = Compiler.Backend.PackageBump
-                        , interactiveSession = model.interactive
+                        { onInit = initWithCommand Compiler.Backend.PackageBump
                         , useColor = model.useColor
                         , compilerPath = compilerPath
                         , pathToString = model.pathToString
-                        , onInit = (\_ -> NoOp)
                         , onComplete = CompilerRan
                         }
 
                 PackageDiff args ->
                     Compiler.Backend.run
                         model.cpPermission
-                        { command = Compiler.Backend.PackageDiff args
-                        , interactiveSession = model.interactive
+                        { onInit = initWithCommand <| Compiler.Backend.PackageDiff args
                         , useColor = model.useColor
                         , compilerPath = compilerPath
                         , pathToString = model.pathToString
-                        , onInit = (\_ -> NoOp)
                         , onComplete = CompilerRan
                         }
 
