@@ -9,6 +9,7 @@ import Data.Map (Map)
 import Data.Utf8 qualified as Utf8
 import Docs qualified
 import GHC.IO.Encoding (setLocaleEncoding, utf8)
+import Gren.Details qualified as Details
 import Gren.ModuleName qualified as ModuleName
 import Gren.Outline (Outline)
 import Gren.Outline qualified as Outline
@@ -202,9 +203,9 @@ makeOutputDecoder =
       "exe" -> Make.Exe <$> Json.field (BS.pack "path") (fmap Utf8.toChars Json.string)
       _ -> Json.failure InvalidInput
 
-makeDependencyDecoder :: Json.Decoder CommandDecoderError Make.Dependency
+makeDependencyDecoder :: Json.Decoder CommandDecoderError Details.Dependency
 makeDependencyDecoder =
-  Make.Dependency
+  Details.Dependency
     <$> Json.field (BS.pack "outline") (Json.mapError (const InvalidInput) Outline.decoder)
     <*> Json.field (BS.pack "sources") (Json.dict (ModuleName.keyDecoder (\_ _ -> InvalidInput)) (fmap Utf8.toChars Json.string))
 

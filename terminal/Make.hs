@@ -3,7 +3,6 @@
 module Make
   ( Flags (..),
     Output (..),
-    Dependency (..),
     run,
     rereadSources,
   )
@@ -16,7 +15,6 @@ import Data.ByteString.Builder qualified as B
 import Data.Map (Map)
 import Data.Maybe qualified as Maybe
 import Data.NonEmptyList qualified as NE
-import Directories qualified as Dirs
 import File qualified
 import Generate qualified
 import Generate.Html qualified as Html
@@ -49,13 +47,7 @@ data Flags = Flags
     _project_path :: String,
     _outline :: Outline,
     _root_sources :: Map ModuleName.Raw String,
-    _dependencies :: Map Package.Name Dependency
-  }
-  deriving (Show)
-
-data Dependency = Dependency
-  { _dep_outline :: Outline,
-    _dep_sources :: Map ModuleName.Raw String
+    _dependencies :: Map Package.Name Details.Dependency
   }
   deriving (Show)
 
@@ -72,22 +64,21 @@ data Output
 type Task a = Task.Task Exit.Make a
 
 run :: Flags -> IO ()
-run flags@(Flags _ _ maybeOutput report paths _ _ _ _) =
+run flags@(Flags _ _ maybeOutput report _ _ _ _ _) =
   do
     style <- getStyle maybeOutput report
-    maybeRoot <- Dirs.findRoot
+    -- TODO: File locking in frontend
+    -- TODO: Show error for Exit.MakeNoOutline in frontend
     Reporting.attemptWithStyle style Exit.makeToReport $
-      case maybeRoot of
-        Just root -> runHelp root paths style flags
-        Nothing -> return $ Left Exit.MakeNoOutline
+      runHelp style flags
 
-runHelp :: FilePath -> [FilePath] -> Reporting.Style -> Flags -> IO (Either Exit.Make ())
-runHelp root paths style (Flags optimize withSourceMaps maybeOutput _ _ _ _ _ _) =
+runHelp :: Reporting.Style -> Flags -> IO (Either Exit.Make ())
+runHelp style (Flags optimize withSourceMaps maybeOutput _ paths root _ _ _) =
   BW.withScope $ \scope ->
     Task.run $
       do
         desiredMode <- getMode optimize
-        details <- Task.eio Exit.MakeBadDetails (Details.load style scope root)
+        details <- Task.eio Exit.MakeBadDetails (Details.loadForMake style scope root)
         let platform = getPlatform details
         let projectType = getProjectType details
         case (projectType, maybeOutput) of
