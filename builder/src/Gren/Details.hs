@@ -5,9 +5,11 @@ module Gren.Details
   ( Details (..),
     BuildID,
     ValidOutline (..),
+    Dependency (..),
     Local (..),
     Foreign (..),
     load,
+    loadForMake,
     loadObjects,
     loadInterfaces,
     verifyInstall,
@@ -23,7 +25,9 @@ import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar (MVar, newEmptyMVar, newMVar, putMVar, readMVar, takeMVar)
 import Control.Monad (liftM2, liftM3)
 import Data.Binary (Binary, get, getWord8, put, putWord8)
+import Data.ByteString.Internal (ByteString)
 import Data.Either qualified as Either
+import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Map.Merge.Strict qualified as Map
 import Data.Map.Utils qualified as Map
@@ -41,6 +45,7 @@ import Gren.Docs qualified as Docs
 import Gren.Interface qualified as I
 import Gren.Kernel qualified as Kernel
 import Gren.ModuleName qualified as ModuleName
+import Gren.Outline (Outline)
 import Gren.Outline qualified as Outline
 import Gren.Package qualified as Pkg
 import Gren.Platform qualified as P
@@ -72,6 +77,12 @@ type BuildID = Word64
 data ValidOutline
   = ValidApp P.Platform (NE.List Outline.SrcDir)
   | ValidPkg P.Platform Pkg.Name [ModuleName.Raw]
+
+data Dependency = Dependency
+  { _dep_outline :: Outline,
+    _dep_sources :: Map ModuleName.Raw ByteString
+  }
+  deriving (Show)
 
 -- NOTE: we need two ways to detect if a file must be recompiled:
 --
@@ -151,6 +162,11 @@ load style scope root =
                   then return (Right details {_buildID = buildID + 1})
                   else generate env outline newTime
 
+loadForMake :: Reporting.Style -> Outline.Outline -> Map.Map Pkg.Name Dependency -> IO (Either Exit.Details Details)
+loadForMake style outline solution =
+  Reporting.trackDetails style $ \key ->
+    generateForMake key outline solution
+
 containsLocalDeps :: Outline.Outline -> Bool
 containsLocalDeps outline =
   case outline of
@@ -166,6 +182,18 @@ generate env outline time =
   case outline of
     Outline.Pkg pkg -> Task.run (verifyPkg env time pkg)
     Outline.App app -> Task.run (verifyApp env time app)
+
+generateForMake :: Reporting.DKey -> Outline.Outline -> Map.Map Pkg.Name Dependency -> IO (Either Exit.Details Details)
+generateForMake key outline solution =
+  case outline of
+    Outline.Pkg (Outline.PkgOutline pkg _ _ _ exposed direct _ rootPlatform) ->
+      Task.run $
+        do
+          let exposedList = Outline.flattenExposed exposed
+          verifyDependenciesForMake key (ValidPkg rootPlatform pkg exposedList) solution direct
+    Outline.App (Outline.AppOutline _ rootPlatform srcDirs direct _) ->
+      Task.run $
+        verifyDependenciesForMake key (ValidApp rootPlatform srcDirs) solution direct
 
 -- ENV
 
@@ -289,6 +317,31 @@ verifyDependencies env@(Env _ scope root _) time outline solution directDeps =
                 BW.writeBinary scope (Dirs.details root) details
                 return (Right details)
 
+verifyDependenciesForMake :: Reporting.DKey -> ValidOutline -> Map.Map Pkg.Name Dependency -> Map.Map Pkg.Name a -> Task Details
+verifyDependenciesForMake key outline solution directDeps =
+  Task.eio id $
+    do
+      mvar <- newEmptyMVar
+      mvars <- Map.traverseWithKey (\k v -> fork (verifyDepForMake key mvar k v)) solution
+      putMVar mvar mvars
+      deps <- traverse readMVar mvars
+      case sequence deps of
+        Left _ ->
+          do
+            home <- Dirs.getGrenHome
+            return $
+              Left $
+                Exit.DetailsBadDeps home $
+                  Maybe.catMaybes $
+                    Either.lefts $
+                      Map.elems deps
+        Right artifacts ->
+          let objs = Map.foldr addObjects Opt.empty artifacts
+              ifaces = Map.foldrWithKey (addInterfaces directDeps) Map.empty artifacts
+              foreigns = Map.map (OneOrMore.destruct Foreign) $ Map.foldrWithKey gatherForeigns Map.empty $ Map.intersection artifacts directDeps
+              details = Details File.zeroTime outline 0 Map.empty foreigns (ArtifactsFresh ifaces objs)
+           in return $ Right details
+
 addObjects :: Artifacts -> Opt.GlobalGraph -> Opt.GlobalGraph
 addObjects (Artifacts _ objs) graph =
   Opt.addGlobalGraph objs graph
@@ -337,6 +390,10 @@ verifyDep (Env key _ _ cache) depsMVar solution pkg details@(Solver.Details vsn 
           then Reporting.report key Reporting.DBuilt >> return (Right artifacts)
           else build key cache depsMVar pkg details fingerprint fingerprints
 
+verifyDepForMake :: Reporting.DKey -> MVar (Map.Map Pkg.Name (MVar Dep)) -> Pkg.Name -> Dependency -> IO Dep
+verifyDepForMake key depsMVar pkg dep =
+  buildForMake key depsMVar pkg dep
+
 -- ARTIFACT CACHE
 
 data ArtifactCache = ArtifactCache
@@ -377,8 +434,8 @@ build key cache depsMVar pkg (Solver.Details vsn maybeLocalPath _) f fs =
                 let src = packageDir </> "src"
                 let foreignDeps = gatherForeignInterfaces directArtifacts
                 let exposedDict = Map.fromKeys (const ()) (Outline.flattenExposed exposed)
+                let authorizedForKernelCode = Pkg.isKernel pkg
                 docsStatus <- getDocsStatus packageDir
-                authorizedForKernelCode <- packageAuthorizedForKernelCode pkg
                 mvar <- newEmptyMVar
                 mvars <- Map.traverseWithKey (const . fork . crawlModule foreignDeps mvar pkg src docsStatus authorizedForKernelCode) exposedDict
                 putMVar mvar mvars
@@ -420,9 +477,60 @@ build key cache depsMVar pkg (Solver.Details vsn maybeLocalPath _) f fs =
                                   Reporting.report key Reporting.DBuilt
                                   return (Right artifacts)
 
-packageAuthorizedForKernelCode :: Pkg.Name -> IO Bool
-packageAuthorizedForKernelCode pkg =
-  return $ Pkg.isKernel pkg
+buildForMake :: Reporting.DKey -> MVar (Map.Map Pkg.Name (MVar Dep)) -> Pkg.Name -> Dependency -> IO Dep
+buildForMake key depsMVar pkg (Dependency outline sources) =
+  case outline of
+    (Outline.App _) ->
+      do
+        Reporting.report key Reporting.DBroken
+        return $ Left $ Just $ Exit.BD_BadBuild pkg V.one Map.empty
+    (Outline.Pkg (Outline.PkgOutline _ _ _ _ exposed deps _ platform)) ->
+      do
+        allDeps <- readMVar depsMVar
+        directDeps <- traverse readMVar (Map.intersection allDeps deps)
+        case sequence directDeps of
+          Left _ ->
+            do
+              Reporting.report key Reporting.DBroken
+              return $ Left Nothing
+          Right directArtifacts ->
+            do
+              let foreignDeps = gatherForeignInterfaces directArtifacts
+              let exposedDict = Map.fromKeys (const ()) (Outline.flattenExposed exposed)
+              let docsStatus = DocsNeeded
+              let authorizedForKernelCode = Pkg.isKernel pkg
+              mvar <- newEmptyMVar
+              mvars <- Map.traverseWithKey (const . fork . crawlModuleForMake foreignDeps sources mvar pkg docsStatus authorizedForKernelCode) exposedDict
+              putMVar mvar mvars
+              mapM_ readMVar mvars
+              maybeStatuses <- traverse readMVar =<< readMVar mvar
+              case sequence maybeStatuses of
+                Left CrawlCorruption ->
+                  do
+                    Reporting.report key Reporting.DBroken
+                    return $ Left $ Just $ Exit.BD_BadBuild pkg V.one Map.empty
+                Left CrawlUnsignedKernelCode ->
+                  do
+                    Reporting.report key Reporting.DBroken
+                    return $ Left $ Just $ Exit.BD_UnsignedBuild pkg V.one
+                Right statuses ->
+                  do
+                    rmvar <- newEmptyMVar
+                    rmvars <- traverse (fork . compile platform pkg rmvar) statuses
+                    putMVar rmvar rmvars
+                    maybeResults <- traverse readMVar rmvars
+                    case sequence maybeResults of
+                      Nothing ->
+                        do
+                          Reporting.report key Reporting.DBroken
+                          return $ Left $ Just $ Exit.BD_BadBuild pkg V.one Map.empty
+                      Just results ->
+                        let ifaces = gatherInterfaces exposedDict results
+                            objects = gatherObjects results
+                            artifacts = Artifacts ifaces objects
+                         in do
+                              Reporting.report key Reporting.DBuilt
+                              return (Right artifacts)
 
 -- GATHER
 
@@ -518,6 +626,25 @@ crawlModule foreignDeps mvar pkg src docsStatus authorizedForKernelCode name =
                   else return $ Left CrawlUnsignedKernelCode
               else return $ Left CrawlCorruption
 
+crawlModuleForMake :: Map.Map ModuleName.Raw ForeignInterface -> Map.Map ModuleName.Raw ByteString -> MVar StatusDict -> Pkg.Name -> DocsStatus -> Bool -> ModuleName.Raw -> IO (Either CrawlError Status)
+crawlModuleForMake foreignDeps sources mvar pkg docsStatus authorizedForKernelCode name =
+  case (Map.lookup name foreignDeps, Map.lookup name sources) of
+    (Just ForeignAmbiguous, _) ->
+      return $ Left CrawlCorruption
+    (Just (ForeignSpecific iface), Nothing) ->
+      return $ Right (SForeign iface)
+    (Just (ForeignSpecific _), Just _) ->
+      return $ Left CrawlCorruption
+    (_, Just bytes) ->
+      if Pkg.isKernel pkg && Name.isKernel name
+        then
+          if authorizedForKernelCode
+            then crawlKernelForMake foreignDeps sources mvar pkg bytes
+            else return $ Left CrawlUnsignedKernelCode
+        else crawlFileForMake foreignDeps sources mvar pkg docsStatus authorizedForKernelCode name bytes
+    (_, Nothing) ->
+      return $ Left CrawlCorruption
+
 crawlFile :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> DocsStatus -> Bool -> ModuleName.Raw -> FilePath -> IO (Either CrawlError Status)
 crawlFile foreignDeps mvar pkg src docsStatus authorizedForKernelCode expectedName path =
   do
@@ -530,6 +657,16 @@ crawlFile foreignDeps mvar pkg src docsStatus authorizedForKernelCode expectedNa
       _ ->
         return $ Left CrawlCorruption
 
+crawlFileForMake :: Map.Map ModuleName.Raw ForeignInterface -> Map.Map ModuleName.Raw ByteString -> MVar StatusDict -> Pkg.Name -> DocsStatus -> Bool -> ModuleName.Raw -> ByteString -> IO (Either CrawlError Status)
+crawlFileForMake foreignDeps sources mvar pkg docsStatus authorizedForKernelCode expectedName bytes =
+  case Parse.fromByteString (Parse.Package pkg) bytes of
+    Right modul@(Src.Module (Just (A.At _ actualName)) _ _ imports _ _ _ _ _ _ _) | expectedName == actualName ->
+      do
+        deps <- crawlImportsForMake foreignDeps sources mvar pkg authorizedForKernelCode (fmap snd imports)
+        return (Right (SLocal docsStatus deps modul))
+    _ ->
+      return $ Left CrawlCorruption
+
 crawlImports :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> Bool -> FilePath -> [Src.Import] -> IO (Map.Map ModuleName.Raw ())
 crawlImports foreignDeps mvar pkg authorizedForKernelCode src imports =
   do
@@ -537,6 +674,17 @@ crawlImports foreignDeps mvar pkg authorizedForKernelCode src imports =
     let deps = Map.fromList (map (\i -> (Src.getImportName i, ())) imports)
     let news = Map.difference deps statusDict
     mvars <- Map.traverseWithKey (const . fork . crawlModule foreignDeps mvar pkg src DocsNotNeeded authorizedForKernelCode) news
+    putMVar mvar (Map.union mvars statusDict)
+    mapM_ readMVar mvars
+    return deps
+
+crawlImportsForMake :: Map.Map ModuleName.Raw ForeignInterface -> Map.Map ModuleName.Raw ByteString -> MVar StatusDict -> Pkg.Name -> Bool -> [Src.Import] -> IO (Map.Map ModuleName.Raw ())
+crawlImportsForMake foreignDeps sources mvar pkg authorizedForKernelCode imports =
+  do
+    statusDict <- takeMVar mvar
+    let deps = Map.fromList (map (\i -> (Src.getImportName i, ())) imports)
+    let news = Map.difference deps statusDict
+    mvars <- Map.traverseWithKey (const . fork . crawlModuleForMake foreignDeps sources mvar pkg DocsNotNeeded authorizedForKernelCode) news
     putMVar mvar (Map.union mvars statusDict)
     mapM_ readMVar mvars
     return deps
@@ -557,6 +705,16 @@ crawlKernel foreignDeps mvar pkg src name =
               _ <- crawlImports foreignDeps mvar pkg True src imports
               return (Right (SKernelLocal chunks))
       else return (Right SKernelForeign)
+
+crawlKernelForMake :: Map.Map ModuleName.Raw ForeignInterface -> Map.Map ModuleName.Raw ByteString -> MVar StatusDict -> Pkg.Name -> ByteString -> IO (Either CrawlError Status)
+crawlKernelForMake foreignDeps sources mvar pkg bytes =
+  case Kernel.fromByteString pkg (Map.mapMaybe getDepHome foreignDeps) bytes of
+    Nothing ->
+      return $ Left CrawlCorruption
+    Just (Kernel.Content imports chunks) ->
+      do
+        _ <- crawlImportsForMake foreignDeps sources mvar pkg True imports
+        return (Right (SKernelLocal chunks))
 
 getDepHome :: ForeignInterface -> Maybe Pkg.Name
 getDepHome fi =

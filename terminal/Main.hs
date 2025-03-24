@@ -3,12 +3,14 @@ module Main
   )
 where
 
+import Data.ByteString (ByteString)
 import Data.ByteString qualified
 import Data.ByteString.Char8 qualified as BS
 import Data.Map (Map)
 import Data.Utf8 qualified as Utf8
 import Docs qualified
 import GHC.IO.Encoding (setLocaleEncoding, utf8)
+import Gren.Details qualified as Details
 import Gren.ModuleName qualified as ModuleName
 import Gren.Outline (Outline)
 import Gren.Outline qualified as Outline
@@ -107,8 +109,8 @@ data MakeFlags = MakeFlags
     _make_paths :: [String],
     _make_project_path :: String,
     _make_outline :: Outline,
-    _make_root_sources :: Map ModuleName.Raw String,
-    _make_dependencies :: Map Package.Name Make.Dependency
+    _make_root_sources :: Map ModuleName.Raw ByteString,
+    _make_dependencies :: Map Package.Name Details.Dependency
   }
   deriving (Show)
 
@@ -186,7 +188,7 @@ makeDecoder =
     <*> Json.field (BS.pack "entry-points") (Json.list (fmap Utf8.toChars Json.string))
     <*> Json.field (BS.pack "project-path") (fmap Utf8.toChars Json.string)
     <*> Json.field (BS.pack "project-outline") (Json.mapError (const InvalidInput) Outline.decoder)
-    <*> Json.field (BS.pack "sources") (Json.dict (ModuleName.keyDecoder (\_ _ -> InvalidInput)) (fmap Utf8.toChars Json.string))
+    <*> Json.field (BS.pack "sources") (Json.dict (ModuleName.keyDecoder (\_ _ -> InvalidInput)) (fmap Utf8.toByteString Json.string))
     <*> Json.field (BS.pack "dependencies") (Json.dict (Package.keyDecoder (\_ _ -> InvalidInput)) makeDependencyDecoder)
 
 makeOutputDecoder :: Json.Decoder CommandDecoderError Make.Output
@@ -202,11 +204,11 @@ makeOutputDecoder =
       "exe" -> Make.Exe <$> Json.field (BS.pack "path") (fmap Utf8.toChars Json.string)
       _ -> Json.failure InvalidInput
 
-makeDependencyDecoder :: Json.Decoder CommandDecoderError Make.Dependency
+makeDependencyDecoder :: Json.Decoder CommandDecoderError Details.Dependency
 makeDependencyDecoder =
-  Make.Dependency
+  Details.Dependency
     <$> Json.field (BS.pack "outline") (Json.mapError (const InvalidInput) Outline.decoder)
-    <*> Json.field (BS.pack "sources") (Json.dict (ModuleName.keyDecoder (\_ _ -> InvalidInput)) (fmap Utf8.toChars Json.string))
+    <*> Json.field (BS.pack "sources") (Json.dict (ModuleName.keyDecoder (\_ _ -> InvalidInput)) (fmap Utf8.toByteString Json.string))
 
 docsDecoder :: Json.Decoder CommandDecoderError DocsFlags
 docsDecoder =

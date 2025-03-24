@@ -3,20 +3,18 @@
 module Make
   ( Flags (..),
     Output (..),
-    Dependency (..),
     run,
     rereadSources,
   )
 where
 
 import AST.Optimized qualified as Opt
-import BackgroundWriter qualified as BW
 import Build qualified
 import Data.ByteString.Builder qualified as B
+import Data.ByteString.Internal (ByteString)
 import Data.Map (Map)
 import Data.Maybe qualified as Maybe
 import Data.NonEmptyList qualified as NE
-import Directories qualified as Dirs
 import File qualified
 import Generate qualified
 import Generate.Html qualified as Html
@@ -48,14 +46,8 @@ data Flags = Flags
     _paths :: [String],
     _project_path :: String,
     _outline :: Outline,
-    _root_sources :: Map ModuleName.Raw String,
-    _dependencies :: Map Package.Name Dependency
-  }
-  deriving (Show)
-
-data Dependency = Dependency
-  { _dep_outline :: Outline,
-    _dep_sources :: Map ModuleName.Raw String
+    _root_sources :: Map ModuleName.Raw ByteString,
+    _dependencies :: Map Package.Name Details.Dependency
   }
   deriving (Show)
 
@@ -72,98 +64,96 @@ data Output
 type Task a = Task.Task Exit.Make a
 
 run :: Flags -> IO ()
-run flags@(Flags _ _ maybeOutput report paths _ _ _ _) =
+run flags@(Flags _ _ maybeOutput report _ _ _ _ _) =
   do
     style <- getStyle maybeOutput report
-    maybeRoot <- Dirs.findRoot
+    -- TODO: File locking in frontend
+    -- TODO: Show error for Exit.MakeNoOutline in frontend
     Reporting.attemptWithStyle style Exit.makeToReport $
-      case maybeRoot of
-        Just root -> runHelp root paths style flags
-        Nothing -> return $ Left Exit.MakeNoOutline
+      runHelp style flags
 
-runHelp :: FilePath -> [FilePath] -> Reporting.Style -> Flags -> IO (Either Exit.Make ())
-runHelp root paths style (Flags optimize withSourceMaps maybeOutput _ _ _ _ _ _) =
-  BW.withScope $ \scope ->
-    Task.run $
-      do
-        desiredMode <- getMode optimize
-        details <- Task.eio Exit.MakeBadDetails (Details.load style scope root)
-        let platform = getPlatform details
-        let projectType = getProjectType details
-        case (projectType, maybeOutput) of
-          (Parse.Package _, Just _) ->
-            Task.throw Exit.MakeCannotOutputForPackage
-          _ ->
-            case paths of
-              [] ->
-                do
-                  exposed <- getExposed details
-                  buildExposed style root details exposed
-              p : ps ->
-                do
-                  artifacts <- buildPaths style root details (NE.List p ps)
-                  let mains = getMains artifacts
-                  case (projectType, mains) of
-                    (Parse.Package _, m : ms) ->
-                      Task.throw $ Exit.MakeCannotOutputMainForPackage m ms
-                    _ ->
-                      case maybeOutput of
-                        Nothing ->
-                          case (platform, mains) of
-                            (_, []) ->
-                              return ()
-                            (Platform.Browser, [name]) ->
-                              do
-                                (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
-                                bundle <- prepareOutput withSourceMaps root Html.leadingLines sourceMap source
-                                writeToDisk style "index.html" (Html.sandwich name bundle) (NE.List name [])
-                            (Platform.Node, [name]) ->
-                              do
-                                (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
-                                bundle <- prepareOutput withSourceMaps root Node.leadingLines sourceMap (Node.sandwich name source)
-                                writeToDisk style "app" bundle (NE.List name [])
-                            (_, name : names) ->
-                              do
-                                (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
-                                bundle <- prepareOutput withSourceMaps root 0 sourceMap source
-                                writeToDisk style "index.js" bundle (NE.List name names)
-                        Just DevStdOut ->
-                          case getMains artifacts of
-                            [] ->
-                              return ()
-                            _ ->
-                              do
-                                (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
-                                bundle <- prepareOutput withSourceMaps root 0 sourceMap source
-                                Task.io $ B.hPutBuilder IO.stdout bundle
-                        Just DevNull ->
-                          return ()
-                        Just (Exe target) ->
-                          case platform of
-                            Platform.Node -> do
-                              name <- hasOneMain artifacts
-                              (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
-                              bundle <- prepareOutput withSourceMaps root Node.leadingLines sourceMap (Node.sandwich name source)
-                              writeToDisk style target bundle (NE.List name [])
-                            _ -> do
-                              Task.throw Exit.MakeExeOnlyForNodePlatform
-                        Just (JS target) ->
-                          case getNoMains artifacts of
-                            [] -> do
-                              (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
-                              bundle <- prepareOutput withSourceMaps root 0 sourceMap source
-                              writeToDisk style target bundle (Build.getRootNames artifacts)
-                            name : names ->
-                              Task.throw (Exit.MakeNonMainFilesIntoJavaScript name names)
-                        Just (Html target) ->
-                          case platform of
-                            Platform.Browser -> do
-                              name <- hasOneMain artifacts
+runHelp :: Reporting.Style -> Flags -> IO (Either Exit.Make ())
+runHelp style (Flags optimize withSourceMaps maybeOutput _ paths root outline _ deps) =
+  Task.run $
+    do
+      desiredMode <- getMode optimize
+      details <- Task.eio Exit.MakeBadDetails (Details.loadForMake style outline deps)
+      let platform = getPlatform details
+      let projectType = getProjectType details
+      case (projectType, maybeOutput) of
+        (Parse.Package _, Just _) ->
+          Task.throw Exit.MakeCannotOutputForPackage
+        _ ->
+          case paths of
+            [] ->
+              do
+                exposed <- getExposed details
+                buildExposed style root details exposed
+            p : ps ->
+              do
+                artifacts <- buildPaths style root details (NE.List p ps)
+                let mains = getMains artifacts
+                case (projectType, mains) of
+                  (Parse.Package _, m : ms) ->
+                    Task.throw $ Exit.MakeCannotOutputMainForPackage m ms
+                  _ ->
+                    case maybeOutput of
+                      Nothing ->
+                        case (platform, mains) of
+                          (_, []) ->
+                            return ()
+                          (Platform.Browser, [name]) ->
+                            do
                               (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
                               bundle <- prepareOutput withSourceMaps root Html.leadingLines sourceMap source
-                              writeToDisk style target (Html.sandwich name bundle) (NE.List name [])
-                            _ -> do
-                              Task.throw Exit.MakeHtmlOnlyForBrowserPlatform
+                              writeToDisk style "index.html" (Html.sandwich name bundle) (NE.List name [])
+                          (Platform.Node, [name]) ->
+                            do
+                              (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
+                              bundle <- prepareOutput withSourceMaps root Node.leadingLines sourceMap (Node.sandwich name source)
+                              writeToDisk style "app" bundle (NE.List name [])
+                          (_, name : names) ->
+                            do
+                              (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
+                              bundle <- prepareOutput withSourceMaps root 0 sourceMap source
+                              writeToDisk style "index.js" bundle (NE.List name names)
+                      Just DevStdOut ->
+                        case getMains artifacts of
+                          [] ->
+                            return ()
+                          _ ->
+                            do
+                              (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
+                              bundle <- prepareOutput withSourceMaps root 0 sourceMap source
+                              Task.io $ B.hPutBuilder IO.stdout bundle
+                      Just DevNull ->
+                        return ()
+                      Just (Exe target) ->
+                        case platform of
+                          Platform.Node -> do
+                            name <- hasOneMain artifacts
+                            (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
+                            bundle <- prepareOutput withSourceMaps root Node.leadingLines sourceMap (Node.sandwich name source)
+                            writeToDisk style target bundle (NE.List name [])
+                          _ -> do
+                            Task.throw Exit.MakeExeOnlyForNodePlatform
+                      Just (JS target) ->
+                        case getNoMains artifacts of
+                          [] -> do
+                            (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
+                            bundle <- prepareOutput withSourceMaps root 0 sourceMap source
+                            writeToDisk style target bundle (Build.getRootNames artifacts)
+                          name : names ->
+                            Task.throw (Exit.MakeNonMainFilesIntoJavaScript name names)
+                      Just (Html target) ->
+                        case platform of
+                          Platform.Browser -> do
+                            name <- hasOneMain artifacts
+                            (JS.GeneratedResult source sourceMap) <- generate root details desiredMode artifacts
+                            bundle <- prepareOutput withSourceMaps root Html.leadingLines sourceMap source
+                            writeToDisk style target (Html.sandwich name bundle) (NE.List name [])
+                          _ -> do
+                            Task.throw Exit.MakeHtmlOnlyForBrowserPlatform
 
 -- GET INFORMATION
 

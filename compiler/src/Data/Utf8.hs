@@ -24,6 +24,7 @@ module Data.Utf8
     --
     toChars,
     toText,
+    toByteString,
     toShortByteString,
     toBuilder,
     toEscapedBuilder,
@@ -44,8 +45,10 @@ import Data.Binary (Get, Put, get, getWord8, put, putWord8)
 import Data.Binary.Get.Internal (readN)
 import Data.Binary.Put (putBuilder)
 import Data.Bits (shiftR, (.&.))
+import Data.ByteString.Builder qualified as Builder
 import Data.ByteString.Builder.Internal qualified as B
 import Data.ByteString.Internal qualified as B
+import Data.ByteString.Lazy qualified as LazyByteString
 import Data.ByteString.Short qualified as BSS
 import Data.Char qualified as Char
 import Data.List qualified as List
@@ -343,6 +346,10 @@ toText =
 
 -- TO BYTESTRING
 
+toByteString :: Utf8 t -> B.ByteString
+toByteString bytes =
+  LazyByteString.toStrict $ Builder.toLazyByteString $ toBuilder bytes
+
 toShortByteString :: Utf8 t -> BSS.ShortByteString
 toShortByteString (Utf8 bytes) =
   BSS.SBS bytes
@@ -350,8 +357,8 @@ toShortByteString (Utf8 bytes) =
 -- TO BUILDER
 
 toBuilder :: Utf8 t -> B.Builder
-toBuilder =
-  \bytes -> B.builder (toBuilderHelp bytes)
+toBuilder bytes =
+  B.builder (toBuilderHelp bytes)
 
 toBuilderHelp :: Utf8 t -> B.BuildStep a -> B.BuildStep a
 toBuilderHelp !bytes@(Utf8 ba#) k =
