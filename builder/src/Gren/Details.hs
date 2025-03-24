@@ -36,7 +36,6 @@ import Data.Word (Word64)
 import Deps.Solver qualified as Solver
 import Directories qualified as Dirs
 import File qualified
-import Git qualified
 import Gren.Constraint qualified as Con
 import Gren.Docs qualified as Docs
 import Gren.Interface qualified as I
@@ -379,7 +378,7 @@ build key cache depsMVar pkg (Solver.Details vsn maybeLocalPath _) f fs =
                 let foreignDeps = gatherForeignInterfaces directArtifacts
                 let exposedDict = Map.fromKeys (const ()) (Outline.flattenExposed exposed)
                 docsStatus <- getDocsStatus packageDir
-                authorizedForKernelCode <- packageAuthorizedForKernelCode pkg packageDir
+                authorizedForKernelCode <- packageAuthorizedForKernelCode pkg
                 mvar <- newEmptyMVar
                 mvars <- Map.traverseWithKey (const . fork . crawlModule foreignDeps mvar pkg src docsStatus authorizedForKernelCode) exposedDict
                 putMVar mvar mvars
@@ -421,11 +420,9 @@ build key cache depsMVar pkg (Solver.Details vsn maybeLocalPath _) f fs =
                                   Reporting.report key Reporting.DBuilt
                                   return (Right artifacts)
 
-packageAuthorizedForKernelCode :: Pkg.Name -> FilePath -> IO Bool
-packageAuthorizedForKernelCode pkg packageDir =
-  if Pkg.isKernel pkg
-    then Git.kernelCodeSignedByLeadDeveloper packageDir
-    else return False
+packageAuthorizedForKernelCode :: Pkg.Name -> IO Bool
+packageAuthorizedForKernelCode pkg =
+  return $ Pkg.isKernel pkg
 
 -- GATHER
 

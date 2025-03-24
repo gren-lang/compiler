@@ -473,7 +473,6 @@ data Validate
   | ValidateMissingTag V.Version
   | ValidateNoGit
   | ValidateLocalChanges V.Version
-  | ValidateUnsignedKernelCode
 
 validateToReport :: Validate -> Help.Report
 validateToReport validate =
@@ -824,21 +823,6 @@ validateToReport validate =
                 ]
             )
             []
-    ValidateUnsignedKernelCode ->
-      Help.report
-        "UNSIGNED KERNEL CODE"
-        Nothing
-        "This package contains kernel code which hasn't been signed by Gren's\
-        \ lead developer."
-        [ D.reflow $
-            "Kernel code allows you to break every guarantee that Gren provides.\
-            \ Values can be mutated, exceptions can be thrown, side-effects can happen\
-            \ everywhere. Kernel code is only designed for use in the runtime or when\
-            \ implementing core APIs. It is not meant to be used by regular developers.",
-          D.toSimpleNote $
-            "You will need to get your kernel code changes signed by the lead developer\
-            \ of Gren, or remove them."
-        ]
 
 toBadReadmeReport :: String -> String -> Help.Report
 toBadReadmeReport title summary =
