@@ -416,18 +416,17 @@ attemptEval (Env root interpreter ansi) oldState newState output =
   do
     result <-
       BW.withScope $ \scope ->
-        Dirs.withRootLock root $
-          Task.run $
-            do
-              details <-
-                Task.eio Exit.ReplBadDetails $
-                  Details.load Reporting.silent scope root
+        Task.run $
+          do
+            details <-
+              Task.eio Exit.ReplBadDetails $
+                Details.load Reporting.silent scope root
 
-              artifacts <-
-                Task.eio id $
-                  Build.fromRepl root details (toByteString newState output)
+            artifacts <-
+              Task.eio id $
+                Build.fromRepl root details (toByteString newState output)
 
-              traverse (Task.mapError Exit.ReplBadGenerate . Generate.repl root details ansi artifacts) (toPrintName output)
+            traverse (Task.mapError Exit.ReplBadGenerate . Generate.repl root details ansi artifacts) (toPrintName output)
 
     case result of
       Left exit ->
@@ -523,9 +522,7 @@ getRoot =
           let root = cache </> "tmp"
           Dir.createDirectoryIfMissing True (root </> "src")
           packageCache <- Dirs.getPackageCache
-          potentialDeps <-
-            Dirs.withRegistryLock packageCache $
-              DPkg.latestCompatibleVersionForPackages packageCache defaultDeps
+          potentialDeps <- DPkg.latestCompatibleVersionForPackages packageCache defaultDeps
           case potentialDeps of
             Left _ ->
               error "Failed to find compatible dependencies for this Gren version."

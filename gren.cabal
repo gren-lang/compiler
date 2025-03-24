@@ -198,7 +198,6 @@ Library common
         containers >= 0.6 && < 0.7,
         directory >= 1.2.3.0 && < 2.0,
         edit-distance >= 0.2 && < 0.3,
-        filelock,
         filepath >= 1 && < 2.0,
         ghc-prim >= 0.5.2,
         haskeline,
