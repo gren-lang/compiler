@@ -70,7 +70,7 @@ main =
             Diff.run $ Diff.GlobalInquiry pkg from to
       _ ->
         do
-          putStrLn "Expected exactly 1 argument: a json-encoded command."
+          putStrLn "Expected exactly 0 arguments."
           putStrLn ""
           putStrLn
             "It looks like you are trying to run Gren's internal backend directly.\
