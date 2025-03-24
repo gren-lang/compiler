@@ -3,16 +3,19 @@
 module Make
   ( Flags (..),
     Output (..),
+    Dependency (..),
     run,
     rereadSources,
   )
 where
 
+import Gren.Package qualified as Package
 import AST.Optimized qualified as Opt
 import BackgroundWriter qualified as BW
 import Build qualified
 import Data.ByteString.Builder qualified as B
 import Data.Map (Map)
+import Gren.Outline (Outline)
 import Data.Maybe qualified as Maybe
 import Data.NonEmptyList qualified as NE
 import Directories qualified as Dirs
@@ -41,8 +44,21 @@ data Flags = Flags
   { _optimize :: Bool,
     _sourceMaps :: Bool,
     _output :: Maybe Output,
-    _report :: Bool
+    _report :: Bool,
+    _paths :: [String],
+    _project_path :: String,
+    _outline :: Outline,
+    _root_sources :: Map ModuleName.Raw String,
+    _dependencies :: Map Package.Name Dependency
   }
+  deriving (Show)
+
+data Dependency = Dependency
+  { _dep_outline :: Outline,
+    _dep_sources :: Map ModuleName.Raw String
+  }
+  deriving (Show)
+
 
 data Output
   = Exe FilePath
@@ -56,8 +72,8 @@ data Output
 
 type Task a = Task.Task Exit.Make a
 
-run :: [FilePath] -> Flags -> IO ()
-run paths flags@(Flags _ _ maybeOutput report) =
+run :: Flags -> IO ()
+run flags@(Flags _ _ maybeOutput report paths _ _ _ _) =
   do
     style <- getStyle maybeOutput report
     maybeRoot <- Dirs.findRoot
@@ -67,7 +83,7 @@ run paths flags@(Flags _ _ maybeOutput report) =
         Nothing -> return $ Left Exit.MakeNoOutline
 
 runHelp :: FilePath -> [FilePath] -> Reporting.Style -> Flags -> IO (Either Exit.Make ())
-runHelp root paths style (Flags optimize withSourceMaps maybeOutput _) =
+runHelp root paths style (Flags optimize withSourceMaps maybeOutput _ _ _ _ _ _) =
   BW.withScope $ \scope ->
     Dirs.withRootLock root $
       Task.run $
