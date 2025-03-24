@@ -10,7 +10,6 @@ import Data.Map qualified as Map
 import Data.NonEmptyList qualified as NE
 import Deps.Package qualified as DPkg
 import Deps.Solver qualified as Solver
-import Directories qualified as Dirs
 import Gren.Constraint qualified as Con
 import Gren.Licenses qualified as Licenses
 import Gren.Outline qualified as Outline
@@ -77,9 +76,7 @@ init flags =
     let platform = _platform flags
     let initialDeps = suggestDependencies platform
     (Solver.Env cache) <- Solver.initEnv
-    potentialDeps <-
-      Dirs.withRegistryLock cache $
-        DPkg.latestCompatibleVersionForPackages cache initialDeps
+    potentialDeps <- DPkg.latestCompatibleVersionForPackages cache initialDeps
     case potentialDeps of
       Left DPkg.NoCompatiblePackage ->
         return $ Left $ Exit.InitNoCompatibleDependencies Nothing

@@ -290,9 +290,7 @@ unionChangesMagnitude unionChanges =
 getDocs :: Dirs.PackageCache -> Pkg.Name -> V.Version -> Task.Task Exit.DocsProblem Docs.Documentation
 getDocs cache pkg vsn =
   do
-    Task.eio Exit.DP_Git $
-      Dirs.withRegistryLock cache $
-        Package.installPackageVersion cache pkg vsn
+    Task.eio Exit.DP_Git $ Package.installPackageVersion cache pkg vsn
     let home = Dirs.package cache pkg vsn
     let path = home </> "docs.json"
     exists <- Task.io $ File.exists path

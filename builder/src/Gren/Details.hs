@@ -262,13 +262,11 @@ fork work =
 -- VERIFY DEPENDENCIES
 
 verifyDependencies :: Env -> File.Time -> ValidOutline -> Map.Map Pkg.Name Solver.Details -> Map.Map Pkg.Name a -> Task Details
-verifyDependencies env@(Env _ scope root cache) time outline solution directDeps =
+verifyDependencies env@(Env _ scope root _) time outline solution directDeps =
   Task.eio id $
     do
       mvar <- newEmptyMVar
-      mvars <-
-        Dirs.withRegistryLock cache $
-          Map.traverseWithKey (\k v -> fork (verifyDep env mvar solution k v)) solution
+      mvars <- Map.traverseWithKey (\k v -> fork (verifyDep env mvar solution k v)) solution
       putMVar mvar mvars
       deps <- traverse readMVar mvars
       case sequence deps of

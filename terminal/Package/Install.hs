@@ -173,10 +173,7 @@ makeAppPlan (Solver.Env cache) pkg outline@(Outline.AppOutline _ _ _ direct indi
                   Outline._app_deps_indirect = Map.delete pkg indirect
                 }
       Nothing -> do
-        compatibleVersionResult <-
-          Task.io $
-            Dirs.withRegistryLock cache $
-              DPkg.latestCompatibleVersion cache pkg
+        compatibleVersionResult <- Task.io $ DPkg.latestCompatibleVersion cache pkg
         case compatibleVersionResult of
           Left DPkg.NoCompatiblePackage ->
             Task.throw $ Exit.InstallNoCompatiblePkg pkg
@@ -201,10 +198,7 @@ makePkgPlan (Solver.Env cache) pkg outline@(Outline.PkgOutline _ _ _ _ _ deps _ 
   if Map.member pkg deps
     then return AlreadyInstalled
     else do
-      compatibleVersionResult <-
-        Task.io $
-          Dirs.withRegistryLock cache $
-            DPkg.latestCompatibleVersion cache pkg
+      compatibleVersionResult <- Task.io $ DPkg.latestCompatibleVersion cache pkg
       case compatibleVersionResult of
         Left DPkg.NoCompatiblePackage ->
           Task.throw $ Exit.InstallNoCompatiblePkg pkg

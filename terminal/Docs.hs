@@ -51,25 +51,24 @@ run flags@(Flags _ report) =
 runHelp :: FilePath -> Reporting.Style -> Flags -> IO (Either Exit.Docs ())
 runHelp root style (Flags maybeOutput _) =
   BW.withScope $ \scope ->
-    Dirs.withRootLock root $
-      Task.run $
-        do
-          details <- Task.eio Exit.DocsBadDetails (Details.load style scope root)
-          exposed <- getExposed details
-          case maybeOutput of
-            Just DevNull ->
-              do
-                buildExposed style root details Build.IgnoreDocs exposed
-                return ()
-            Just DevStdOut ->
-              do
-                docs <- buildExposed Reporting.silent root details Build.KeepDocs exposed
-                let builder = Json.encodeUgly $ Docs.encode docs
-                Task.io $ B.hPutBuilder IO.stdout builder
-            Nothing ->
-              buildExposed style root details (Build.WriteDocs "docs.json") exposed
-            Just (JSON target) ->
-              buildExposed style root details (Build.WriteDocs target) exposed
+    Task.run $
+      do
+        details <- Task.eio Exit.DocsBadDetails (Details.load style scope root)
+        exposed <- getExposed details
+        case maybeOutput of
+          Just DevNull ->
+            do
+              buildExposed style root details Build.IgnoreDocs exposed
+              return ()
+          Just DevStdOut ->
+            do
+              docs <- buildExposed Reporting.silent root details Build.KeepDocs exposed
+              let builder = Json.encodeUgly $ Docs.encode docs
+              Task.io $ B.hPutBuilder IO.stdout builder
+          Nothing ->
+            buildExposed style root details (Build.WriteDocs "docs.json") exposed
+          Just (JSON target) ->
+            buildExposed style root details (Build.WriteDocs target) exposed
 
 -- GET INFORMATION
 
