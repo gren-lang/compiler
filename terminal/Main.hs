@@ -44,8 +44,8 @@ main =
             Init.run $ Init.Flags (not interactive) package platform
           Right (Repl interpreter) ->
             Repl.run $ Repl.Flags interpreter
-          Right (Make (MakeFlags optimize sourcemaps output report paths _ _ _ _)) ->
-            Make.run paths $ Make.Flags optimize sourcemaps output report
+          Right (Make (MakeFlags optimize sourcemaps output report paths projectPath outline rootSources deps)) ->
+            Make.run $ Make.Flags optimize sourcemaps output report paths projectPath outline rootSources deps
           Right (Docs (DocsFlags output report)) ->
             Docs.run $ Docs.Flags output report
           Right (PackageInstall (InstallFlags interactive Nothing)) ->
@@ -108,13 +108,7 @@ data MakeFlags = MakeFlags
     _make_project_path :: String,
     _make_outline :: Outline,
     _make_root_sources :: Map ModuleName.Raw String,
-    _make_dependencies :: Map Package.Name MakeDependency
-  }
-  deriving (Show)
-
-data MakeDependency = MakeDependency
-  { _makedep_outline :: Outline,
-    _makedep_sources :: Map ModuleName.Raw String
+    _make_dependencies :: Map Package.Name Make.Dependency
   }
   deriving (Show)
 
@@ -208,9 +202,9 @@ makeOutputDecoder =
       "exe" -> Make.Exe <$> Json.field (BS.pack "path") (fmap Utf8.toChars Json.string)
       _ -> Json.failure InvalidInput
 
-makeDependencyDecoder :: Json.Decoder CommandDecoderError MakeDependency
+makeDependencyDecoder :: Json.Decoder CommandDecoderError Make.Dependency
 makeDependencyDecoder =
-  MakeDependency
+  Make.Dependency
     <$> Json.field (BS.pack "outline") (Json.mapError (const InvalidInput) Outline.decoder)
     <*> Json.field (BS.pack "sources") (Json.dict (ModuleName.keyDecoder (\_ _ -> InvalidInput)) (fmap Utf8.toChars Json.string))
 
