@@ -5,6 +5,7 @@ where
 
 import AST.Optimized qualified as Opt
 import Data.Map.Utils qualified as Map
+import Data.Maybe qualified as Maybe
 
 -- HAS DEBUG USES
 
@@ -26,6 +27,7 @@ nodeHasDebug node =
     Opt.Kernel _ _ -> False
     Opt.PortIncoming expr _ -> hasDebug expr
     Opt.PortOutgoing expr _ -> hasDebug expr
+    Opt.PortTask maybeExpr expr _ -> hasDebug expr || Maybe.maybe False hasDebug maybeExpr
 
 hasDebug :: Opt.Expr -> Bool
 hasDebug expression =
