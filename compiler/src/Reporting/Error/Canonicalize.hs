@@ -660,11 +660,12 @@ toReport source err =
               TaskBadError ->
                 ( "The `"
                     <> Name.toChars name
-                    <> "` port needs to be specified with `Task.ErrorType` as the\
+                    <> "` port needs to be specified with `Json.Encode.Value` as the\
                        \ first argument for the `Task` type.",
                   D.reflow
-                    "There is only one kind of error that can happen when calling a task-based port. That error\
-                    \ is described by the `Task.PortError` custom type."
+                    "Anything can go wrong when you execute code in JavaScript. Since we cannot promise\
+                    \ the shape of the error, we use `Json.Encode.Value` as the error type, as it's the\
+                    \ most flexible solution."
                 )
               TaskBadPayload ->
                 ( "The `" <> Name.toChars name <> "` port is defined with an unsupported success value.",

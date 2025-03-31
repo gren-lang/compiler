@@ -147,7 +147,7 @@ checkTaskError :: Can.Type -> Bool
 checkTaskError tipe =
   case tipe of
     Can.TType home name []
-      | home == ModuleName.task && name == Name.portError ->
+      | home == ModuleName.jsonEncode && name == Name.value ->
           True
     _ -> False
 

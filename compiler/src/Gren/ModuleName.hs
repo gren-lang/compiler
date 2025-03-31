@@ -23,7 +23,6 @@ module Gren.ModuleName
     platform,
     cmd,
     sub,
-    task,
     debug,
     virtualDom,
     jsonDecode,
@@ -164,9 +163,6 @@ cmd = Canonical Pkg.core "Platform.Cmd"
 
 sub :: Canonical
 sub = Canonical Pkg.core "Platform.Sub"
-
-task :: Canonical
-task = Canonical Pkg.core Name.task
 
 debug :: Canonical
 debug = Canonical Pkg.core Name.debug
