@@ -230,6 +230,11 @@ addGlobalHelp mode graph global@(Opt.Global home _) state =
             (addDeps deps state)
             ( generatePort mode global "outgoingPort" encoder
             )
+        Opt.PortTask decoder deps ->
+          addStmt
+            (addDeps deps state)
+            ( generatePort mode global "taskPort" decoder
+            )
 
 addStmt :: State -> JS.Stmt -> State
 addStmt (State seen builder) stmt =
