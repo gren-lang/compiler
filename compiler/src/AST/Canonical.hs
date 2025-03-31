@@ -266,7 +266,7 @@ data Effects
 data Port
   = Incoming {_freeVars :: FreeVars, _payload :: Type, _func :: Type}
   | Outgoing {_freeVars :: FreeVars, _payload :: Type, _func :: Type}
-  | Task {_freeVars :: FreeVars, _payload :: Type, _func :: Type}
+  | Task {_freeVars :: FreeVars, _input :: Maybe Type, _payload :: Type, _func :: Type}
   deriving (Show)
 
 data Manager

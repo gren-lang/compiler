@@ -101,7 +101,7 @@ canonicalizePort env (Src.Port (A.At region portName) tipe) =
                     Result.throw (Error.PortTypeInvalid region portName Error.SubBad)
               _ ->
                 Result.throw (Error.PortTypeInvalid region portName Error.SubBad)
-      [Can.TType home name taskArgs]
+      Can.TType home name taskArgs : tipes
         | home == ModuleName.platform && name == Name.task ->
             case taskArgs of
               [] ->
@@ -111,7 +111,18 @@ canonicalizePort env (Src.Port (A.At region portName) tipe) =
               [errorType, incomingType] ->
                 case (checkTaskError errorType, checkPayload incomingType) of
                   (True, Right ()) ->
-                    Result.ok (portName, Can.Task freeVars incomingType ctipe)
+                    case tipes of
+                      [] ->
+                        Result.ok (portName, Can.Task freeVars Nothing incomingType ctipe)
+                      [input] ->
+                        case checkPayload input of
+                          Right () ->
+                            -- TODO:
+                            Result.ok (portName, Can.Task freeVars (Just input) incomingType ctipe)
+                          Left (badType, err) ->
+                            Result.throw (Error.PortPayloadInvalid region portName badType err)
+                      _ ->
+                        Result.throw (Error.PortTypeInvalid region portName (Error.TaskExtraInputs (length tipes)))
                   (False, _) ->
                     Result.throw (Error.PortTypeInvalid region portName Error.TaskBadError)
                   (_, Left (badType, err)) ->

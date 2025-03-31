@@ -97,6 +97,7 @@ data PortProblem
   | TaskNoArg
   | TaskOneArg
   | TaskExtraArgs Int
+  | TaskExtraInputs Int
   | TaskBadError
   | TaskBadPayload
   | NotCmdOrSub
@@ -656,6 +657,11 @@ toReport source err =
                 ( "The `" <> Name.toChars name <> "` port is defined with too many type arguments (" <> show num <> ").",
                   D.reflow
                     "`Task` only accepts two arguments: the error type and the success type."
+                )
+              TaskExtraInputs num ->
+                ( "The `" <> Name.toChars name <> "` port is defined with too many function arguments (" <> show num <> ").",
+                  D.reflow
+                    "A task-based port can accept at most 1 argument."
                 )
               TaskBadError ->
                 ( "The `"

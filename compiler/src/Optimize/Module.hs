@@ -103,9 +103,16 @@ addPort home name port_ graph =
       let (deps, fields, encoder) = Names.run (Port.toEncoder payloadType)
           node = Opt.PortOutgoing encoder deps
        in addToGraph (Opt.Global home name) node fields graph
-    Can.Task _ payloadType _ ->
+    Can.Task _ Nothing payloadType _ ->
       let (deps, fields, decoder) = Names.run (Port.toDecoder payloadType)
-          node = Opt.PortTask decoder deps
+          node = Opt.PortTask Nothing decoder deps
+       in addToGraph (Opt.Global home name) node fields graph
+    Can.Task _ (Just inputType) payloadType _ ->
+      let (payloadDeps, payloadFields, decoder) = Names.run (Port.toDecoder payloadType)
+          (inputDeps, inputFields, encoder) = Names.run (Port.toEncoder inputType)
+          deps = Set.union payloadDeps inputDeps
+          fields = Map.unionWith (+) payloadFields inputFields
+          node = Opt.PortTask (Just encoder) decoder deps
        in addToGraph (Opt.Global home name) node fields graph
 
 -- HELPER

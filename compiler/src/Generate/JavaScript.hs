@@ -230,10 +230,10 @@ addGlobalHelp mode graph global@(Opt.Global home _) state =
             (addDeps deps state)
             ( generatePort mode global "outgoingPort" encoder
             )
-        Opt.PortTask decoder deps ->
+        Opt.PortTask maybeEncoder decoder deps ->
           addStmt
             (addDeps deps state)
-            ( generatePort mode global "taskPort" decoder
+            ( generateTaskPort mode global maybeEncoder decoder
             )
 
 addStmt :: State -> JS.Stmt -> State
@@ -410,6 +410,30 @@ generatePort mode (Opt.Global home name) makePort converter =
       [ JS.String (Name.toBuilder name),
         Expr.codeToExpr (Expr.generate mode (\_ _ -> Nothing) home converter)
       ]
+
+generateTaskPort :: Mode.Mode -> Opt.Global -> Maybe Opt.Expr -> Opt.Expr -> JS.Stmt
+generateTaskPort mode (Opt.Global home name) maybeInputConverter outputConverter =
+  JS.Var
+    (JsName.fromGlobal home name)
+    ( case maybeInputConverter of
+        Nothing ->
+          JS.Call
+            ( JS.Call
+                (JS.Ref (JsName.fromKernel Name.platform "taskPort"))
+                [ JS.String (Name.toBuilder name),
+                  JS.Null,
+                  Expr.codeToExpr (Expr.generate mode (\_ _ -> Nothing) home outputConverter)
+                ]
+            )
+            [JS.Null]
+        Just inputConverter ->
+          JS.Call
+            (JS.Ref (JsName.fromKernel Name.platform "taskPort"))
+            [ JS.String (Name.toBuilder name),
+              Expr.codeToExpr (Expr.generate mode (\_ _ -> Nothing) home inputConverter),
+              Expr.codeToExpr (Expr.generate mode (\_ _ -> Nothing) home outputConverter)
+            ]
+    )
 
 -- GENERATE MANAGER
 
