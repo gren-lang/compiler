@@ -94,6 +94,11 @@ data PortProblem
   | CmdExtraArgs Int
   | CmdBadMsg
   | SubBad
+  | TaskNoArg
+  | TaskOneArg
+  | TaskExtraArgs Int
+  | TaskBadError
+  | TaskBadPayload
   | NotCmdOrSub
 
 data PossibleNames = PossibleNames
@@ -601,7 +606,7 @@ toReport source err =
             case portProblem of
               CmdNoArg ->
                 ( "The `" <> Name.toChars name <> "` port cannot be just a command.",
-                  D.reflow $
+                  D.reflow
                     "It can be (() -> Cmd msg) if you just need to trigger a JavaScript\
                     \ function, but there is often a better way to set things up."
                 )
@@ -610,13 +615,13 @@ toReport source err =
                   let theseItemsInSomething
                         | n == 2 = "both of these items into a record"
                         | n == 3 = "these " ++ show n ++ " items into a record"
-                        | True = "these " ++ show n ++ " items into a record"
+                        | otherwise = "these " ++ show n ++ " items into a record"
                    in D.reflow $
                         "You can put " ++ theseItemsInSomething ++ " to send them out though."
                 )
               CmdBadMsg ->
                 ( "The `" <> Name.toChars name <> "` port cannot send any messages to the `update` function.",
-                  D.reflow $
+                  D.reflow
                     "It must produce a (Cmd msg) type. Notice the lower case `msg` type\
                     \ variable. The command will trigger some JS code, but it will not send\
                     \ anything particular back to Gren."
@@ -624,23 +629,53 @@ toReport source err =
               SubBad ->
                 ( "There is something off about this `" <> Name.toChars name <> "` port declaration.",
                   D.stack
-                    [ D.reflow $
+                    [ D.reflow
                         "To receive messages from JavaScript, you need to define a port like this:",
                       D.indent 4 $
                         D.dullyellow $
                           D.fromChars $
                             "port " <> Name.toChars name <> " : (Int -> msg) -> Sub msg",
-                      D.reflow $
+                      D.reflow
                         "Now every time JS sends an `Int` to this port, it is converted to a `msg`.\
                         \ And if you subscribe, those `msg` values will be piped into your `update`\
                         \ function. The only thing you can customize here is the `Int` type."
                     ]
                 )
+              TaskNoArg ->
+                ( "The `" <> Name.toChars name <> "` port is missing arguments to the `Task` type.",
+                  D.reflow
+                    "You need to specify `Task.PortError` as the first argument, and the second argument\
+                    \ should be what you expect to receive when the `Task` is resolved."
+                )
+              TaskOneArg ->
+                ( "The `" <> Name.toChars name <> "` port is missing an argument in the `Task` type.",
+                  D.reflow
+                    "You need to specify the type you expect to receive when the `Task` is resolved."
+                )
+              TaskExtraArgs num ->
+                ( "The `" <> Name.toChars name <> "` port is defined with too many type arguments (" <> show num <> ").",
+                  D.reflow
+                    "`Task` only accepts two arguments: the error type and the success type."
+                )
+              TaskBadError ->
+                ( "The `"
+                    <> Name.toChars name
+                    <> "` port needs to be specified with `Task.ErrorType` as the\
+                       \ first argument for the `Task` type.",
+                  D.reflow
+                    "There is only one kind of error that can happen when calling a task-based port. That error\
+                    \ is described by the `Task.PortError` custom type."
+                )
+              TaskBadPayload ->
+                ( "The `" <> Name.toChars name <> "` port is defined with an unsupported success value.",
+                  D.reflow
+                    "Only valid JSON values can be resolved by task-based ports."
+                )
               NotCmdOrSub ->
                 ( "I am confused about the `" <> Name.toChars name <> "` port declaration.",
-                  D.reflow $
-                    "Ports need to produce a command (Cmd) or a subscription (Sub) but\
-                    \ this is neither. I do not know how to handle this."
+                  D.reflow
+                    "Ports need to produce a command (Cmd), a subscription (Sub) or a task but\
+                    \ this is none of those. I do not know how to handle this."
                 )
     RecursiveAlias region name args tipe others ->
       aliasRecursionReport source region name args tipe others

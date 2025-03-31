@@ -101,6 +101,23 @@ canonicalizePort env (Src.Port (A.At region portName) tipe) =
                     Result.throw (Error.PortTypeInvalid region portName Error.SubBad)
               _ ->
                 Result.throw (Error.PortTypeInvalid region portName Error.SubBad)
+      [Can.TType home name taskArgs]
+        | home == ModuleName.platform && name == Name.task ->
+            case taskArgs of
+              [] ->
+                Result.throw (Error.PortTypeInvalid region portName Error.TaskNoArg)
+              [_] ->
+                Result.throw (Error.PortTypeInvalid region portName Error.TaskOneArg)
+              [errorType, incomingType] ->
+                case (checkTaskError errorType, checkPayload incomingType) of
+                  (True, Right ()) ->
+                    Result.ok (portName, Can.Task freeVars incomingType ctipe)
+                  (False, _) ->
+                    Result.throw (Error.PortTypeInvalid region portName Error.TaskBadError)
+                  (_, Left (badType, err)) ->
+                    Result.throw (Error.PortPayloadInvalid region portName badType err)
+              _ ->
+                Result.throw (Error.PortTypeInvalid region portName (Error.TaskExtraArgs (length taskArgs)))
       _ ->
         Result.throw (Error.PortTypeInvalid region portName Error.NotCmdOrSub)
 
@@ -125,6 +142,14 @@ verifyManager tagRegion values name =
       Result.throw (Error.EffectFunctionNotFound tagRegion name)
 
 -- CHECK PAYLOAD TYPES
+
+checkTaskError :: Can.Type -> Bool
+checkTaskError tipe =
+  case tipe of
+    Can.TType home name []
+      | home == ModuleName.task && name == Name.portError ->
+          True
+    _ -> False
 
 checkPayload :: Can.Type -> Either (Can.Type, Error.InvalidPayload) ()
 checkPayload tipe =

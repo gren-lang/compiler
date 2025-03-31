@@ -44,6 +44,7 @@ module Data.Name
     router,
     cmd,
     sub,
+    portError,
     platform,
     virtualDom,
     debug,
@@ -418,6 +419,9 @@ cmd = fromChars "Cmd"
 
 sub :: Name
 sub = fromChars "Sub"
+
+portError :: Name
+portError = fromChars "PortError"
 
 platform :: Name
 platform = fromChars "Platform"
