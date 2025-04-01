@@ -529,7 +529,7 @@ update msg model =
                                                                         , outline = packageOutline
                                                                         , sources = sources
                                                                         , data =
-                                                                            packageBundleEncoder outline sources
+                                                                            packageBundleEncoder packageOutline sources
                                                                                 |> Json.encode 0
                                                                         }
                                                                     )
