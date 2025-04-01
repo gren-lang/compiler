@@ -322,7 +322,7 @@ verifyDependenciesForMake key outline solution directDeps =
   Task.eio id $
     do
       mvar <- newEmptyMVar
-      mvars <- Map.traverseWithKey (\k v -> fork (verifyDepForMake key mvar k v)) solution
+      mvars <- Map.traverseWithKey (\k v -> fork (buildForMake key mvar k v)) solution
       putMVar mvar mvars
       deps <- traverse readMVar mvars
       case sequence deps of
@@ -389,10 +389,6 @@ verifyDep (Env key _ _ cache) depsMVar solution pkg details@(Solver.Details vsn 
         if Set.member fingerprint fingerprints
           then Reporting.report key Reporting.DBuilt >> return (Right artifacts)
           else build key cache depsMVar pkg details fingerprint fingerprints
-
-verifyDepForMake :: Reporting.DKey -> MVar (Map.Map Pkg.Name (MVar Dep)) -> Pkg.Name -> Dependency -> IO Dep
-verifyDepForMake key depsMVar pkg dep =
-  buildForMake key depsMVar pkg dep
 
 -- ARTIFACT CACHE
 
