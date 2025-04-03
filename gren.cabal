@@ -208,7 +208,6 @@ Library common
         time >= 1.9.1,
         utf8-string,
         vector,
-        text >= 2 && < 3,
         base64-bytestring >= 1.2 && < 2,
         indexed-traversable
 
@@ -257,7 +256,6 @@ Test-Suite gren-tests
     Build-Depends:
         gren:common,
         base >= 4.18 && <5,
-        text >= 2 && < 3,
         utf8-string,
         bytestring >= 0.11 && < 0.12,
         hspec >= 2.7.10 && < 3

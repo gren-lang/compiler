@@ -23,9 +23,7 @@ module Data.Utf8
     putVeryLong,
     --
     toChars,
-    toText,
     toByteString,
-    toShortByteString,
     toBuilder,
     toEscapedBuilder,
     --
@@ -49,10 +47,8 @@ import Data.ByteString.Builder qualified as Builder
 import Data.ByteString.Builder.Internal qualified as B
 import Data.ByteString.Internal qualified as B
 import Data.ByteString.Lazy qualified as LazyByteString
-import Data.ByteString.Short qualified as BSS
 import Data.Char qualified as Char
 import Data.List qualified as List
-import Data.Text qualified as Text
 import Foreign.ForeignPtr (touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (minusPtr, plusPtr)
@@ -337,22 +333,11 @@ word8ToInt# :: Word8# -> Int#
 word8ToInt# word8 =
   word2Int# (word8ToWord# word8)
 
--- TO TEXT
-
-toText :: Utf8 t -> Text.Text
-toText =
-  -- This could most certainly be optimized for better performance
-  Text.pack . toChars
-
 -- TO BYTESTRING
 
 toByteString :: Utf8 t -> B.ByteString
 toByteString bytes =
   LazyByteString.toStrict $ Builder.toLazyByteString $ toBuilder bytes
-
-toShortByteString :: Utf8 t -> BSS.ShortByteString
-toShortByteString (Utf8 bytes) =
-  BSS.SBS bytes
 
 -- TO BUILDER
 

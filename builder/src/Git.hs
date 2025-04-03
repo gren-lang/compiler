@@ -11,14 +11,8 @@ module Git
   )
 where
 
-import Data.Either qualified as Either
-import Data.List qualified as List
-import Data.Maybe qualified as Maybe
-import Data.Text qualified as Text
-import Data.Text.Encoding qualified as TE
 import Gren.Package qualified as Pkg
 import Gren.Version qualified as V
-import Parse.Primitives qualified as Parser
 import System.Directory (findExecutable)
 import System.Exit qualified as Exit
 import System.IO qualified as IO
@@ -96,7 +90,7 @@ tags (GitUrl (pkgName, gitUrl)) = do
               "--tags",
               gitUrl
             ]
-      (exitCode, stdout, stderr) <-
+      (exitCode, _, stderr) <-
         Process.readCreateProcessWithExitCode
           (Process.proc git args)
           ""
@@ -108,33 +102,9 @@ tags (GitUrl (pkgName, gitUrl)) = do
           putStrLn "Error!"
           return $ Left $ FailedCommand ("git" : args) stderr
         Exit.ExitSuccess ->
-          let tagList =
-                map (TE.encodeUtf8) $
-                  map (Text.replace (Text.pack "refs/tags/") Text.empty) $
-                    map (Text.pack) $
-                      map (Maybe.fromMaybe "" . listGet 1) $
-                        map words $
-                          lines stdout
-
-              versions =
-                reverse $
-                  List.sort $
-                    Either.rights $ -- Ignore tags that aren't semantic versions
-                      map (Parser.fromByteString V.parser (,)) tagList
-           in do
-                putStrLn "Ok!"
-                return $ case versions of
-                  [] -> Left NoVersions
-                  v : vs -> Right (v, vs)
-
-listGet :: Int -> [a] -> Maybe a
-listGet idx ls =
-  case ls of
-    [] -> Nothing
-    first : rest ->
-      if idx == 0
-        then Just first
-        else listGet (idx - 1) rest
+          do
+            putStrLn "!This should no longer be in use!"
+            return $ Left NoVersions
 
 --
 
