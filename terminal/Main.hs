@@ -188,7 +188,7 @@ makeDecoder =
     <*> Json.field (BS.pack "entry-points") (Json.list (fmap Utf8.toChars Json.string))
     <*> Json.field (BS.pack "project-path") (fmap Utf8.toChars Json.string)
     <*> Json.field (BS.pack "project-outline") (Json.mapError (const InvalidInput) Outline.decoder)
-    <*> Json.field (BS.pack "sources") (Json.dict (ModuleName.keyDecoder (\_ _ -> InvalidInput)) (fmap Utf8.toByteString Json.string))
+    <*> Json.field (BS.pack "sources") (Json.dict (ModuleName.keyDecoder (\_ _ -> InvalidInput)) (fmap Utf8.toByteString Json.stringUnescaped))
     <*> Json.field (BS.pack "dependencies") (Json.dict (Package.keyDecoder (\_ _ -> InvalidInput)) makeDependencyDecoder)
 
 makeOutputDecoder :: Json.Decoder CommandDecoderError Make.Output
@@ -208,7 +208,7 @@ makeDependencyDecoder :: Json.Decoder CommandDecoderError Details.Dependency
 makeDependencyDecoder =
   Details.Dependency
     <$> Json.field (BS.pack "outline") (Json.mapError (const InvalidInput) Outline.decoder)
-    <*> Json.field (BS.pack "sources") (Json.dict (ModuleName.keyDecoder (\_ _ -> InvalidInput)) (fmap Utf8.toByteString Json.string))
+    <*> Json.field (BS.pack "sources") (Json.dict (ModuleName.keyDecoder (\_ _ -> InvalidInput)) (fmap Utf8.toByteString Json.stringUnescaped))
 
 docsDecoder :: Json.Decoder CommandDecoderError DocsFlags
 docsDecoder =

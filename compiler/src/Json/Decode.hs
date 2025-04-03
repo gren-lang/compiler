@@ -8,6 +8,7 @@ module Json.Decode
   ( fromByteString,
     Decoder (..),
     string,
+    stringUnescaped,
     customString,
     bool,
     int,
@@ -129,6 +130,15 @@ string =
     case ast of
       String snippet ->
         ok (Json.fromSnippet snippet)
+      _ ->
+        err (Expecting region TString)
+
+stringUnescaped :: Decoder x Json.String
+stringUnescaped =
+  Decoder $ \(A.At region ast) ok err ->
+    case ast of
+      String snippet ->
+        ok (Json.fromSnippetUnescaped snippet)
       _ ->
         err (Expecting region TString)
 

@@ -10,6 +10,7 @@ module Json.String
     fromName,
     fromChars,
     fromSnippet,
+    fromSnippetUnescaped,
     fromComment,
     --
     toChars,
@@ -73,6 +74,47 @@ toBuilder :: String -> B.Builder
 toBuilder =
   Utf8.toBuilder
 
+-- FROM SNIPPET UNESCAPED
+
+fromSnippetUnescaped :: P.Snippet -> String
+fromSnippetUnescaped (P.Snippet fptr off len _ _) =
+  unsafePerformIO $
+    withForeignPtr fptr $ \ptr ->
+      let !pos = plusPtr ptr off
+          !end = plusPtr pos len
+          !str = fromChunks (fromSnippetUnescapedHelp pos end pos [])
+       in return str
+
+fromSnippetUnescapedHelp :: Ptr Word8 -> Ptr Word8 -> Ptr Word8 -> [Chunk] -> [Chunk]
+fromSnippetUnescapedHelp pos end start revChunks =
+  if pos >= end
+    then reverse (addSlice start end revChunks)
+    else
+      let !word = P.unsafeIndex pos
+          !nextPos = plusPtr pos 1
+       in case word of
+            0x5C {-\-}
+              | nextPos < end ->
+                  let !nextWord = P.unsafeIndex nextPos
+                   in case nextWord of
+                        0x72 {-r-} -> addLiteral 0x0D pos end start revChunks
+                        0x6E {-n-} -> addLiteral 0x0A pos end start revChunks
+                        0x22 {-"-} -> addLiteral 0x22 pos end start revChunks
+                        0x5C {-\-} -> addLiteral 0x5C pos end start revChunks
+                        _ ->
+                          let !width = P.getCharWidth word
+                              !newPos = plusPtr pos width
+                           in fromSnippetUnescapedHelp newPos end start revChunks
+            _ ->
+              let !width = P.getCharWidth word
+                  !newPos = plusPtr pos width
+               in fromSnippetUnescapedHelp newPos end start revChunks
+
+addLiteral :: Word8 -> Ptr Word8 -> Ptr Word8 -> Ptr Word8 -> [Chunk] -> [Chunk]
+addLiteral literal pos end start revChunks =
+  let !pos1 = plusPtr pos 2
+   in fromSnippetUnescapedHelp pos1 end pos1 (Literal literal : addSlice start pos revChunks)
+
 -- FROM COMMENT
 
 fromComment :: P.Snippet -> String
@@ -117,6 +159,7 @@ addSlice start end revChunks =
 
 data Chunk
   = Slice (Ptr Word8) Int
+  | Literal Word8
   | Escape Word8
 
 fromChunks :: [Chunk] -> String
@@ -135,6 +178,7 @@ chunkToWidth :: Chunk -> Int
 chunkToWidth chunk =
   case chunk of
     Slice _ len -> len
+    Literal _ -> 1
     Escape _ -> 2
 
 writeChunks :: MBA RealWorld -> Int -> [Chunk] -> ST RealWorld ()
@@ -148,6 +192,11 @@ writeChunks mba offset chunks =
           do
             copyFromPtr ptr mba offset len
             let !newOffset = offset + len
+            writeChunks mba newOffset chunks
+        Literal word ->
+          do
+            writeWord8 mba offset word
+            let !newOffset = offset + 1
             writeChunks mba newOffset chunks
         Escape word ->
           do
