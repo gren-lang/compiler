@@ -638,8 +638,10 @@ crawlModuleForMake foreignDeps sources mvar pkg docsStatus authorizedForKernelCo
             then crawlKernelForMake foreignDeps sources mvar pkg bytes
             else return $ Left CrawlUnsignedKernelCode
         else crawlFileForMake foreignDeps sources mvar pkg docsStatus authorizedForKernelCode name bytes
-    (_, Nothing) ->
-      return $ Left CrawlCorruption
+    (Nothing, Nothing) ->
+      if Pkg.isKernel pkg && Name.isKernel name && authorizedForKernelCode
+        then return $ Right SKernelForeign
+        else return $ Left CrawlCorruption
 
 crawlFile :: Map.Map ModuleName.Raw ForeignInterface -> MVar StatusDict -> Pkg.Name -> FilePath -> DocsStatus -> Bool -> ModuleName.Raw -> FilePath -> IO (Either CrawlError Status)
 crawlFile foreignDeps mvar pkg src docsStatus authorizedForKernelCode expectedName path =
