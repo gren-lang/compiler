@@ -309,91 +309,56 @@ update msg model =
                                 Dict.union
                                     appOutline.dependencies.direct
                                     appOutline.dependencies.indirect
-                                    |> Dict.mapAndKeepJust extractVersion
-                                    |> Dict.foldl
-                                        (\key value acc ->
-                                            Array.pushLast
-                                                { name = PackageName.fromString key |> Maybe.withDefault PackageName.example
-                                                , version = SemanticVersionRange.fromExact value
-                                                }
-                                                acc
+                                    |> Dict.map
+                                        (\_ v ->
+                                            when v is
+                                                Outline.Version vsn ->
+                                                    Outline.Version (SemanticVersionRange.fromExact vsn)
+
+                                                Outline.LocalPath p ->
+                                                    Outline.LocalPath p
                                         )
-                                        []
 
                             Outline.Pkg pkgOutline ->
                                 pkgOutline.dependencies
-                                    |> Dict.mapAndKeepJust extractVersion
-                                    |> Dict.foldl
-                                        (\key value acc ->
-                                            Array.pushLast
-                                                { name = PackageName.fromString key |> Maybe.withDefault PackageName.example
-                                                , version = value
-                                                }
-                                                acc
-                                        )
-                                        []
-                                
-                    extractVersion _name version =
-                        when version is
-                            Outline.Version vsn ->
-                                Just vsn
-
-                            Outline.LocalPath _ ->
-                                Nothing
                 in
                 rootDeps
-                    |> Array.map
-                        (\{ name, version } ->
-                            { name = name
-                            , version = version
-                            , path = packageBundlePath name (SemanticVersionRange.lowerBound version) projectPath
-                            }
+                    |> Dict.foldl
+                        (\key value acc ->
+                            Array.pushLast
+                                { name = PackageName.fromString key |> Maybe.withDefault PackageName.example
+                                , constraint = value
+                                }
+                                acc
                         )
+                        []
                     |> Array.map
-                        (\pkg ->
-                            pkg.path
-                                |> FileSystem.readFileStream model.fsPermission
-                                |> Task.mapError FileSystem.errorToString
-                                |> Task.andThen
-                                    (\stream ->
-                                        stream
-                                            |> Stream.awaitAndPipeThrough Stream.gzipDecompression
-                                            |> Task.andThen (Stream.awaitAndPipeThrough Stream.textDecoder)
-                                            |> Task.andThen readUntilStreamEnd
-                                            |> Task.map
-                                                (\data ->
-                                                    Just
-                                                        { name = pkg.name
-                                                        , version = pkg.version
-                                                        , data = data
-                                                        }
-                                                )
-                                            |> Task.onError (\_ -> Task.succeed Nothing)
-                                    )
+                        (\{ name, constraint } ->
+                            when constraint is
+                                Outline.Version vsn ->
+                                    loadPackageFromBundle model.fsPermission name (SemanticVersionRange.lowerBound vsn) projectPath
+
+                                Outline.LocalPath path ->
+                                    loadPackageFromPath model.fsPermission name path
                         )
                     |> Task.sequence
                     |> Task.map (Array.mapAndKeepJust identity)
-                    |> Task.map
-                        (Array.map
-                            (\pkg ->
-                                when Decode.decodeString packageBundleDecoder pkg.data is
-                                    Ok bundle ->
-                                        -- TODO: Verify name
-                                        -- TODO: Verify version
-                                        -- TODO: Verify outline type
-                                        Task.succeed
-                                            { name = pkg.name
-                                            , outline = bundle.outline
-                                            , sources = bundle.sources
-                                            }
-
-                                    Err jsonErr ->
-                                        Task.fail <| Decode.errorToString jsonErr
-                            )
-                        )
-                    |> Task.andThen Task.sequence
                     |> Task.andThen
                         (\pkgs ->
+                            let
+                                loadedPackages =
+                                    Array.foldl
+                                        (\pkg dict ->
+                                            Dict.set
+                                                (PackageName.toString pkg.name)
+                                                { outline = pkg.outline
+                                                , sources = pkg.sources
+                                                }
+                                                dict
+                                        )
+                                        Dict.empty
+                                        pkgs
+                            in
                             findSourceFiles model.fsPermission outline projectPath
                                 |> Task.mapError FileSystem.errorToString
                                 |> Task.map
@@ -405,17 +370,32 @@ update msg model =
                                                 (\{ moduleName, source } dict -> Dict.set moduleName source dict)
                                                 Dict.empty
                                                 sourceFiles
-                                        , rootPackages = rootDeps
-                                        , loadedPackages =
-                                            Array.foldl
-                                                (\pkg dict ->
-                                                    Dict.set
-                                                        (PackageName.toString pkg.name)
-                                                        { outline = pkg.outline, sources = pkg.sources }
-                                                        dict
+                                        , rootPackages =
+                                            Dict.foldl
+                                                (\key value acc ->
+                                                    when value is
+                                                        Outline.Version vsn ->
+                                                            Array.pushLast
+                                                                { name = PackageName.fromString key |> Maybe.withDefault PackageName.example
+                                                                , version = vsn
+                                                                }
+                                                                acc
+
+                                                        Outline.LocalPath _ ->
+                                                            when Dict.get key loadedPackages is
+                                                                Just { outline = (Outline.Pkg pkgOutline) } ->
+                                                                    Array.pushLast
+                                                                        { name = PackageName.fromString key |> Maybe.withDefault PackageName.example
+                                                                        , version = SemanticVersionRange.fromExact pkgOutline.version
+                                                                        }
+                                                                        acc
+
+                                                                _ ->
+                                                                    acc
                                                 )
-                                                Dict.empty
-                                                pkgs
+                                                []
+                                                rootDeps
+                                        , loadedPackages = loadedPackages
                                         , solvedPackages = Dict.empty
                                         , andThen = andThen
                                         }
@@ -600,6 +580,90 @@ update msg model =
         }
 
 
+type alias LoadedPackage =
+    { name : PackageName
+    , outline : Outline
+    , sources : Dict String String
+    }
+
+loadPackageFromPath : FileSystem.Permission -> PackageName -> Path -> Task String (Maybe LoadedPackage)
+loadPackageFromPath fsPermission name path =
+    let
+        outlinePath =
+            Path.append (Path.fromPosixString "gren.json") path
+    in
+    FileSystem.readFile fsPermission outlinePath
+        |> Task.mapError FileSystem.errorToString
+        |> Task.andThen
+            (\outlineBytes ->
+                when Bytes.toString outlineBytes is
+                    Just str ->
+                        Task.succeed str
+
+                    Nothing ->
+                        Task.fail "gren.json not valid utf-8"
+            )
+        |> Task.andThen
+            (\outlineStr ->
+                when Decode.decodeString Outline.jsonDecoder outlineStr is
+                    Ok outline ->
+                        findSourceFiles fsPermission outline path
+                            |> Task.mapError FileSystem.errorToString
+                            |> Task.map
+                                (\sourceFiles ->
+                                    -- TODO: Verify name
+                                    -- TODO: Verify version
+                                    -- TODO: Verify outline type
+                                    Just
+                                        { name = name
+                                        , outline = outline
+                                        , sources =
+                                            Array.foldl
+                                                (\{ moduleName, source } acc ->
+                                                    Dict.set moduleName source acc
+                                                )
+                                                Dict.empty
+                                                sourceFiles
+                                        }
+                                )
+
+                    Err jsonErr ->
+                        Task.fail <| Decode.errorToString jsonErr
+            )
+
+loadPackageFromBundle : FileSystem.Permission -> PackageName -> SemanticVersion -> Path -> Task String (Maybe LoadedPackage)
+loadPackageFromBundle fsPermission name vsn projectPath =
+    packageBundlePath name vsn projectPath
+        |> FileSystem.readFileStream fsPermission
+        |> Task.mapError FileSystem.errorToString
+        |> Task.andThen
+            (\stream ->
+                stream
+                    |> Stream.awaitAndPipeThrough Stream.gzipDecompression
+                    |> Task.andThen (Stream.awaitAndPipeThrough Stream.textDecoder)
+                    |> Task.andThen readUntilStreamEnd
+                    |> Task.mapError Stream.errorToString
+                    |> Task.andThen
+                        (\data ->
+                            when Decode.decodeString packageBundleDecoder data is
+                                Ok bundle ->
+                                    -- TODO: Verify name
+                                    -- TODO: Verify version
+                                    -- TODO: Verify outline type
+                                    Task.succeed
+                                        (Just
+                                            { name = name
+                                            , outline = bundle.outline
+                                            , sources = bundle.sources
+                                            }
+                                        )
+
+                                Err jsonErr ->
+                                    Task.fail <| Decode.errorToString jsonErr
+                        )
+                    |> Task.onError (\_ -> Task.succeed Nothing)
+            )
+
 packageBundleEncoder : Outline -> Dict String String -> Json.Value
 packageBundleEncoder outline sources =
     Json.object
@@ -609,8 +673,7 @@ packageBundleEncoder outline sources =
 
 
 packageBundleDecoder : Decoder { outline : Outline, sources : Dict String String }
-packageBundleDecoder =
-    Decode.map2 (\outline sources -> { outline = outline, sources = sources })
+packageBundleDecoder =    Decode.map2 (\outline sources -> { outline = outline, sources = sources })
         (Decode.field "outline" Outline.jsonDecoder)
         (Decode.field "sources" (Decode.dict Decode.string))
 
