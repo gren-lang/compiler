@@ -97,6 +97,7 @@ fromSnippetUnescapedHelp pos end start revChunks =
               | nextPos < end ->
                   let !nextWord = P.unsafeIndex nextPos
                    in case nextWord of
+                        0x74 {-t-} -> addLiteral 0x09 pos end start revChunks
                         0x72 {-r-} -> addLiteral 0x0D pos end start revChunks
                         0x6E {-n-} -> addLiteral 0x0A pos end start revChunks
                         0x22 {-"-} -> addLiteral 0x22 pos end start revChunks
