@@ -294,6 +294,7 @@ update msg model =
                         |> Task.execute
 
             InitiatePackageInstall (Err err) ->
+                -- TODO: Replace error output code in backend
                 logLine model.stdout (Debug.toString msg)
                     |> Task.execute
 
@@ -400,6 +401,7 @@ update msg model =
                     |> Task.attempt InstallPackages
 
             InstallPackages (Err errorStr) ->
+                -- TODO: Real errors
                 "InstallPackages Error:" ++ errorStr
                     |> logLine model.stdout
                     |> Task.execute
@@ -582,6 +584,7 @@ type alias LoadedPackage =
     , sources : Dict String String
     }
 
+-- TODO: extract to module
 loadPackageFromPath : FileSystem.Permission -> PackageName -> Path -> Task String (Maybe LoadedPackage)
 loadPackageFromPath fsPermission name path =
     let
@@ -674,6 +677,7 @@ packageBundleDecoder =    Decode.map2 (\outline sources -> { outline = outline, 
         (Decode.field "sources" (Decode.dict Decode.string))
 
 
+-- TODO: Move to gren-lang/core
 readUntilStreamEnd : Stream.Readable String -> Task Stream.Error String
 readUntilStreamEnd stream =
     readUntilStreamEndHelper "" stream
@@ -727,6 +731,7 @@ localRepoPath name version projectPath =
         ]
 
 
+-- TODO: move to Git module
 gitClonePackage : ChildProcess.Permission -> Path -> PackageName -> SemanticVersion -> Task ChildProcess.FailedRun ChildProcess.SuccessfulRun
 gitClonePackage cpPerm repo name version =
     let
@@ -808,7 +813,7 @@ readSourceFile fsPerm { absolute, relative } =
                         |> Path.toPosixString
                         |> String.replace "/" "."
                 , source =
-                    -- Should be ok, as compile errors will be reported at a later stage
+                    -- TODO: Error
                     Bytes.toString source
                         |> Maybe.withDefault ""
                 }
@@ -1185,6 +1190,7 @@ readOutline fsPerm path =
         |> Task.map (Decode.decodeString Outline.jsonDecoder)
 
 
+-- TODO: new API in gren-lang/core
 logLine : Stream.Writable Bytes -> String -> Task x (Stream.Writable Bytes)
 logLine stream line =
     Stream.writeLineAsBytes line stream
@@ -1235,6 +1241,7 @@ type alias MakeStaticOpts =
     }
 
 
+-- TODO: Move to seperate module
 cliParser : CLI.Parser.App ParsedCommand
 cliParser =
     { name = "gren"
