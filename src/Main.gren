@@ -135,8 +135,7 @@ init env =
 
 
 type Msg
-    = NoOp
-    | ExistanceChecked 
+    = ExistanceChecked 
         { maybeRemotePath : Maybe String
         , localPath : Path
         , existanceResult : Result FileSystem.Error Path
@@ -191,9 +190,6 @@ update msg model =
     { model = model
     , command =
         when msg is
-            NoOp ->
-                Cmd.none
-
             ExistanceChecked { maybeRemotePath, localPath, existanceResult = Err _ } ->
                 when maybeRemotePath is
                     Just remotePath ->
@@ -1030,7 +1026,7 @@ parseUserArgs model compilerPath =
                                                             Path.parentPath grenJsonPath
                                                                 |> Maybe.withDefault grenJsonPath
                                                         , outline = outline
-                                                        , andThen = (\_ -> Task.succeed NoOp |> Task.perform identity)
+                                                        , andThen = (\_ -> Task.succeed {} |> Task.execute)
                                                         }
 
                                                 Err err ->
