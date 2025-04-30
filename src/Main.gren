@@ -10,6 +10,7 @@ import Compiler.Outline as Outline exposing (Outline)
 import Compiler.Dependencies
 import Init
 import Stream
+import Stream.Log
 import Task exposing (Task)
 import Dict exposing (Dict)
 import FileSystem
@@ -129,7 +130,7 @@ init env =
                                     )
 
                         Nothing ->
-                            logLine env.stderr "We currently don't support this platform/arch."
+                            Stream.Log.line env.stderr "We currently don't support this platform/arch."
                                 |> Task.execute
                 }
 
@@ -193,12 +194,12 @@ update msg model =
             ExistanceChecked { maybeRemotePath, localPath, existanceResult = Err _ } ->
                 when maybeRemotePath is
                     Just remotePath ->
-                        logLine model.stdout ("Compiler not found at " ++ model.pathToString localPath ++ ". Downloading...")
+                        Stream.Log.line model.stdout ("Compiler not found at " ++ model.pathToString localPath ++ ". Downloading...")
                             |> Task.andThen (\_ -> Compiler.Backend.download model.httpPermission remotePath)
                             |> Task.attempt (\result -> CompilerDownloaded { localPath = localPath, downloadResult = result })
             
                     Nothing ->
-                        logLine model.stderr ("Compiler not found at " ++ model.pathToString localPath)
+                        Stream.Log.line model.stderr ("Compiler not found at " ++ model.pathToString localPath)
                             |> Task.execute
 
             ExistanceChecked { existanceResult = Ok compilerPath } ->
@@ -212,15 +213,15 @@ update msg model =
                                 |> Task.attempt (\result -> CompilerDownloaded { localPath = localPath, downloadResult = result })
 
                         _ ->
-                            logLine model.stderr "Missing, or vague, 'location' header in 302 response from server."
+                            Stream.Log.line model.stderr "Missing, or vague, 'location' header in 302 response from server."
                                 |> Task.execute
 
                 else
-                    logLine model.stderr (HttpClient.errorToString err)
+                    Stream.Log.line model.stderr (HttpClient.errorToString err)
                         |> Task.execute
         
             CompilerDownloaded { downloadResult = Err err } ->
-                logLine model.stderr (HttpClient.errorToString err)
+                Stream.Log.line model.stderr (HttpClient.errorToString err)
                     |> Task.execute
         
             CompilerDownloaded { localPath, downloadResult = Ok res } ->
@@ -241,13 +242,13 @@ update msg model =
                         )
                     |> Task.andThen 
                         (\binPath -> 
-                            logLine model.stdout "Downloaded"
+                            Stream.Log.line model.stdout "Downloaded"
                                 |> Task.map (\_ -> binPath)
                         )
                     |> Task.attempt CompilerInstalled
         
             CompilerInstalled (Err fsErr) ->
-                logLine model.stderr ("Failed to install binary after download, due to error: " ++ FileSystem.errorToString fsErr)
+                Stream.Log.line model.stderr ("Failed to install binary after download, due to error: " ++ FileSystem.errorToString fsErr)
                     |> Task.execute
         
             CompilerInstalled (Ok compilerPath) ->
@@ -258,26 +259,26 @@ update msg model =
                     |> Task.andThen (\_ -> Stream.closeWritable backendStreams.input)
                     |> Task.onError
                         (\streamErr ->
-                            logLine model.stderr ("Failed to send command to compiler backend due to error: " ++ Stream.errorToString streamErr)
-                                |> Task.map (\_ -> {})
+                            Stream.Log.line model.stderr ("Failed to send command to compiler backend due to error: " ++ Stream.errorToString streamErr)
                         )
                     |> Task.andThen
                         (\_ ->
                             backendStreams.output
                                 |> Stream.awaitAndPipeThrough Stream.textDecoder
-                                |> Task.andThen readUntilStreamEnd
+                                |> Task.andThen readStringFromStream
                                 |> Task.andThen (\str -> Stream.writeStringAsBytes str model.stdout)
                         )
                     |> Task.andThen
                         (\_ ->
                             backendStreams.error
                                 |> Stream.awaitAndPipeThrough Stream.textDecoder
-                                |> Task.andThen readUntilStreamEnd
+                                |> Task.andThen readStringFromStream
                                 |> Task.andThen (\str -> Stream.writeStringAsBytes str model.stderr)
                         )
+                    |> Task.map (\_ -> {})
                     |> Task.onError
                         (\streamErr ->
-                            logLine model.stderr ("Something went wrong when reading from backend: " ++ Stream.errorToString streamErr)
+                            Stream.Log.line model.stderr ("Something went wrong when reading from backend: " ++ Stream.errorToString streamErr)
                         )
                     |> Task.execute
 
@@ -295,7 +296,7 @@ update msg model =
 
             InitiatePackageInstall (Err err) ->
                 -- TODO: Replace error output code in backend
-                logLine model.stdout (Debug.toString msg)
+                Stream.Log.line model.stdout (Debug.toString msg)
                     |> Task.execute
 
             InitiatePackageInstall (Ok { projectPath, outline, andThen }) ->
@@ -403,7 +404,7 @@ update msg model =
             InstallPackages (Err errorStr) ->
                 -- TODO: Real errors
                 "InstallPackages Error:" ++ errorStr
-                    |> logLine model.stdout
+                    |> Stream.Log.line model.stdout
                     |> Task.execute
 
             -- TODO: just use a local variable for args
@@ -573,7 +574,7 @@ update msg model =
 
                     Compiler.Dependencies.Conflict _ ->
                         "TODO: CONFLICT"
-                            |> logLine model.stdout
+                            |> Stream.Log.line model.stdout
                             |> Task.execute
         }
 
@@ -640,7 +641,7 @@ loadPackageFromBundle fsPermission name vsn projectPath =
                 stream
                     |> Stream.awaitAndPipeThrough Stream.gzipDecompression
                     |> Task.andThen (Stream.awaitAndPipeThrough Stream.textDecoder)
-                    |> Task.andThen readUntilStreamEnd
+                    |> Task.andThen readStringFromStream
                     |> Task.mapError Stream.errorToString
                     |> Task.andThen
                         (\data ->
@@ -677,25 +678,9 @@ packageBundleDecoder =    Decode.map2 (\outline sources -> { outline = outline, 
         (Decode.field "sources" (Decode.dict Decode.string))
 
 
--- TODO: Move to gren-lang/core
-readUntilStreamEnd : Stream.Readable String -> Task Stream.Error String
-readUntilStreamEnd stream =
-    readUntilStreamEndHelper "" stream
-
-
-readUntilStreamEndHelper : String -> Stream.Readable String -> Task Stream.Error String
-readUntilStreamEndHelper acc stream =
-    Stream.read stream
-        |> Task.andThen (\stringPart -> readUntilStreamEndHelper (acc ++ stringPart) stream)
-        |> Task.onError
-            (\err ->
-                when err is
-                    Stream.Closed ->
-                        Task.succeed acc
-
-                    _ ->
-                        Task.fail err
-            )
+readStringFromStream : Stream.Readable String -> Task Stream.Error String
+readStringFromStream stream =
+    Stream.readUntilClosed (\chunk result -> Ok (result ++ chunk)) "" stream
 
 
 packageBundlePath : PackageName -> SemanticVersion -> Path -> Path
@@ -838,27 +823,27 @@ parseUserArgs model compilerPath =
     in
     when CLI.Parser.run model.args cliParser is
         CLI.Parser.UnknownCommand commandName ->
-            logLine model.stderr ("I don't recognize this command: " ++ commandName)
+            Stream.Log.line model.stderr ("I don't recognize this command: " ++ commandName)
                 |> Task.execute
     
         CLI.Parser.BadFlags err ->
             err
                 |> CLI.Parser.flagErrorPrettified
                 |> prettyTextToTerminal
-                |> logLine model.stderr
+                |> Stream.Log.line model.stderr
                 |> Task.execute
     
         CLI.Parser.BadArguments err ->
             err
                 |> CLI.Parser.argumentErrorPrettified
                 |> prettyTextToTerminal
-                |> logLine model.stderr
+                |> Stream.Log.line model.stderr
                 |> Task.execute
     
         CLI.Parser.HelpText prettifiedText ->
             prettifiedText
                 |> prettyTextToTerminal
-                |> logLine model.stdout
+                |> Stream.Log.line model.stdout
                 |> Task.execute
     
         CLI.Parser.Success parsedCommand ->
@@ -1101,9 +1086,9 @@ parseUserArgs model compilerPath =
                                         , "backend: " ++ model.pathToString model.backendPath
                                         ]
                                             |> String.join "\n"
-                                            |> logLine model.stdout
+                                            |> Stream.Log.line model.stdout
                                     )
-                                |> Task.onError (\_ -> logLine model.stdout "Couldn't find project!")
+                                |> Task.onError (\_ -> Stream.Log.line model.stdout "Couldn't find project!")
                                 |> Task.execute
 
                         { project = False, packageCache = False, backend = False, json = True } ->
@@ -1116,18 +1101,18 @@ parseUserArgs model compilerPath =
                                             , { key = "backend", value = Json.string (model.pathToString model.backendPath) }
                                             ]
                                             |> Json.encode 4
-                                            |> logLine model.stdout
+                                            |> Stream.Log.line model.stdout
                                     )
-                                |> Task.onError (\_ -> logLine model.stdout "Couldn't find project!")
+                                |> Task.onError (\_ -> Stream.Log.line model.stdout "Couldn't find project!")
                                 |> Task.execute
 
                         { project = True, packageCache = False, backend = False, json = False } ->
                             Compiler.Paths.projectRoot model.fsPermission
                                 |> Task.andThen
                                     (\project ->
-                                        logLine model.stdout (model.pathToString project)
+                                        Stream.Log.line model.stdout (model.pathToString project)
                                     )
-                                |> Task.onError (\_ -> logLine model.stdout "Couldn't find project!")
+                                |> Task.onError (\_ -> Stream.Log.line model.stdout "Couldn't find project!")
                                 |> Task.execute
 
                         { project = True, packageCache = False, backend = False, json = True } ->
@@ -1138,9 +1123,9 @@ parseUserArgs model compilerPath =
                                             [ { key = "project", value = Json.string (model.pathToString project) }
                                             ]
                                             |> Json.encode 4
-                                            |> logLine model.stdout
+                                            |> Stream.Log.line model.stdout
                                     )
-                                |> Task.onError (\_ -> logLine model.stdout "Couldn't find project!")
+                                |> Task.onError (\_ -> Stream.Log.line model.stdout "Couldn't find project!")
                                 |> Task.execute
 
                         { project = False, packageCache = True, backend = False, json = False } ->
@@ -1148,9 +1133,9 @@ parseUserArgs model compilerPath =
                                 |> Task.andThen
                                     (\project ->
                                          model.pathToString (Path.append (Path.fromPosixString "gren_packages") project)
-                                            |> logLine model.stdout
+                                            |> Stream.Log.line model.stdout
                                     )
-                                |> Task.onError (\_ -> logLine model.stdout "Couldn't find project!")
+                                |> Task.onError (\_ -> Stream.Log.line model.stdout "Couldn't find project!")
                                 |> Task.execute
 
                         { project = False, packageCache = True, backend = False, json = True } ->
@@ -1161,13 +1146,13 @@ parseUserArgs model compilerPath =
                                             [ { key = "packageCache", value = Json.string (model.pathToString (Path.append (Path.fromPosixString "gren_packages") project)) }
                                             ]
                                             |> Json.encode 4
-                                            |> logLine model.stdout
+                                            |> Stream.Log.line model.stdout
                                     )
-                                |> Task.onError (\_ -> logLine model.stdout "Couldn't find project!")
+                                |> Task.onError (\_ -> Stream.Log.line model.stdout "Couldn't find project!")
                                 |> Task.execute
 
                         { project = False, packageCache = False, backend = True, json = False } ->
-                            logLine model.stdout (model.pathToString model.backendPath)
+                            Stream.Log.line model.stdout (model.pathToString model.backendPath)
                                 |> Task.execute
 
                         { project = False, packageCache = False, backend = True, json = True } ->
@@ -1175,11 +1160,11 @@ parseUserArgs model compilerPath =
                                 [ { key = "backend", value = Json.string (model.pathToString model.backendPath) }
                                 ]
                                 |> Json.encode 4
-                                |> logLine model.stdout
+                                |> Stream.Log.line model.stdout
                                 |> Task.execute
 
                         _ ->
-                            logLine model.stdout "You can only use one of --project, --package-cache and --backend!"
+                            Stream.Log.line model.stdout "You can only use one of --project, --package-cache and --backend!"
                                 |> Task.execute
 
 
@@ -1188,19 +1173,6 @@ readOutline fsPerm path =
     FileSystem.readFile fsPerm path
         |> Task.map (Bytes.toString >> Maybe.withDefault "")
         |> Task.map (Decode.decodeString Outline.jsonDecoder)
-
-
--- TODO: new API in gren-lang/core
-logLine : Stream.Writable Bytes -> String -> Task x (Stream.Writable Bytes)
-logLine stream line =
-    Stream.writeLineAsBytes line stream
-        |> Task.onError (\_ -> Task.succeed stream)
-
-
-logBytes : Stream.Writable Bytes -> Bytes -> Task x (Stream.Writable Bytes)
-logBytes stream bytes =
-    Stream.write bytes stream
-        |> Task.onError (\_ -> Task.succeed stream)
 
 
 -- CLI Parsing
