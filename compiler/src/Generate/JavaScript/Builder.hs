@@ -564,7 +564,7 @@ fromExpr level@(Level indent nextLevel) grouping expression builder =
       addByteString (Name.toBuilder name) builder
     TrackedRef moduleName position name generatedName ->
       if position == A.zeroPosition
-        then addByteString (Name.toBuilder name) builder
+        then addByteString (Name.toBuilder generatedName) builder
         else addName moduleName position name generatedName builder
     Access expr field ->
       makeDot level expr field builder
