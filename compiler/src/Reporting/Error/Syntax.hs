@@ -1521,7 +1521,7 @@ toDeclStartReport source row col =
                         D.indent 4 $
                           D.vcat $
                             [ D.indent 0 $ D.fillSep ["getWidth", "maybeWidth", "="],
-                              D.indent 2 $ D.fillSep [D.cyan "when", "maybeWidth", D.cyan "of"],
+                              D.indent 2 $ D.fillSep [D.cyan "when", "maybeWidth", D.cyan "is"],
                               D.indent 4 $ D.fillSep [D.blue "Just", "width", "->"],
                               D.indent 6 $ D.fillSep ["width", "+", D.dullyellow "200"],
                               "",
