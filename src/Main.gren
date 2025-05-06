@@ -2,12 +2,14 @@ port module Main exposing (main)
 
 import Node
 import ChildProcess
+import CliParser
 import Compiler.Backend
 import Compiler.PackageName as PackageName exposing (PackageName)
 import Compiler.Platform as Platform exposing (Platform)
 import Compiler.Paths
 import Compiler.Outline as Outline exposing (Outline)
 import Compiler.Dependencies
+import Git
 import Init
 import Stream
 import Stream.Log
@@ -357,7 +359,7 @@ update msg model =
                                         Dict.empty
                                         pkgs
                             in
-                            findSourceFiles model.fsPermission outline projectPath
+                            Outline.findSourceFiles model.fsPermission outline projectPath
                                 |> Task.mapError FileSystem.errorToString
                                 |> Task.map
                                     (\sourceFiles ->
@@ -426,7 +428,7 @@ update msg model =
                         in
                         when Dict.get packageNameString loadedPackages is
                             Just loadedPackage ->
-                                findSourceFiles model.fsPermission outline projectPath
+                                Outline.findSourceFiles model.fsPermission outline projectPath
                                     |> Task.mapError FileSystem.errorToString
                                     |> Task.map
                                         (\sourceFiles ->
@@ -481,7 +483,7 @@ update msg model =
                                         localRepoPath name lowerBound projectPath
                                 in
                                 -- TODO: Cleanup git repos
-                                gitClonePackage model.cpPermission repoPath name lowerBound
+                                Git.clonePackage model.cpPermission repoPath name lowerBound
                                     |> Task.mapError (\{ stderr } -> Maybe.withDefault "" <| Bytes.toString stderr)
                                     |> Task.andThen (\{} ->
                                         (Path.append (Path.fromPosixString "gren.json") repoPath)
@@ -491,7 +493,7 @@ update msg model =
                                                 (\decodeResult ->
                                                     when decodeResult is
                                                         Ok packageOutline ->
-                                                            findSourceFiles model.fsPermission packageOutline repoPath
+                                                            Outline.findSourceFiles model.fsPermission packageOutline repoPath
                                                                 |> Task.mapError FileSystem.errorToString
                                                                 |> Task.map
                                                                     (\files ->
@@ -547,7 +549,7 @@ update msg model =
                                         )
                                     |> Task.andThen
                                         (\pkg ->
-                                            findSourceFiles model.fsPermission outline projectPath
+                                            Outline.findSourceFiles model.fsPermission outline projectPath
                                                 |> Task.mapError FileSystem.errorToString
                                                 |> Task.map
                                                     (\sourceFiles ->
@@ -607,7 +609,7 @@ loadPackageFromPath fsPermission name path =
             (\outlineStr ->
                 when Decode.decodeString Outline.jsonDecoder outlineStr is
                     Ok outline ->
-                        findSourceFiles fsPermission outline path
+                        Outline.findSourceFiles fsPermission outline path
                             |> Task.mapError FileSystem.errorToString
                             |> Task.map
                                 (\sourceFiles ->
@@ -673,11 +675,13 @@ packageBundleEncoder outline sources =
 
 
 packageBundleDecoder : Decoder { outline : Outline, sources : Dict String String }
-packageBundleDecoder =    Decode.map2 (\outline sources -> { outline = outline, sources = sources })
+packageBundleDecoder =
+    Decode.map2 (\outline sources -> { outline = outline, sources = sources })
         (Decode.field "outline" Outline.jsonDecoder)
         (Decode.field "sources" (Decode.dict Decode.string))
 
 
+-- TODO: move to gren-lang/core as consumeString
 readStringFromStream : Stream.Readable String -> Task Stream.Error String
 readStringFromStream stream =
     Stream.readUntilClosed (\chunk result -> Ok (result ++ chunk)) "" stream
@@ -716,95 +720,6 @@ localRepoPath name version projectPath =
         ]
 
 
--- TODO: move to Git module
-gitClonePackage : ChildProcess.Permission -> Path -> PackageName -> SemanticVersion -> Task ChildProcess.FailedRun ChildProcess.SuccessfulRun
-gitClonePackage cpPerm repo name version =
-    let
-        githubUrl =
-            "https://github.com/" ++ PackageName.toString name ++ ".git"
-    in
-    ChildProcess.run
-        cpPerm
-        "git"
-        [ "clone"
-        , "--branch"
-        , SemanticVersion.toString version
-        , "--depth"
-        , "1"
-        , githubUrl
-        , Path.toPosixString repo
-        ]
-        { shell = ChildProcess.NoShell
-        , workingDirectory = ChildProcess.InheritWorkingDirectory
-        , environmentVariables = ChildProcess.InheritEnvironmentVariables
-        , maximumBytesWrittenToStreams = 4096
-        , runDuration = ChildProcess.Milliseconds 30000
-        }
-
-
-findSourceFiles : FileSystem.Permission -> Outline -> Path -> Task FileSystem.Error (Array { moduleName : String, source : String })
-findSourceFiles fsPerm outline outlinePath =
-    let
-        sourceDirs =
-            when outline is
-                Outline.App appOutline ->
-                    appOutline.sourceDirectories
-
-                Outline.Pkg _ ->
-                    [ Path.fromPosixString "src"
-                    ]
-    in
-    Array.map (\srcDir -> Path.append srcDir outlinePath) sourceDirs
-        |> Array.map (findSourceFilesHelp fsPerm Path.empty)
-        |> Task.sequence
-        |> Task.map Array.flatten
-        |> Task.andThen (\paths -> Task.sequence <| Array.map (readSourceFile fsPerm) paths)
-
-
-findSourceFilesHelp : FileSystem.Permission -> Path -> Path -> Task FileSystem.Error (Array { absolute : Path, relative : Path })
-findSourceFilesHelp fsPerm local root =
-    FileSystem.listDirectory fsPerm root
-        |> Task.andThen
-            (\paths ->
-                paths
-                    |> Array.mapAndKeepJust
-                        (\entry ->
-                            when entry.entityType is
-                                FileSystem.Directory ->
-                                    Just <| findSourceFilesHelp fsPerm (Path.append entry.path local) (Path.append entry.path root)
-
-                                FileSystem.File ->
-                                    if entry.path.extension == "js" || entry.path.extension == "gren" then
-                                        Just <| Task.succeed [ { absolute = Path.append entry.path root, relative = Path.append entry.path local } ]
-
-                                    else
-                                        Nothing
-
-                                _ ->
-                                    Nothing
-                        )
-                    |> Task.sequence
-                    |> Task.map Array.flatten
-            )
-
-
-readSourceFile : FileSystem.Permission -> { absolute : Path, relative : Path } -> Task FileSystem.Error { moduleName : String, source : String }
-readSourceFile fsPerm { absolute, relative } =
-    FileSystem.readFile fsPerm absolute
-        |> Task.map
-            (\source ->
-                { moduleName =
-                    { relative | extension = "" }
-                        |> Path.toPosixString
-                        |> String.replace "/" "."
-                , source =
-                    -- TODO: Error
-                    Bytes.toString source
-                        |> Maybe.withDefault ""
-                }
-            )
-
-
 parseUserArgs : Model -> Path -> Cmd Msg
 parseUserArgs model compilerPath =
     let
@@ -821,7 +736,7 @@ parseUserArgs model compilerPath =
                 |> PP.toStringWithOptions
                     { PP.defaultOptions | maxColumns = 80 }
     in
-    when CLI.Parser.run model.args cliParser is
+    when CLI.Parser.run model.args CliParser.parser is
         CLI.Parser.UnknownCommand commandName ->
             Stream.Log.line model.stderr ("I don't recognize this command: " ++ commandName)
                 |> Task.execute
@@ -866,7 +781,7 @@ parseUserArgs model compilerPath =
                                 }
             in
             when parsedCommand is
-                Init flags ->
+                CliParser.Init flags ->
                     Compiler.Backend.run
                         model.cpPermission
                         { useColor = model.useColor
@@ -876,7 +791,7 @@ parseUserArgs model compilerPath =
                         , onComplete = CompilerRan
                         }
 
-                Repl flags ->
+                CliParser.Repl flags ->
                     Compiler.Backend.run
                         model.cpPermission
                         { useColor = model.useColor
@@ -886,7 +801,7 @@ parseUserArgs model compilerPath =
                         , onComplete = CompilerRan
                         }
 
-                Make flags ->
+                CliParser.Make flags ->
                     -- TODO: DRY
                     Compiler.Paths.projectRoot model.fsPermission
                         |> Task.mapError PackageInstallNoProject
@@ -934,7 +849,7 @@ parseUserArgs model compilerPath =
                             )
                         |> Task.attempt InitiatePackageInstall
 
-                MakeStatic opts ->
+                CliParser.MakeStatic opts ->
                     -- TODO: DRY
                     Compiler.Paths.projectRoot model.fsPermission
                         |> Task.mapError PackageInstallNoProject
@@ -988,7 +903,7 @@ parseUserArgs model compilerPath =
                             )
                         |> Task.attempt InitiatePackageInstall
 
-                Docs flags ->
+                CliParser.Docs flags ->
                     Compiler.Backend.run
                         model.cpPermission
                         { useColor = model.useColor
@@ -999,7 +914,7 @@ parseUserArgs model compilerPath =
                         }
 
                 -- TODO: test installing single package
-                PackageInstall _ ->
+                CliParser.PackageInstall _ ->
                     Compiler.Paths.projectRoot model.fsPermission
                         |> Task.mapError PackageInstallNoProject
                         |> Task.map (Path.append (Path.fromPosixString "gren.json"))
@@ -1025,7 +940,7 @@ parseUserArgs model compilerPath =
                             )
                         |> Task.attempt InitiatePackageInstall
 
-                PackageUninstall packageName ->
+                CliParser.PackageUninstall packageName ->
                     Compiler.Backend.run
                         model.cpPermission
                         { useColor = model.useColor
@@ -1035,7 +950,7 @@ parseUserArgs model compilerPath =
                         , onComplete = CompilerRan
                         }
 
-                PackageOutdated ->
+                CliParser.PackageOutdated ->
                     Compiler.Backend.run
                         model.cpPermission
                         { onInit = initWithCommand <| Compiler.Backend.PackageOutdated
@@ -1045,7 +960,7 @@ parseUserArgs model compilerPath =
                         , onComplete = CompilerRan
                         }
 
-                PackageValidate ->
+                CliParser.PackageValidate ->
                     Compiler.Backend.run
                         model.cpPermission
                         { onInit = initWithCommand <| Compiler.Backend.PackageValidate
@@ -1055,7 +970,7 @@ parseUserArgs model compilerPath =
                         , onComplete = CompilerRan
                         }
 
-                PackageBump ->
+                CliParser.PackageBump ->
                     Compiler.Backend.run
                         model.cpPermission
                         { onInit = initWithCommand Compiler.Backend.PackageBump
@@ -1065,7 +980,7 @@ parseUserArgs model compilerPath =
                         , onComplete = CompilerRan
                         }
 
-                PackageDiff args ->
+                CliParser.PackageDiff args ->
                     Compiler.Backend.run
                         model.cpPermission
                         { onInit = initWithCommand <| Compiler.Backend.PackageDiff args
@@ -1075,7 +990,7 @@ parseUserArgs model compilerPath =
                         , onComplete = CompilerRan
                         }
 
-                Paths opts ->
+                CliParser.Paths opts ->
                     when opts is
                         { project = False, packageCache = False, backend = False, json = False } ->
                             Compiler.Paths.projectRoot model.fsPermission
@@ -1174,608 +1089,3 @@ readOutline fsPerm path =
         |> Task.map (Bytes.toString >> Maybe.withDefault "")
         |> Task.map (Decode.decodeString Outline.jsonDecoder)
 
-
--- CLI Parsing
-
-
-type ParsedCommand
-    = Init Compiler.Backend.InitFlags
-    | Repl Compiler.Backend.ReplFlags
-    | Make MakeFlags
-    | MakeStatic MakeStaticOpts
-    | Docs Compiler.Backend.DocsFlags
-    | PackageInstall (Maybe PackageName)
-    | PackageUninstall PackageName
-    | PackageOutdated
-    | PackageValidate
-    | PackageBump
-    | PackageDiff Compiler.Backend.DiffArgs
-    | Paths
-        { project : Bool
-        , packageCache : Bool
-        , backend : Bool
-        , json : Bool
-        }
-
-
-type alias MakeFlags =
-    { optimize : Bool
-    , sourcemaps : Bool
-    , output : Maybe Compiler.Backend.MakeOutput
-    , report : Maybe {}
-    , entryPoints : Array Path
-    }
-
-
-type alias MakeStaticOpts =
-    { output : Path
-    , source : Path
-    }
-
-
--- TODO: Move to seperate module
-cliParser : CLI.Parser.App ParsedCommand
-cliParser =
-    { name = "gren"
-    , version = "0.5.4"
-    , intro = 
-        PP.verticalBlock
-            [ PP.block
-                [ PP.text "Hi, thank you for trying out "
-                , PP.intenseColor PP.Green <| PP.text ("Gren " ++ Compiler.Backend.version)
-                , PP.text ". I hope you like it!"
-                ]
-            , PP.empty
-            , PP.intenseColor PP.Black <|
-                PP.text
-                    """
-                    -------------------------------------------------------------------------------
-                    I highly recommend working through <https://gren-lang.org/learn> to get started
-                    It teaches many important concepts, including how to use `gren` in the terminal
-                    -------------------------------------------------------------------------------
-                    """
-            ]
-    , outro = 
-        PP.words
-            """
-            Be sure to ask on the Gren Discord (https://discord.gg/Chb9YB9Vmh) if you run into trouble!
-            Folks are friendly and happy to help out. They hang out there because it is fun, so be kind
-            to get the best results!
-            """
-    , commands =
-        CLI.Parser.defineGroup
-            |> CLI.Parser.withCommand
-                { word = "init"
-                , arguments =
-                    CLI.Parser.noArgs
-                , flags =
-                    CLI.Parser.initFlags 
-                        (\package maybePlatform ->
-                            { package = package
-                            , platform = 
-                                if package then
-                                    Maybe.withDefault Platform.Common maybePlatform
-
-                                else
-                                    Maybe.withDefault Platform.Browser maybePlatform
-                            }
-                        )
-                        |> CLI.Parser.toggle "package" "Create a package (as opposed to an application)"
-                        |> CLI.Parser.flag "platform" initPlatformParser "Which platform to target"
-                , commonDescription =
-                    Just "Start a Gren project. It creates a starter gren.json file."
-                , summary =
-                    "The `init` command helps start Gren project:"
-                , example = 
-                    PP.words
-                        """
-                        It will ask permission to create a gren.json file, the one thing
-                        common to all Gren project.
-                        """
-                , builder =
-                    \_args flags -> Init flags
-                }
-            |> CLI.Parser.withCommand
-                { word = "repl"
-                , arguments =
-                    CLI.Parser.noArgs
-                , flags =
-                    CLI.Parser.initFlags
-                        (\maybeInterpreter ->
-                            { interpreter = maybeInterpreter
-                            }
-                        )
-                        |> CLI.Parser.flag "interpreter" interpreterParser "Path to a alternate JS interpreter, like deno or nodejs"
-                , commonDescription =
-                    Just 
-                        """
-                        Open up an interactive programming session. Type in Gren expressions like
-                        (2 + 2) or (String.length \"test\") and see if they equal four!
-                        """
-                , summary =
-                    "The `repl` command opens up an interactive programming session:"
-                , example = 
-                    PP.words
-                        """
-                        Start working through <https://gren-lang.org/learn> to learn how to use this!
-                        It has a whole chapter that uses the REPL for everything, so that is probably
-                        the quickest way to get started.
-                        """
-                , builder =
-                    \_args flags -> Repl flags
-                }
-            |> CLI.Parser.withCommand
-                { word = "paths"
-                , arguments =
-                    CLI.Parser.noArgs
-                , flags =
-                    CLI.Parser.initFlags
-                        (\project packageCache backend json ->
-                            { project = project
-                            , packageCache = packageCache
-                            , backend = backend
-                            , json = json
-                            }
-                        )
-                        |> CLI.Parser.toggle "project" "Only output the path to the project"
-                        |> CLI.Parser.toggle "package-cache" "Only output the path to the package cache"
-                        |> CLI.Parser.toggle "backend" "Only output the path to the compiler backend"
-                        |> CLI.Parser.toggle "json" "Output in JSON format"
-                , commonDescription = Nothing
-                , summary =
-                    "Return the paths used for compiling a project."
-                , example = 
-                    PP.verticalBlock
-                        [ PP.words "For example:"
-                        , PP.empty
-                        , PP.words "gren paths --backend"
-                            |> PP.indent
-                            |> PP.color PP.Green
-                        , PP.empty
-                        , PP.words
-                            """
-                            This will write the path to the compiler backend.
-                            Executing the command without any flags will print _all_ relevant paths.
-                            """
-                        ]
-                , builder =
-                    \_args flags -> Paths flags
-                }
-            |> CLI.Parser.withCommand
-                { word = "make"
-                , arguments =
-                    CLI.Parser.zeroOrMoreArgs CLI.Parser.grenFileParser
-                , flags =
-                    CLI.Parser.initFlags 
-                        (\optimize sourcemaps output report ->
-                            { optimize = optimize
-                            , sourcemaps = sourcemaps
-                            , output = output
-                            , report = report
-                            }
-                        )
-                        |> CLI.Parser.toggle "optimize" "Turn on optimizations to make code smaller and faster. For example, the compiler renames record fields to be as short as possible and unboxes values to reduce allocation."
-                        |> CLI.Parser.toggle "sourcemaps" "Add sourcemaps to the resulting JS file. This let's you debug Gren code in a JS debugger, at the cost of longer compile times and a bigger JS file."
-                        |> CLI.Parser.flag "output" outputParser "Specify the name of the resulting JS file. For example --output=assets/gren.js to generate the JS at assets/gren.js. You can also use --output=/dev/stdout to output the JS to the terminal, or --output=/dev/null to generate no output at all!"
-                        |> CLI.Parser.flag "report" reportParser "You can say --report=json to get error messages as JSON. This is only really useful if you are an editor plugin. Humans should avoid it!"
-                , commonDescription =
-                    Nothing
-                , summary =
-                    "The `make` command compiles Gren code into JS or HTML:"
-                , example = 
-                    PP.verticalBlock
-                        [ PP.words "For example:"
-                        , PP.empty
-                        , PP.words "gren make src/Main.gren"
-                            |> PP.indent
-                            |> PP.color PP.Green
-                        , PP.empty
-                        , PP.words
-                            """
-                            This tries to compile an Gren file named src/Main.gren, generating an index.html
-                            file if possible.
-                            """
-                        ]
-                , builder =
-                    \args flags ->
-                        Make
-                            { optimize = flags.optimize
-                            , sourcemaps = flags.sourcemaps
-                            , output = flags.output
-                            , report = flags.report
-                            , entryPoints = args
-                            }
-                }
-            |> CLI.Parser.withCommand
-                { word = "make-static"
-                , arguments =
-                    CLI.Parser.twoArgs 
-                        (\source output ->
-                            { source = source
-                            , output = output
-                            }
-                        )
-                        CLI.Parser.grenFileParser
-                        CLI.Parser.pathParser
-                , flags =
-                    CLI.Parser.noFlags
-                , commonDescription =
-                    Nothing
-                , summary =
-                    "The `make-static` command compiles Gren code into a self-contained executable:"
-                , example = 
-                    PP.verticalBlock
-                        [ PP.words "For example:"
-                        , PP.empty
-                        , PP.words "gren make-static src/Main.gren app"
-                            |> PP.indent
-                            |> PP.color PP.Green
-                        , PP.empty
-                        , PP.words
-                            """
-                            This tries to compile a Gren file named `src/Main.gren`, generating an `app`
-                            file if possible. `app` is a static executable that can be run even if `node` is
-                            not installed on the system.
-                            """
-                        ]
-                , builder =
-                    \args _flags -> MakeStatic args
-                }
-            |> CLI.Parser.withCommand
-                { word = "docs"
-                , arguments =
-                    CLI.Parser.noArgs
-                , flags =
-                    CLI.Parser.initFlags 
-                        (\output report ->
-                            { output = output
-                            , report = report
-                            }
-                        )
-                        |> CLI.Parser.flag "output" docsOutputParser "Specify the name of the resulting JSON file. For example --output=assets/docs.json to generate the JSON at assets/docs.json. You can also use --output=/dev/stdout to output the JSON to the terminal, or --output=/dev/null to verify that generating the documentation would work."
-                        |> CLI.Parser.flag "report" reportParser "You can say --report=json to get error messages as JSON. This is only really useful if you are an editor plugin. Humans should avoid it!"
-                , commonDescription =
-                    Nothing
-                , summary =
-                    "The `docs` command collects all documentation for a package in a JSON file:"
-                , example = 
-                    PP.verticalBlock
-                        [ PP.words "For example:"
-                        , PP.words "gren docs"
-                            |> PP.indent
-                            |> PP.color PP.Green
-                        , PP.words
-                            """
-                            This collects all documentation for the current pacage and writes it to a
-                            docs.json file, if possible.
-                            """
-                        ]
-                , builder =
-                    \_args flags -> Docs flags
-                }
-            |> CLI.Parser.withPrefix "package" packageCommands
-    }
-
-
-packageCommands : CLI.Parser.GroupParser ParsedCommand
-packageCommands =
-    CLI.Parser.defineGroup
-        |> CLI.Parser.withCommand
-            { word = "install"
-            , arguments =
-                CLI.Parser.oneOfArgs
-                    [ CLI.Parser.noArgs
-                        |> CLI.Parser.mapArgs (\_ -> Nothing)
-                    , CLI.Parser.oneArg PackageName.cliParser
-                        |> CLI.Parser.mapArgs Just
-                    ]
-            , flags =
-                CLI.Parser.noFlags 
-            , commonDescription =
-                Nothing
-            , summary =
-                "The `install` command fetches packages from github for use in your project:"
-            , example = 
-                PP.verticalBlock
-                    [ PP.words 
-                        """
-                        For example, if you want to get access to Web APIs in your project,
-                        you would say:
-                        """
-                    , PP.empty
-                    , PP.text "gren package install gren-lang/browser"
-                        |> PP.indent
-                        |> PP.color PP.Green
-                    , PP.empty
-                    , PP.words
-                        """
-                        Notice that you must say the AUTHOR name and PROJECT name! After running those
-                        commands, you could say `import Browser` in your code.
-                        """
-                    , PP.empty
-                    , PP.words
-                        """
-                        You can also call this command without any arguments to download all dependencies
-                        listed in gren.json. This can be helpful in Continous Integration setups where
-                        you want to cache dependencies between builds.
-                        """
-                    ]
-            , builder =
-                \arg _flags ->
-                    PackageInstall arg
-            }
-        |> CLI.Parser.withCommand
-            { word = "uninstall"
-            , arguments =
-                CLI.Parser.oneArg PackageName.cliParser
-            , flags =
-                CLI.Parser.noFlags 
-            , commonDescription =
-                Nothing
-            , summary =
-                "The `uninstall` command removes packages from your project:"
-            , example = 
-                PP.verticalBlock
-                    [ PP.words 
-                        """
-                        For example, if you want to get rid of the browser package in your project,
-                        you would say:
-                        """
-                    , PP.empty
-                    , PP.text "gren package uninstall gren-lang/browser"
-                        |> PP.indent
-                        |> PP.color PP.Green
-                    , PP.empty
-                    , PP.words 
-                        """
-                        Notice that you must say the AUTHOR name and PROJECT name!
-                        """
-                    , PP.empty
-                    , PP.words
-                        """
-                        What if another package depends on the package you're trying to remove? No problem!
-                        I'll let you know if that's the case, and help you resolve the situation. 
-                        """
-                    ]
-            , builder =
-                \arg _flags -> PackageUninstall arg
-            }
-        |> CLI.Parser.withCommand
-            { word = "outdated"
-            , arguments =
-                CLI.Parser.noArgs
-            , flags =
-                CLI.Parser.noFlags 
-            , commonDescription =
-                Nothing
-            , summary =
-                "The `outdated` command lists the latest version of your dependencies,"
-                    ++ " if you're not already up to date:"
-            , example = 
-                PP.text "gren package outdated"
-                    |> PP.indent
-                    |> PP.color PP.Green
-            , builder =
-                \_args _flags -> PackageOutdated
-            }
-        |> CLI.Parser.withCommand
-            { word = "validate"
-            , arguments =
-                CLI.Parser.noArgs
-            , flags =
-                CLI.Parser.noFlags 
-            , commonDescription =
-                Nothing
-            , summary =
-                "The `validate` command checks that you've done everything necessary for"
-                    ++ " others in the Gren community to use your package as a dependency:"
-            , example = 
-                PP.verticalBlock
-                    [ PP.words 
-                        """
-                        Gren packages are \"just\" git repositories hosted on github. As
-                        long as you've tagged your repository with semver formatted tags,
-                        anyone can add your package as a dependency.
-                        """
-                    , PP.empty
-                    , PP.words 
-                        """
-                        However, a package is no better than its documentation. This command
-                        therefore checks that your package exposes a bare minimum of
-                        prose that the users of your package can read.
-                        """
-                    , PP.empty
-                    , PP.words
-                        """
-                        Keep in mind, you don't just want to tell people HOW to use
-                        your package. It's equally important to tell them WHY. What
-                        problem does it solve? Why should people use this particular
-                        package to solve their problem?
-                        """
-                    , PP.empty
-                    , PP.words
-                        """
-                        Once this command passes, you may want to add your repo to
-                        <https://packages.gren-lang.org> so it becomes easier for the Gren
-                        community to find your package, and its documentation.
-                        """
-                    ]
-            , builder =
-                \_args _flags -> PackageValidate
-            }
-        |> CLI.Parser.withCommand
-            { word = "bump"
-            , arguments =
-                CLI.Parser.noArgs
-            , flags =
-                CLI.Parser.noFlags 
-            , commonDescription =
-                Nothing
-            , summary =
-                "The `bump` command figures out the next version number based on API changes:"
-            , example = 
-                PP.words 
-                    """
-                    Say you just published version 1.0.0, but then decided to remove a function.
-                    I will compare the published API to what you have locally, figure out that
-                    it is a MAJOR change, and bump your version number to 2.0.0. I do this with
-                    all packages, so there cannot be MAJOR changes hiding in PATCH releases in Gren!
-                    """
-            , builder =
-                \_args _flags -> PackageBump
-            }
-        |> CLI.Parser.withCommand
-            { word = "diff"
-            , arguments =
-                CLI.Parser.oneOfArgs
-                    [ CLI.Parser.noArgs
-                        |> CLI.Parser.mapArgs (\{} -> Compiler.Backend.DiffLatest)
-                    , CLI.Parser.oneArg SemanticVersion.cliParser
-                        |> CLI.Parser.mapArgs Compiler.Backend.DiffVersion
-                    , CLI.Parser.twoArgs
-                        (\lower upper ->
-                            Compiler.Backend.DiffRange
-                                { lower = lower
-                                , upper = upper
-                                }
-                        )
-                        SemanticVersion.cliParser
-                        SemanticVersion.cliParser
-                    , CLI.Parser.threeArgs
-                        (\package lower upper ->
-                            Compiler.Backend.DiffGlobal
-                                { package = package
-                                , lower = lower
-                                , upper = upper
-                                }
-                        )
-                        PackageName.cliParser
-                        SemanticVersion.cliParser
-                        SemanticVersion.cliParser
-                    ]
-            , flags =
-                CLI.Parser.noFlags 
-            , commonDescription =
-                Nothing
-            , summary =
-                "The `diff` command detects API changes:"
-            , example = 
-                PP.verticalBlock
-                    [ PP.words 
-                        """
-                        For example, to see what changed in the Browser package between
-                        versions 1.0.0 and 2.0.0, you can say:
-                        """
-                    , PP.empty
-                    , PP.text "gren package diff gren-lang/browser 1.0.0 2.0.0"
-                        |> PP.indent
-                        |> PP.color PP.Green
-                    , PP.empty
-                    , PP.words 
-                        """
-                        Sometimes a MAJOR change is not actually very big, so
-                        this can help you plan your upgrade timelines.
-                        """
-                    ]
-            , builder =
-                \args _flags -> PackageDiff args
-            }
-
-
-initPlatformParser : CLI.Parser.ValueParser Platform
-initPlatformParser =
-    { singular = "platform"
-    , plural = "platforms"
-    , fn = \str ->
-        when str is
-            "common" -> Just Platform.Common
-            "browser" -> Just Platform.Browser
-            "node" -> Just Platform.Node
-            _ -> Nothing
-    , examples =
-        [ "common"
-        , "browser"
-        , "node"
-        ]
-    }
-
-
-reportParser : CLI.Parser.ValueParser {}
-reportParser =
-    { singular = "report-type"
-    , plural = "report-types"
-    , fn = \str ->
-        if str == "json" then
-            Just {}
-
-        else
-            Nothing
-    , examples =
-        [ "json" ]
-    }
-
-
-interpreterParser : CLI.Parser.ValueParser String
-interpreterParser =
-    { singular = "interpreter"
-    , plural = "interpreters"
-    , fn = Just
-    , examples =
-        [ "node"
-        , "deno"
-        , "bun"
-        ]
-    }
-
-
-outputParser : CLI.Parser.ValueParser Compiler.Backend.MakeOutput
-outputParser =
-    { singular = "output-file"
-    , plural = "output-files"
-    , fn = \str ->
-        when str is
-            "/dev/stdout" -> Just Compiler.Backend.StdOut
-            "/dev/null" -> Just Compiler.Backend.DevNull
-            "NUL" -> Just Compiler.Backend.DevNull
-            "$null" -> Just Compiler.Backend.DevNull
-            _ ->
-                if String.endsWith ".html" str then
-                    Just <| Compiler.Backend.Html str
-                
-                else if String.endsWith ".js" str then
-                    Just <| Compiler.Backend.Js str
-
-                else
-                    Just <| Compiler.Backend.Exe str
-    , examples =
-        [ "/dev/stdout"
-        , "/dev/null"
-        , "index.html"
-        , "index.js"
-        , "app"
-        ]
-    }
-
-
-docsOutputParser : CLI.Parser.ValueParser Compiler.Backend.DocsOutput
-docsOutputParser =
-    { singular = "output-file"
-    , plural = "output-files"
-    , fn = \str ->
-        when str is
-            "/dev/stdout" -> Just Compiler.Backend.DocsStdOut
-            "/dev/null" -> Just Compiler.Backend.DocsDevNull
-            "NUL" -> Just Compiler.Backend.DocsDevNull
-            "$null" -> Just Compiler.Backend.DocsDevNull
-            _ ->
-                if String.endsWith ".json" str then
-                    Just <| Compiler.Backend.DocsJson str
-
-                else
-                    Nothing
-    , examples =
-        [ "/dev/stdout"
-        , "/dev/null"
-        , "docs.json"
-        ]
-    }
