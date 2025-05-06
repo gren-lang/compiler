@@ -410,11 +410,9 @@ update msg model =
                     |> Stream.Log.line model.stdout
                     |> Task.execute
 
-            -- TODO: just use a local variable for args
             InstallPackages (Ok { projectPath, projectSources, outline, rootPackages, loadedPackages, solvedPackages, andThen }) ->
                 when Compiler.Dependencies.solve rootPackages solvedPackages is
                     Compiler.Dependencies.Complete ->
-                        -- TODO: can 'andThen' (onComplete?) be changed to a Task?
                         andThen
                             { projectPath = projectPath
                             , outline = outline
@@ -477,8 +475,9 @@ update msg model =
                                     repoPath =
                                         localRepoPath name lowerBound projectPath
                                 in
-                                -- TODO: Cleanup git repos
-                                Git.clonePackage model.cpPermission repoPath name lowerBound
+                                FileSystem.remove model.fsPermission { recursive = True, ignoreErrors = False } repoPath
+                                    |> Task.onError (\_ -> Task.succeed repoPath) -- Probably because directory doesn't exist, that's fine
+                                    |> Task.andThen (\_ -> Git.clonePackage model.cpPermission repoPath name lowerBound)
                                     |> Task.mapError (\{ stderr } -> Maybe.withDefault "" <| Bytes.toString stderr)
                                     |> Task.andThen (\{} ->
                                         (Path.append (Path.fromPosixString "gren.json") repoPath)
@@ -609,21 +608,25 @@ loadPackageFromPath fsPermission name path =
                     Ok outline ->
                         Outline.findSourceFiles fsPermission (Outline.Pkg outline) path
                             |> Task.mapError FileSystem.errorToString
-                            |> Task.map
+                            |> Task.andThen
                                 (\sourceFiles ->
-                                    -- TODO: Verify name
-                                    -- TODO: Verify version
-                                    Just
-                                        { name = name
-                                        , outline = outline
-                                        , sources =
-                                            Array.foldl
-                                                (\{ moduleName, source } acc ->
-                                                    Dict.set moduleName source acc
-                                                )
-                                                Dict.empty
-                                                sourceFiles
-                                        }
+                                    if name /= outline.name then
+                                        Task.fail ("Name in outline was expected to be " ++ PackageName.toString name)
+
+                                    else
+                                        Task.succeed
+                                            (Just
+                                                { name = name
+                                                , outline = outline
+                                                , sources =
+                                                    Array.foldl
+                                                        (\{ moduleName, source } acc ->
+                                                            Dict.set moduleName source acc
+                                                        )
+                                                        Dict.empty
+                                                        sourceFiles
+                                                }
+                                            )
                                 )
 
                     Err jsonErr ->
@@ -646,15 +649,20 @@ loadPackageFromBundle fsPermission name vsn projectPath =
                         (\data ->
                             when Decode.decodeString packageBundleDecoder data is
                                 Ok bundle ->
-                                    -- TODO: Verify name
-                                    -- TODO: Verify version
-                                    Task.succeed
-                                        (Just
-                                            { name = name
-                                            , outline = bundle.outline
-                                            , sources = bundle.sources
-                                            }
-                                        )
+                                    if name /= bundle.outline.name then
+                                        Task.fail ("Package name mismatch. Expected " ++ PackageName.toString name)
+
+                                    else if vsn /= bundle.outline.version then
+                                        Task.fail ("Package version mismatch. Expected " ++ SemanticVersion.toString vsn)
+
+                                    else
+                                        Task.succeed
+                                            (Just
+                                                { name = name
+                                                , outline = bundle.outline
+                                                , sources = bundle.sources
+                                                }
+                                            )
 
                                 Err jsonErr ->
                                     Task.fail <| Decode.errorToString jsonErr
@@ -797,106 +805,58 @@ parseUserArgs model compilerPath =
                         }
 
                 CliParser.Make flags ->
-                    -- TODO: DRY
-                    Compiler.Paths.projectRoot model.fsPermission
-                        |> Task.mapError PackageInstallNoProject
-                        |> Task.map (Path.append (Path.fromPosixString "gren.json"))
-                        |> Task.andThen
-                            (\grenJsonPath ->
-                                readOutline model.fsPermission grenJsonPath
-                                    |> Task.mapError PackageInstallNoGrenJson
-                                    |> Task.andThen
-                                        (\decodeResult ->
-                                            when decodeResult is
-                                                Ok outline ->
-                                                    Task.succeed
-                                                        { projectPath =
-                                                            Path.parentPath grenJsonPath
-                                                                |> Maybe.withDefault grenJsonPath
-                                                        , outline = outline
-                                                        , andThen =
-                                                            (\resolved ->
-                                                                Compiler.Backend.run
-                                                                    model.cpPermission
-                                                                    { useColor = model.useColor
-                                                                    , compilerPath = compilerPath
-                                                                    , pathToString = model.pathToString
-                                                                    , onInit = initWithCommand <|
-                                                                        Compiler.Backend.Make
-                                                                            { optimize = flags.optimize
-                                                                            , sourcemaps = flags.sourcemaps
-                                                                            , output = flags.output
-                                                                            , report = flags.report
-                                                                            , projectPath = resolved.projectPath
-                                                                            , entryPoints = flags.entryPoints
-                                                                            , outline = resolved.outline
-                                                                            , rootSources = resolved.rootSources
-                                                                            , dependencies = resolved.dependencies
-                                                                            }
-                                                                    , onComplete = CompilerRan
-                                                                    }
-                                                            )
-                                                        }
-
-                                                Err err ->
-                                                    Task.fail (PackageInstallInvalidGrenJson err)
-                                        )
-                            )
-                        |> Task.attempt InitiatePackageInstall
+                    runMake model.fsPermission
+                        (\resolved ->
+                            Compiler.Backend.run
+                                model.cpPermission
+                                { useColor = model.useColor
+                                , compilerPath = compilerPath
+                                , pathToString = model.pathToString
+                                , onInit = initWithCommand <|
+                                    Compiler.Backend.Make
+                                        { optimize = flags.optimize
+                                        , sourcemaps = flags.sourcemaps
+                                        , output = flags.output
+                                        , report = flags.report
+                                        , projectPath = resolved.projectPath
+                                        , entryPoints = flags.entryPoints
+                                        , outline = resolved.outline
+                                        , rootSources = resolved.rootSources
+                                        , dependencies = resolved.dependencies
+                                        }
+                                , onComplete = CompilerRan
+                                }
+                        )
 
                 CliParser.MakeStatic opts ->
-                    -- TODO: DRY
-                    Compiler.Paths.projectRoot model.fsPermission
-                        |> Task.mapError PackageInstallNoProject
-                        |> Task.map (Path.append (Path.fromPosixString "gren.json"))
-                        |> Task.andThen
-                            (\grenJsonPath ->
-                                readOutline model.fsPermission grenJsonPath
-                                    |> Task.mapError PackageInstallNoGrenJson
-                                    |> Task.andThen
-                                        (\decodeResult ->
-                                            when decodeResult is
-                                                Ok outline ->
-                                                    Task.succeed
-                                                        { projectPath =
-                                                            Path.parentPath grenJsonPath
-                                                                |> Maybe.withDefault grenJsonPath
-                                                        , outline = outline
-                                                        , andThen =
-                                                            (\resolved ->
-                                                                Compiler.Backend.run
-                                                                    model.cpPermission
-                                                                    { useColor = model.useColor
-                                                                    , compilerPath = compilerPath
-                                                                    , pathToString = model.pathToString
-                                                                    , onInit = initWithCommand <|
-                                                                        Compiler.Backend.Make
-                                                                            { optimize = True
-                                                                            , sourcemaps = False
-                                                                            , output = Just (Compiler.Backend.Exe <| model.pathToString opts.output)
-                                                                            , report = Nothing
-                                                                            , projectPath = resolved.projectPath
-                                                                            , entryPoints = [ opts.source ]
-                                                                            , outline = resolved.outline
-                                                                            , rootSources = resolved.rootSources
-                                                                            , dependencies = resolved.dependencies
-                                                                            }
-                                                                    , onComplete =
-                                                                        (\exitCode ->
-                                                                            CompilerRanStatic
-                                                                                { path = model.pathToString opts.output
-                                                                                , exitCode = exitCode
-                                                                                }
-                                                                        )
-                                                                    }
-                                                            )
-                                                        }
-
-                                                Err err ->
-                                                    Task.fail (PackageInstallInvalidGrenJson err)
-                                        )
-                            )
-                        |> Task.attempt InitiatePackageInstall
+                    runMake model.fsPermission
+                        (\resolved ->
+                            Compiler.Backend.run
+                                model.cpPermission
+                                { useColor = model.useColor
+                                , compilerPath = compilerPath
+                                , pathToString = model.pathToString
+                                , onInit = initWithCommand <|
+                                    Compiler.Backend.Make
+                                        { optimize = True
+                                        , sourcemaps = False
+                                        , output = Just (Compiler.Backend.Exe <| model.pathToString opts.output)
+                                        , report = Nothing
+                                        , projectPath = resolved.projectPath
+                                        , entryPoints = [ opts.source ]
+                                        , outline = resolved.outline
+                                        , rootSources = resolved.rootSources
+                                        , dependencies = resolved.dependencies
+                                        }
+                                , onComplete =
+                                    (\exitCode ->
+                                        CompilerRanStatic
+                                            { path = model.pathToString opts.output
+                                            , exitCode = exitCode
+                                            }
+                                    )
+                                }
+                        )
 
                 CliParser.Docs flags ->
                     Compiler.Backend.run
@@ -1076,6 +1036,34 @@ parseUserArgs model compilerPath =
                         _ ->
                             Stream.Log.line model.stdout "You can only use one of --project, --package-cache and --backend!"
                                 |> Task.execute
+
+
+runMake : FileSystem.Permission -> (PackageResolution -> Cmd Msg) -> Cmd Msg
+runMake fsPermission andThen =
+    Compiler.Paths.projectRoot fsPermission
+        |> Task.mapError PackageInstallNoProject
+        |> Task.map (Path.append (Path.fromPosixString "gren.json"))
+        |> Task.andThen
+            (\grenJsonPath ->
+                readOutline fsPermission grenJsonPath
+                    |> Task.mapError PackageInstallNoGrenJson
+                    |> Task.andThen
+                        (\decodeResult ->
+                            when decodeResult is
+                                Ok outline ->
+                                    Task.succeed
+                                        { projectPath =
+                                            Path.parentPath grenJsonPath
+                                                |> Maybe.withDefault grenJsonPath
+                                        , outline = outline
+                                        , andThen = andThen
+                                        }
+
+                                Err err ->
+                                    Task.fail (PackageInstallInvalidGrenJson err)
+                        )
+            )
+        |> Task.attempt InitiatePackageInstall
 
 
 readOutline : FileSystem.Permission -> Path -> Task FileSystem.Error (Result Decode.Error Outline)
