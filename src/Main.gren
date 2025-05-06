@@ -152,7 +152,8 @@ type Msg
     | CompilerRan Int
     | CompilerRanStatic { path : String, exitCode : Int }
     | InitiatePackageInstall
-        (Result PackageInstallError
+        (Result
+            PackageInstallError
             { projectPath : Path
             , outline : Outline
             , andThen : PackageResolution -> Cmd Msg
@@ -164,7 +165,7 @@ type Msg
             , outline : Outline
             , projectSources : Dict String String
             , rootPackages : Array { name : PackageName, version : SemanticVersionRange }
-            , loadedPackages : Dict String { outline : Outline, sources : Dict String String }
+            , loadedPackages : Dict String { outline : Outline.PkgOutline, sources : Dict String String }
             , solvedPackages : Dict String Compiler.Dependencies.SimplifiedOutline
             , andThen : PackageResolution -> Cmd Msg
             }
@@ -175,7 +176,7 @@ type alias PackageResolution =
     { projectPath : Path
     , outline : Outline
     , rootSources : Dict String String
-    , dependencies : Dict String { outline : Outline, sources : Dict String String }
+    , dependencies : Dict String { outline : Outline.PkgOutline, sources : Dict String String }
     }
 
 
@@ -383,7 +384,7 @@ update msg model =
 
                                                         Outline.LocalPath _ ->
                                                             when Dict.get key loadedPackages is
-                                                                Just { outline = (Outline.Pkg pkgOutline) } ->
+                                                                Just { outline = pkgOutline } ->
                                                                     Array.pushLast
                                                                         { name = PackageName.fromString key |> Maybe.withDefault PackageName.example
                                                                         , version = SemanticVersionRange.fromExact pkgOutline.version
@@ -444,26 +445,20 @@ update msg model =
                                             , solvedPackages =
                                                 Dict.set
                                                     packageNameString
-                                                    -- TODO: loaded packages should be guaranteed package outlines
                                                     { name = name
                                                     , version = version
                                                     , dependencies =
-                                                        when loadedPackage.outline is
-                                                            Outline.App _ ->
-                                                                Dict.empty
+                                                        Dict.mapAndKeepJust
+                                                            (\_ constraint ->
+                                                                when constraint is
+                                                                    -- TODO: Error
+                                                                    Outline.Version vsn ->
+                                                                        Just vsn
 
-                                                            Outline.Pkg pkgOutline ->
-                                                                Dict.mapAndKeepJust
-                                                                    (\_ constraint ->
-                                                                        when constraint is
-                                                                            -- TODO: Error
-                                                                            Outline.Version vsn ->
-                                                                                Just vsn
-
-                                                                            Outline.LocalPath _ ->
-                                                                                Nothing
-                                                                    )
-                                                                    pkgOutline.dependencies
+                                                                    Outline.LocalPath _ ->
+                                                                        Nothing
+                                                            )
+                                                            loadedPackage.outline.dependencies
                                                     }
                                                     solvedPackages
                                             , andThen = andThen
@@ -492,8 +487,8 @@ update msg model =
                                             |> Task.andThen
                                                 (\decodeResult ->
                                                     when decodeResult is
-                                                        Ok packageOutline ->
-                                                            Outline.findSourceFiles model.fsPermission packageOutline repoPath
+                                                        Ok (Outline.Pkg packageOutline) ->
+                                                            Outline.findSourceFiles model.fsPermission (Outline.Pkg packageOutline) repoPath
                                                                 |> Task.mapError FileSystem.errorToString
                                                                 |> Task.map
                                                                     (\files ->
@@ -514,6 +509,9 @@ update msg model =
                                                                                 |> Json.encode 0
                                                                         }
                                                                     )
+
+                                                        Ok (Outline.App _) ->
+                                                            Task.fail "Expected package-type outline."
 
                                                         Err err ->
                                                             Task.fail <| Debug.toString err
@@ -583,7 +581,7 @@ update msg model =
 
 type alias LoadedPackage =
     { name : PackageName
-    , outline : Outline
+    , outline : Outline.PkgOutline
     , sources : Dict String String
     }
 
@@ -607,15 +605,14 @@ loadPackageFromPath fsPermission name path =
             )
         |> Task.andThen
             (\outlineStr ->
-                when Decode.decodeString Outline.jsonDecoder outlineStr is
+                when Decode.decodeString Outline.pkgJsonDecoder outlineStr is
                     Ok outline ->
-                        Outline.findSourceFiles fsPermission outline path
+                        Outline.findSourceFiles fsPermission (Outline.Pkg outline) path
                             |> Task.mapError FileSystem.errorToString
                             |> Task.map
                                 (\sourceFiles ->
                                     -- TODO: Verify name
                                     -- TODO: Verify version
-                                    -- TODO: Verify outline type
                                     Just
                                         { name = name
                                         , outline = outline
@@ -651,7 +648,6 @@ loadPackageFromBundle fsPermission name vsn projectPath =
                                 Ok bundle ->
                                     -- TODO: Verify name
                                     -- TODO: Verify version
-                                    -- TODO: Verify outline type
                                     Task.succeed
                                         (Just
                                             { name = name
@@ -666,22 +662,21 @@ loadPackageFromBundle fsPermission name vsn projectPath =
                     |> Task.onError (\_ -> Task.succeed Nothing)
             )
 
-packageBundleEncoder : Outline -> Dict String String -> Json.Value
+packageBundleEncoder : Outline.PkgOutline -> Dict String String -> Json.Value
 packageBundleEncoder outline sources =
     Json.object
-        [ { key = "outline", value = Outline.toJson outline }
+        [ { key = "outline", value = Outline.toJson (Outline.Pkg outline) }
         , { key = "sources", value = Json.dict identity Json.string sources }
         ]
 
 
-packageBundleDecoder : Decoder { outline : Outline, sources : Dict String String }
+packageBundleDecoder : Decoder { outline : Outline.PkgOutline, sources : Dict String String }
 packageBundleDecoder =
     Decode.map2 (\outline sources -> { outline = outline, sources = sources })
-        (Decode.field "outline" Outline.jsonDecoder)
+        (Decode.field "outline" Outline.pkgJsonDecoder)
         (Decode.field "sources" (Decode.dict Decode.string))
 
 
--- TODO: move to gren-lang/core as consumeString
 readStringFromStream : Stream.Readable String -> Task Stream.Error String
 readStringFromStream stream =
     Stream.readUntilClosed (\chunk result -> Ok (result ++ chunk)) "" stream
@@ -820,7 +815,7 @@ parseUserArgs model compilerPath =
                                                                 |> Maybe.withDefault grenJsonPath
                                                         , outline = outline
                                                         , andThen =
-                                                            (\resolved->
+                                                            (\resolved ->
                                                                 Compiler.Backend.run
                                                                     model.cpPermission
                                                                     { useColor = model.useColor
