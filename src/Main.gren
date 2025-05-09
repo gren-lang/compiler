@@ -42,6 +42,7 @@ type alias Model =
     { args : Array String
     , stdout : Stream.Writable Bytes
     , stderr : Stream.Writable Bytes
+    , stdin : Stream.Readable Bytes
     , useColor : Bool
     , interactive : Bool
     , backendPath : Path
@@ -100,6 +101,7 @@ init env =
                     { args = userArgs
                     , stdout = env.stdout
                     , stderr = env.stderr
+                    , stdin = env.stdin
                     , interactive = interactiveTerminal
                     , useColor = useColor
                     , backendPath =
@@ -184,6 +186,7 @@ type PackageInstallError
     = PackageInstallNoProject FileSystem.Error
     | PackageInstallNoGrenJson FileSystem.Error
     | PackageInstallInvalidGrenJson Decode.Error
+    | PackageInstallDebug String
 
 
 port completeStaticBuild : String -> Cmd msg
@@ -425,6 +428,7 @@ update msg model =
                             packageNameString =
                                 PackageName.toString name
                         in
+                        -- TODO: Check that the package is defined in the outline
                         when Dict.get packageNameString loadedPackages is
                             Just loadedPackage ->
                                 Outline.findSourceFiles model.fsPermission outline projectPath
@@ -868,30 +872,101 @@ parseUserArgs model compilerPath =
                         , onComplete = CompilerRan
                         }
 
-                -- TODO: test installing single package
-                CliParser.PackageInstall _ ->
-                    Compiler.Paths.projectRoot model.fsPermission
-                        |> Task.mapError PackageInstallNoProject
-                        |> Task.map (Path.append (Path.fromPosixString "gren.json"))
+                CliParser.PackageInstall Nothing ->
+                    readProjectOutline model.fsPermission
+                        |> Task.map
+                            (\{ grenJsonPath, outline } ->
+                                { projectPath =
+                                    Path.parentPath grenJsonPath
+                                        |> Maybe.withDefault grenJsonPath
+                                , outline = outline
+                                , andThen = (\_ -> Task.succeed {} |> Task.execute)
+                                }
+                            )
+                        |> Task.attempt InitiatePackageInstall
+
+                CliParser.PackageInstall (Just requestedPackage) ->
+                    readProjectOutline model.fsPermission
                         |> Task.andThen
-                            (\grenJsonPath ->
-                                readOutline model.fsPermission grenJsonPath
-                                    |> Task.mapError PackageInstallNoGrenJson
-                                    |> Task.andThen
-                                        (\decodeResult ->
-                                            when decodeResult is
-                                                Ok outline ->
-                                                    Task.succeed
+                            (\{ grenJsonPath, outline } ->
+                                let
+                                    packageNameStr =
+                                        PackageName.toString requestedPackage
+                                in
+                                when outline is
+                                    Outline.App appOutline ->
+                                        when
+                                            { direct = Dict.member packageNameStr appOutline.dependencies.direct
+                                            , transitive = Dict.get packageNameStr appOutline.dependencies.indirect
+                                            }
+                                        is
+                                            { direct = False, transitive = Nothing } ->
+                                                -- TODO: fetch package version
+                                                Stream.Log.line model.stdout ("Installing " ++ packageNameStr)
+                                                    |> Task.map
+                                                        (\_ ->
+                                                            { projectPath =
+                                                                Path.parentPath grenJsonPath
+                                                                    |> Maybe.withDefault grenJsonPath
+                                                            , outline = outline
+                                                            , andThen = (\_ -> Task.succeed {} |> Task.execute)
+                                                            }
+                                                        )
+
+                                            { direct = True } ->
+                                                Task.fail <| PackageInstallDebug "Already installed"
+
+                                            { transitive = Just packageVersion } ->
+                                                Stream.Log.line model.stdout "Move to direct? y/N"
+                                                    |> Task.andThen (\_ -> Stream.readBytesAsString model.stdin)
+                                                    |> Task.mapError (\_ -> PackageInstallDebug "Stream error")
+                                                    |> Task.andThen
+                                                        (\answer ->
+                                                            when Maybe.map (String.trim >> String.toLower) answer is
+                                                                Just "y" ->
+                                                                    Task.succeed {}
+
+                                                                _ ->
+                                                                    Task.fail <| PackageInstallDebug ""
+                                                        )
+                                                    |> Task.andThen
+                                                        (\{} ->
+                                                            { appOutline
+                                                                | dependencies =
+                                                                    { direct = Dict.set packageNameStr packageVersion appOutline.dependencies.direct
+                                                                    , indirect = Dict.remove packageNameStr appOutline.dependencies.indirect
+                                                                    }
+                                                            }
+                                                            |> Outline.App
+                                                            |> Outline.toJson
+                                                            |> Json.encode 4
+                                                            |> Task.succeed
+                                                        )
+                                                    |> Task.andThen
+                                                        (\newOutline ->
+                                                            FileSystem.writeFile model.fsPermission (Bytes.fromString newOutline) grenJsonPath
+                                                                |> Task.mapError (\fsErr -> PackageInstallDebug (Debug.toString fsErr))
+                                                        )
+                                                    |> Task.andThen
+                                                        (\_ ->
+                                                            Task.fail <| PackageInstallDebug "done"
+                                                        )
+
+                                    Outline.Pkg pkgOutline ->
+                                        if Dict.member packageNameStr pkgOutline.dependencies then
+                                            Task.fail <| PackageInstallDebug "Already installed"
+
+                                        else
+                                            Stream.Log.line model.stdout ("Installing " ++ packageNameStr)
+                                                |> Task.map
+                                                    (\_ ->
                                                         { projectPath =
                                                             Path.parentPath grenJsonPath
                                                                 |> Maybe.withDefault grenJsonPath
                                                         , outline = outline
                                                         , andThen = (\_ -> Task.succeed {} |> Task.execute)
                                                         }
-
-                                                Err err ->
-                                                    Task.fail (PackageInstallInvalidGrenJson err)
-                                        )
+                                                    )
                             )
                         |> Task.attempt InitiatePackageInstall
 
@@ -1072,3 +1147,25 @@ readOutline fsPerm path =
         |> Task.map (Bytes.toString >> Maybe.withDefault "")
         |> Task.map (Decode.decodeString Outline.jsonDecoder)
 
+readProjectOutline : FileSystem.Permission -> Task PackageInstallError { grenJsonPath : Path, outline : Outline }
+readProjectOutline fsPermission =
+    Compiler.Paths.projectRoot fsPermission
+        |> Task.mapError PackageInstallNoProject
+        |> Task.map (Path.append (Path.fromPosixString "gren.json"))
+        |> Task.andThen
+            (\grenJsonPath ->
+                readOutline fsPermission grenJsonPath
+                    |> Task.mapError PackageInstallNoGrenJson
+                    |> Task.andThen
+                        (\decodeResult ->
+                            when decodeResult is
+                                Ok outline ->
+                                    Task.succeed
+                                        { grenJsonPath = grenJsonPath
+                                        , outline = outline
+                                        }
+
+                                Err err ->
+                                    Task.fail (PackageInstallInvalidGrenJson err)
+                        )
+            )
