@@ -6,6 +6,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "prepublishOnly": "npx --package=gren-lang@0.5 gren make src/Main.gren --optimize --output=/dev/stdout | terser -c -m -o compiler.js",
     "build": "npx --package=gren-lang@0.5 gren make src/Main.gren --output=compiler.js",
+    "build:sourcemaps": "npx --package=gren-lang@0.5 gren make src/Main.gren --output=compiler.js --sourcemaps",
     "prettier": "prettier -w \"!**/*.json\" .",
     "prettier:check": "prettier -c \"!**/*.json\" ."
   },
