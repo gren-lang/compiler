@@ -216,7 +216,7 @@ Library common
 Executable gren
     default-language: GHC2021
     main-is: terminal/Main.hs
-    
+
     if flag(dev)
         ghc-options: -O0 -Wall
     else
@@ -229,7 +229,7 @@ Executable gren
 
 Test-Suite gren-tests
     default-language: GHC2021
-    
+
     ghc-options: -O0 -Wall
 
     Type:
@@ -253,6 +253,7 @@ Test-Suite gren-tests
         Parse.UnderscorePatternSpec
         Parse.MultilineStringSpec
         Parse.DeclSpec
+        Integration.SourceMapSpec
 
     Build-Depends:
         gren:common,
@@ -260,7 +261,12 @@ Test-Suite gren-tests
         text >= 2 && < 3,
         utf8-string,
         bytestring >= 0.11 && < 0.12,
-        hspec >= 2.7.10 && < 3
+        hspec >= 2.7.10 && < 3,
+        temporary,
+        directory,
+        filepath,
+        aeson,
+        vector,
 
     Build-Tool-Depends:
         hspec-discover:hspec-discover >= 2.7.10 && < 3
