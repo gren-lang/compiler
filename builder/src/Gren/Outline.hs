@@ -302,7 +302,12 @@ recursiveFindGrenFiles root = do
 recursiveFindGrenFilesHelp :: FilePath -> IO [FilePath]
 recursiveFindGrenFilesHelp root =
   do
-    dirContents <- Dir.getDirectoryContents root
+    dirContentsRaw <- Dir.getDirectoryContents root
+    let dirContents =
+          -- Exclude the ".gren" directory
+          filter
+            (\fp -> FP.takeFileName fp /= ".gren")
+            dirContentsRaw
     let (grenFiles, others) = List.partition (List.isSuffixOf ".gren") dirContents
     subDirectories <- filterM (\fp -> Dir.doesDirectoryExist (root </> fp)) (filter (\fp -> fp /= "." && fp /= "..") others)
     filesFromSubDirs <- traverse (recursiveFindGrenFilesHelp . (root </>)) subDirectories
