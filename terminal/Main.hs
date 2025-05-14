@@ -22,7 +22,6 @@ import Json.Decode qualified as Json
 import Make qualified
 import Package.Bump qualified as Bump
 import Package.Diff qualified as Diff
-import Package.Install qualified as Install
 import Package.Outdated qualified as Outdated
 import Package.Uninstall qualified as Uninstall
 import Package.Validate qualified as Validate
@@ -50,10 +49,6 @@ main =
             Make.run $ Make.Flags optimize sourcemaps output report paths projectPath outline rootSources deps
           Right (Docs (DocsFlags output report)) ->
             Docs.run $ Docs.Flags output report
-          Right (PackageInstall (InstallFlags interactive Nothing)) ->
-            Install.run Install.NoArgs $ Install.Flags (not interactive)
-          Right (PackageInstall (InstallFlags interactive (Just packageName))) ->
-            Install.run (Install.Install packageName) $ Install.Flags (not interactive)
           Right (PackageUninstall (UninstallFlags interactive packageName)) ->
             Uninstall.run packageName $ Uninstall.Flags (not interactive)
           Right PackageOutdated ->
@@ -83,7 +78,6 @@ data Command
   | Repl (Maybe String)
   | Make MakeFlags
   | Docs DocsFlags
-  | PackageInstall InstallFlags
   | PackageUninstall UninstallFlags
   | PackageOutdated
   | PackageValidate
@@ -120,12 +114,6 @@ data DocsFlags = DocsFlags
   }
   deriving (Show)
 
-data InstallFlags = InstallFlags
-  { _install_interactive :: Bool,
-    _install_package :: Maybe Package.Name
-  }
-  deriving (Show)
-
 data UninstallFlags = UninstallFlags
   { _uninstall_interactive :: Bool,
     _uninstall_package :: Package.Name
@@ -152,7 +140,6 @@ commandDecoder =
       "repl" -> Repl <$> maybeDecoder (fmap Utf8.toChars Json.string)
       "make" -> Make <$> makeDecoder
       "docs" -> Docs <$> docsDecoder
-      "packageInstall" -> PackageInstall <$> installDecoder
       "packageUninstall" -> PackageUninstall <$> uninstallDecoder
       "packageOutdated" -> Json.succeed PackageOutdated
       "packageValidate" -> Json.succeed PackageValidate
@@ -226,12 +213,6 @@ docsOutputDecoder =
       "null" -> Json.succeed Docs.DevNull
       "json" -> Docs.JSON <$> Json.field (BS.pack "path") (fmap Utf8.toChars Json.string)
       _ -> Json.failure InvalidInput
-
-installDecoder :: Json.Decoder CommandDecoderError InstallFlags
-installDecoder =
-  InstallFlags
-    <$> Json.field (BS.pack "interactive") Json.bool
-    <*> Json.field (BS.pack "package") (maybeDecoder packageDecoder)
 
 uninstallDecoder :: Json.Decoder CommandDecoderError UninstallFlags
 uninstallDecoder =

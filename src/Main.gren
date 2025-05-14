@@ -998,7 +998,8 @@ parseUserArgs model compilerPath =
                                                                                 Stream.Log.line model.stdout "Done"
                                                                             )
                                                                         -- TODO: Refactor
-                                                                        -- Support package installs as well
+                                                                        -- TODO: Support package installs as well
+                                                                        -- TODO: Don't read from stdin if not interactive prompt
                                                                         |> Task.execute
                                                                 )
                                                             }
