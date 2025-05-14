@@ -1,6 +1,7 @@
-module Git exposing (clonePackage)
+module Git exposing (clonePackage, fetchLatestVersion)
 
 
+import Bytes
 import ChildProcess
 import FileSystem.Path as Path exposing (Path)
 import Compiler.PackageName as PackageName exposing (PackageName)
@@ -31,3 +32,42 @@ clonePackage cpPerm repo name version =
         , maximumBytesWrittenToStreams = 4096
         , runDuration = ChildProcess.Milliseconds 30000
         }
+
+
+fetchLatestVersion : ChildProcess.Permission -> PackageName -> Task ChildProcess.FailedRun (Maybe SemanticVersion)
+fetchLatestVersion cpPerm name =
+    let
+        githubUrl =
+            "https://github.com/" ++ PackageName.toString name ++ ".git"
+    in
+    ChildProcess.run
+        cpPerm
+        "git"
+        [ "ls-remote"
+        , "--tags"
+        , githubUrl
+        ]
+        { shell = ChildProcess.NoShell
+        , workingDirectory = ChildProcess.InheritWorkingDirectory
+        , environmentVariables = ChildProcess.InheritEnvironmentVariables
+        , maximumBytesWrittenToStreams = 4096
+        , runDuration = ChildProcess.Milliseconds 30000
+        }
+        |> Task.andThen
+            (\result ->
+                when Bytes.toString result.stdout is
+                    Nothing ->
+                        -- TODO: Proper error here
+                        Task.succeed Nothing
+
+                    Just tagList ->
+                        -- format: commit hash \t refs/tags/<tag>
+                        tagList
+                            |> String.split "\n"
+                            |> Array.map (String.split "/" >> Array.last >> Maybe.withDefault "")
+                            |> Array.mapAndKeepJust SemanticVersion.fromString
+                            |> Array.sortWith SemanticVersion.compare
+                            |> Array.last
+                            |> Task.succeed
+            )
+        |> Task.map (\res -> Debug.log "fetch" res)
