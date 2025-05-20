@@ -6,19 +6,10 @@ module Terminal.Paths exposing
 import Stream
 import Stream.Log
 import Task exposing (Task)
-import Dict exposing (Dict)
 import FileSystem
 import FileSystem.Path as Path exposing (Path)
-import HttpClient
 import Bytes exposing (Bytes)
-import Terminal
-import Process
-import CLI.Parser
-import CLI.PrettyPrinter as PP
-import SemanticVersion exposing (SemanticVersion)
-import SemanticVersionRange exposing (SemanticVersionRange)
 import Json.Encode as Json
-import Json.Decode as Decode exposing (Decoder)
 import Compiler.Paths
 
 
@@ -28,6 +19,7 @@ type alias Config =
     , stdout : Stream.Writable Bytes
     , fsPermission : FileSystem.Permission
     }
+
 
 type alias Options =
     { project : Bool
