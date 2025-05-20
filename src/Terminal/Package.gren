@@ -1,0 +1,320 @@
+module Terminal.Package exposing
+    ( PackageInstallError (..)
+    , PackageResolution
+    , install
+    , packageBundlePath
+    , localRepoPath
+    , packageBundleEncoder
+    , packageBundleDecoder
+    , readOutline
+    , readProjectOutline
+    )
+
+import Node
+import ChildProcess
+import Terminal.Parser as CliParser
+import Terminal.Paths
+import Compiler.Backend
+import Compiler.PackageName as PackageName exposing (PackageName)
+import Compiler.Platform as Platform exposing (Platform)
+import Compiler.Paths
+import Compiler.Outline as Outline exposing (Outline)
+import Compiler.Dependencies
+import Git
+import Init
+import Stream
+import Stream.Log
+import Task exposing (Task)
+import Dict exposing (Dict)
+import FileSystem
+import FileSystem.Path as Path exposing (Path)
+import HttpClient
+import Bytes exposing (Bytes)
+import Terminal
+import Process
+import CLI.Parser
+import CLI.PrettyPrinter as PP
+import SemanticVersion exposing (SemanticVersion)
+import SemanticVersionRange exposing (SemanticVersionRange)
+import Json.Encode as Json
+import Json.Decode as Decode exposing (Decoder)
+
+
+type alias Config =
+    { fsPermission : FileSystem.Permission
+    , cpPermission : ChildProcess.Permission
+    , stdout : Stream.Writable Bytes
+    }
+
+
+type alias Options msg =
+    { projectPath : Path
+    , outline : Outline
+    , projectSources : Dict String String
+    , rootPackages : Array { name : PackageName, version : SemanticVersionRange }
+    , loadedPackages : Dict String { outline : Outline.PkgOutline, sources : Dict String String }
+    , solvedPackages : Dict String Compiler.Dependencies.SimplifiedOutline
+    , andThen : PackageResolution -> Cmd msg
+    }
+
+
+type alias PackageResolution =
+    { projectPath : Path
+    , outline : Outline
+    , rootSources : Dict String String
+    , dependencies : Dict String { outline : Outline.PkgOutline, sources : Dict String String }
+    }
+
+
+type PackageInstallError
+    = PackageInstallNoProject FileSystem.Error
+    | PackageInstallNoGrenJson FileSystem.Error
+    | PackageInstallInvalidGrenJson Decode.Error
+    | PackageInstallDebug String
+
+
+install : Config -> Options a -> Task PackageInstallError PackageResolution
+install config { projectPath, outline, projectSources, rootPackages, loadedPackages, solvedPackages, andThen } =
+    when Compiler.Dependencies.solve rootPackages solvedPackages is
+        Compiler.Dependencies.Complete ->
+            Task.succeed
+                { projectPath = projectPath
+                , outline = outline
+                , rootSources = projectSources
+                , dependencies = loadedPackages
+                }
+
+        Compiler.Dependencies.Missing { name, version } ->
+            let
+                packageNameString =
+                    PackageName.toString name
+            in
+            -- TODO: Check that the package is defined in the outline
+            when Dict.get packageNameString loadedPackages is
+                Just loadedPackage ->
+                    Outline.findSourceFiles config.fsPermission outline projectPath
+                        |> Task.mapError FileSystem.errorToString
+                        |> Task.map
+                            (\sourceFiles ->
+                                { projectPath = projectPath
+                                , outline = outline
+                                , projectSources =
+                                    Array.foldl
+                                        (\{ moduleName, source } dict -> Dict.set moduleName source dict)
+                                        Dict.empty
+                                        sourceFiles
+                                , rootPackages = rootPackages
+                                , loadedPackages = loadedPackages
+                                , solvedPackages =
+                                    Dict.set
+                                        packageNameString
+                                        { name = name
+                                        , version = version
+                                        , dependencies =
+                                            Dict.mapAndKeepJust
+                                                (\_ constraint ->
+                                                    when constraint is
+                                                        -- TODO: Error
+                                                        Outline.Version vsn ->
+                                                            Just vsn
+
+                                                        Outline.LocalPath _ ->
+                                                            Nothing
+                                                )
+                                                loadedPackage.outline.dependencies
+                                        }
+                                        solvedPackages
+                                , andThen = andThen
+                                }
+                            )
+                            |> Task.mapError PackageInstallDebug
+                            |> Task.andThen (install config)
+                
+                Nothing ->
+                    let
+                        lowerBound =
+                            SemanticVersionRange.lowerBound version
+
+                        bundlePath =
+                            packageBundlePath name lowerBound projectPath
+
+                        repoPath =
+                            localRepoPath name lowerBound projectPath
+                    in
+                    FileSystem.remove config.fsPermission { recursive = True, ignoreErrors = False } repoPath
+                        |> Task.onError (\_ -> Task.succeed repoPath) -- Probably because directory doesn't exist, that's fine
+                        |> Task.andThen (\_ -> Git.clonePackage config.cpPermission repoPath name lowerBound)
+                        |> Task.mapError (\{ stderr } -> Maybe.withDefault "" <| Bytes.toString stderr)
+                        |> Task.andThen (\{} ->
+                            (Path.append (Path.fromPosixString "gren.json") repoPath)
+                                |> readOutline config.fsPermission
+                                |> Task.mapError FileSystem.errorToString
+                                |> Task.andThen
+                                    (\decodeResult ->
+                                        when decodeResult is
+                                            Ok (Outline.Pkg packageOutline) ->
+                                                Outline.findSourceFiles config.fsPermission (Outline.Pkg packageOutline) repoPath
+                                                    |> Task.mapError FileSystem.errorToString
+                                                    |> Task.map
+                                                        (\files ->
+                                                            let
+                                                                sources =
+                                                                    Array.foldl
+                                                                        (\{ moduleName, source } dict ->
+                                                                            Dict.set moduleName source dict
+                                                                        )
+                                                                        Dict.empty
+                                                                        files
+                                                            in
+                                                            { name = name
+                                                            , outline = packageOutline
+                                                            , sources = sources
+                                                            , data =
+                                                                packageBundleEncoder packageOutline sources
+                                                                    |> Json.encode 0
+                                                            }
+                                                        )
+
+                                            Ok (Outline.App _) ->
+                                                Task.fail "Expected package-type outline."
+
+                                            Err err ->
+                                                Task.fail <| Debug.toString err
+                                    )
+                        )
+                        |> Task.andThen
+                            (\pkg ->
+                                let
+                                    packagesDir =
+                                        Path.append (Path.fromPosixString "gren_packages") projectPath
+                                in
+                                packagesDir
+                                    |> FileSystem.makeDirectory config.fsPermission { recursive = False }
+                                    |> Task.onError
+                                        (\err ->
+                                            if FileSystem.errorIsFileExists err then
+                                                Task.succeed packagesDir
+
+                                            else
+                                                Task.fail err
+                                        )
+                                    |> Task.andThen (\_ -> FileSystem.writeFileStream config.fsPermission bundlePath)
+                                    |> Task.mapError FileSystem.errorToString
+                                    |> Task.andThen
+                                        (\stream ->
+                                            Stream.fromArray [ pkg.data ]
+                                                |> Task.andThen (Stream.awaitAndPipeThrough Stream.textEncoder)
+                                                |> Task.andThen (Stream.awaitAndPipeThrough Stream.gzipCompression)
+                                                |> Task.andThen (Stream.pipeTo stream)
+                                                |> Task.mapError Stream.errorToString
+                                        )
+                                    |> Task.map (\_ -> pkg)
+                            )
+                        |> Task.andThen
+                            (\pkg ->
+                                Outline.findSourceFiles config.fsPermission outline projectPath
+                                    |> Task.mapError FileSystem.errorToString
+                                    |> Task.map
+                                        (\sourceFiles ->
+                                            { projectPath = projectPath
+                                            , outline = outline
+                                            , projectSources =
+                                                Array.foldl
+                                                    (\{ moduleName, source } dict -> Dict.set moduleName source dict)
+                                                    Dict.empty
+                                                    sourceFiles
+                                            , rootPackages = rootPackages
+                                            , loadedPackages =
+                                                Dict.set
+                                                    (PackageName.toString name)
+                                                    { outline = pkg.outline, sources = pkg.sources }
+                                                    loadedPackages
+                                            , solvedPackages = solvedPackages
+                                            , andThen = andThen
+                                            }
+                                        )
+                            )
+                        -- TODO: Print progress
+                        |> Task.mapError PackageInstallDebug
+                        |> Task.andThen (install config)
+
+        Compiler.Dependencies.Conflict _ ->
+            Task.fail (PackageInstallDebug "TODO: CONFLICT")
+
+
+packageBundlePath : PackageName -> SemanticVersion -> Path -> Path
+packageBundlePath name version projectPath =
+    let
+        normalizedName =
+            (PackageName.toString name ++ "__" ++ SemanticVersion.toString version)
+                |> String.replace "-" "_"
+                |> String.replace "." "_"
+                |> String.replace "/" "_"
+                |> String.append ".pkg.gz"
+    in
+    Path.join
+        [ projectPath
+        , Path.fromPosixString "gren_packages"
+        , Path.fromPosixString normalizedName
+        ]
+
+
+localRepoPath : PackageName -> SemanticVersion -> Path -> Path
+localRepoPath name version projectPath =
+    let
+        normalizedName =
+            (PackageName.toString name ++ "__" ++ SemanticVersion.toString version)
+                |> String.replace "-" "_"
+                |> String.replace "." "_"
+                |> String.replace "/" "_"
+    in
+    Path.join
+        [ projectPath
+        , Path.fromPosixString ".gren/git"
+        , Path.fromPosixString normalizedName
+        ]
+
+
+readOutline : FileSystem.Permission -> Path -> Task FileSystem.Error (Result Decode.Error Outline)
+readOutline fsPerm path =
+    FileSystem.readFile fsPerm path
+        |> Task.map (Bytes.toString >> Maybe.withDefault "")
+        |> Task.map (Decode.decodeString Outline.jsonDecoder)
+
+readProjectOutline : FileSystem.Permission -> Task PackageInstallError { grenJsonPath : Path, outline : Outline }
+readProjectOutline fsPermission =
+    Compiler.Paths.projectRoot fsPermission
+        |> Task.mapError PackageInstallNoProject
+        |> Task.map (Path.append (Path.fromPosixString "gren.json"))
+        |> Task.andThen
+            (\grenJsonPath ->
+                readOutline fsPermission grenJsonPath
+                    |> Task.mapError PackageInstallNoGrenJson
+                    |> Task.andThen
+                        (\decodeResult ->
+                            when decodeResult is
+                                Ok outline ->
+                                    Task.succeed
+                                        { grenJsonPath = grenJsonPath
+                                        , outline = outline
+                                        }
+
+                                Err err ->
+                                    Task.fail (PackageInstallInvalidGrenJson err)
+                        )
+            )
+
+
+packageBundleEncoder : Outline.PkgOutline -> Dict String String -> Json.Value
+packageBundleEncoder outline sources =
+    Json.object
+        [ { key = "outline", value = Outline.toJson (Outline.Pkg outline) }
+        , { key = "sources", value = Json.dict identity Json.string sources }
+        ]
+
+
+packageBundleDecoder : Decoder { outline : Outline.PkgOutline, sources : Dict String String }
+packageBundleDecoder =
+    Decode.map2 (\outline sources -> { outline = outline, sources = sources })
+        (Decode.field "outline" Outline.pkgJsonDecoder)
+        (Decode.field "sources" (Decode.dict Decode.string))

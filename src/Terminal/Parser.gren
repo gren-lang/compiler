@@ -1,4 +1,4 @@
-module CliParser exposing
+module Terminal.Parser exposing
     ( Command (..)
     , MakeFlags
     , MakeStaticOpts
@@ -11,8 +11,10 @@ import CLI.PrettyPrinter as PP
 import Compiler.Backend
 import Compiler.PackageName as PackageName exposing (PackageName)
 import Compiler.Platform as Platform exposing (Platform)
+import Terminal.Paths as Paths
 import SemanticVersion exposing (SemanticVersion)
 import FileSystem.Path as Path exposing (Path)
+
 
 type Command
     = Init Compiler.Backend.InitFlags
@@ -26,12 +28,7 @@ type Command
     | PackageValidate
     | PackageBump
     | PackageDiff Compiler.Backend.DiffArgs
-    | Paths
-        { project : Bool
-        , packageCache : Bool
-        , backend : Bool
-        , json : Bool
-        }
+    | Paths Paths.Options
 
 
 type alias MakeFlags =
