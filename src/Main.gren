@@ -47,9 +47,9 @@ type alias Model =
     , fsPermission : FileSystem.Permission
     , cpPermission : ChildProcess.Permission
     , httpPermission : HttpClient.Permission
+    -- TODO: Remove
     , pathToString : Path -> String
     }
-
 
 init : Node.Environment -> Init.Task { model : Model, command : Cmd Msg }
 init env =
@@ -59,82 +59,82 @@ init env =
     Init.await Terminal.initialize <| \terminalConfig ->
     Init.awaitTask Node.getEnvironmentVariables <| \envVars ->
     Init.awaitTask (FileSystem.homeDirectory fsPermission) <| \homeDir ->
-            let
-                userArgs =
-                    Array.dropFirst 2 env.args
+        let
+            userArgs =
+                Array.dropFirst 2 env.args
 
-                interactiveTerminal =
-                    terminalConfig /= Nothing
+            interactiveTerminal =
+                terminalConfig /= Nothing
 
-                useColor =
-                    interactiveTerminal && not (Dict.member "NO_COLOR" envVars)
+            useColor =
+                interactiveTerminal && not (Dict.member "NO_COLOR" envVars)
 
-                maybePaths =
-                    when { platform = env.platform, override = Dict.get "GREN_BIN" envVars } is
-                        { override = Just overridePath, platform = Node.Win32 } ->
-                            Just <|
-                                { remotePath = Nothing
-                                , localPath = Path.fromWin32String overridePath
-                                }
-                        
-                        { override = Just overridePath } ->
-                            Just <|
-                                { remotePath = Nothing
-                                , localPath = Path.fromPosixString overridePath
-                                }
+            maybePaths =
+                when { platform = env.platform, override = Dict.get "GREN_BIN" envVars } is
+                    { override = Just overridePath, platform = Node.Win32 } ->
+                        Just <|
+                            { remotePath = Nothing
+                            , localPath = Path.fromWin32String overridePath
+                            }
+                    
+                    { override = Just overridePath } ->
+                        Just <|
+                            { remotePath = Nothing
+                            , localPath = Path.fromPosixString overridePath
+                            }
 
-                        _ ->
-                            Compiler.Backend.downloadUrl env.platform env.cpuArchitecture
-                                |> Result.map 
-                                    (\url ->
-                                        { remotePath = Just url
-                                        , localPath = Compiler.Backend.cachePath env.platform envVars homeDir
-                                        }
-                                    )
-                                |> Result.toMaybe
+                    _ ->
+                        Compiler.Backend.downloadUrl env.platform env.cpuArchitecture
+                            |> Result.map 
+                                (\url ->
+                                    { remotePath = Just url
+                                    , localPath = Compiler.Backend.cachePath env.platform envVars homeDir
+                                    }
+                                )
+                            |> Result.toMaybe
 
-            in
-            Node.startProgram
-                { model =
-                    { args = userArgs
-                    , stdout = env.stdout
-                    , stderr = env.stderr
-                    , stdin = env.stdin
-                    , interactive = interactiveTerminal
-                    , useColor = useColor
-                    , backendPath =
-                        when maybePaths is
-                            Nothing ->
-                                Compiler.Backend.cachePath env.platform envVars homeDir
-
-                            Just paths ->
-                                paths.localPath
-                    , fsPermission = fsPermission
-                    , cpPermission = cpPermission
-                    , httpPermission = httpPermission
-                    , pathToString =
-                        if env.platform == Node.Win32 then
-                            Path.toWin32String
-                        else
-                            Path.toPosixString
-                    }
-                , command =
+        in
+        Node.startProgram
+            { model =
+                { args = userArgs
+                , stdout = env.stdout
+                , stderr = env.stderr
+                , stdin = env.stdin
+                , interactive = interactiveTerminal
+                , useColor = useColor
+                , backendPath =
                     when maybePaths is
-                        Just paths ->
-                            FileSystem.checkAccess fsPermission [] paths.localPath
-                                |> Task.attempt 
-                                    (\result -> 
-                                        ExistanceChecked
-                                            { maybeRemotePath = paths.remotePath
-                                            , localPath = paths.localPath
-                                            , existanceResult = result
-                                            }
-                                    )
-
                         Nothing ->
-                            Stream.Log.line env.stderr "We currently don't support this platform/arch."
-                                |> Task.execute
+                            Compiler.Backend.cachePath env.platform envVars homeDir
+
+                        Just paths ->
+                            paths.localPath
+                , fsPermission = fsPermission
+                , cpPermission = cpPermission
+                , httpPermission = httpPermission
+                , pathToString =
+                    if env.platform == Node.Win32 then
+                        Path.toWin32String
+                    else
+                        Path.toPosixString
                 }
+            , command =
+                when maybePaths is
+                    Just paths ->
+                        FileSystem.checkAccess fsPermission [] paths.localPath
+                            |> Task.attempt 
+                                (\result -> 
+                                    ExistanceChecked
+                                        { maybeRemotePath = paths.remotePath
+                                        , localPath = paths.localPath
+                                        , existanceResult = result
+                                        }
+                                )
+
+                    Nothing ->
+                        Stream.Log.line env.stderr "We currently don't support this platform/arch."
+                            |> Task.execute
+            }
 
 
 type Msg
@@ -151,14 +151,6 @@ type Msg
     | CompilerInitialized { backendStreams : ChildProcess.StreamIO, encodedCommand : Bytes }
     | CompilerRan Int
     | CompilerRanStatic { path : String, exitCode : Int }
-    | InitiatePackageInstall
-        (Result
-            Terminal.Package.PackageInstallError
-            { projectPath : Path
-            , outline : Outline
-            , andThen : Terminal.Package.PackageResolution -> Cmd Msg
-            }
-        )
     | PackageResolutionReady
         (Result
             Terminal.Package.PackageInstallError
@@ -278,23 +270,6 @@ update msg model =
                 else
                     Node.exitWithCode exitCode
                         |> Task.execute
-
-            InitiatePackageInstall (Err err) ->
-                -- TODO: Replace error output code in backend
-                Stream.Log.line model.stdout (Debug.toString msg)
-                    |> Task.execute
-
-            InitiatePackageInstall (Ok opts) ->
-                Terminal.Package.install
-                    { fsPermission = model.fsPermission
-                    , cpPermission = model.cpPermission
-                    , stdout = model.stdout
-                    }
-                    { outline = opts.outline
-                    , projectPath = opts.projectPath
-                    }
-                    |> Task.map (\res -> { resolution = res, andThen = opts.andThen })
-                    |> Task.attempt PackageResolutionReady
                 
             PackageResolutionReady (Err error) ->
                 -- TODO: Real errors
@@ -302,6 +277,7 @@ update msg model =
                     |> Stream.Log.line model.stdout
                     |> Task.execute
 
+            -- TODO: Remove this once executeCmd lands
             PackageResolutionReady (Ok { resolution, andThen }) ->
                 andThen resolution
         }
@@ -389,58 +365,96 @@ parseUserArgs model compilerPath =
                         }
 
                 CliParser.Make flags ->
-                    runMake model.fsPermission
-                        (\resolved ->
-                            Compiler.Backend.run
-                                model.cpPermission
-                                { useColor = model.useColor
-                                , compilerPath = compilerPath
-                                , pathToString = model.pathToString
-                                , onInit = initWithCommand <|
-                                    Compiler.Backend.Make
-                                        { optimize = flags.optimize
-                                        , sourcemaps = flags.sourcemaps
-                                        , output = flags.output
-                                        , report = flags.report
-                                        , projectPath = resolved.projectPath
-                                        , entryPoints = flags.entryPoints
-                                        , outline = resolved.outline
-                                        , rootSources = resolved.rootSources
-                                        , dependencies = resolved.dependencies
-                                        }
-                                , onComplete = CompilerRan
-                                }
-                        )
-
-                CliParser.MakeStatic opts ->
-                    runMake model.fsPermission
-                        (\resolved ->
-                            Compiler.Backend.run
-                                model.cpPermission
-                                { useColor = model.useColor
-                                , compilerPath = compilerPath
-                                , pathToString = model.pathToString
-                                , onInit = initWithCommand <|
-                                    Compiler.Backend.Make
-                                        { optimize = True
-                                        , sourcemaps = False
-                                        , output = Just (Compiler.Backend.Exe <| model.pathToString opts.output)
-                                        , report = Nothing
-                                        , projectPath = resolved.projectPath
-                                        , entryPoints = [ opts.source ]
-                                        , outline = resolved.outline
-                                        , rootSources = resolved.rootSources
-                                        , dependencies = resolved.dependencies
-                                        }
-                                , onComplete =
-                                    (\exitCode ->
-                                        CompilerRanStatic
-                                            { path = model.pathToString opts.output
-                                            , exitCode = exitCode
+                    Terminal.Package.readProjectOutline model.fsPermission
+                        |> Task.andThen
+                            (\projectOutline ->
+                                Terminal.Package.install
+                                    { fsPermission = model.fsPermission
+                                    , cpPermission = model.cpPermission
+                                    , interactive = model.interactive
+                                    , useColor = model.useColor
+                                    , stdout = model.stdout
+                                    , stdin = model.stdin
+                                    }
+                                    projectOutline
+                            )
+                        |> Task.map
+                            (\res ->
+                                { resolution = res
+                                , andThen =
+                                    (\resolved ->
+                                        Compiler.Backend.run
+                                            model.cpPermission
+                                            { useColor = model.useColor
+                                            , compilerPath = compilerPath
+                                            , pathToString = model.pathToString
+                                            , onInit = initWithCommand <|
+                                                Compiler.Backend.Make
+                                                    { optimize = flags.optimize
+                                                    , sourcemaps = flags.sourcemaps
+                                                    , output = flags.output
+                                                    , report = flags.report
+                                                    , projectPath = resolved.projectPath
+                                                    , entryPoints = flags.entryPoints
+                                                    , outline = resolved.outline
+                                                    , rootSources = resolved.rootSources
+                                                    , dependencies = resolved.dependencies
+                                                    }
+                                            , onComplete = CompilerRan
                                             }
                                     )
                                 }
-                        )
+                            )
+                        |> Task.attempt PackageResolutionReady
+
+                CliParser.MakeStatic opts ->
+                    Terminal.Package.readProjectOutline model.fsPermission
+                        |> Task.andThen
+                            (\projectOutline ->
+                                Terminal.Package.install
+                                    { fsPermission = model.fsPermission
+                                    , cpPermission = model.cpPermission
+                                    , interactive = model.interactive
+                                    , useColor = model.useColor
+                                    , stdout = model.stdout
+                                    , stdin = model.stdin
+                                    }
+                                    projectOutline
+                            )
+                        |> Task.map
+                            (\res ->
+                                { resolution = res
+                                , andThen =
+                                    (\resolved ->
+                                        Compiler.Backend.run
+                                            model.cpPermission
+                                            { useColor = model.useColor
+                                            , compilerPath = compilerPath
+                                            , pathToString = model.pathToString
+                                            , onInit = initWithCommand <|
+                                                Compiler.Backend.Make
+                                                    { optimize = True
+                                                    , sourcemaps = False
+                                                    , output = Just (Compiler.Backend.Exe <| model.pathToString opts.output)
+                                                    , report = Nothing
+                                                    , projectPath = resolved.projectPath
+                                                    , entryPoints = [ opts.source ]
+                                                    , outline = resolved.outline
+                                                    , rootSources = resolved.rootSources
+                                                    , dependencies = resolved.dependencies
+                                                    }
+                                            , onComplete =
+                                                (\exitCode ->
+                                                    CompilerRanStatic
+                                                        { path = model.pathToString opts.output
+                                                        , exitCode = exitCode
+                                                        }
+                                                )
+                                            }
+                                    )
+                                }
+                            )
+                        |> Task.attempt PackageResolutionReady
 
                 CliParser.Docs flags ->
                     Compiler.Backend.run
@@ -454,193 +468,52 @@ parseUserArgs model compilerPath =
 
                 CliParser.PackageInstall Nothing ->
                     Terminal.Package.readProjectOutline model.fsPermission
-                        |> Task.map
-                            (\{ grenJsonPath, outline } ->
-                                { projectPath =
-                                    Path.parentPath grenJsonPath
-                                        |> Maybe.withDefault grenJsonPath
-                                , outline = outline
-                                , andThen = (\_ -> Task.succeed {} |> Task.execute)
-                                }
+                        |> Task.andThen
+                            (\projectOutline ->
+                                Terminal.Package.install
+                                    { fsPermission = model.fsPermission
+                                    , cpPermission = model.cpPermission
+                                    , interactive = model.interactive
+                                    , useColor = model.useColor
+                                    , stdout = model.stdout
+                                    , stdin = model.stdin
+                                    }
+                                    projectOutline
                             )
-                        |> Task.attempt InitiatePackageInstall
+                        |> Task.andThen
+                            (\err ->
+                                Stream.Log.line model.stdout "Done"
+                            )
+                        |> Task.onError
+                            (\err ->
+                                Stream.Log.line model.stdout (Debug.toString err)
+                            )
+                        |> Task.execute
 
                 CliParser.PackageInstall (Just requestedPackage) ->
                     Terminal.Package.readProjectOutline model.fsPermission
                         |> Task.andThen
-                            (\{ grenJsonPath, outline } ->
-                                let
-                                    packageNameStr =
-                                        PackageName.toString requestedPackage
-                                in
-                                when outline is
-                                    Outline.App appOutline ->
-                                        when
-                                            { direct = Dict.member packageNameStr appOutline.dependencies.direct
-                                            , transitive = Dict.get packageNameStr appOutline.dependencies.indirect
-                                            }
-                                        is
-                                            { direct = False, transitive = Nothing } ->
-                                                Stream.Log.line model.stdout ("Installing " ++ packageNameStr)
-                                                    |> Task.andThen
-                                                        (\_ ->
-                                                            Git.fetchLatestVersion model.cpPermission requestedPackage
-                                                        )
-                                                    |> Task.mapError
-                                                        (\err ->
-                                                            Terminal.Package.PackageInstallDebug <| Debug.toString err
-                                                        )
-                                                    |> Task.andThen
-                                                        (\maybeVersion ->
-                                                            when maybeVersion is
-                                                                Nothing ->
-                                                                    Task.fail <| Terminal.Package.PackageInstallDebug "Could not find version"
-
-                                                                Just packageVersion ->
-                                                                    Task.succeed packageVersion
-                                                        )
-                                                    |> Task.map
-                                                        (\packageVersion ->
-                                                            { projectPath =
-                                                                Path.parentPath grenJsonPath
-                                                                    |> Maybe.withDefault grenJsonPath
-                                                            , outline =
-                                                                { appOutline
-                                                                    | dependencies =
-                                                                        { appOutline.dependencies | direct = Dict.set packageNameStr (Outline.Version packageVersion) appOutline.dependencies.direct
-                                                                        }
-                                                                }
-                                                                |> Outline.App
-                                                            , andThen =
-                                                                (\resolved ->
-                                                                    let
-                                                                        originalPackages =
-                                                                            (Dict.keys appOutline.dependencies.direct)
-                                                                                ++ (Dict.keys appOutline.dependencies.indirect)
-
-                                                                        newPackages =
-                                                                            resolved.dependencies
-                                                                                |> Dict.keepIf (\k _ -> not <| Array.member k originalPackages)
-                                                                                |> Dict.map (\_ value -> value.outline.version)
-
-                                                                        finalOutline =
-                                                                            Outline.App
-                                                                                { appOutline
-                                                                                    | dependencies =
-                                                                                        { appOutline.dependencies
-                                                                                            | direct = Dict.set packageNameStr (Outline.Version packageVersion) appOutline.dependencies.direct
-                                                                                            , indirect =
-                                                                                                Dict.union
-                                                                                                    appOutline.dependencies.indirect
-                                                                                                    (newPackages |> Dict.remove packageNameStr |> Dict.map (\_ v -> Outline.Version v))
-                                                                                        }
-                                                                                }
-
-                                                                        plan =
-                                                                            "The plan is to add the following dependencies:\n\n"
-                                                                                ++ (Dict.foldl (\k v acc ->  acc ++ "  " ++ k ++ " " ++ SemanticVersion.toString v ++ "\n") "" newPackages)
-                                                                                ++ "\nDo you want me to update the gren.json file accordingly? [Y/n]: "
-                                                                    in
-                                                                    Stream.Log.string model.stdout plan
-                                                                        |> Task.andThen (\_ -> Stream.readBytesAsString model.stdin)
-                                                                        |> Task.mapError (\_ -> "Stream error")
-                                                                        |> Task.andThen
-                                                                            (\answer ->
-                                                                                when Maybe.map (String.trim >> String.toLower) answer is
-                                                                                    Just "y" ->
-                                                                                        Task.succeed {}
-
-                                                                                    Just "" ->
-                                                                                        Task.succeed {}
-
-                                                                                    _ ->
-                                                                                        Task.fail ""
-                                                                            )
-                                                                        |> Task.andThen
-                                                                            (\{} ->
-                                                                                finalOutline
-                                                                                    |> Outline.toJson
-                                                                                    |> Json.encode 4
-                                                                                    |> Task.succeed
-                                                                            )
-                                                                        |> Task.andThen
-                                                                            (\newOutline ->
-                                                                                FileSystem.writeFile model.fsPermission (Bytes.fromString newOutline) grenJsonPath
-                                                                                    |> Task.mapError (\fsErr -> Debug.toString fsErr)
-                                                                                    |> Task.map (\_ -> {})
-                                                                            )
-                                                                        |> Task.onError
-                                                                            (\err ->
-                                                                                Stream.Log.line model.stdout ("Error: " ++ err)
-                                                                            )
-                                                                        |> Task.andThen
-                                                                            (\_ ->
-                                                                                Stream.Log.line model.stdout "Done"
-                                                                            )
-                                                                        -- TODO: Refactor
-                                                                        -- TODO: Support package installs as well
-                                                                        -- TODO: Don't read from stdin if not interactive prompt
-                                                                        |> Task.execute
-                                                                )
-                                                            }
-                                                        )
-
-                                            { direct = True } ->
-                                                Task.fail <| Terminal.Package.PackageInstallDebug "Already installed"
-
-                                            { transitive = Just packageVersion } ->
-                                                Stream.Log.line model.stdout "Move to direct? y/N"
-                                                    |> Task.andThen (\_ -> Stream.readBytesAsString model.stdin)
-                                                    |> Task.mapError (\_ -> Terminal.Package.PackageInstallDebug "Stream error")
-                                                    |> Task.andThen
-                                                        (\answer ->
-                                                            when Maybe.map (String.trim >> String.toLower) answer is
-                                                                Just "y" ->
-                                                                    Task.succeed {}
-
-                                                                _ ->
-                                                                    Task.fail <| Terminal.Package.PackageInstallDebug ""
-                                                        )
-                                                    |> Task.andThen
-                                                        (\{} ->
-                                                            { appOutline
-                                                                | dependencies =
-                                                                    { direct = Dict.set packageNameStr packageVersion appOutline.dependencies.direct
-                                                                    , indirect = Dict.remove packageNameStr appOutline.dependencies.indirect
-                                                                    }
-                                                            }
-                                                            |> Outline.App
-                                                            |> Outline.toJson
-                                                            |> Json.encode 4
-                                                            |> Task.succeed
-                                                        )
-                                                    |> Task.andThen
-                                                        (\newOutline ->
-                                                            FileSystem.writeFile model.fsPermission (Bytes.fromString newOutline) grenJsonPath
-                                                                |> Task.mapError (\fsErr -> Terminal.Package.PackageInstallDebug (Debug.toString fsErr))
-                                                        )
-                                                    |> Task.andThen
-                                                        (\_ ->
-                                                            Task.fail <| Terminal.Package.PackageInstallDebug "done"
-                                                        )
-
-                                    Outline.Pkg pkgOutline ->
-                                        if Dict.member packageNameStr pkgOutline.dependencies then
-                                            Task.fail <| Terminal.Package.PackageInstallDebug "Already installed"
-
-                                        else
-                                            Stream.Log.line model.stdout ("Installing " ++ packageNameStr)
-                                                |> Task.map
-                                                    (\_ ->
-                                                        { projectPath =
-                                                            Path.parentPath grenJsonPath
-                                                                |> Maybe.withDefault grenJsonPath
-                                                        , outline = outline
-                                                        , andThen = (\_ -> Task.succeed {} |> Task.execute)
-                                                        }
-                                                    )
+                            (\projectOutline ->
+                                Terminal.Package.installPackage
+                                    { fsPermission = model.fsPermission
+                                    , cpPermission = model.cpPermission
+                                    , interactive = model.interactive
+                                    , useColor = model.useColor
+                                    , stdout = model.stdout
+                                    , stdin = model.stdin
+                                    }
+                                    projectOutline
+                                    requestedPackage
                             )
-                        |> Task.attempt InitiatePackageInstall
+                        |> Task.andThen
+                            (\err ->
+                                Stream.Log.line model.stdout "Done"
+                            )
+                        |> Task.onError
+                            (\err ->
+                                Stream.Log.line model.stdout (Debug.toString err)
+                            )
+                        |> Task.execute
 
                 CliParser.PackageUninstall packageName ->
                     Compiler.Backend.run
@@ -700,33 +573,4 @@ parseUserArgs model compilerPath =
                         , backendPath = model.backendPath
                         }
                         opts
-
-
-runMake : FileSystem.Permission -> (Terminal.Package.PackageResolution -> Cmd Msg) -> Cmd Msg
-runMake fsPermission andThen =
-    Compiler.Paths.projectRoot fsPermission
-        |> Task.mapError Terminal.Package.PackageInstallNoProject
-        |> Task.map (Path.append (Path.fromPosixString "gren.json"))
-        |> Task.andThen
-            (\grenJsonPath ->
-                Terminal.Package.readOutline fsPermission grenJsonPath
-                    |> Task.mapError Terminal.Package.PackageInstallNoGrenJson
-                    |> Task.andThen
-                        (\decodeResult ->
-                            when decodeResult is
-                                Ok outline ->
-                                    Task.succeed
-                                        { projectPath =
-                                            Path.parentPath grenJsonPath
-                                                |> Maybe.withDefault grenJsonPath
-                                        , outline = outline
-                                        , andThen = andThen
-                                        }
-
-                                Err err ->
-                                    Task.fail (Terminal.Package.PackageInstallInvalidGrenJson err)
-                        )
-            )
-        |> Task.attempt InitiatePackageInstall
-
 
