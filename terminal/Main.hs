@@ -23,7 +23,6 @@ import Make qualified
 import Package.Bump qualified as Bump
 import Package.Diff qualified as Diff
 import Package.Outdated qualified as Outdated
-import Package.Uninstall qualified as Uninstall
 import Package.Validate qualified as Validate
 import Repl qualified
 import System.Environment qualified as Env
@@ -49,8 +48,6 @@ main =
             Make.run $ Make.Flags optimize sourcemaps output report paths projectPath outline rootSources deps
           Right (Docs (DocsFlags output report)) ->
             Docs.run $ Docs.Flags output report
-          Right (PackageUninstall (UninstallFlags interactive packageName)) ->
-            Uninstall.run packageName $ Uninstall.Flags (not interactive)
           Right PackageOutdated ->
             Outdated.run
           Right PackageValidate ->
@@ -78,7 +75,6 @@ data Command
   | Repl (Maybe String)
   | Make MakeFlags
   | Docs DocsFlags
-  | PackageUninstall UninstallFlags
   | PackageOutdated
   | PackageValidate
   | PackageBump BumpFlags
@@ -114,12 +110,6 @@ data DocsFlags = DocsFlags
   }
   deriving (Show)
 
-data UninstallFlags = UninstallFlags
-  { _uninstall_interactive :: Bool,
-    _uninstall_package :: Package.Name
-  }
-  deriving (Show)
-
 data BumpFlags = BumpFlags
   { _bump_interactive :: Bool
   }
@@ -140,7 +130,6 @@ commandDecoder =
       "repl" -> Repl <$> maybeDecoder (fmap Utf8.toChars Json.string)
       "make" -> Make <$> makeDecoder
       "docs" -> Docs <$> docsDecoder
-      "packageUninstall" -> PackageUninstall <$> uninstallDecoder
       "packageOutdated" -> Json.succeed PackageOutdated
       "packageValidate" -> Json.succeed PackageValidate
       "packageBump" -> PackageBump <$> bumpDecoder
@@ -213,12 +202,6 @@ docsOutputDecoder =
       "null" -> Json.succeed Docs.DevNull
       "json" -> Docs.JSON <$> Json.field (BS.pack "path") (fmap Utf8.toChars Json.string)
       _ -> Json.failure InvalidInput
-
-uninstallDecoder :: Json.Decoder CommandDecoderError UninstallFlags
-uninstallDecoder =
-  UninstallFlags
-    <$> Json.field (BS.pack "interactive") Json.bool
-    <*> Json.field (BS.pack "package") packageDecoder
 
 bumpDecoder :: Json.Decoder CommandDecoderError BumpFlags
 bumpDecoder =

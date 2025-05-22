@@ -69,7 +69,6 @@ Library common
         Gren.Platform
         Gren.Details
         Gren.PossibleFilePath
-        --
         Gren.Compiler.Imports
         Gren.Compiler.Type
         Gren.Compiler.Type.Extract
@@ -217,7 +216,6 @@ Executable gren
         Make
         Docs
         Repl
-        Package.Uninstall
         Package.Outdated
         Package.Bump
         Package.Diff

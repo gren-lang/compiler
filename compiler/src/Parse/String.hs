@@ -121,11 +121,11 @@ finalizeMultiString start end revChunks =
     reverse $
       if start == end
         then {- Get rid of ending newline before """ -}
-        case revChunks of
-          (ES.Escape 0x6E) : rest ->
-            rest
-          _ ->
-            revChunks
+          case revChunks of
+            (ES.Escape 0x6E) : rest ->
+              rest
+            _ ->
+              revChunks
         else ES.Slice start (minusPtr end start) : revChunks
 
 addEscape :: ES.Chunk -> Ptr Word8 -> Ptr Word8 -> [ES.Chunk] -> [ES.Chunk]
