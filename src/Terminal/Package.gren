@@ -27,6 +27,7 @@ import SemanticVersionRange exposing (SemanticVersionRange)
 import Json.Encode as Json
 import Json.Decode as Decode exposing (Decoder)
 import Stream.Extra
+import Terminal.User as User
 
 
 type alias Config =
@@ -422,29 +423,25 @@ installPackage config { projectPath, outline } requestedPackage =
                                     plan =
                                         "The plan is to add the following dependencies:\n\n"
                                             ++ (Dict.foldl (\k v acc ->  acc ++ "  " ++ k ++ " " ++ SemanticVersion.toString v ++ "\n") "" newPackages)
-                                            ++ "\nDo you want me to update the gren.json file accordingly? [Y/n]: "
+                                            ++ "\nDo you want me to update the gren.json file accordingly?"
                                 in
-                                Stream.Log.string config.stdout plan
-                                    |> Task.andThen (\_ -> Stream.readBytesAsString config.stdin)
+                                User.confirm
+                                    { stdout = config.stdout
+                                    , stdin = config.stdin
+                                    , question = plan
+                                    , defaultValue = True
+                                    }
                                     |> Task.mapError (\_ -> "Stream error")
                                     |> Task.andThen
-                                        (\answer ->
-                                            when Maybe.map (String.trim >> String.toLower) answer is
-                                                Just "y" ->
-                                                    Task.succeed {}
+                                        (\confirmed ->
+                                            if confirmed then
+                                                finalOutline
+                                                    |> Outline.toJson
+                                                    |> Json.encode 4
+                                                    |> Task.succeed
 
-                                                Just "" ->
-                                                    Task.succeed {}
-
-                                                _ ->
-                                                    Task.fail ""
-                                        )
-                                    |> Task.andThen
-                                        (\{} ->
-                                            finalOutline
-                                                |> Outline.toJson
-                                                |> Json.encode 4
-                                                |> Task.succeed
+                                            else
+                                                Task.fail ""
                                         )
                                     |> Task.andThen
                                         (\newOutline ->
@@ -748,27 +745,23 @@ uninstallPackage config { projectPath, outline } requestedPackage =
                                             ++ (Array.foldl (\package acc -> acc ++ "  " ++ package ++ "\n") "" removedPackages)
                                             ++ "\nDo you want me to update the gren.json file accordingly? [Y/n]: "
                                 in
-                                Stream.Log.string config.stdout plan
-                                    |> Task.andThen (\_ -> Stream.readBytesAsString config.stdin)
+                                User.confirm
+                                    { stdout = config.stdout
+                                    , stdin = config.stdin
+                                    , question = plan
+                                    , defaultValue = True
+                                    }
                                     |> Task.mapError (\_ -> "Stream error")
                                     |> Task.andThen
-                                        (\answer ->
-                                            when Maybe.map (String.trim >> String.toLower) answer is
-                                                Just "y" ->
-                                                    Task.succeed {}
+                                        (\confirmed ->
+                                            if confirmed then
+                                                finalOutline
+                                                    |> Outline.toJson
+                                                    |> Json.encode 4
+                                                    |> Task.succeed
 
-                                                Just "" ->
-                                                    Task.succeed {}
-
-                                                _ ->
-                                                    Task.fail ""
-                                        )
-                                    |> Task.andThen
-                                        (\{} ->
-                                            finalOutline
-                                                |> Outline.toJson
-                                                |> Json.encode 4
-                                                |> Task.succeed
+                                            else
+                                                Task.fail ""
                                         )
                                     |> Task.andThen
                                         (\newOutline ->

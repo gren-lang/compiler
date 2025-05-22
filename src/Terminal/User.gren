@@ -1,0 +1,40 @@
+module Terminal.User exposing (confirm)
+
+import Bytes exposing (Bytes)
+import Stream
+import Stream.Log
+import Task exposing (Task)
+
+
+type alias ConfirmConfig =
+    { stdout : Stream.Writable Bytes
+    , stdin : Stream.Readable Bytes
+    , question : String
+    , defaultValue : Bool
+    }
+
+
+confirm : ConfirmConfig -> Task Stream.Error Bool
+confirm { stdout, stdin, question, defaultValue } =
+    let
+        legend =
+            if defaultValue then
+                " [Y|n]: "
+
+            else
+                " [y|N]: "
+    in
+    Stream.Log.string stdout (question ++ legend)
+        |> Task.andThen (\_ -> Stream.readBytesAsString stdin)
+        |> Task.map
+            (\answer ->
+                when Maybe.map (String.trim >> String.toLower) answer is
+                    Just "y" ->
+                        True
+
+                    Just "" ->
+                        defaultValue
+
+                    _ ->
+                        False
+            )
