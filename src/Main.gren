@@ -516,14 +516,29 @@ parseUserArgs model compilerPath =
                         |> Task.execute
 
                 CliParser.PackageUninstall packageName ->
-                    Compiler.Backend.run
-                        model.cpPermission
-                        { useColor = model.useColor
-                        , compilerPath = compilerPath
-                        , pathToString = model.pathToString
-                        , onInit = initWithCommand <| Compiler.Backend.PackageUninstall packageName
-                        , onComplete = CompilerRan
-                        }
+                    Terminal.Package.readProjectOutline model.fsPermission
+                        |> Task.andThen
+                            (\projectOutline ->
+                                Terminal.Package.uninstallPackage
+                                    { fsPermission = model.fsPermission
+                                    , cpPermission = model.cpPermission
+                                    , interactive = model.interactive
+                                    , useColor = model.useColor
+                                    , stdout = model.stdout
+                                    , stdin = model.stdin
+                                    }
+                                    projectOutline
+                                    packageName
+                            )
+                        |> Task.andThen
+                            (\err ->
+                                Stream.Log.line model.stdout "Done"
+                            )
+                        |> Task.onError
+                            (\err ->
+                                Stream.Log.line model.stdout (Debug.toString err)
+                            )
+                        |> Task.execute
 
                 CliParser.PackageOutdated ->
                     Compiler.Backend.run

@@ -3,8 +3,10 @@ module Terminal.Package exposing
     , PackageResolution
     , install
     , installPackage
+    , uninstallPackage
     , readProjectOutline
     )
+
 
 import ChildProcess
 import Compiler.PackageName as PackageName exposing (PackageName)
@@ -582,6 +584,8 @@ packageBundleDecoder =
     Decode.map2 (\outline sources -> { outline = outline, sources = sources })
         (Decode.field "outline" Outline.pkgJsonDecoder)
         (Decode.field "sources" (Decode.dict Decode.string))
+
+
 type alias LoadedPackage =
     { name : PackageName
     , outline : Outline.PkgOutline
@@ -674,3 +678,119 @@ loadPackageFromBundle fsPermission name vsn projectPath =
                         )
                     |> Task.onError (\_ -> Task.succeed Nothing)
             )
+
+
+-- TODO: Respect interactivity flag
+-- TODO: Also remove indirect dependencies which are no longer needed
+-- TODO: Suggest moving a direct dependency to indirect
+-- TODO: Make sure to clean gren_packages folder
+uninstallPackage : Config -> Options -> PackageName -> Task PackageInstallError {}
+uninstallPackage config { projectPath, outline } requestedPackage =
+    let
+        packageNameStr =
+            PackageName.toString requestedPackage
+
+        grenJsonPath =
+            Path.append (Path.fromPosixString "gren.json") projectPath
+    in
+    when outline is
+        Outline.App appOutline ->
+            when
+                { direct = Dict.member packageNameStr appOutline.dependencies.direct
+                , transitive = Dict.get packageNameStr appOutline.dependencies.indirect
+                }
+            is
+                { direct = False, transitive = Nothing } ->
+                    Task.fail <| PackageInstallDebug "Package not installed"
+
+                { direct = True } ->
+                    Stream.Log.line config.stdout ("Removing " ++ packageNameStr)
+                        |> Task.andThen
+                            (\packageVersion ->
+                                install
+                                    config
+                                    { projectPath = projectPath
+                                    , outline =
+                                        { appOutline
+                                            | dependencies =
+                                                { appOutline.dependencies | direct = Dict.remove packageNameStr appOutline.dependencies.direct
+                                                }
+                                        }
+                                        |> Outline.App
+                                    }
+                            )
+                        |> Task.andThen
+                            (\resolved ->
+                                let
+                                    originalPackages =
+                                        Dict.union appOutline.dependencies.direct appOutline.dependencies.indirect
+
+                                    newPackages =
+                                        Dict.keys resolved.dependencies
+
+                                    finalOutline =
+                                        Outline.App
+                                            { appOutline
+                                                | dependencies =
+                                                    { appOutline.dependencies
+                                                        | direct = Dict.keepIf (\k _ -> Array.member k newPackages) appOutline.dependencies.direct
+                                                        , indirect = Dict.keepIf (\k _ -> Array.member k newPackages) appOutline.dependencies.indirect
+                                                    }
+                                            }
+
+                                    removedPackages =
+                                        Dict.keepIf (\k _ -> not <| Array.member k newPackages) originalPackages
+                                            |> Dict.keys
+
+                                    plan =
+                                        "The plan is to remove the following dependencies:\n\n"
+                                            ++ (Array.foldl (\package acc -> acc ++ "  " ++ package ++ "\n") "" removedPackages)
+                                            ++ "\nDo you want me to update the gren.json file accordingly? [Y/n]: "
+                                in
+                                Stream.Log.string config.stdout plan
+                                    |> Task.andThen (\_ -> Stream.readBytesAsString config.stdin)
+                                    |> Task.mapError (\_ -> "Stream error")
+                                    |> Task.andThen
+                                        (\answer ->
+                                            when Maybe.map (String.trim >> String.toLower) answer is
+                                                Just "y" ->
+                                                    Task.succeed {}
+
+                                                Just "" ->
+                                                    Task.succeed {}
+
+                                                _ ->
+                                                    Task.fail ""
+                                        )
+                                    |> Task.andThen
+                                        (\{} ->
+                                            finalOutline
+                                                |> Outline.toJson
+                                                |> Json.encode 4
+                                                |> Task.succeed
+                                        )
+                                    |> Task.andThen
+                                        (\newOutline ->
+                                            FileSystem.writeFile config.fsPermission (Bytes.fromString newOutline) grenJsonPath
+                                                |> Task.mapError (\fsErr -> Debug.toString fsErr)
+                                                |> Task.map (\_ -> {})
+                                        )
+                                    |> Task.onError
+                                        (\err ->
+                                            Stream.Log.line config.stdout ("Error: " ++ err)
+                                        )
+                                    |> Task.andThen
+                                        (\_ ->
+                                            Stream.Log.line config.stdout "Done"
+                                        )
+                            )
+
+                { transitive = Just packageVersion } ->
+                    Stream.Log.line config.stdout ("Removing " ++ packageNameStr)
+
+        Outline.Pkg pkgOutline ->
+            if Dict.member packageNameStr pkgOutline.dependencies then
+                Stream.Log.line config.stdout ("Removing " ++ packageNameStr)
+
+            else
+                Task.fail <| PackageInstallDebug "Package not installed"
