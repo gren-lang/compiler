@@ -216,7 +216,6 @@ Executable gren
         Make
         Docs
         Repl
-        Package.Outdated
         Package.Bump
         Package.Diff
         Package.Validate

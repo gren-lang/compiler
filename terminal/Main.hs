@@ -22,7 +22,6 @@ import Json.Decode qualified as Json
 import Make qualified
 import Package.Bump qualified as Bump
 import Package.Diff qualified as Diff
-import Package.Outdated qualified as Outdated
 import Package.Validate qualified as Validate
 import Repl qualified
 import System.Environment qualified as Env
@@ -48,8 +47,6 @@ main =
             Make.run $ Make.Flags optimize sourcemaps output report paths projectPath outline rootSources deps
           Right (Docs (DocsFlags output report)) ->
             Docs.run $ Docs.Flags output report
-          Right PackageOutdated ->
-            Outdated.run
           Right PackageValidate ->
             Validate.run
           Right (PackageBump (BumpFlags interactive)) ->
@@ -75,7 +72,6 @@ data Command
   | Repl (Maybe String)
   | Make MakeFlags
   | Docs DocsFlags
-  | PackageOutdated
   | PackageValidate
   | PackageBump BumpFlags
   | PackageDiffLatest
@@ -130,7 +126,6 @@ commandDecoder =
       "repl" -> Repl <$> maybeDecoder (fmap Utf8.toChars Json.string)
       "make" -> Make <$> makeDecoder
       "docs" -> Docs <$> docsDecoder
-      "packageOutdated" -> Json.succeed PackageOutdated
       "packageValidate" -> Json.succeed PackageValidate
       "packageBump" -> PackageBump <$> bumpDecoder
       "packageDiffLatest" -> Json.succeed PackageDiffLatest
