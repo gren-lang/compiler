@@ -151,13 +151,6 @@ type Msg
     | CompilerInitialized { backendStreams : ChildProcess.StreamIO, encodedCommand : Bytes }
     | CompilerRan Int
     | CompilerRanStatic { path : String, exitCode : Int }
-    | PackageResolutionReady
-        (Result
-            Terminal.Package.PackageInstallError
-            { resolution : Terminal.Package.PackageResolution
-            , andThen : Terminal.Package.PackageResolution -> Cmd Msg
-            }
-        )
 
 
 port completeStaticBuild : String -> Cmd msg
@@ -270,16 +263,6 @@ update msg model =
                 else
                     Node.exitWithCode exitCode
                         |> Task.execute
-                
-            PackageResolutionReady (Err error) ->
-                -- TODO: Real errors
-                "InstallPackages Error:" ++ Debug.toString error
-                    |> Stream.Log.line model.stdout
-                    |> Task.execute
-
-            -- TODO: Remove this once executeCmd lands
-            PackageResolutionReady (Ok { resolution, andThen }) ->
-                andThen resolution
         }
 
 
@@ -379,33 +362,34 @@ parseUserArgs model compilerPath =
                                     projectOutline
                             )
                         |> Task.map
-                            (\res ->
-                                { resolution = res
-                                , andThen =
-                                    (\resolved ->
-                                        Compiler.Backend.run
-                                            model.cpPermission
-                                            { useColor = model.useColor
-                                            , compilerPath = compilerPath
-                                            , pathToString = model.pathToString
-                                            , onInit = initWithCommand <|
-                                                Compiler.Backend.Make
-                                                    { optimize = flags.optimize
-                                                    , sourcemaps = flags.sourcemaps
-                                                    , output = flags.output
-                                                    , report = flags.report
-                                                    , projectPath = resolved.projectPath
-                                                    , entryPoints = flags.entryPoints
-                                                    , outline = resolved.outline
-                                                    , rootSources = resolved.rootSources
-                                                    , dependencies = resolved.dependencies
-                                                    }
-                                            , onComplete = CompilerRan
+                            (\resolved ->
+                                Compiler.Backend.run
+                                    model.cpPermission
+                                    { useColor = model.useColor
+                                    , compilerPath = compilerPath
+                                    , pathToString = model.pathToString
+                                    , onInit = initWithCommand <|
+                                        Compiler.Backend.Make
+                                            { optimize = flags.optimize
+                                            , sourcemaps = flags.sourcemaps
+                                            , output = flags.output
+                                            , report = flags.report
+                                            , projectPath = resolved.projectPath
+                                            , entryPoints = flags.entryPoints
+                                            , outline = resolved.outline
+                                            , rootSources = resolved.rootSources
+                                            , dependencies = resolved.dependencies
                                             }
-                                    )
-                                }
+                                    , onComplete = CompilerRan
+                                    }
                             )
-                        |> Task.attempt PackageResolutionReady
+                        |> Task.onError
+                            (\err ->
+                                Stream.Log.line model.stdout (Debug.toString err)
+                                    |> Task.execute
+                                    |> Task.succeed
+                            )
+                        |> Task.executeCmd
 
                 CliParser.MakeStatic opts ->
                     Terminal.Package.readProjectOutline model.fsPermission
@@ -422,39 +406,40 @@ parseUserArgs model compilerPath =
                                     projectOutline
                             )
                         |> Task.map
-                            (\res ->
-                                { resolution = res
-                                , andThen =
-                                    (\resolved ->
-                                        Compiler.Backend.run
-                                            model.cpPermission
-                                            { useColor = model.useColor
-                                            , compilerPath = compilerPath
-                                            , pathToString = model.pathToString
-                                            , onInit = initWithCommand <|
-                                                Compiler.Backend.Make
-                                                    { optimize = True
-                                                    , sourcemaps = False
-                                                    , output = Just (Compiler.Backend.Exe <| model.pathToString opts.output)
-                                                    , report = Nothing
-                                                    , projectPath = resolved.projectPath
-                                                    , entryPoints = [ opts.source ]
-                                                    , outline = resolved.outline
-                                                    , rootSources = resolved.rootSources
-                                                    , dependencies = resolved.dependencies
-                                                    }
-                                            , onComplete =
-                                                (\exitCode ->
-                                                    CompilerRanStatic
-                                                        { path = model.pathToString opts.output
-                                                        , exitCode = exitCode
-                                                        }
-                                                )
+                            (\resolved ->
+                                Compiler.Backend.run
+                                    model.cpPermission
+                                    { useColor = model.useColor
+                                    , compilerPath = compilerPath
+                                    , pathToString = model.pathToString
+                                    , onInit = initWithCommand <|
+                                        Compiler.Backend.Make
+                                            { optimize = True
+                                            , sourcemaps = False
+                                            , output = Just (Compiler.Backend.Exe <| model.pathToString opts.output)
+                                            , report = Nothing
+                                            , projectPath = resolved.projectPath
+                                            , entryPoints = [ opts.source ]
+                                            , outline = resolved.outline
+                                            , rootSources = resolved.rootSources
+                                            , dependencies = resolved.dependencies
                                             }
-                                    )
-                                }
+                                    , onComplete =
+                                        (\exitCode ->
+                                            CompilerRanStatic
+                                                { path = model.pathToString opts.output
+                                                , exitCode = exitCode
+                                                }
+                                        )
+                                    }
                             )
-                        |> Task.attempt PackageResolutionReady
+                        |> Task.onError
+                            (\err ->
+                                Stream.Log.line model.stdout (Debug.toString err)
+                                    |> Task.execute
+                                    |> Task.succeed
+                            )
+                        |> Task.executeCmd
 
                 CliParser.Docs flags ->
                     Compiler.Backend.run
@@ -541,14 +526,28 @@ parseUserArgs model compilerPath =
                         |> Task.execute
 
                 CliParser.PackageOutdated ->
-                    Compiler.Backend.run
-                        model.cpPermission
-                        { onInit = initWithCommand <| Compiler.Backend.PackageOutdated
-                        , useColor = model.useColor
-                        , compilerPath = compilerPath
-                        , pathToString = model.pathToString
-                        , onComplete = CompilerRan
-                        }
+                    Terminal.Package.readProjectOutline model.fsPermission
+                        |> Task.andThen
+                            (\projectOutline ->
+                                Terminal.Package.outdatedDeps
+                                    { fsPermission = model.fsPermission
+                                    , cpPermission = model.cpPermission
+                                    , interactive = model.interactive
+                                    , useColor = model.useColor
+                                    , stdout = model.stdout
+                                    , stdin = model.stdin
+                                    }
+                                    projectOutline
+                            )
+                        |> Task.andThen
+                            (\err ->
+                                Stream.Log.line model.stdout "Done"
+                            )
+                        |> Task.onError
+                            (\err ->
+                                Stream.Log.line model.stdout (Debug.toString err)
+                            )
+                        |> Task.execute
 
                 CliParser.PackageValidate ->
                     Compiler.Backend.run

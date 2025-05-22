@@ -1,4 +1,8 @@
-module Git exposing (clonePackage, fetchLatestVersion)
+module Git exposing
+    ( clonePackage
+    , fetchLatestVersion
+    , fetchVersions
+    )
 
 
 import Bytes
@@ -36,6 +40,12 @@ clonePackage cpPerm repo name version =
 
 fetchLatestVersion : ChildProcess.Permission -> PackageName -> Task ChildProcess.FailedRun (Maybe SemanticVersion)
 fetchLatestVersion cpPerm name =
+    fetchVersions cpPerm name
+        |> Task.map Array.last
+
+
+fetchVersions : ChildProcess.Permission -> PackageName -> Task ChildProcess.FailedRun (Array SemanticVersion)
+fetchVersions cpPerm name =
     let
         githubUrl =
             "https://github.com/" ++ PackageName.toString name ++ ".git"
@@ -58,7 +68,7 @@ fetchLatestVersion cpPerm name =
                 when Bytes.toString result.stdout is
                     Nothing ->
                         -- TODO: Proper error here
-                        Task.succeed Nothing
+                        Task.succeed []
 
                     Just tagList ->
                         -- format: commit hash \t refs/tags/<tag>
@@ -67,7 +77,5 @@ fetchLatestVersion cpPerm name =
                             |> Array.map (String.split "/" >> Array.last >> Maybe.withDefault "")
                             |> Array.mapAndKeepJust SemanticVersion.fromString
                             |> Array.sortWith SemanticVersion.compare
-                            |> Array.last
                             |> Task.succeed
             )
-        |> Task.map (\res -> Debug.log "fetch" res)
