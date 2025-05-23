@@ -1,6 +1,7 @@
 module Terminal.Paths exposing
-    ( Options
-    , print
+    ( Config
+    , Options
+    , run
     )
 
 import Stream
@@ -29,8 +30,8 @@ type alias Options =
     }
 
 
-print : Config -> Options -> Cmd a
-print config opts =
+run : Config -> Options -> Cmd a
+run config opts =
     when opts is
         { project = False, packageCache = False, backend = False, json = False } ->
             Compiler.Paths.projectRoot config.fsPermission

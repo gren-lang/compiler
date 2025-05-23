@@ -121,7 +121,14 @@ install config { projectPath, outline } =
                             pkgs
                 in
                 Outline.findSourceFiles config.fsPermission outline projectPath
-                    |> Task.mapError FileSystem.errorToString
+                    |> Task.onError
+                        (\err ->
+                            if FileSystem.errorIsNoSuchFileOrDirectory err then
+                                Task.succeed []
+
+                            else
+                                Task.fail <| FileSystem.errorToString err
+                        )
                     |> Task.map
                         (\sourceFiles ->
                             { projectPath = projectPath
@@ -194,42 +201,32 @@ installStep config { projectPath, outline, projectSources, rootPackages, loadedP
             -- TODO: Check that the package is defined in the outline
             when Dict.get packageNameString loadedPackages is
                 Just loadedPackage ->
-                    Outline.findSourceFiles config.fsPermission outline projectPath
-                        |> Task.mapError FileSystem.errorToString
-                        |> Task.map
-                            (\sourceFiles ->
-                                { projectPath = projectPath
-                                , outline = outline
-                                , projectSources =
-                                    Array.foldl
-                                        (\{ moduleName, source } dict -> Dict.set moduleName source dict)
-                                        Dict.empty
-                                        sourceFiles
-                                , rootPackages = rootPackages
-                                , loadedPackages = loadedPackages
-                                , solvedPackages =
-                                    Dict.set
-                                        packageNameString
-                                        { name = name
-                                        , version = version
-                                        , dependencies =
-                                            Dict.mapAndKeepJust
-                                                (\_ constraint ->
-                                                    when constraint is
-                                                        -- TODO: Error
-                                                        Outline.Version vsn ->
-                                                            Just vsn
+                    installStep config
+                        { projectPath = projectPath
+                        , outline = outline
+                        , projectSources = projectSources
+                        , rootPackages = rootPackages
+                        , loadedPackages = loadedPackages
+                        , solvedPackages =
+                            Dict.set
+                                packageNameString
+                                { name = name
+                                , version = version
+                                , dependencies =
+                                    Dict.mapAndKeepJust
+                                        (\_ constraint ->
+                                            when constraint is
+                                                -- TODO: Error
+                                                Outline.Version vsn ->
+                                                    Just vsn
 
-                                                        Outline.LocalPath _ ->
-                                                            Nothing
-                                                )
-                                                loadedPackage.outline.dependencies
-                                        }
-                                        solvedPackages
+                                                Outline.LocalPath _ ->
+                                                    Nothing
+                                        )
+                                        loadedPackage.outline.dependencies
                                 }
-                            )
-                            |> Task.mapError PackageInstallDebug
-                            |> Task.andThen (installStep config)
+                                solvedPackages
+                        }
                 
                 Nothing ->
                     let
@@ -311,28 +308,19 @@ installStep config { projectPath, outline, projectSources, rootPackages, loadedP
                                         )
                                     |> Task.map (\_ -> pkg)
                             )
-                        |> Task.andThen
+                        |> Task.map
                             (\pkg ->
-                                Outline.findSourceFiles config.fsPermission outline projectPath
-                                    |> Task.mapError FileSystem.errorToString
-                                    |> Task.map
-                                        (\sourceFiles ->
-                                            { projectPath = projectPath
-                                            , outline = outline
-                                            , projectSources =
-                                                Array.foldl
-                                                    (\{ moduleName, source } dict -> Dict.set moduleName source dict)
-                                                    Dict.empty
-                                                    sourceFiles
-                                            , rootPackages = rootPackages
-                                            , loadedPackages =
-                                                Dict.set
-                                                    (PackageName.toString name)
-                                                    { outline = pkg.outline, sources = pkg.sources }
-                                                    loadedPackages
-                                            , solvedPackages = solvedPackages
-                                            }
-                                        )
+                                { projectPath = projectPath
+                                , outline = outline
+                                , projectSources = projectSources
+                                , rootPackages = rootPackages
+                                , loadedPackages =
+                                    Dict.set
+                                        (PackageName.toString name)
+                                        { outline = pkg.outline, sources = pkg.sources }
+                                        loadedPackages
+                                , solvedPackages = solvedPackages
+                                }
                             )
                         -- TODO: Print progress
                         |> Task.mapError PackageInstallDebug
@@ -343,7 +331,6 @@ installStep config { projectPath, outline, projectSources, rootPackages, loadedP
 
 
 -- TODO: Refactor
--- TODO: Support package installs as well
 -- TODO: Don't read from stdin if not interactive prompt
 installPackage : Config -> Options -> PackageName -> Task PackageInstallError {}
 installPackage config { projectPath, outline } requestedPackage =

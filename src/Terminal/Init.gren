@@ -1,0 +1,198 @@
+module Terminal.Init exposing
+    ( Config
+    , run
+    )
+
+import ChildProcess
+import Stream
+import Stream.Log
+import Task exposing (Task)
+import FileSystem
+import FileSystem.Path as Path exposing (Path)
+import Bytes exposing (Bytes)
+import Json.Encode as Json
+import Compiler.Backend
+import Compiler.Platform as Platform exposing (Platform)
+import Compiler.PackageName as PackageName exposing (PackageName)
+import Compiler.Outline as Outline
+import Compiler.License as License
+import Terminal.User
+import Git
+import SemanticVersion exposing (SemanticVersion)
+import SemanticVersionRange
+import Dict
+import Meta
+import Terminal.Package as Package
+
+
+type alias Config =
+    { stdout : Stream.Writable Bytes
+    , stdin : Stream.Readable Bytes
+    , fsPermission : FileSystem.Permission
+    , cpPermission : ChildProcess.Permission
+    , interactive : Bool
+    , useColor : Bool
+    , package : Bool
+    , platform : Platform
+    }
+
+
+run : Config -> Cmd a
+run config =
+    FileSystem.checkAccess config.fsPermission [] (Path.fromPosixString "gren.json")
+        |> Task.andThen
+            (\_ ->
+                Stream.Log.line config.stdout "File exists!"
+            )
+        |> Task.onError
+            (\_ ->
+                -- TODO: Respect interactivity flag
+                Terminal.User.confirm
+                    { stdout = config.stdout
+                    , stdin = config.stdin
+                    , question =
+                        """
+                        Hello! Gren projects always start with a <GREEN>gren.json</> file.
+                        I can create one for you.
+
+                        Would you like me to create a gren.json file now?
+                        """
+                    , defaultValue = True
+                    }
+                    |> Task.andThen
+                        (\confirmed ->
+                            if confirmed then
+                                init config
+
+                            else
+                                Stream.Log.line config.stdout "Ok, I won't do anything."
+                        )
+            )
+        |> Task.onError
+            (\_ ->
+                Stream.Log.line config.stdout "Error happened!"
+            )
+        |> Task.execute
+
+
+init : Config -> Task x {}
+init config =
+    let
+        deps =
+            dependenciesForPlatform config.platform
+    in
+    deps
+        |> Array.map
+            (\packageName ->
+                Git.fetchLatestVersion config.cpPermission packageName
+                    |> Task.onError
+                        (\_ ->
+                            Task.fail ("Something went wrong when retrieving version for " ++ PackageName.toString packageName)
+                        )
+                    |> Task.andThen
+                        (\maybeVsn ->
+                            when maybeVsn is
+                                Just vsn ->
+                                    Task.succeed
+                                        { name = packageName
+                                        , version = vsn
+                                        }
+
+                                Nothing ->
+                                    Task.fail ("No version found for " ++ PackageName.toString packageName)
+                        )
+            )
+        |> Task.concurrent
+        |> Task.andThen (generateGrenJson config)
+        |> Task.onError (\err -> Stream.Log.line config.stdout err)
+
+
+dependenciesForPlatform : Platform -> Array PackageName
+dependenciesForPlatform platform =
+  when platform is
+    Platform.Common ->
+        [ PackageName.core ]
+
+    Platform.Browser ->
+        [ PackageName.core, PackageName.browser ]
+
+    Platform.Node ->
+        [ PackageName.core, PackageName.node ]
+
+
+generateGrenJson : Config -> Array { name : PackageName, version : SemanticVersion } -> Task String {}
+generateGrenJson config deps =
+    let
+        outline =
+            if config.package then
+                Outline.Pkg
+                    { platform = config.platform
+                    , name = PackageName.example
+                    , summary = ""
+                    , license = License.bsd3
+                    , version = { major = 1, minor = 0, patch = 0 }
+                    , exposedModules = Outline.ExposedArray []
+                    , grenVersion = SemanticVersionRange.compatibleWith Meta.version
+                    , dependencies =
+                        Array.foldl
+                            (\{ name, version } dict ->
+                                Dict.set
+                                    (PackageName.toString name)
+                                    (Outline.Version (SemanticVersionRange.compatibleWith version))
+                                    dict
+                            )
+                            Dict.empty
+                            deps
+                    }
+
+            else
+                Outline.App
+                    { platform = config.platform
+                    , sourceDirectories = [ Path.fromPosixString "src" ]
+                    , grenVersion = Meta.version
+                    , dependencies =
+                        { direct =
+                            Array.foldl
+                                (\{ name, version } dict ->
+                                    Dict.set (PackageName.toString name) (Outline.Version version) dict
+                                )
+                                Dict.empty
+                                deps
+                        , indirect = Dict.empty
+                        }
+                    }
+    in
+    Package.install
+        { stdout = config.stdout
+        , stdin = config.stdin
+        , fsPermission = config.fsPermission
+        , cpPermission = config.cpPermission
+        , interactive = config.interactive
+        , useColor = config.useColor
+        }
+        { projectPath = Path.empty
+        , outline = outline
+        }
+        |> Task.mapError Debug.toString
+        |> Task.andThen
+            (\resolution ->
+                let
+                    newOutline =
+                        when outline is
+                            Outline.App appOutline ->
+                                -- TODO: Add indirect deps
+                                outline
+
+                            Outline.Pkg _ ->
+                                outline
+
+                    encodedOutline =
+                        newOutline
+                            |> Outline.toJson
+                            |> Json.encode 4
+                in
+                Path.fromPosixString "gren.json"
+                    |> FileSystem.writeFile config.fsPermission (Bytes.fromString encodedOutline)
+                    |> Task.mapError (\fsErr -> Debug.toString fsErr)
+                    |> Task.map (\_ -> {})
+            )

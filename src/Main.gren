@@ -5,6 +5,7 @@ import ChildProcess
 import Terminal.Parser as CliParser
 import Terminal.Package
 import Terminal.Paths
+import Terminal.Init
 import Compiler.Backend
 import Compiler.PackageName as PackageName exposing (PackageName)
 import Compiler.Paths
@@ -328,13 +329,15 @@ parseUserArgs model compilerPath =
             in
             when parsedCommand is
                 CliParser.Init flags ->
-                    Compiler.Backend.run
-                        model.cpPermission
-                        { useColor = model.useColor
-                        , compilerPath = compilerPath
-                        , pathToString = model.pathToString
-                        , onInit = initWithCommand <| Compiler.Backend.Init flags 
-                        , onComplete = CompilerRan
+                    Terminal.Init.run
+                        { fsPermission = model.fsPermission
+                        , cpPermission = model.cpPermission
+                        , stdout = model.stdout
+                        , stdin = model.stdin
+                        , interactive = model.interactive
+                        , useColor = model.useColor
+                        , package = flags.package
+                        , platform = flags.platform
                         }
 
                 CliParser.Repl flags ->
@@ -580,7 +583,7 @@ parseUserArgs model compilerPath =
                         }
 
                 CliParser.Paths opts ->
-                    Terminal.Paths.print
+                    Terminal.Paths.run
                         { fsPermission = model.fsPermission
                         , stdout = model.stdout
                         , pathToString = model.pathToString
