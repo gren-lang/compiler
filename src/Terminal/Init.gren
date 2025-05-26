@@ -180,8 +180,22 @@ generateGrenJson config deps =
                     newOutline =
                         when outline is
                             Outline.App appOutline ->
-                                -- TODO: Add indirect deps
-                                outline
+                                let
+                                    originalDependencyNames =
+                                        Dict.keys appOutline.dependencies.direct
+
+                                    indirectDeps =
+                                        resolution.dependencies
+                                            |> Dict.keepIf (\name _ -> not <| Array.member name originalDependencyNames)
+                                            |> Dict.map (\_ package -> Outline.Version package.outline.version)
+                                in
+                                Outline.App
+                                    { appOutline
+                                        | dependencies =
+                                            { appOutline.dependencies
+                                                | indirect = indirectDeps
+                                            }
+                                    }
 
                             Outline.Pkg _ ->
                                 outline
