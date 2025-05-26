@@ -15,9 +15,7 @@ import Gren.ModuleName qualified as ModuleName
 import Gren.Outline (Outline)
 import Gren.Outline qualified as Outline
 import Gren.Package qualified as Package
-import Gren.Platform qualified as Platform
 import Gren.Version qualified as Version
-import Init qualified
 import Json.Decode qualified as Json
 import Make qualified
 import Package.Bump qualified as Bump
@@ -39,8 +37,6 @@ main =
         case Json.fromByteString commandDecoder json of
           Left err ->
             error (show err)
-          Right (Init (InitFlags interactive package platform)) ->
-            Init.run $ Init.Flags (not interactive) package platform
           Right (Repl interpreter) ->
             Repl.run $ Repl.Flags interpreter
           Right (Make (MakeFlags optimize sourcemaps output report paths projectPath outline rootSources deps)) ->
@@ -68,8 +64,7 @@ main =
             \ To properly install Gren, see https://gren-lang.org/install"
 
 data Command
-  = Init InitFlags
-  | Repl (Maybe String)
+  = Repl (Maybe String)
   | Make MakeFlags
   | Docs DocsFlags
   | PackageValidate
@@ -78,13 +73,6 @@ data Command
   | PackageDiffVersion Version.Version
   | PackageDiffRange Version.Version Version.Version
   | PackageDiffGlobal Package.Name Version.Version Version.Version
-  deriving (Show)
-
-data InitFlags = InitFlags
-  { _init_interactive :: Bool,
-    _init_package :: Bool,
-    _init_platform :: Platform.Platform
-  }
   deriving (Show)
 
 data MakeFlags = MakeFlags
@@ -122,7 +110,6 @@ commandDecoder =
     tipe <- Json.field (BS.pack "command") Json.string
     let commandStr = Utf8.toChars tipe
     case commandStr of
-      "init" -> Init <$> initDecoder
       "repl" -> Repl <$> maybeDecoder (fmap Utf8.toChars Json.string)
       "make" -> Make <$> makeDecoder
       "docs" -> Docs <$> docsDecoder
@@ -141,13 +128,6 @@ packageDecoder =
 versionDecoder :: Json.Decoder CommandDecoderError Version.Version
 versionDecoder =
   Json.mapError (const InvalidInput) Version.decoder
-
-initDecoder :: Json.Decoder CommandDecoderError InitFlags
-initDecoder =
-  InitFlags
-    <$> Json.field (BS.pack "interactive") Json.bool
-    <*> Json.field (BS.pack "package") Json.bool
-    <*> Json.field (BS.pack "platform") (Platform.decoder InvalidInput)
 
 makeDecoder :: Json.Decoder CommandDecoderError MakeFlags
 makeDecoder =

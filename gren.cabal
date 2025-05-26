@@ -212,7 +212,6 @@ Executable gren
         Main.hs
 
     other-modules:
-        Init
         Make
         Docs
         Repl
