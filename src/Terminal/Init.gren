@@ -22,7 +22,7 @@ import SemanticVersion exposing (SemanticVersion)
 import SemanticVersionRange
 import Dict
 import Meta
-import Terminal.Package as Package
+import Terminal.PackageInstall as PackageInstall
 
 
 type alias Config =
@@ -162,7 +162,7 @@ generateGrenJson config deps =
                         }
                     }
     in
-    Package.install
+    PackageInstall.run
         { stdout = config.stdout
         , stdin = config.stdin
         , fsPermission = config.fsPermission

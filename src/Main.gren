@@ -3,7 +3,9 @@ port module Main exposing (main)
 import Node
 import ChildProcess
 import Terminal.Parser as CliParser
-import Terminal.Package
+import Terminal.PackageInstall
+import Terminal.PackageUninstall
+import Terminal.PackageOutdated
 import Terminal.Paths
 import Terminal.Init
 import Compiler.Backend
@@ -351,10 +353,10 @@ parseUserArgs model compilerPath =
                         }
 
                 CliParser.Make flags ->
-                    Terminal.Package.readProjectOutline model.fsPermission
+                    Terminal.PackageInstall.readProjectOutline model.fsPermission
                         |> Task.andThen
                             (\projectOutline ->
-                                Terminal.Package.install
+                                Terminal.PackageInstall.run
                                     { fsPermission = model.fsPermission
                                     , cpPermission = model.cpPermission
                                     , interactive = model.interactive
@@ -395,10 +397,11 @@ parseUserArgs model compilerPath =
                         |> Task.executeCmd
 
                 CliParser.MakeStatic opts ->
-                    Terminal.Package.readProjectOutline model.fsPermission
+                    Terminal.PackageInstall.readProjectOutline model.fsPermission
+                        |> Task.mapError Debug.toString
                         |> Task.andThen
                             (\projectOutline ->
-                                Terminal.Package.install
+                                Terminal.PackageInstall.run
                                     { fsPermission = model.fsPermission
                                     , cpPermission = model.cpPermission
                                     , interactive = model.interactive
@@ -407,6 +410,7 @@ parseUserArgs model compilerPath =
                                     , stdin = model.stdin
                                     }
                                     projectOutline
+                                    |> Task.mapError Debug.toString
                             )
                         |> Task.map
                             (\resolved ->
@@ -438,7 +442,7 @@ parseUserArgs model compilerPath =
                             )
                         |> Task.onError
                             (\err ->
-                                Stream.Log.line model.stdout (Debug.toString err)
+                                Stream.Log.line model.stdout err
                                     |> Task.execute
                                     |> Task.succeed
                             )
@@ -455,10 +459,10 @@ parseUserArgs model compilerPath =
                         }
 
                 CliParser.PackageInstall Nothing ->
-                    Terminal.Package.readProjectOutline model.fsPermission
+                    Terminal.PackageInstall.readProjectOutline model.fsPermission
                         |> Task.andThen
                             (\projectOutline ->
-                                Terminal.Package.install
+                                Terminal.PackageInstall.run
                                     { fsPermission = model.fsPermission
                                     , cpPermission = model.cpPermission
                                     , interactive = model.interactive
@@ -479,10 +483,10 @@ parseUserArgs model compilerPath =
                         |> Task.execute
 
                 CliParser.PackageInstall (Just requestedPackage) ->
-                    Terminal.Package.readProjectOutline model.fsPermission
+                    Terminal.PackageInstall.readProjectOutline model.fsPermission
                         |> Task.andThen
                             (\projectOutline ->
-                                Terminal.Package.installPackage
+                                Terminal.PackageInstall.addPackage
                                     { fsPermission = model.fsPermission
                                     , cpPermission = model.cpPermission
                                     , interactive = model.interactive
@@ -504,10 +508,11 @@ parseUserArgs model compilerPath =
                         |> Task.execute
 
                 CliParser.PackageUninstall packageName ->
-                    Terminal.Package.readProjectOutline model.fsPermission
+                    Terminal.PackageInstall.readProjectOutline model.fsPermission
+                        |> Task.mapError Debug.toString
                         |> Task.andThen
                             (\projectOutline ->
-                                Terminal.Package.uninstallPackage
+                                Terminal.PackageUninstall.run
                                     { fsPermission = model.fsPermission
                                     , cpPermission = model.cpPermission
                                     , interactive = model.interactive
@@ -517,6 +522,7 @@ parseUserArgs model compilerPath =
                                     }
                                     projectOutline
                                     packageName
+                                    |> Task.mapError Debug.toString
                             )
                         |> Task.andThen
                             (\err ->
@@ -529,10 +535,11 @@ parseUserArgs model compilerPath =
                         |> Task.execute
 
                 CliParser.PackageOutdated ->
-                    Terminal.Package.readProjectOutline model.fsPermission
+                    Terminal.PackageInstall.readProjectOutline model.fsPermission
+                        |> Task.mapError Debug.toString
                         |> Task.andThen
                             (\projectOutline ->
-                                Terminal.Package.outdatedDeps
+                                Terminal.PackageOutdated.run
                                     { fsPermission = model.fsPermission
                                     , cpPermission = model.cpPermission
                                     , interactive = model.interactive
@@ -541,6 +548,7 @@ parseUserArgs model compilerPath =
                                     , stdin = model.stdin
                                     }
                                     projectOutline
+                                    |> Task.mapError Debug.toString
                             )
                         |> Task.andThen
                             (\err ->
