@@ -18,11 +18,11 @@ import Meta
 
 
 type Command
-    = Init Compiler.Backend.InitFlags
-    | Repl Compiler.Backend.ReplFlags
+    = Init InitFlags
+    | Repl ReplFlags
     | Make MakeFlags
     | MakeStatic MakeStaticOpts
-    | Docs Compiler.Backend.DocsFlags
+    | Docs DocsFlags
     | PackageInstall (Maybe PackageName)
     | PackageUninstall PackageName
     | PackageOutdated
@@ -30,6 +30,17 @@ type Command
     | PackageBump
     | PackageDiff Compiler.Backend.DiffArgs
     | Paths Paths.Options
+
+
+type alias InitFlags =
+    { package : Bool
+    , platform : Platform
+    }
+
+
+type alias ReplFlags =
+    { interpreter : Maybe String
+    }
 
 
 type alias MakeFlags =
@@ -44,6 +55,12 @@ type alias MakeFlags =
 type alias MakeStaticOpts =
     { output : Path
     , source : Path
+    }
+
+
+type alias DocsFlags =
+    { output : Maybe Compiler.Backend.DocsOutput
+    , report : Maybe {}
     }
 
 

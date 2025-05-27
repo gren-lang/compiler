@@ -12,7 +12,6 @@ module Gren.Details
     loadForMake,
     loadObjects,
     loadInterfaces,
-    verifyInstall,
   )
 where
 
@@ -129,16 +128,6 @@ loadInterfaces root (Details _ _ _ _ _ extras) =
   case extras of
     ArtifactsFresh i _ -> newMVar (Just i)
     ArtifactsCached -> fork (File.readBinary (Dirs.interfaces root))
-
--- VERIFY INSTALL -- used by Install
-
-verifyInstall :: BW.Scope -> FilePath -> Solver.Env -> Outline.Outline -> IO (Either Exit.Details Details)
-verifyInstall scope root (Solver.Env cache) outline =
-  do
-    time <- File.getTime (root </> "gren.json")
-    let key = Reporting.ignorer
-    let env = Env key scope root cache
-    generate env outline time
 
 -- LOAD -- used by Make, Docs, Repl
 

@@ -74,7 +74,7 @@ run flags@(Flags _ _ maybeOutput report _ _ _ _ _) =
       runHelp style flags
 
 runHelp :: Reporting.Style -> Flags -> IO (Either Exit.Make ())
-runHelp style flags@(Flags optimize withSourceMaps maybeOutput _ paths root outline _ deps) =
+runHelp style flags@(Flags optimize withSourceMaps maybeOutput _ paths root outline sources deps) =
   Task.run $
     do
       desiredMode <- getMode optimize
@@ -89,10 +89,10 @@ runHelp style flags@(Flags optimize withSourceMaps maybeOutput _ paths root outl
             [] ->
               do
                 exposed <- getExposed details
-                buildExposed style root details exposed
+                buildExposed style root details sources exposed
             p : ps ->
               do
-                artifacts <- buildPaths style root details (NE.List p ps)
+                artifacts <- buildPaths style root details sources (NE.List p ps)
                 let mains = getMains artifacts
                 case (projectType, mains) of
                   (Parse.Package _, m : ms) ->
@@ -197,15 +197,15 @@ getProjectType (Details.Details _ validOutline _ _ _ _) = do
 
 -- BUILD PROJECTS
 
-buildExposed :: Reporting.Style -> FilePath -> Details.Details -> NE.List ModuleName.Raw -> Task ()
-buildExposed style root details exposed =
+buildExposed :: Reporting.Style -> FilePath -> Details.Details -> Map ModuleName.Raw ByteString -> NE.List ModuleName.Raw -> Task ()
+buildExposed style root details sources exposed =
   Task.eio Exit.MakeCannotBuild $
-    Build.fromExposed style root details Build.IgnoreDocs exposed
+    Build.fromExposedSources style root details sources Build.IgnoreDocs exposed
 
-buildPaths :: Reporting.Style -> FilePath -> Details.Details -> NE.List FilePath -> Task Build.Artifacts
-buildPaths style root details paths =
+buildPaths :: Reporting.Style -> FilePath -> Details.Details -> Map ModuleName.Raw ByteString -> NE.List FilePath -> Task Build.Artifacts
+buildPaths style root details sources paths =
   Task.eio Exit.MakeCannotBuild $
-    Build.fromPaths style root details paths
+    Build.fromPathsSources style root details sources paths
 
 -- GET MAINS
 

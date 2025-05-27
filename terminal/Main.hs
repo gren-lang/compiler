@@ -41,8 +41,8 @@ main =
             Repl.run $ Repl.Flags interpreter
           Right (Make (MakeFlags optimize sourcemaps output report paths projectPath outline rootSources deps)) ->
             Make.run $ Make.Flags optimize sourcemaps output report paths projectPath outline rootSources deps
-          Right (Docs (DocsFlags output report)) ->
-            Docs.run $ Docs.Flags output report
+          Right (Docs (DocsFlags output report projectPath outline rootSources deps)) ->
+            Docs.run $ Docs.Flags output report projectPath outline rootSources deps
           Right PackageValidate ->
             Validate.run
           Right (PackageBump (BumpFlags interactive)) ->
@@ -90,7 +90,11 @@ data MakeFlags = MakeFlags
 
 data DocsFlags = DocsFlags
   { _docs_output :: Maybe Docs.Output,
-    _docs_report_json :: Bool
+    _docs_report_json :: Bool,
+    _docs_project_path :: String,
+    _docs_outline :: Outline,
+    _docs_root_sources :: Map ModuleName.Raw ByteString,
+    _docs_dependencies :: Map Package.Name Details.Dependency
   }
   deriving (Show)
 
@@ -166,6 +170,10 @@ docsDecoder =
   DocsFlags
     <$> Json.field (BS.pack "output") (maybeDecoder docsOutputDecoder)
     <*> Json.field (BS.pack "report-json") Json.bool
+    <*> Json.field (BS.pack "project-path") (fmap Utf8.toChars Json.string)
+    <*> Json.field (BS.pack "project-outline") (Json.mapError (const InvalidInput) Outline.decoder)
+    <*> Json.field (BS.pack "sources") (Json.dict (ModuleName.keyDecoder (\_ _ -> InvalidInput)) (fmap Utf8.toByteString Json.stringUnescaped))
+    <*> Json.field (BS.pack "dependencies") (Json.dict (Package.keyDecoder (\_ _ -> InvalidInput)) makeDependencyDecoder)
 
 docsOutputDecoder :: Json.Decoder CommandDecoderError Docs.Output
 docsOutputDecoder =
