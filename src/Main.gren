@@ -482,6 +482,52 @@ parseUserArgs model compilerPath =
                             )
                         |> Task.executeCmd
 
+                CliParser.Run opts ->
+                    Terminal.PackageInstall.readProjectOutline model.fsPermission
+                        |> Task.mapError Debug.toString
+                        |> Task.andThen
+                            (\projectOutline ->
+                                Terminal.PackageInstall.run
+                                    { fsPermission = model.fsPermission
+                                    , cpPermission = model.cpPermission
+                                    , interactive = model.interactive
+                                    , useColor = model.useColor
+                                    , stdout = model.stdout
+                                    , stdin = model.stdin
+                                    }
+                                    projectOutline
+                                    |> Task.mapError Debug.toString
+                            )
+                        |> Task.map
+                            (\resolved ->
+                                Compiler.Backend.run
+                                    model.cpPermission
+                                    { useColor = model.useColor
+                                    , compilerPath = compilerPath
+                                    , pathToString = model.pathToString
+                                    , onInit = initWithCommand <|
+                                        Compiler.Backend.Make
+                                            { optimize = opts.optimize
+                                            , sourcemaps = False
+                                            , output = Nothing -- TODO: where to compile output?
+                                            , report = Nothing
+                                            , projectPath = resolved.projectPath
+                                            , entryPoints = [ opts.entryPoint ]
+                                            , outline = resolved.outline
+                                            , rootSources = resolved.rootSources
+                                            , dependencies = resolved.dependencies
+                                            }
+                                    , onComplete = CompilerRan -- TODO: run after compile
+                                    }
+                            )
+                        |> Task.onError
+                            (\err ->
+                                Stream.Log.line model.stdout err
+                                    |> Task.execute
+                                    |> Task.succeed
+                            )
+                        |> Task.executeCmd
+
                 CliParser.Docs flags ->
                     -- TODO: DRY up package installation
                     Terminal.PackageInstall.readProjectOutline model.fsPermission

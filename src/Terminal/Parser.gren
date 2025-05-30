@@ -30,6 +30,7 @@ type Command
     | PackageBump
     | PackageDiff Compiler.Backend.DiffArgs
     | Paths Paths.Options
+    | Run RunOpts
 
 
 type alias InitFlags =
@@ -55,6 +56,12 @@ type alias MakeFlags =
 type alias MakeStaticOpts =
     { output : Path
     , source : Path
+    }
+
+
+type alias RunOpts =
+    { optimize : Bool
+    , entryPoint : Path
     }
 
 
@@ -270,6 +277,48 @@ parser =
                         ]
                 , builder =
                     \args _flags -> MakeStatic args
+                }
+            |> CLI.Parser.withCommand
+                { word = "run"
+                , arguments =
+                    -- TODO: this should take a module name, not a gren file?
+                    CLI.Parser.oneArg CLI.Parser.grenFileParser
+                , flags =
+                    CLI.Parser.initFlags
+                        (\optimize ->
+                            { optimize = optimize
+                            }
+                        )
+                        |> CLI.Parser.toggle "optimize" "Turn on optimizations to make code smaller and faster. For example, the compiler renames record fields to be as short as possible and unboxes values to reduce allocation."
+                        {- TODO: specify package? something like this:
+                        |> CLI.Parser.flag "package" PackageName.cliParser 
+                            "specify package of the module you want to run"
+                        -}
+                , commonDescription =
+                    Nothing
+                , summary =
+                    "The `run` command compiles and runs a Gren file:"
+                , example = 
+                    PP.verticalBlock
+                        [ PP.words "For example:"
+                        , PP.empty
+                        , PP.words "gren run src/Main.gren"
+                            |> PP.indent
+                            |> PP.color PP.Green
+                        , PP.empty
+                        , PP.words
+                            -- TODO: better description?
+                            """
+                            This tries to compile a Gren file named src/Main.gren.
+                            The file must have a `main` function that returns a Node program.
+                            """
+                        ]
+                , builder =
+                    \args flags ->
+                        Run
+                            { optimize = flags.optimize
+                            , entryPoint = args
+                            }
                 }
             |> CLI.Parser.withCommand
                 { word = "docs"
