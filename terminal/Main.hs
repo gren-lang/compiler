@@ -45,8 +45,10 @@ main =
             Docs.run $ Docs.Flags output report projectPath outline rootSources deps
           Right PackageValidate ->
             Validate.run
-          Right (PackageBump (BumpFlags interactive)) ->
-            Bump.run $ Bump.Flags (not interactive)
+          Right (PackageBump (BumpFlags interactive projectPath knownVersions (Outline.Pkg pkgOutline) rootSources deps)) ->
+            Bump.run $ Bump.Flags interactive projectPath knownVersions pkgOutline rootSources deps
+          Right (PackageBump _) ->
+            error "PackageBump received for application, this operation is not supported."
           Right PackageDiffLatest ->
             Diff.run Diff.CodeVsLatest
           Right (PackageDiffVersion version) ->
@@ -99,7 +101,12 @@ data DocsFlags = DocsFlags
   deriving (Show)
 
 data BumpFlags = BumpFlags
-  { _bump_interactive :: Bool
+  { _bump_interactive :: Bool,
+    _bump_project_path :: String,
+    _bump_known_versions :: [Version.Version],
+    _bump_outline :: Outline,
+    _bump_root_sources :: Map ModuleName.Raw ByteString,
+    _bump_dependencies :: Map Package.Name Details.Dependency
   }
   deriving (Show)
 
@@ -190,6 +197,11 @@ bumpDecoder :: Json.Decoder CommandDecoderError BumpFlags
 bumpDecoder =
   BumpFlags
     <$> Json.field (BS.pack "interactive") Json.bool
+    <*> Json.field (BS.pack "project-path") (fmap Utf8.toChars Json.string)
+    <*> Json.field (BS.pack "known-versions") (Json.list versionDecoder)
+    <*> Json.field (BS.pack "project-outline") (Json.mapError (const InvalidInput) Outline.decoder)
+    <*> Json.field (BS.pack "sources") (Json.dict (ModuleName.keyDecoder (\_ _ -> InvalidInput)) (fmap Utf8.toByteString Json.stringUnescaped))
+    <*> Json.field (BS.pack "dependencies") (Json.dict (Package.keyDecoder (\_ _ -> InvalidInput)) makeDependencyDecoder)
 
 diffVersionDecoder :: Json.Decoder CommandDecoderError Command
 diffVersionDecoder =

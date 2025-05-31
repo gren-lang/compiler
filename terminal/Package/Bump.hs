@@ -2,11 +2,17 @@
 
 module Package.Bump
   ( run,
-    Flags (Flags),
+    Flags (..),
   )
 where
 
+import Gren.Package qualified as Package
+import Gren.ModuleName qualified as ModuleName
+import Gren.Outline (Outline)
+import Gren.Outline qualified as Outline
 import BackgroundWriter qualified as BW
+import Data.ByteString.Internal (ByteString)
+import Data.Map (Map)
 import Build qualified
 import Data.List qualified as List
 import Data.NonEmptyList qualified as NE
@@ -27,61 +33,41 @@ import Reporting.Task qualified as Task
 
 -- RUN
 
-newtype Flags = Flags
-  {_skipPrompts :: Bool}
+data Flags = Flags
+  { _interactive :: Bool,
+    _project_path :: String,
+    _known_versions :: [V.Version],
+    _outline :: Outline.PkgOutline,
+    _root_sources :: Map ModuleName.Raw ByteString,
+    _dependencies :: Map Package.Name Details.Dependency
+  }
+  deriving (Show)
 
 run :: Flags -> IO ()
 run flags =
   Reporting.attempt Exit.bumpToReport $
-    Task.run (bump flags =<< getEnv)
-
--- ENV
-
-data Env = Env
-  { _root :: FilePath,
-    _cache :: Dirs.PackageCache,
-    _outline :: Outline.PkgOutline
-  }
-
-getEnv :: Task.Task Exit.Bump Env
-getEnv =
-  do
-    maybeRoot <- Task.io Dirs.findRoot
-    case maybeRoot of
-      Nothing ->
-        Task.throw Exit.BumpNoOutline
-      Just root ->
-        do
-          cache <- Task.io Dirs.getPackageCache
-          outline <- Task.eio Exit.BumpBadOutline $ Outline.read root
-          case outline of
-            Outline.App _ ->
-              Task.throw Exit.BumpApplication
-            Outline.Pkg pkgOutline ->
-              return $ Env root cache pkgOutline
+    Task.run (bump flags)
 
 -- BUMP
 
-bump :: Flags -> Env -> Task.Task Exit.Bump ()
-bump flags env@(Env root _ outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _)) =
+bump :: Flags -> Task.Task Exit.Bump ()
+bump flags@(Flags interactive root knownVersions outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _) sources deps) =
   Task.eio id $
-    do
-      versionResult <- Package.getVersions pkg
-      case versionResult of
-        Right knownVersions ->
-          let bumpableVersions =
-                map (\(old, _, _) -> old) (Package.bumpPossibilities knownVersions)
-           in if elem vsn bumpableVersions
-                then Task.run $ suggestVersion flags env
-                else do
-                  return $
-                    Left $
-                      Exit.BumpUnexpectedVersion vsn $
-                        map head (List.group (List.sort bumpableVersions))
-        Left _ ->
-          do
-            checkNewPackage flags root outline
-            return $ Right ()
+    case knownVersions of
+      (v : vs) ->
+        let bumpableVersions =
+              map (\(old, _, _) -> old) (Package.bumpPossibilities (v, vs))
+         in if elem vsn bumpableVersions
+              then Task.run $ suggestVersion flags
+              else do
+                return $
+                  Left $
+                    Exit.BumpUnexpectedVersion vsn $
+                      map head (List.group (List.sort bumpableVersions))
+      [] ->
+        do
+          checkNewPackage flags root outline
+          return $ Right ()
 
 -- CHECK NEW PACKAGE
 
@@ -100,14 +86,16 @@ checkNewPackage flags root outline@(Outline.PkgOutline _ _ _ version _ _ _ _) =
 
 -- SUGGEST VERSION
 
-suggestVersion :: Flags -> Env -> Task.Task Exit.Bump ()
-suggestVersion flags (Env root cache outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _)) =
+suggestVersion :: Flags -> Task.Task Exit.Bump ()
+suggestVersion flags@(Flags interactive root _ outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _) sources deps) =
   do
-    oldDocs <-
-      Task.mapError
-        (Exit.BumpCannotFindDocs pkg vsn)
-        (Diff.getDocs cache pkg vsn)
+    -- TODO: Temporary until Diff.getDocs is rewritten
+    -- oldDocs <-
+    --   Task.mapError
+    --     (Exit.BumpCannotFindDocs pkg vsn)
+    --     (Diff.getDocs cache pkg vsn)
 
+    oldDocs <- generateDocs root outline
     newDocs <- generateDocs root outline
     let changes = Diff.diff oldDocs newDocs
     let newVersion = Diff.bump changes vsn
@@ -151,7 +139,7 @@ generateDocs root (Outline.PkgOutline _ _ _ _ exposed _ _ _) =
 changeVersion :: Flags -> FilePath -> Outline.PkgOutline -> V.Version -> D.Doc -> IO ()
 changeVersion flags root outline targetVersion question =
   do
-    approved <- Reporting.ask (_skipPrompts flags) question
+    approved <- Reporting.ask (not $ _interactive flags) question
     if not approved
       then putStrLn "Okay, I did not change anything!"
       else do

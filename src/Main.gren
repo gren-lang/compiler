@@ -676,6 +676,15 @@ parseUserArgs model compilerPath =
                         |> Task.mapError Debug.toString
                         |> Task.andThen
                             (\projectOutline ->
+                                when projectOutline.outline is
+                                    Outline.App _ ->
+                                        Task.fail "Can only use bump on packages"
+
+                                    Outline.Pkg _ ->
+                                        Task.succeed projectOutline
+                            )
+                        |> Task.andThen
+                            (\projectOutline ->
                                 Terminal.PackageInstall.run
                                     { fsPermission = model.fsPermission
                                     , cpPermission = model.cpPermission
