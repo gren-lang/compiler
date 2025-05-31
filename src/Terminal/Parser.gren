@@ -11,6 +11,7 @@ import CLI.PrettyPrinter as PP
 import Compiler.Backend
 import Compiler.PackageName as PackageName exposing (PackageName)
 import Compiler.Platform as Platform exposing (Platform)
+import Compiler.ModuleName as ModuleName exposing (ModuleName)
 import Terminal.Paths as Paths
 import SemanticVersion exposing (SemanticVersion)
 import FileSystem.Path as Path exposing (Path)
@@ -48,13 +49,13 @@ type alias MakeFlags =
     , sourcemaps : Bool
     , output : Maybe Compiler.Backend.MakeOutput
     , report : Maybe {}
-    , entryPoints : Array Path
+    , entryPoints : Array ModuleName
     }
 
 
 type alias MakeStaticOpts =
     { output : Path
-    , source : Path
+    , source : ModuleName
     }
 
 
@@ -194,7 +195,7 @@ parser =
             |> CLI.Parser.withCommand
                 { word = "make"
                 , arguments =
-                    CLI.Parser.zeroOrMoreArgs CLI.Parser.grenFileParser
+                    CLI.Parser.zeroOrMoreArgs moduleNameParser
                 , flags =
                     CLI.Parser.initFlags 
                         (\optimize sourcemaps output report ->
@@ -245,7 +246,7 @@ parser =
                             , output = output
                             }
                         )
-                        CLI.Parser.grenFileParser
+                        moduleNameParser
                         CLI.Parser.pathParser
                 , flags =
                     CLI.Parser.noFlags
@@ -627,5 +628,17 @@ docsOutputParser =
         [ "/dev/stdout"
         , "/dev/null"
         , "docs.json"
+        ]
+    }
+
+
+moduleNameParser : CLI.Parser.ValueParser ModuleName
+moduleNameParser =
+    { singular = "module-name"
+    , plural = "module-names"
+    , fn = ModuleName.fromString
+    , examples =
+        [ "Main"
+        , "My.Module"
         ]
     }

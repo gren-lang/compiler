@@ -80,7 +80,7 @@ data MakeFlags = MakeFlags
     _make_sourcemaps :: Bool,
     _make_output :: Maybe Make.Output,
     _make_report_json :: Bool,
-    _make_paths :: [String],
+    _make_paths :: [ModuleName.Raw],
     _make_project_path :: String,
     _make_outline :: Outline,
     _make_root_sources :: Map ModuleName.Raw ByteString,
@@ -140,7 +140,7 @@ makeDecoder =
     <*> Json.field (BS.pack "sourcemaps") Json.bool
     <*> Json.field (BS.pack "output") (maybeDecoder makeOutputDecoder)
     <*> Json.field (BS.pack "report-json") Json.bool
-    <*> Json.field (BS.pack "entry-points") (Json.list (fmap Utf8.toChars Json.string))
+    <*> Json.field (BS.pack "entry-points") (Json.list (Json.mapError (const InvalidInput) ModuleName.decoder))
     <*> Json.field (BS.pack "project-path") (fmap Utf8.toChars Json.string)
     <*> Json.field (BS.pack "project-outline") (Json.mapError (const InvalidInput) Outline.decoder)
     <*> Json.field (BS.pack "sources") (Json.dict (ModuleName.keyDecoder (\_ _ -> InvalidInput)) (fmap Utf8.toByteString Json.stringUnescaped))

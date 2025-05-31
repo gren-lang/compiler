@@ -8,6 +8,7 @@ module Build
     fromExposedSources,
     fromPaths,
     fromPathsSources,
+    fromMainModules,
     fromRepl,
     Artifacts (..),
     Root (..),
@@ -250,6 +251,34 @@ fromPathsSources style root details sources paths =
                   results <- traverse readMVar resultsMVars
                   writeDetails root details results
                   toArtifacts env foreigns results <$> traverse readMVar rrootMVars
+
+fromMainModules :: Reporting.Style -> FilePath -> Details.Details -> Map ModuleName.Raw ByteString -> NE.List ModuleName.Raw -> IO (Either Exit.BuildProblem Artifacts)
+fromMainModules style root details sources rootModules =
+  Reporting.trackBuild style $ \key ->
+    do
+      env <- makeEnv key root details
+
+      -- crawl
+      dmvar <- Details.loadInterfaces root details
+      smvar <- newMVar Map.empty
+      srootMVars <- traverse (fork . crawlRootModule env smvar sources) rootModules
+      sroots <- traverse readMVar srootMVars
+      statuses <- traverse readMVar =<< readMVar smvar
+
+      midpoint <- checkMidpointAndRoots dmvar statuses sroots
+      case midpoint of
+        Left problem ->
+          return (Left (Exit.BuildProjectProblem problem))
+        Right foreigns ->
+          do
+            -- compile
+            rmvar <- newEmptyMVar
+            resultsMVars <- forkWithKey (checkModule env foreigns rmvar) statuses
+            putMVar rmvar resultsMVars
+            rrootMVars <- traverse (fork . checkRoot env resultsMVars) sroots
+            results <- traverse readMVar resultsMVars
+            writeDetails root details results
+            toArtifacts env foreigns results <$> traverse readMVar rrootMVars
 
 -- GET ROOT NAMES
 
@@ -1111,8 +1140,18 @@ crawlRootSources env@(Env _ _ projectType _ _ buildID _ _) mvar sources root =
               SOutsideErr $
                 Error.Module "???" path time source (Error.BadSyntax syntaxError)
 
+crawlRootModule :: Env -> MVar StatusDict -> Map ModuleName.Raw ByteString -> ModuleName.Raw -> IO RootStatus
+crawlRootModule env mvar sources root =
+  do
+    statusMVar <- newEmptyMVar
+    statusDict <- takeMVar mvar
+    putMVar mvar (Map.insert root statusMVar statusDict)
+    putMVar statusMVar =<< crawlModuleSources env mvar sources (DocsNeed False) root
+    return (SInside root)
+
 -- CHECK ROOTS
 
+-- TODO: Only support RInside
 data RootResult
   = RInside ModuleName.Raw
   | ROutsideOk ModuleName.Raw I.Interface Opt.LocalGraph

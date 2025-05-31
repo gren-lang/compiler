@@ -44,7 +44,7 @@ data Flags = Flags
     _sourceMaps :: Bool,
     _output :: Maybe Output,
     _report :: Bool,
-    _paths :: [String],
+    _paths :: [ModuleName.Raw],
     _project_path :: String,
     _outline :: Outline,
     _root_sources :: Map ModuleName.Raw ByteString,
@@ -74,7 +74,7 @@ run flags@(Flags _ _ maybeOutput report _ _ _ _ _) =
       runHelp style flags
 
 runHelp :: Reporting.Style -> Flags -> IO (Either Exit.Make ())
-runHelp style flags@(Flags optimize withSourceMaps maybeOutput _ paths root outline sources deps) =
+runHelp style flags@(Flags optimize withSourceMaps maybeOutput _ modules root outline sources deps) =
   Task.run $
     do
       desiredMode <- getMode optimize
@@ -85,7 +85,7 @@ runHelp style flags@(Flags optimize withSourceMaps maybeOutput _ paths root outl
         (Parse.Package _, Just _) ->
           Task.throw Exit.MakeCannotOutputForPackage
         _ ->
-          case paths of
+          case modules of
             [] ->
               do
                 exposed <- getExposed details
@@ -202,10 +202,10 @@ buildExposed style root details sources exposed =
   Task.eio Exit.MakeCannotBuild $
     Build.fromExposedSources style root details sources Build.IgnoreDocs exposed
 
-buildPaths :: Reporting.Style -> FilePath -> Details.Details -> Map ModuleName.Raw ByteString -> NE.List FilePath -> Task Build.Artifacts
-buildPaths style root details sources paths =
+buildPaths :: Reporting.Style -> FilePath -> Details.Details -> Map ModuleName.Raw ByteString -> NE.List ModuleName.Raw -> Task Build.Artifacts
+buildPaths style root details sources modules =
   Task.eio Exit.MakeCannotBuild $
-    Build.fromPathsSources style root details sources paths
+    Build.fromMainModules style root details sources modules
 
 -- GET MAINS
 
