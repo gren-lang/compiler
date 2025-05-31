@@ -653,6 +653,7 @@ parseUserArgs model compilerPath =
                                         initWithCommand <|
                                             Compiler.Backend.PackageValidate
                                                 { projectPath = resolved.projectPath
+                                                , knownVersions = []
                                                 , outline = resolved.outline
                                                 , rootSources = resolved.rootSources
                                                 , dependencies = resolved.dependencies
@@ -680,11 +681,18 @@ parseUserArgs model compilerPath =
                                     Outline.App _ ->
                                         Task.fail "Can only use bump on packages"
 
-                                    Outline.Pkg _ ->
-                                        Task.succeed projectOutline
+                                    Outline.Pkg pkgOutline ->
+                                        Git.fetchVersions model.cpPermission pkgOutline.name
+                                            |> Task.mapError Debug.toString
+                                            |> Task.map
+                                                (\vsns ->
+                                                    { projectOutline = projectOutline
+                                                    , knownVersions = vsns
+                                                    }
+                                                )
                             )
                         |> Task.andThen
-                            (\projectOutline ->
+                            (\{ projectOutline, knownVersions } ->
                                 Terminal.PackageInstall.run
                                     { fsPermission = model.fsPermission
                                     , cpPermission = model.cpPermission
@@ -695,15 +703,22 @@ parseUserArgs model compilerPath =
                                     }
                                     projectOutline
                                     |> Task.mapError Debug.toString
+                                    |> Task.map
+                                        (\resolved ->
+                                            { resolved = resolved
+                                            , knownVersions = knownVersions
+                                            }
+                                        )
                             )
                         |> Task.map
-                            (\resolved ->
+                            (\{ resolved, knownVersions } ->
                                 Compiler.Backend.run
                                     model.cpPermission
                                     { onInit =
                                         initWithCommand <|
                                             Compiler.Backend.PackageBump
                                                 { projectPath = resolved.projectPath
+                                                , knownVersions = knownVersions
                                                 , outline = resolved.outline
                                                 , rootSources = resolved.rootSources
                                                 , dependencies = resolved.dependencies
