@@ -341,6 +341,8 @@ crawlModule env@(Env _ root projectType _ srcDirs buildID locals foreigns) mvar 
                 return $ if exists then SKernel else SBadImport Import.NotFound
               else return $ SBadImport Import.NotFound
 
+-- TODO: Use (slimmed down) locals to avoid compiling a module twice
+-- TODO: Pass on path from frontend
 crawlModuleSources :: Env -> MVar StatusDict -> Map ModuleName.Raw ByteString -> DocsNeed -> ModuleName.Raw -> IO Status
 crawlModuleSources env@(Env _ _ projectType _ _ buildID _ foreigns) mvar sources docsNeed name =
   let path = ModuleName.toFilePath name <.> "gren"
