@@ -8,6 +8,7 @@ import Terminal.PackageUninstall
 import Terminal.PackageOutdated
 import Terminal.Paths
 import Terminal.Init
+import Terminal.Run
 import Compiler.Backend
 import Compiler.PackageName as PackageName exposing (PackageName)
 import Compiler.Paths
@@ -28,6 +29,7 @@ import CLI.PrettyPrinter as PP
 import SemanticVersion exposing (SemanticVersion)
 import Json.Encode as Json
 import Stream.Extra
+import Process
 
 
 main : Node.Program Model Msg
@@ -154,6 +156,9 @@ type Msg
     | CompilerInitialized { backendStreams : ChildProcess.StreamIO, encodedCommand : Bytes }
     | CompilerRan Int
     | CompilerRanStatic { path : String, exitCode : Int }
+    | CompiledForRun { path : String, exitCode : Int }
+    | RunStarted { processId : Process.Id, streams : Maybe ChildProcess.StreamIO }
+    | RunExited Int
 
 
 port completeStaticBuild : String -> Cmd msg
@@ -266,6 +271,26 @@ update msg model =
                 else
                     Node.exitWithCode exitCode
                         |> Task.execute
+
+            CompiledForRun { path, exitCode } ->
+                if exitCode == 0 then
+                    Terminal.Run.run 
+                        { cpPermission = model.cpPermission
+                        , path = path
+                        , onInit = RunStarted
+                        , onExit = RunExited
+                        }
+
+                else
+                    Node.exitWithCode exitCode
+                        |> Task.execute
+
+            RunStarted _ ->
+                Cmd.none
+
+            RunExited exitCode ->
+                Node.exitWithCode exitCode
+                    |> Task.execute
         }
 
 
@@ -483,6 +508,7 @@ parseUserArgs model compilerPath =
                         |> Task.executeCmd
 
                 CliParser.Run opts ->
+                    -- TODO: getting "Dependency problem!"
                     Terminal.PackageInstall.readProjectOutline model.fsPermission
                         |> Task.mapError Debug.toString
                         |> Task.andThen
@@ -498,8 +524,21 @@ parseUserArgs model compilerPath =
                                     projectOutline
                                     |> Task.mapError Debug.toString
                             )
-                        |> Task.map
+                        |> Task.andThen
                             (\resolved ->
+                                Terminal.Run.getOutputPath model.fsPermission
+                                    |> Task.map model.pathToString
+                                    |> Task.mapError FileSystem.errorToString -- TODO: better error message
+                                    |> Task.andThen
+                                        (\outputPath ->
+                                            Task.succeed
+                                                { resolved = resolved
+                                                , outputPath = outputPath
+                                                }
+                                        )
+                            )
+                        |> Task.map
+                            (\{ resolved, outputPath } ->
                                 Compiler.Backend.run
                                     model.cpPermission
                                     { useColor = model.useColor
@@ -509,7 +548,7 @@ parseUserArgs model compilerPath =
                                         Compiler.Backend.Make
                                             { optimize = opts.optimize
                                             , sourcemaps = False
-                                            , output = Nothing -- TODO: where to compile output?
+                                            , output = Just (Compiler.Backend.Exe outputPath)
                                             , report = Nothing
                                             , projectPath = resolved.projectPath
                                             , entryPoints = [ opts.entryPoint ]
@@ -517,7 +556,13 @@ parseUserArgs model compilerPath =
                                             , rootSources = resolved.rootSources
                                             , dependencies = resolved.dependencies
                                             }
-                                    , onComplete = CompilerRan -- TODO: run after compile
+                                    , onComplete = 
+                                        (\exitCode ->
+                                            CompiledForRun
+                                                { path = outputPath
+                                                , exitCode = exitCode
+                                                }
+                                        )
                                     }
                             )
                         |> Task.onError

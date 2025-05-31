@@ -1,0 +1,34 @@
+module Terminal.Run exposing
+    ( getOutputPath
+    , run
+    )
+
+
+import ChildProcess
+import FileSystem
+import FileSystem.Path as Path exposing (Path)
+import Node
+import Process
+import Task exposing (Task)
+
+
+type alias Config msg =
+    { cpPermission : ChildProcess.Permission
+    , path : String
+    , onInit : { processId : Process.Id, streams : Maybe ChildProcess.StreamIO } -> msg
+    , onExit : Int -> msg
+    }
+
+getOutputPath : FileSystem.Permission -> Task FileSystem.Error Path
+getOutputPath permission =
+    FileSystem.makeTempDirectory permission "gren-run"
+        -- is there a better way to do this?
+        |> Task.map Path.toPosixString
+        |> Task.map (String.append "/app")
+        |> Task.map Path.fromPosixString
+
+
+run : Config msg -> Cmd msg
+run config =
+    ChildProcess.spawn config.cpPermission "node" [ config.path ] <|
+        ChildProcess.defaultSpawnOptions config.onInit config.onExit
