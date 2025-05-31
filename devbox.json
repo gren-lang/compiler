@@ -16,7 +16,7 @@
         "npm ci"
       ],
       "build": [
-        "npm run prepublishOnly",
+        "npm run build",
         "./build_dev_bin.sh"
       ],
       "test": [
