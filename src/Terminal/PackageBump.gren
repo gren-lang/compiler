@@ -1,0 +1,169 @@
+module Terminal.PackageBump exposing
+    ( Config
+    , Options
+    , Error (..)
+    , Result
+    , run
+    )
+
+
+import ChildProcess
+import Compiler.Backend
+import Compiler.PackageName as PackageName exposing (PackageName)
+import Compiler.Paths
+import Compiler.Outline as Outline exposing (Outline)
+import Compiler.Dependencies
+import Git
+import Stream
+import Stream.Log
+import Task exposing (Task)
+import Dict exposing (Dict)
+import FileSystem
+import FileSystem.Path as Path exposing (Path)
+import Bytes exposing (Bytes)
+import SemanticVersion exposing (SemanticVersion)
+import SemanticVersionRange exposing (SemanticVersionRange)
+import Json.Encode as Json
+import Json.Decode as Decode exposing (Decoder)
+import Stream.Extra
+import Terminal.User as User
+import Terminal.PackageInstall
+
+
+type alias Config =
+    { fsPermission : FileSystem.Permission
+    , cpPermission : ChildProcess.Permission
+    , interactive : Bool
+    , useColor : Bool
+    , stdout : Stream.Writable Bytes
+    , stdin : Stream.Readable Bytes
+    }
+
+
+type alias Options =
+    { projectPath : Path
+    , outline : Outline
+    }
+
+
+type Error
+    = ErrorDebug String
+
+
+type alias Result =
+    { projectPath : Path
+    , knownVersions : Array SemanticVersion
+    , publishedVersion :
+        { outline : Outline
+        , rootSources : Dict String String
+        , dependencies : Dict String { outline : Outline.PkgOutline, sources : Dict String String }
+        }
+    , currentVersion :
+        { outline : Outline
+        , rootSources : Dict String String
+        , dependencies : Dict String { outline : Outline.PkgOutline, sources : Dict String String }
+        }
+    }
+
+
+run : Config -> Options -> Task String Result
+run config { projectPath, outline } =
+    when outline is
+        Outline.App _ ->
+            Task.fail "Can only use bump on packages"
+
+        Outline.Pkg pkgOutline ->
+            Git.fetchVersions config.cpPermission pkgOutline.name
+                |> Task.mapError Debug.toString
+                |> Task.andThen
+                    (\knownVersions ->
+                        if Array.isEmpty knownVersions then
+                            Task.fail "No published versions found, you probably want 1.0.0"
+
+                        else if not <| Array.member pkgOutline.version knownVersions then
+                            Task.fail "The version you're bumping from doesn't exist!"
+
+                        else
+                            Terminal.PackageInstall.run
+                                { fsPermission = config.fsPermission
+                                , cpPermission = config.cpPermission
+                                , interactive = config.interactive
+                                , useColor = config.useColor
+                                , stdout = config.stdout
+                                , stdin = config.stdin
+                                }
+                                { projectPath = projectPath, outline = outline }
+                                |> Task.mapError Debug.toString
+                                |> Task.map
+                                    (\resolved ->
+                                        { packageName = pkgOutline.name
+                                        , packageVersion = pkgOutline.version
+                                        , knownVersions = knownVersions
+                                        , currentPackage = resolved
+                                        }
+                                    )
+                    )
+                |> Task.andThen
+                    (\{ packageName, packageVersion, knownVersions, currentPackage } ->
+                         let
+                            repoPath =
+                                Terminal.PackageInstall.localRepoPath packageName packageVersion projectPath
+                        in
+                        FileSystem.remove config.fsPermission { recursive = True, ignoreErrors = False } repoPath
+                            |> Task.onError (\_ -> Task.succeed repoPath) -- Probably because directory doesn't exist, that's fine
+                            |> Task.andThen (\_ -> Git.clonePackage config.cpPermission repoPath packageName packageVersion)
+                            |> Task.mapError (\{ stderr } -> Maybe.withDefault "" <| Bytes.toString stderr)
+                            |> Task.andThen
+                                (\_ ->
+                                    Path.append (Path.fromPosixString "gren.json") repoPath
+                                        |> Terminal.PackageInstall.readOutline config.fsPermission
+                                        |> Task.mapError Debug.toString
+                                        |> Task.andThen
+                                            (\result ->
+                                                when result is
+                                                    Ok decodedOutline ->
+                                                        Task.succeed decodedOutline
+
+                                                    Err err ->
+                                                        Task.fail (Debug.toString err)
+                                            )
+                                )
+                            |> Task.andThen
+                                (\publishedOutline ->
+                                    Terminal.PackageInstall.run
+                                        { fsPermission = config.fsPermission
+                                        , cpPermission = config.cpPermission
+                                        , interactive = config.interactive
+                                        , useColor = config.useColor
+                                        , stdout = config.stdout
+                                        , stdin = config.stdin
+                                        }
+                                        { projectPath = repoPath, outline = publishedOutline }
+                                        |> Task.mapError Debug.toString
+                                        |> Task.map
+                                            (\resolved ->
+                                                { currentPackage = currentPackage
+                                                , publishedPackage = resolved
+                                                , knownVersions = knownVersions
+                                                }
+                                            )
+                                )
+                    )
+                |> Task.map
+                    (\{ currentPackage, publishedPackage, knownVersions } ->
+                        { projectPath = projectPath
+                        , knownVersions = knownVersions
+                        , publishedVersion =
+                            { outline = publishedPackage.outline
+                            , rootSources = publishedPackage.rootSources
+                            , dependencies = publishedPackage.dependencies
+                            }
+                        , currentVersion =
+                            { outline = currentPackage.outline
+                            , rootSources = currentPackage.rootSources
+                            , dependencies = currentPackage.dependencies
+                            }
+                        }
+                    )
+
+

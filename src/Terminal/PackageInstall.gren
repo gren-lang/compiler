@@ -4,6 +4,8 @@ module Terminal.PackageInstall exposing
     , run
     , addPackage
     , readProjectOutline
+    , readOutline
+    , localRepoPath
     )
 
 

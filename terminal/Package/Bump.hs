@@ -6,15 +6,12 @@ module Package.Bump
   )
 where
 
-import Gren.Package qualified as Package
-import Gren.ModuleName qualified as ModuleName
-import Gren.Outline (Outline)
-import Gren.Outline qualified as Outline
 import BackgroundWriter qualified as BW
-import Data.ByteString.Internal (ByteString)
-import Data.Map (Map)
 import Build qualified
+import Command qualified
+import Data.ByteString.Internal (ByteString)
 import Data.List qualified as List
+import Data.Map (Map)
 import Data.NonEmptyList qualified as NE
 import Deps.Diff qualified as Diff
 import Deps.Package qualified as Package
@@ -22,7 +19,10 @@ import Directories qualified as Dirs
 import Gren.Details qualified as Details
 import Gren.Docs qualified as Docs
 import Gren.Magnitude qualified as M
+import Gren.ModuleName qualified as ModuleName
+import Gren.Outline (Outline)
 import Gren.Outline qualified as Outline
+import Gren.Package qualified as Package
 import Gren.Version qualified as V
 import Reporting qualified
 import Reporting.Doc ((<+>))
@@ -37,28 +37,31 @@ data Flags = Flags
   { _interactive :: Bool,
     _project_path :: String,
     _known_versions :: [V.Version],
-    _outline :: Outline.PkgOutline,
-    _root_sources :: Map ModuleName.Raw ByteString,
-    _dependencies :: Map Package.Name Details.Dependency
+    _current_version :: Command.ProjectInfo,
+    _published_version :: Command.ProjectInfo
   }
   deriving (Show)
 
 run :: Flags -> IO ()
-run flags =
+run flags@(Flags _ _ _ currentVersion publishedVersion) =
   Reporting.attempt Exit.bumpToReport $
-    Task.run (bump flags)
+    case (Command._project_outline currentVersion, Command._project_outline publishedVersion) of
+      (Outline.Pkg currentPackage, Outline.Pkg publishedPkg) ->
+        Task.run (bump flags currentPackage publishedPkg)
+      _ ->
+        error "Received outlines are in the wrong format"
 
 -- BUMP
 
-bump :: Flags -> Task.Task Exit.Bump ()
-bump flags@(Flags interactive root knownVersions outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _) sources deps) =
+bump :: Flags -> Outline.PkgOutline -> Outline.PkgOutline -> Task.Task Exit.Bump ()
+bump flags@(Flags interactive root knownVersions currentPackage publishedPackage) currentOutline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _) publishedOutline =
   Task.eio id $
-    case knownVersions of
+    case reverse knownVersions of
       (v : vs) ->
         let bumpableVersions =
               map (\(old, _, _) -> old) (Package.bumpPossibilities (v, vs))
          in if elem vsn bumpableVersions
-              then Task.run $ suggestVersion flags
+              then Task.run $ suggestVersion flags currentOutline
               else do
                 return $
                   Left $
@@ -66,7 +69,7 @@ bump flags@(Flags interactive root knownVersions outline@(Outline.PkgOutline pkg
                       map head (List.group (List.sort bumpableVersions))
       [] ->
         do
-          checkNewPackage flags root outline
+          checkNewPackage flags root currentOutline
           return $ Right ()
 
 -- CHECK NEW PACKAGE
@@ -86,8 +89,8 @@ checkNewPackage flags root outline@(Outline.PkgOutline _ _ _ version _ _ _ _) =
 
 -- SUGGEST VERSION
 
-suggestVersion :: Flags -> Task.Task Exit.Bump ()
-suggestVersion flags@(Flags interactive root _ outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _) sources deps) =
+suggestVersion :: Flags -> Outline.PkgOutline -> Task.Task Exit.Bump ()
+suggestVersion flags@(Flags interactive root _ currentPackage publishedPackage) outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _) =
   do
     -- TODO: Temporary until Diff.getDocs is rewritten
     -- oldDocs <-

@@ -6,6 +6,7 @@ import Terminal.Parser as CliParser
 import Terminal.PackageInstall
 import Terminal.PackageUninstall
 import Terminal.PackageOutdated
+import Terminal.PackageBump
 import Terminal.Paths
 import Terminal.Init
 import Compiler.Backend
@@ -630,70 +631,55 @@ parseUserArgs model compilerPath =
                         |> Task.execute
 
                 CliParser.PackageValidate ->
-                    Terminal.PackageInstall.readProjectOutline model.fsPermission
-                        |> Task.mapError Debug.toString
-                        |> Task.andThen
-                            (\projectOutline ->
-                                Terminal.PackageInstall.run
-                                    { fsPermission = model.fsPermission
-                                    , cpPermission = model.cpPermission
-                                    , interactive = model.interactive
-                                    , useColor = model.useColor
-                                    , stdout = model.stdout
-                                    , stdin = model.stdin
-                                    }
-                                    projectOutline
-                                    |> Task.mapError Debug.toString
-                            )
-                        |> Task.map
-                            (\resolved ->
-                                Compiler.Backend.run
-                                    model.cpPermission
-                                    { onInit =
-                                        initWithCommand <|
-                                            Compiler.Backend.PackageValidate
-                                                { projectPath = resolved.projectPath
-                                                , knownVersions = []
-                                                , outline = resolved.outline
-                                                , rootSources = resolved.rootSources
-                                                , dependencies = resolved.dependencies
-                                                }
-                                    , useColor = model.useColor
-                                    , compilerPath = compilerPath
-                                    , pathToString = model.pathToString
-                                    , onComplete = CompilerRan
-                                    }
-                            )
-                        |> Task.onError
-                            (\err ->
-                                Stream.Log.line model.stdout err
-                                    |> Task.execute
-                                    |> Task.succeed
-                            )
-                        |> Task.executeCmd
+                    -- Terminal.PackageInstall.readProjectOutline model.fsPermission
+                    --     |> Task.mapError Debug.toString
+                    --     |> Task.andThen
+                    --         (\projectOutline ->
+                    --             Terminal.PackageInstall.run
+                    --                 { fsPermission = model.fsPermission
+                    --                 , cpPermission = model.cpPermission
+                    --                 , interactive = model.interactive
+                    --                 , useColor = model.useColor
+                    --                 , stdout = model.stdout
+                    --                 , stdin = model.stdin
+                    --                 }
+                    --                 projectOutline
+                    --                 |> Task.mapError Debug.toString
+                    --         )
+                    --     |> Task.map
+                    --         (\resolved ->
+                    --             Compiler.Backend.run
+                    --                 model.cpPermission
+                    --                 { onInit =
+                    --                     initWithCommand <|
+                    --                         Compiler.Backend.PackageValidate
+                    --                             { projectPath = resolved.projectPath
+                    --                             , knownVersions = []
+                    --                             , outline = resolved.outline
+                    --                             , rootSources = resolved.rootSources
+                    --                             , dependencies = resolved.dependencies
+                    --                             }
+                    --                 , useColor = model.useColor
+                    --                 , compilerPath = compilerPath
+                    --                 , pathToString = model.pathToString
+                    --                 , onComplete = CompilerRan
+                    --                 }
+                    --         )
+                    --     |> Task.onError
+                    --         (\err ->
+                    --             Stream.Log.line model.stdout err
+                    --                 |> Task.execute
+                    --                 |> Task.succeed
+                    --         )
+                    --     |> Task.executeCmd
+                    Cmd.none
 
                 CliParser.PackageBump ->
                     Terminal.PackageInstall.readProjectOutline model.fsPermission
                         |> Task.mapError Debug.toString
                         |> Task.andThen
                             (\projectOutline ->
-                                when projectOutline.outline is
-                                    Outline.App _ ->
-                                        Task.fail "Can only use bump on packages"
-
-                                    Outline.Pkg pkgOutline ->
-                                        Git.fetchVersions model.cpPermission pkgOutline.name
-                                            |> Task.mapError Debug.toString
-                                            |> Task.map
-                                                (\vsns ->
-                                                    { projectOutline = projectOutline
-                                                    , knownVersions = vsns
-                                                    }
-                                                )
-                            )
-                        |> Task.andThen
-                            (\{ projectOutline, knownVersions } ->
-                                Terminal.PackageInstall.run
+                                Terminal.PackageBump.run
                                     { fsPermission = model.fsPermission
                                     , cpPermission = model.cpPermission
                                     , interactive = model.interactive
@@ -702,27 +688,15 @@ parseUserArgs model compilerPath =
                                     , stdin = model.stdin
                                     }
                                     projectOutline
-                                    |> Task.mapError Debug.toString
-                                    |> Task.map
-                                        (\resolved ->
-                                            { resolved = resolved
-                                            , knownVersions = knownVersions
-                                            }
-                                        )
                             )
+                        |> Task.mapError Debug.toString
                         |> Task.map
-                            (\{ resolved, knownVersions } ->
+                            (\backendFlags ->
                                 Compiler.Backend.run
                                     model.cpPermission
                                     { onInit =
                                         initWithCommand <|
-                                            Compiler.Backend.PackageBump
-                                                { projectPath = resolved.projectPath
-                                                , knownVersions = knownVersions
-                                                , outline = resolved.outline
-                                                , rootSources = resolved.rootSources
-                                                , dependencies = resolved.dependencies
-                                                }
+                                            Compiler.Backend.PackageBump backendFlags
                                     , useColor = model.useColor
                                     , compilerPath = compilerPath
                                     , pathToString = model.pathToString
@@ -738,14 +712,15 @@ parseUserArgs model compilerPath =
                         |> Task.executeCmd
 
                 CliParser.PackageDiff args ->
-                    Compiler.Backend.run
-                        model.cpPermission
-                        { onInit = initWithCommand <| Compiler.Backend.PackageDiff args
-                        , useColor = model.useColor
-                        , compilerPath = compilerPath
-                        , pathToString = model.pathToString
-                        , onComplete = CompilerRan
-                        }
+                    Cmd.none
+                    -- Compiler.Backend.run
+                    --     model.cpPermission
+                    --     { onInit = initWithCommand <| Compiler.Backend.PackageDiff args
+                    --     , useColor = model.useColor
+                    --     , compilerPath = compilerPath
+                    --     , pathToString = model.pathToString
+                    --     , onComplete = CompilerRan
+                    --     }
 
                 CliParser.Paths opts ->
                     Terminal.Paths.run
