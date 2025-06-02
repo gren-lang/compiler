@@ -229,6 +229,7 @@ update msg model =
                 parseUserArgs model compilerPath
 
             CompilerInitialized { backendStreams, encodedCommand } ->
+                -- TODO: prompts from the backend no longer works, which will probably block the repl
                 Stream.write encodedCommand backendStreams.input
                     |> Task.andThen (\_ -> Stream.closeWritable backendStreams.input)
                     |> Task.onError
