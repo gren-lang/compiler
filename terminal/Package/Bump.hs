@@ -6,7 +6,7 @@ module Package.Bump
   )
 where
 
-import BackgroundWriter qualified as BW
+import Gren.Package qualified as Pkg
 import Build qualified
 import Command qualified
 import Data.ByteString.Internal (ByteString)
@@ -15,14 +15,11 @@ import Data.Map (Map)
 import Data.NonEmptyList qualified as NE
 import Deps.Diff qualified as Diff
 import Deps.Package qualified as Package
-import Directories qualified as Dirs
 import Gren.Details qualified as Details
 import Gren.Docs qualified as Docs
 import Gren.Magnitude qualified as M
 import Gren.ModuleName qualified as ModuleName
-import Gren.Outline (Outline)
 import Gren.Outline qualified as Outline
-import Gren.Package qualified as Package
 import Gren.Version qualified as V
 import Reporting qualified
 import Reporting.Doc ((<+>))
@@ -54,14 +51,14 @@ run flags@(Flags _ _ _ currentVersion publishedVersion) =
 -- BUMP
 
 bump :: Flags -> Outline.PkgOutline -> Outline.PkgOutline -> Task.Task Exit.Bump ()
-bump flags@(Flags interactive root knownVersions currentPackage publishedPackage) currentOutline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _) publishedOutline =
+bump flags@(Flags _ root knownVersions _ _) currentOutline@(Outline.PkgOutline _ _ _ vsn _ _ _ _) publishedOutline =
   Task.eio id $
     case reverse knownVersions of
       (v : vs) ->
         let bumpableVersions =
               map (\(old, _, _) -> old) (Package.bumpPossibilities (v, vs))
          in if elem vsn bumpableVersions
-              then Task.run $ suggestVersion flags currentOutline
+              then Task.run $ suggestVersion flags currentOutline publishedOutline
               else do
                 return $
                   Left $
@@ -69,6 +66,7 @@ bump flags@(Flags interactive root knownVersions currentPackage publishedPackage
                       map head (List.group (List.sort bumpableVersions))
       [] ->
         do
+          -- TODO: move to frontend
           checkNewPackage flags root currentOutline
           return $ Right ()
 
@@ -89,21 +87,15 @@ checkNewPackage flags root outline@(Outline.PkgOutline _ _ _ version _ _ _ _) =
 
 -- SUGGEST VERSION
 
-suggestVersion :: Flags -> Outline.PkgOutline -> Task.Task Exit.Bump ()
-suggestVersion flags@(Flags interactive root _ currentPackage publishedPackage) outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _) =
+suggestVersion :: Flags -> Outline.PkgOutline -> Outline.PkgOutline -> Task.Task Exit.Bump ()
+suggestVersion flags@(Flags _ root _ (Command.ProjectInfo _ currentSources currentDeps) (Command.ProjectInfo _ publishedSources publishedDeps)) currentOutline@(Outline.PkgOutline _ _ _ vsn _ _ _ _) publishedOutline =
   do
-    -- TODO: Temporary until Diff.getDocs is rewritten
-    -- oldDocs <-
-    --   Task.mapError
-    --     (Exit.BumpCannotFindDocs pkg vsn)
-    --     (Diff.getDocs cache pkg vsn)
-
-    oldDocs <- generateDocs root outline
-    newDocs <- generateDocs root outline
+    oldDocs <- generateDocs root currentOutline currentSources currentDeps
+    newDocs <- generateDocs root publishedOutline publishedSources publishedDeps
     let changes = Diff.diff oldDocs newDocs
     let newVersion = Diff.bump changes vsn
     Task.io $
-      changeVersion flags root outline newVersion $
+      changeVersion flags root currentOutline newVersion $
         let old = D.fromVersion vsn
             new = D.fromVersion newVersion
             mag = D.fromChars $ M.toChars (Diff.toMagnitude changes)
@@ -122,20 +114,19 @@ suggestVersion flags@(Flags interactive root _ currentPackage publishedPackage) 
               <> new
               <> ") in gren.json? [Y/n] "
 
-generateDocs :: FilePath -> Outline.PkgOutline -> Task.Task Exit.Bump Docs.Documentation
-generateDocs root (Outline.PkgOutline _ _ _ _ exposed _ _ _) =
+generateDocs :: FilePath -> Outline.PkgOutline -> Map ModuleName.Raw ByteString -> Map Pkg.Name Details.Dependency -> Task.Task Exit.Bump Docs.Documentation
+generateDocs root outline@(Outline.PkgOutline _ _ _ _ exposed _ _ _) sources solution =
   do
     details <-
       Task.eio Exit.BumpBadDetails $
-        BW.withScope $ \scope ->
-          Details.load Reporting.silent scope root
+        Details.loadForMake Reporting.silent (Outline.Pkg outline) solution
 
     case Outline.flattenExposed exposed of
       [] ->
         Task.throw Exit.BumpNoExposed
       e : es ->
         Task.eio Exit.BumpBadBuild $
-          Build.fromExposed Reporting.silent root details Build.KeepDocs (NE.List e es)
+          Build.fromExposedSources Reporting.silent root details sources Build.KeepDocs (NE.List e es)
 
 -- CHANGE VERSION
 
