@@ -4,6 +4,7 @@ module Command
     MakeFlags (..),
     DocsFlags (..),
     BumpFlags (..),
+    DiffFlags (..),
     ProjectInfo (..),
   )
 where
@@ -28,10 +29,7 @@ data Command
   | Docs DocsFlags
   | PackageValidate
   | PackageBump BumpFlags
-  | PackageDiffLatest
-  | PackageDiffVersion Version.Version
-  | PackageDiffRange Version.Version Version.Version
-  | PackageDiffGlobal Package.Name Version.Version Version.Version
+  | PackageDiff DiffFlags
   deriving (Show)
 
 data MakeFlags = MakeFlags
@@ -73,6 +71,14 @@ data ProjectInfo = ProjectInfo
   }
   deriving (Show)
 
+data DiffFlags = DiffFlags
+  { _diff_interactive :: Bool,
+    _diff_project_path :: String,
+    _diff_first :: ProjectInfo,
+    _diff_second :: ProjectInfo
+  }
+  deriving (Show)
+
 data CommandDecoderError
   = UnknownCommand String
   | InvalidInput
@@ -89,15 +95,8 @@ commandDecoder =
       "docs" -> Docs <$> docsDecoder
       "packageValidate" -> Json.succeed PackageValidate
       "packageBump" -> PackageBump <$> bumpDecoder
-      "packageDiffLatest" -> Json.succeed PackageDiffLatest
-      "packageDiffVersion" -> diffVersionDecoder
-      "packageDiffRange" -> diffRangeDecoder
-      "packageDiffGlobal" -> diffGlobalDecoder
+      "packageDiff" -> PackageDiff <$> diffDecoder
       _ -> Json.failure (UnknownCommand $ Utf8.toChars tipe)
-
-packageDecoder :: Json.Decoder CommandDecoderError Package.Name
-packageDecoder =
-  Json.mapError (const InvalidInput) Package.decoder
 
 versionDecoder :: Json.Decoder CommandDecoderError Version.Version
 versionDecoder =
@@ -172,23 +171,13 @@ projectInfoDecoder =
     <*> Json.field (BS.pack "sources") (Json.dict (ModuleName.keyDecoder (\_ _ -> InvalidInput)) (fmap Utf8.toByteString Json.stringUnescaped))
     <*> Json.field (BS.pack "dependencies") (Json.dict (Package.keyDecoder (\_ _ -> InvalidInput)) makeDependencyDecoder)
 
-diffVersionDecoder :: Json.Decoder CommandDecoderError Command
-diffVersionDecoder =
-  PackageDiffVersion
-    <$> Json.field (BS.pack "version") versionDecoder
-
-diffRangeDecoder :: Json.Decoder CommandDecoderError Command
-diffRangeDecoder =
-  PackageDiffRange
-    <$> Json.field (BS.pack "from") versionDecoder
-    <*> Json.field (BS.pack "to") versionDecoder
-
-diffGlobalDecoder :: Json.Decoder CommandDecoderError Command
-diffGlobalDecoder =
-  PackageDiffGlobal
-    <$> Json.field (BS.pack "package") packageDecoder
-    <*> Json.field (BS.pack "from") versionDecoder
-    <*> Json.field (BS.pack "to") versionDecoder
+diffDecoder :: Json.Decoder CommandDecoderError DiffFlags
+diffDecoder =
+  DiffFlags
+    <$> Json.field (BS.pack "interactive") Json.bool
+    <*> Json.field (BS.pack "project-path") (fmap Utf8.toChars Json.string)
+    <*> Json.field (BS.pack "first-package") projectInfoDecoder
+    <*> Json.field (BS.pack "second-package") projectInfoDecoder
 
 maybeDecoder :: Json.Decoder x a -> Json.Decoder x (Maybe a)
 maybeDecoder subDecoder =

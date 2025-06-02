@@ -38,14 +38,8 @@ main =
             Validate.run
           Right (Command.PackageBump (Command.BumpFlags interactive projectPath knownVersions currentVersion publishedVersion)) ->
             Bump.run $ Bump.Flags interactive projectPath knownVersions currentVersion publishedVersion
-          Right Command.PackageDiffLatest ->
-            Diff.run Diff.CodeVsLatest
-          Right (Command.PackageDiffVersion version) ->
-            Diff.run $ Diff.CodeVsExactly version
-          Right (Command.PackageDiffRange from to) ->
-            Diff.run $ Diff.LocalInquiry from to
-          Right (Command.PackageDiffGlobal pkg from to) ->
-            Diff.run $ Diff.GlobalInquiry pkg from to
+          Right (Command.PackageDiff (Command.DiffFlags interactive projectPath firstPackage secondPackage)) ->
+            Diff.run $ Diff.Flags interactive projectPath firstPackage secondPackage
       _ ->
         do
           putStrLn "Expected exactly 0 arguments."

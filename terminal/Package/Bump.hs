@@ -6,7 +6,6 @@ module Package.Bump
   )
 where
 
-import Gren.Package qualified as Pkg
 import Build qualified
 import Command qualified
 import Data.ByteString.Internal (ByteString)
@@ -20,6 +19,7 @@ import Gren.Docs qualified as Docs
 import Gren.Magnitude qualified as M
 import Gren.ModuleName qualified as ModuleName
 import Gren.Outline qualified as Outline
+import Gren.Package qualified as Pkg
 import Gren.Version qualified as V
 import Reporting qualified
 import Reporting.Doc ((<+>))

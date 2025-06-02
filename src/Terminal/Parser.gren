@@ -2,6 +2,7 @@ module Terminal.Parser exposing
     ( Command (..)
     , MakeFlags
     , MakeStaticOpts
+    , DiffArgs (..)
     , parser
     )
 
@@ -29,7 +30,7 @@ type Command
     | PackageOutdated
     | PackageValidate
     | PackageBump
-    | PackageDiff Compiler.Backend.DiffArgs
+    | PackageDiff DiffArgs
     | Paths Paths.Options
 
 
@@ -63,6 +64,13 @@ type alias DocsFlags =
     { output : Maybe Compiler.Backend.DocsOutput
     , report : Maybe {}
     }
+
+
+type DiffArgs
+    = DiffLatest
+    | DiffVersion SemanticVersion
+    | DiffRange { lower : SemanticVersion, upper : SemanticVersion }
+    | DiffGlobal { package : PackageName, lower : SemanticVersion, upper : SemanticVersion }
 
 
 parser : CLI.Parser.App Command
@@ -480,12 +488,12 @@ packageCommands =
             , arguments =
                 CLI.Parser.oneOfArgs
                     [ CLI.Parser.noArgs
-                        |> CLI.Parser.mapArgs (\{} -> Compiler.Backend.DiffLatest)
+                        |> CLI.Parser.mapArgs (\{} -> DiffLatest)
                     , CLI.Parser.oneArg SemanticVersion.cliParser
-                        |> CLI.Parser.mapArgs Compiler.Backend.DiffVersion
+                        |> CLI.Parser.mapArgs DiffVersion
                     , CLI.Parser.twoArgs
                         (\lower upper ->
-                            Compiler.Backend.DiffRange
+                            DiffRange
                                 { lower = lower
                                 , upper = upper
                                 }
@@ -494,7 +502,7 @@ packageCommands =
                         SemanticVersion.cliParser
                     , CLI.Parser.threeArgs
                         (\package lower upper ->
-                            Compiler.Backend.DiffGlobal
+                            DiffGlobal
                                 { package = package
                                 , lower = lower
                                 , upper = upper

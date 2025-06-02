@@ -7,6 +7,7 @@ import Terminal.PackageInstall
 import Terminal.PackageUninstall
 import Terminal.PackageOutdated
 import Terminal.PackageBump
+import Terminal.PackageDiff
 import Terminal.Paths
 import Terminal.Init
 import Compiler.Backend
@@ -713,15 +714,90 @@ parseUserArgs model compilerPath =
                         |> Task.executeCmd
 
                 CliParser.PackageDiff args ->
-                    Cmd.none
-                    -- Compiler.Backend.run
-                    --     model.cpPermission
-                    --     { onInit = initWithCommand <| Compiler.Backend.PackageDiff args
-                    --     , useColor = model.useColor
-                    --     , compilerPath = compilerPath
-                    --     , pathToString = model.pathToString
-                    --     , onComplete = CompilerRan
-                    --     }
+                    let
+                        diffTask =
+                            when args is
+                                CliParser.DiffLatest ->
+                                    Terminal.PackageDiff.runLocal
+                                        { fsPermission = model.fsPermission
+                                        , cpPermission = model.cpPermission
+                                        , interactive = model.interactive
+                                        , useColor = model.useColor
+                                        , stdout = model.stdout
+                                        , stdin = model.stdin
+                                        }
+                                        Nothing
+
+                                CliParser.DiffVersion version ->
+                                    Terminal.PackageDiff.runLocal
+                                        { fsPermission = model.fsPermission
+                                        , cpPermission = model.cpPermission
+                                        , interactive = model.interactive
+                                        , useColor = model.useColor
+                                        , stdout = model.stdout
+                                        , stdin = model.stdin
+                                        }
+                                        (Just version)
+
+                                CliParser.DiffRange { lower, upper } ->
+                                    Terminal.PackageInstall.readProjectOutline model.fsPermission
+                                        |> Task.mapError Debug.toString
+                                        |> Task.andThen
+                                            (\{ outline } ->
+                                                when outline is
+                                                    Outline.App _ ->
+                                                        -- TODO
+                                                        Task.fail "Only supported on packages"
+
+                                                    Outline.Pkg pkgOutline ->
+                                                        Terminal.PackageDiff.runGlobal
+                                                            { fsPermission = model.fsPermission
+                                                            , cpPermission = model.cpPermission
+                                                            , interactive = model.interactive
+                                                            , useColor = model.useColor
+                                                            , stdout = model.stdout
+                                                            , stdin = model.stdin
+                                                            }
+                                                            pkgOutline.name
+                                                            lower
+                                                            upper
+                                            )
+
+                                CliParser.DiffGlobal { package, lower, upper } ->
+                                    Terminal.PackageDiff.runGlobal
+                                        { fsPermission = model.fsPermission
+                                        , cpPermission = model.cpPermission
+                                        , interactive = model.interactive
+                                        , useColor = model.useColor
+                                        , stdout = model.stdout
+                                        , stdin = model.stdin
+                                        }
+                                        package
+                                        lower
+                                        upper
+                    in
+                    diffTask
+                        |> Task.mapError Debug.toString
+                        |> Task.map
+                            (\backendFlags ->
+                                Compiler.Backend.run
+                                    model.cpPermission
+                                    { onInit =
+                                        initWithCommand <|
+                                            Compiler.Backend.PackageDiff backendFlags
+                                    , useColor = model.useColor
+                                    , compilerPath = compilerPath
+                                    , pathToString = model.pathToString
+                                    , onComplete = CompilerRan
+                                    }
+                            )
+                        |> Task.onError
+                            (\err ->
+                                Stream.Log.line model.stdout err
+                                    |> Task.execute
+                                    |> Task.succeed
+                            )
+                        |> Task.executeCmd
 
                 CliParser.Paths opts ->
                     Terminal.Paths.run
