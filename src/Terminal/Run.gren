@@ -1,0 +1,135 @@
+module Terminal.Run exposing
+    ( Error
+    , make
+    , run
+    )
+
+{-| Support the `gren run ModuleName` command.
+-}
+
+import Bytes exposing (Bytes)
+import ChildProcess
+import Compiler.Backend
+import FileSystem
+import FileSystem.Path as Path exposing (Path)
+import Compiler.ModuleName as ModuleName exposing (ModuleName)
+import Node
+import Process
+import Stream
+import Task exposing (Task)
+import Terminal.PackageInstall as PackageInstall
+
+
+type Error
+    = TempPathError FileSystem.Error
+    | PackageInstallError PackageInstall.PackageInstallError
+
+
+type alias MakeConfig msg =
+    { fsPermission : FileSystem.Permission
+    , cpPermission : ChildProcess.Permission
+    , compilerPath : Path
+    , pathToString : Path -> String
+    , moduleName : ModuleName
+    , onBackendInitialized : { backendStreams : Maybe ChildProcess.StreamIO, encodedCommand : Bytes } -> msg
+    , onCompiled : Path -> Int -> msg
+    }
+
+
+type alias RunConfig msg =
+    { cpPermission : ChildProcess.Permission
+    , path : String
+    , onInit :
+        { processId : Process.Id, streams : Maybe ChildProcess.StreamIO }
+        -> msg
+    , onExit : Int -> msg
+    }
+
+
+make : MakeConfig msg -> Task Error (Cmd msg)
+make config =
+    let
+        installPackages nullStream =
+            PackageInstall.readProjectOutline config.fsPermission
+                |> Task.andThen
+                    (\projectOutline ->
+                        PackageInstall.run
+                            { fsPermission = config.fsPermission
+                            , cpPermission = config.cpPermission
+                            , interactive = False
+                            , useColor = False
+                            , stdout = nullStream |> Stream.writable
+                            , stdin = nullStream |> Stream.readable
+                            }
+                            projectOutline
+                    )
+                |> Task.mapError PackageInstallError
+
+        backendCommand outputPath packageResolution =
+            let
+                path =
+                    config.pathToString outputPath
+            in
+            Compiler.Backend.encodeCommand
+                { interactiveSession = False
+                , pathToString = config.pathToString
+                }
+                ( Compiler.Backend.Make
+                    { optimize = False
+                    , sourcemaps = False
+                    , output = Just (Compiler.Backend.Exe path)
+                    , report = Nothing
+                    , projectPath = packageResolution.projectPath
+                    , entryPoints = [ config.moduleName ]
+                    , outline = packageResolution.outline
+                    , rootSources = packageResolution.rootSources
+                    , dependencies = packageResolution.dependencies
+                    }
+                )
+
+
+        compile outputPath encodedCommand_ =
+            Compiler.Backend.run
+                config.cpPermission
+                { useColor = False
+                , compilerPath = config.compilerPath
+                , pathToString = config.pathToString
+                , onInit = 
+                    (\cpOpts ->
+                        config.onBackendInitialized
+                            { backendStreams = cpOpts.streams
+                            , encodedCommand = encodedCommand_
+                            }
+                    )
+                , onComplete = config.onCompiled outputPath
+                }
+    in
+    getOutputPath config.fsPermission
+        |> Task.andThen
+            (\outputPath ->
+                getNullStream
+                    |> Task.andThen installPackages
+                    |> Task.map (backendCommand outputPath)
+                    |> Task.map (compile outputPath)
+            )
+
+
+getOutputPath : FileSystem.Permission -> Task Error Path
+getOutputPath fsPermission =
+    FileSystem.makeTempDirectory fsPermission "gren-run"
+        |> Task.map (Path.append (Path.fromPosixString "app"))
+        |> Task.mapError TempPathError
+
+
+run : RunConfig msg -> Cmd msg
+run config =
+    ChildProcess.spawn config.cpPermission "node" [ config.path ] <|
+        ChildProcess.defaultSpawnOptions config.onInit config.onExit
+
+
+-- not sure if this is the best way to do this?
+getNullStream : Task x (Stream.Transformation Bytes Bytes)
+getNullStream =
+    Stream.customTransformation
+        (\_ _ -> Stream.UpdateState (Bytes.fromString ""))
+        (Bytes.fromString "")

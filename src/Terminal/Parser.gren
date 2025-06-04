@@ -32,6 +32,7 @@ type Command
     | PackageBump
     | PackageDiff DiffArgs
     | Paths Paths.Options
+    | Run ModuleName
 
 
 type alias InitFlags =
@@ -279,6 +280,33 @@ parser =
                         ]
                 , builder =
                     \args _flags -> MakeStatic args
+                }
+            |> CLI.Parser.withCommand
+                { word = "run"
+                , arguments =
+                    CLI.Parser.oneArg moduleNameParser
+                , flags =
+                    CLI.Parser.noFlags
+                , commonDescription =
+                    Nothing
+                , summary =
+                    "The `run` command compiles and runs a Gren module:"
+                , example = 
+                    PP.verticalBlock
+                        [ PP.words "For example:"
+                        , PP.empty
+                        , PP.words "gren run Main"
+                            |> PP.indent
+                            |> PP.color PP.Green
+                        , PP.empty
+                        , PP.words
+                            """
+                            This tries to compile a Gren file named src/Main.gren.
+                            The file must have a `main` function that returns a Node program.
+                            """
+                        ]
+                , builder =
+                    \arg _flags -> Run arg
                 }
             |> CLI.Parser.withCommand
                 { word = "docs"

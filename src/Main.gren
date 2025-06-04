@@ -10,6 +10,7 @@ import Terminal.PackageBump
 import Terminal.PackageDiff
 import Terminal.Paths
 import Terminal.Init
+import Terminal.Run
 import Compiler.Backend
 import Compiler.PackageName as PackageName exposing (PackageName)
 import Compiler.Paths
@@ -30,6 +31,7 @@ import CLI.PrettyPrinter as PP
 import SemanticVersion exposing (SemanticVersion)
 import Json.Encode as Json
 import Stream.Extra
+import Process
 
 
 main : Node.Program Model Msg
@@ -153,9 +155,12 @@ type Msg
         , downloadResult : Result (HttpClient.Error Bytes) (HttpClient.Response Bytes)
         }
     | CompilerInstalled (Result FileSystem.Error Path)
-    | CompilerInitialized { backendStreams : ChildProcess.StreamIO, encodedCommand : Bytes }
+    | CompilerInitialized { quiet : Bool, backendStreams : ChildProcess.StreamIO, encodedCommand : Bytes }
     | CompilerRan Int
     | CompilerRanStatic { path : String, exitCode : Int }
+    | CompiledForRun { path : String, exitCode : Int }
+    | RunStarted { processId : Process.Id, streams : Maybe ChildProcess.StreamIO }
+    | RunExited Int
 
 
 port completeStaticBuild : String -> Cmd msg
@@ -229,8 +234,8 @@ update msg model =
             CompilerInstalled (Ok compilerPath) ->
                 parseUserArgs model compilerPath
 
-            CompilerInitialized { backendStreams, encodedCommand } ->
-                -- TODO: prompts from the backend no longer works, which will probably block the repl
+            CompilerInitialized { backendStreams, encodedCommand, quiet } ->
+                -- TODO: prompts from the backend no longer works, which will probably block the repl
                 Stream.write encodedCommand backendStreams.input
                     |> Task.andThen (\_ -> Stream.closeWritable backendStreams.input)
                     |> Task.onError
@@ -239,10 +244,13 @@ update msg model =
                         )
                     |> Task.andThen
                         (\_ ->
-                            backendStreams.output
-                                |> Stream.awaitAndPipeThrough Stream.textDecoder
-                                |> Task.andThen Stream.Extra.consumeString
-                                |> Task.andThen (\str -> Stream.writeStringAsBytes str model.stdout)
+                            if quiet then
+                                Task.succeed model.stdout
+                            else
+                                backendStreams.output
+                                    |> Stream.awaitAndPipeThrough Stream.textDecoder
+                                    |> Task.andThen Stream.Extra.consumeString
+                                    |> Task.andThen (\str -> Stream.writeStringAsBytes str model.stdout)
                         )
                     |> Task.andThen
                         (\_ ->
@@ -269,6 +277,26 @@ update msg model =
                 else
                     Node.exitWithCode exitCode
                         |> Task.execute
+
+            CompiledForRun { path, exitCode } ->
+                if exitCode == 0 then
+                    Terminal.Run.run 
+                        { cpPermission = model.cpPermission
+                        , path = path
+                        , onInit = RunStarted
+                        , onExit = RunExited
+                        }
+
+                else
+                    Node.exitWithCode exitCode
+                        |> Task.execute
+
+            RunStarted _ ->
+                Cmd.none
+
+            RunExited exitCode ->
+                Node.exitWithCode exitCode
+                    |> Task.execute
         }
 
 
@@ -324,6 +352,7 @@ parseUserArgs model compilerPath =
                         Just streams ->
                             CompilerInitialized
                                 { backendStreams = streams
+                                , quiet = False
                                 , encodedCommand =
                                     Compiler.Backend.encodeCommand
                                         { interactiveSession = model.interactive
@@ -480,6 +509,42 @@ parseUserArgs model compilerPath =
                         |> Task.onError
                             (\err ->
                                 Stream.Log.line model.stdout err
+                                    |> Task.execute
+                                    |> Task.succeed
+                            )
+                        |> Task.executeCmd
+
+                CliParser.Run moduleName ->
+                    Terminal.Run.make
+                        { fsPermission = model.fsPermission
+                        , cpPermission = model.cpPermission
+                        , compilerPath = compilerPath
+                        , pathToString = model.pathToString
+                        , moduleName = moduleName
+                        , onBackendInitialized = 
+                            (\{ backendStreams, encodedCommand } ->
+                                when backendStreams is
+                                    Nothing ->
+                                        Debug.todo "no backend streams"
+
+                                    Just streams ->
+                                        CompilerInitialized
+                                            { backendStreams = streams
+                                            , encodedCommand = encodedCommand
+                                            , quiet = True
+                                            } 
+                            )
+                        , onCompiled = 
+                            (\outputPath exitCode ->
+                                CompiledForRun
+                                    { path = model.pathToString outputPath
+                                    , exitCode = exitCode
+                                    }
+                            )
+                        }
+                        |> Task.onError
+                            (\err ->
+                                Stream.Log.line model.stdout (Debug.toString err)
                                     |> Task.execute
                                     |> Task.succeed
                             )
