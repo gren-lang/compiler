@@ -518,6 +518,7 @@ parseUserArgs model compilerPath =
                     Terminal.Run.make
                         { fsPermission = model.fsPermission
                         , cpPermission = model.cpPermission
+                        , useColor = model.useColor
                         , compilerPath = compilerPath
                         , pathToString = model.pathToString
                         , moduleName = moduleName
