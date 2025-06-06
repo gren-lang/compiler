@@ -3,8 +3,8 @@
   "packages": [
     "nodejs@20",
     "ormolu@0.7",
-    "ghc@9.6",
-    "cabal-install@3.10"
+    "ghc@9.8",
+    "cabal-install@3.12"
   ],
   "shell": {
     "init_hook": [

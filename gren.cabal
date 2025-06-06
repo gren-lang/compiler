@@ -1,7 +1,7 @@
 Cabal-version: 3.8
 
 Name: gren
-Version: 0.5.3
+Version: 0.5.5
 
 Synopsis:
     The `gren` command line interface.
@@ -179,7 +179,7 @@ Library common
     Build-depends:
         ansi-terminal >= 0.11 && < 0.12,
         ansi-wl-pprint >= 0.6.8 && < 0.7,
-        base >= 4.18 && <5,
+        base >= 4.19 && <5,
         binary >= 0.8 && < 0.9,
         bytestring >= 0.11 && < 0.12,
         containers >= 0.6 && < 0.7,
@@ -222,7 +222,7 @@ Executable gren
 
     build-depends:
         gren:common,
-        base >= 4.18 && <5,
+        base >= 4.19 && <5,
         bytestring >= 0.11 && < 0.12,
         containers >= 0.6 && < 0.7,
         directory >= 1.2.3.0 && < 2.0,
@@ -262,7 +262,7 @@ Test-Suite gren-tests
 
     Build-Depends:
         gren:common,
-        base >= 4.18 && <5,
+        base >= 4.19 && <5,
         utf8-string,
         bytestring >= 0.11 && < 0.12,
         hspec >= 2.7.10 && < 3
