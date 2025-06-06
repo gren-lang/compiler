@@ -455,8 +455,8 @@ addPackage config { projectPath, outline } requestedPackage =
                         |> Task.mapError (\_ -> PackageInstallDebug "Stream error")
                         |> Task.andThen
                             (\answer ->
-                                when Maybe.map (String.trim >> String.toLower) answer is
-                                    Just "y" ->
+                                when String.trim (String.toLower answer) is
+                                    "y" ->
                                         Task.succeed {}
 
                                     _ ->

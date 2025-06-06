@@ -28,11 +28,11 @@ confirm { stdout, stdin, question, defaultValue } =
         |> Task.andThen (\_ -> Stream.readBytesAsString stdin)
         |> Task.map
             (\answer ->
-                when Maybe.map (String.trim >> String.toLower) answer is
-                    Just "y" ->
+                when String.trim (String.toLower answer) is
+                    "y" ->
                         True
 
-                    Just "" ->
+                    "" ->
                         defaultValue
 
                     _ ->
