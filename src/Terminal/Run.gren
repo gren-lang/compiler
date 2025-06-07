@@ -10,6 +10,7 @@ module Terminal.Run exposing
 import Bytes exposing (Bytes)
 import ChildProcess
 import Compiler.Backend
+import Compiler.Outline exposing (Outline)
 import FileSystem
 import FileSystem.Path as Path exposing (Path)
 import Compiler.ModuleName as ModuleName exposing (ModuleName)
@@ -48,21 +49,17 @@ type alias RunConfig msg =
 make : MakeConfig msg -> Task Error (Cmd msg)
 make config =
     let
-        installPackages nullStream =
-            PackageInstall.readProjectOutline config.fsPermission
-                |> Task.andThen
-                    (\projectOutline ->
-                        PackageInstall.run
-                            { fsPermission = config.fsPermission
-                            , cpPermission = config.cpPermission
-                            , useColor = config.useColor
-                            , interactive = False
-                            , stdout = nullStream |> Stream.writable
-                            , stdin = nullStream |> Stream.readable
-                            }
-                            projectOutline
-                    )
-                |> Task.mapError PackageInstallError
+        installPackages nullStream projectOutline =
+            PackageInstall.run
+                { fsPermission = config.fsPermission
+                , cpPermission = config.cpPermission
+                , useColor = config.useColor
+                , interactive = False
+                , stdout = nullStream |> Stream.writable
+                , stdin = nullStream |> Stream.readable
+                }
+                projectOutline
+                    |> Task.mapError PackageInstallError
 
         backendCommand outputPath packageResolution =
             let
@@ -104,21 +101,13 @@ make config =
                 , onComplete = config.onCompiled outputPath
                 }
     in
-    getOutputPath config.fsPermission
-        |> Task.andThen
-            (\outputPath ->
-                getNullStream
-                    |> Task.andThen installPackages
-                    |> Task.map (backendCommand outputPath)
-                    |> Task.map (compile outputPath)
-            )
-
-
-getOutputPath : FileSystem.Permission -> Task Error Path
-getOutputPath fsPermission =
-    FileSystem.makeTempDirectory fsPermission "gren-run"
-        |> Task.map (Path.append (Path.fromPosixString "app"))
-        |> Task.mapError TempPathError
+    Task.await getNullStream <| \nullStream ->
+    Task.await (getProjectOutline config.fsPermission) <| \projectOutline ->
+    Task.await (getOutputPath config.fsPermission projectOutline.outline) <| \outputPath ->
+    Task.await (installPackages nullStream projectOutline) <| \packageResolution ->
+        backendCommand outputPath packageResolution
+            |> compile outputPath
+            |> Task.succeed
 
 
 run : RunConfig msg -> Cmd msg
@@ -127,9 +116,26 @@ run config =
         ChildProcess.defaultSpawnOptions (ChildProcess.External config.onInit) config.onExit
 
 
--- not sure if this is the best way to do this?
+-- HELPERS
+
+
 getNullStream : Task x (Stream.Transformation Bytes Bytes)
 getNullStream =
     Stream.customTransformation
         (\_ _ -> Stream.UpdateState (Bytes.fromString ""))
         (Bytes.fromString "")
+
+
+getProjectOutline : FileSystem.Permission -> Task Error { projectPath : Path, outline : Outline }
+getProjectOutline fsPermission =
+    PackageInstall.readProjectOutline fsPermission
+        |> Task.mapError PackageInstallError
+
+
+getOutputPath : FileSystem.Permission -> Outline -> Task Error Path
+getOutputPath fsPermission _ =
+    -- TODO: error if can't determine node vs browser application
+    FileSystem.makeTempDirectory fsPermission "gren-run"
+        |> Task.map (Path.append (Path.fromPosixString "app"))
+        |> Task.mapError TempPathError
+
