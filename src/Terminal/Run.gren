@@ -7,6 +7,7 @@ module Terminal.Run exposing
 {-| Support the `gren run ModuleName` command.
 -}
 
+import Compiler.Backend as Backend
 import Bytes exposing (Bytes)
 import ChildProcess
 import Compiler.Backend
@@ -42,6 +43,7 @@ type alias MakeConfig msg =
 
 type alias RunConfig msg =
     { cpPermission : ChildProcess.Permission
+    , fsPermission : FileSystem.Permission
     , path : String
     , onInit : { processId : Process.Id, streams : ChildProcess.StreamIO } -> msg
     , onExit : Int -> msg
@@ -63,7 +65,7 @@ make config =
                 projectOutline
                     |> Task.mapError PackageInstallError
 
-        backendCommand outputPath packageResolution =
+        backendCommand outputType outputPath packageResolution =
             let
                 path =
                     config.pathToString outputPath
@@ -75,7 +77,7 @@ make config =
                 ( Compiler.Backend.Make
                     { optimize = False
                     , sourcemaps = False
-                    , output = Just (Compiler.Backend.Exe path)
+                    , output = Just (outputType path)
                     , report = Nothing
                     , projectPath = packageResolution.projectPath
                     , entryPoints = [ config.moduleName ]
@@ -105,17 +107,44 @@ make config =
     in
     Task.await getNullStream <| \nullStream ->
     Task.await (getProjectOutline config.fsPermission) <| \projectOutline ->
-    Task.await (getOutputPath config.fsPermission projectOutline.outline) <| \outputPath ->
+    Task.await (getOutputPath config.fsPermission projectOutline.outline) <| \{ outputType, outputPath } ->
     Task.await (installPackages nullStream projectOutline) <| \packageResolution ->
-        backendCommand outputPath packageResolution
+        backendCommand outputType outputPath packageResolution
             |> compile outputPath
             |> Task.succeed
 
 
-run : RunConfig msg -> Cmd msg
+run : RunConfig msg -> Task Error (Cmd msg)
 run config =
-    ChildProcess.spawn config.cpPermission "node" [ config.path ] <|
-        ChildProcess.defaultSpawnOptions (ChildProcess.External config.onInit) config.onExit
+    Task.await Node.getPlatform <| \systemPlatform ->
+    Task.await (getProjectOutline config.fsPermission) <| \projectOutline ->
+        let
+            projectPlatform =
+                when projectOutline.outline is
+                    Outline.Pkg outline_ ->
+                        outline_.platform
+                    Outline.App outline_ ->
+                        outline_.platform
+            
+            runWith command =
+                ChildProcess.defaultSpawnOptions (ChildProcess.External config.onInit) config.onExit
+                    |> ChildProcess.spawn config.cpPermission command [ config.path ]
+                    |> Task.succeed
+        in
+        when projectPlatform is
+            Platform.Node ->
+                runWith "node"
+
+            Platform.Common ->
+                Task.fail NotAnApplication
+
+            Platform.Browser ->
+                when systemPlatform is
+                    Node.Win32 ->
+                        runWith "start"
+
+                    _ ->
+                        runWith "open"
 
 
 -- HELPERS
@@ -134,7 +163,7 @@ getProjectOutline fsPermission =
         |> Task.mapError PackageInstallError
 
 
-getOutputPath : FileSystem.Permission -> Outline -> Task Error Path
+getOutputPath : FileSystem.Permission -> Outline -> Task Error { outputType : (String -> Backend.MakeOutput), outputPath : Path }
 getOutputPath fsPermission outline =
     let
         platform =
@@ -144,17 +173,21 @@ getOutputPath fsPermission outline =
                 Outline.App outline_ ->
                     outline_.platform
 
-        getPath fileName =
+        getPath outputType fileName =
             FileSystem.makeTempDirectory fsPermission "gren-run"
                 |> Task.map (Path.append (Path.fromPosixString fileName))
                 |> Task.mapError TempPathError
+                |> Task.map
+                    (\path ->
+                        { outputType = outputType
+                        , outputPath = path
+                        }
+                    )
     in
     when platform is
         Platform.Node ->
-            getPath "app"
+            getPath Backend.Exe "app"
         Platform.Browser ->
-            -- TODO: handle browser apps
-            -- getPath "app.html"
-            Task.fail NotAnApplication
+            getPath Backend.Html "app.html"
         Platform.Common ->
             Task.fail NotAnApplication

@@ -279,10 +279,20 @@ update msg model =
                 if exitCode == 0 then
                     Terminal.Run.run 
                         { cpPermission = model.cpPermission
+                        , fsPermission = model.fsPermission
                         , path = path
                         , onInit = RunStarted
                         , onExit = RunExited
                         }
+                        |> Task.onError
+                            (\error ->
+                                -- TODO: Terminal.Run.errorToString
+                                Stream.Log.line model.stderr (Debug.toString error)
+                                    |> Task.andThen (\_ -> Node.exitWithCode 1)
+                                    |> Task.execute
+                                    |> Task.succeed
+                            )
+                        |> Task.executeCmd
 
                 else
                     Node.exitWithCode exitCode
