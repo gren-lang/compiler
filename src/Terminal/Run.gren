@@ -10,7 +10,8 @@ module Terminal.Run exposing
 import Bytes exposing (Bytes)
 import ChildProcess
 import Compiler.Backend
-import Compiler.Outline exposing (Outline)
+import Compiler.Outline as Outline exposing (Outline)
+import Compiler.Platform as Platform
 import FileSystem
 import FileSystem.Path as Path exposing (Path)
 import Compiler.ModuleName as ModuleName exposing (ModuleName)
@@ -24,6 +25,7 @@ import Terminal.PackageInstall as PackageInstall
 type Error
     = TempPathError FileSystem.Error
     | PackageInstallError PackageInstall.PackageInstallError
+    | NotAnApplication
 
 
 type alias MakeConfig msg =
@@ -133,9 +135,26 @@ getProjectOutline fsPermission =
 
 
 getOutputPath : FileSystem.Permission -> Outline -> Task Error Path
-getOutputPath fsPermission _ =
-    -- TODO: error if can't determine node vs browser application
-    FileSystem.makeTempDirectory fsPermission "gren-run"
-        |> Task.map (Path.append (Path.fromPosixString "app"))
-        |> Task.mapError TempPathError
+getOutputPath fsPermission outline =
+    let
+        platform =
+            when outline is
+                Outline.Pkg outline_ ->
+                    outline_.platform
+                Outline.App outline_ ->
+                    outline_.platform
 
+        getPath fileName =
+            FileSystem.makeTempDirectory fsPermission "gren-run"
+                |> Task.map (Path.append (Path.fromPosixString fileName))
+                |> Task.mapError TempPathError
+    in
+    when platform is
+        Platform.Node ->
+            getPath "app"
+        Platform.Browser ->
+            -- TODO: handle browser apps
+            -- getPath "app.html"
+            Task.fail NotAnApplication
+        Platform.Common ->
+            Task.fail NotAnApplication
