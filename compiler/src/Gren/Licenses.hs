@@ -20,6 +20,7 @@ import Reporting.Suggest qualified as Suggest
 
 newtype License
   = License Json.String
+  deriving (Show)
 
 bsd3 :: License
 bsd3 =

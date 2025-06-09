@@ -1,0 +1,10 @@
+module Stream.Extra exposing (consumeString)
+
+
+import Stream
+import Task exposing (Task)
+
+
+consumeString : Stream.Readable String -> Task Stream.Error String
+consumeString stream =
+    Stream.readUntilClosed (\chunk result -> Ok (result ++ chunk)) "" stream

@@ -78,14 +78,13 @@ verify ::
   Map.Map Pkg.Name (PossibleFilePath C.Constraint) ->
   IO (Result (Map.Map Pkg.Name Details))
 verify key cache rootPlatform constraints =
-  Dirs.withRegistryLock cache $
-    case try key rootPlatform constraints of
-      Solver solver ->
-        solver
-          (State cache Map.empty)
-          (\s a _ -> return $ Ok (Map.mapWithKey (addDeps s) a))
-          (\_ -> return NoSolution)
-          (\e -> return $ Err e)
+  case try key rootPlatform constraints of
+    Solver solver ->
+      solver
+        (State cache Map.empty)
+        (\s a _ -> return $ Ok (Map.mapWithKey (addDeps s) a))
+        (\_ -> return NoSolution)
+        (\e -> return $ Err e)
 
 addDeps :: State -> Pkg.Name -> ConstraintSource -> Details
 addDeps (State _ constraints) name constraintSource =
@@ -110,28 +109,27 @@ addToApp ::
   Outline.AppOutline ->
   IO (Result AppSolution)
 addToApp key cache pkg compatibleVsn outline@(Outline.AppOutline _ rootPlatform _ direct indirect) =
-  Dirs.withRegistryLock cache $
-    let allDeps = Map.union direct indirect
+  let allDeps = Map.union direct indirect
 
-        insertableVsn = PossibleFilePath.Other (C.untilNextMajor compatibleVsn)
+      insertableVsn = PossibleFilePath.Other (C.untilNextMajor compatibleVsn)
 
-        attempt toConstraint deps =
-          try
-            key
-            rootPlatform
-            (Map.insert pkg insertableVsn (Map.map (PossibleFilePath.mapWith toConstraint) deps))
-     in case oneOf
-          (attempt C.exactly allDeps)
-          [ attempt C.exactly direct,
-            attempt C.untilNextMinor direct,
-            attempt C.untilNextMajor direct
-          ] of
-          Solver solver ->
-            solver
-              (State cache Map.empty)
-              (\s a _ -> return $ Ok (toApp s pkg outline allDeps a))
-              (\_ -> return $ NoSolution)
-              (\e -> return $ Err e)
+      attempt toConstraint deps =
+        try
+          key
+          rootPlatform
+          (Map.insert pkg insertableVsn (Map.map (PossibleFilePath.mapWith toConstraint) deps))
+   in case oneOf
+        (attempt C.exactly allDeps)
+        [ attempt C.exactly direct,
+          attempt C.untilNextMinor direct,
+          attempt C.untilNextMajor direct
+        ] of
+        Solver solver ->
+          solver
+            (State cache Map.empty)
+            (\s a _ -> return $ Ok (toApp s pkg outline allDeps a))
+            (\_ -> return $ NoSolution)
+            (\e -> return $ Err e)
 
 toApp :: State -> Pkg.Name -> Outline.AppOutline -> Map.Map Pkg.Name (PossibleFilePath V.Version) -> Map.Map Pkg.Name ConstraintSource -> AppSolution
 toApp (State _ constraints) pkg (Outline.AppOutline gren platform srcDirs direct _) old new =

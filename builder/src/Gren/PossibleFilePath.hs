@@ -14,7 +14,7 @@ import Json.Encode qualified as E
 data PossibleFilePath a
   = Is FilePath
   | Other a
-  deriving (Eq)
+  deriving (Show, Eq)
 
 mapWith :: (a -> b) -> PossibleFilePath a -> PossibleFilePath b
 mapWith fn possibleFP =

@@ -2,29 +2,29 @@
 {-# OPTIONS_GHC -Wall #-}
 
 module Package.Diff
-  ( Args (..),
+  ( Flags (..),
     run,
   )
 where
 
-import BackgroundWriter qualified as BW
 import Build qualified
+import Command qualified
+import Data.ByteString.Internal (ByteString)
 import Data.List qualified as List
+import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Maybe qualified as Maybe
 import Data.Name qualified as Name
 import Data.NonEmptyList qualified as NE
 import Deps.Diff (Changes (..), ModuleChanges (..), PackageChanges (..))
 import Deps.Diff qualified as DD
-import Deps.Package qualified as Package
-import Directories qualified as Dirs
 import Gren.Compiler.Type qualified as Type
 import Gren.Details qualified as Details
 import Gren.Docs qualified as Docs
 import Gren.Magnitude qualified as M
+import Gren.ModuleName qualified as ModuleName
 import Gren.Outline qualified as Outline
 import Gren.Package qualified as Pkg
-import Gren.Version qualified as V
 import Reporting qualified
 import Reporting.Doc ((<+>))
 import Reporting.Doc qualified as D
@@ -35,134 +35,50 @@ import Reporting.Task qualified as Task
 
 -- RUN
 
-data Args
-  = CodeVsLatest
-  | CodeVsExactly V.Version
-  | LocalInquiry V.Version V.Version
-  | GlobalInquiry Pkg.Name V.Version V.Version
-
-run :: Args -> IO ()
-run args =
-  Reporting.attempt Exit.diffToReport $
-    Task.run $
-      do
-        env <- getEnv
-        diff env args
-
--- ENVIRONMENT
-
-data Env = Env
-  { _maybeRoot :: Maybe FilePath,
-    _cache :: Dirs.PackageCache
+data Flags = Flags
+  { _interactive :: Bool,
+    _project_path :: String,
+    _current_version :: Command.ProjectInfo,
+    _published_version :: Command.ProjectInfo
   }
+  deriving (Show)
 
-getEnv :: Task Env
-getEnv =
-  do
-    maybeRoot <- Task.io Dirs.findRoot
-    cache <- Task.io Dirs.getPackageCache
-    return (Env maybeRoot cache)
+run :: Flags -> IO ()
+run flags@(Flags _ _ firstPackage secondPackage) =
+  Reporting.attempt Exit.diffToReport $
+    case (Command._project_outline firstPackage, Command._project_outline secondPackage) of
+      (Outline.Pkg firstOutline, Outline.Pkg secondOutline) ->
+        Task.run (diff flags firstOutline secondOutline)
+      _ ->
+        error "Received outlines are in the wrong format"
 
 -- DIFF
 
 type Task a =
   Task.Task Exit.Diff a
 
-diff :: Env -> Args -> Task ()
-diff env@(Env _ _) args =
-  case args of
-    GlobalInquiry name v1 v2 ->
-      do
-        versionResult <- Task.io $ Package.getVersions name
-        case versionResult of
-          Right vsns ->
-            do
-              oldDocs <- getDocs env name vsns (min v1 v2)
-              newDocs <- getDocs env name vsns (max v1 v2)
-              writeDiff oldDocs newDocs
-          Left _ ->
-            Task.throw Exit.DiffUnpublished
-    LocalInquiry v1 v2 ->
-      do
-        (name, vsns) <- readOutline env
-        oldDocs <- getDocs env name vsns (min v1 v2)
-        newDocs <- getDocs env name vsns (max v1 v2)
-        writeDiff oldDocs newDocs
-    CodeVsLatest ->
-      do
-        (name, vsns) <- readOutline env
-        oldDocs <- getLatestDocs env name vsns
-        newDocs <- generateDocs env
-        writeDiff oldDocs newDocs
-    CodeVsExactly version ->
-      do
-        (name, vsns) <- readOutline env
-        oldDocs <- getDocs env name vsns version
-        newDocs <- generateDocs env
-        writeDiff oldDocs newDocs
-
--- GET DOCS
-
-getDocs :: Env -> Pkg.Name -> (V.Version, [V.Version]) -> V.Version -> Task Docs.Documentation
-getDocs (Env _ cache) name (latest, previous) version =
-  if latest == version || elem version previous
-    then Task.mapError (Exit.DiffDocsProblem version) $ DD.getDocs cache name version
-    else Task.throw $ Exit.DiffUnknownVersion name version (latest : previous)
-
-getLatestDocs :: Env -> Pkg.Name -> (V.Version, [V.Version]) -> Task Docs.Documentation
-getLatestDocs (Env _ cache) name (latest, _) =
-  Task.mapError (Exit.DiffDocsProblem latest) $ DD.getDocs cache name latest
-
--- READ OUTLINE
-
-readOutline :: Env -> Task (Pkg.Name, (V.Version, [V.Version]))
-readOutline (Env maybeRoot _) =
-  case maybeRoot of
-    Nothing ->
-      Task.throw Exit.DiffNoOutline
-    Just root ->
-      do
-        result <- Task.io $ Outline.read root
-        case result of
-          Left err ->
-            Task.throw $ Exit.DiffBadOutline err
-          Right outline ->
-            case outline of
-              Outline.App _ ->
-                Task.throw Exit.DiffApplication
-              Outline.Pkg (Outline.PkgOutline pkg _ _ _ _ _ _ _) ->
-                do
-                  versionResult <- Task.io $ Package.getVersions pkg
-                  case versionResult of
-                    Right vsns ->
-                      return (pkg, vsns)
-                    Left _ ->
-                      Task.throw Exit.DiffUnpublished
+diff :: Flags -> Outline.PkgOutline -> Outline.PkgOutline -> Task ()
+diff (Flags _ root (Command.ProjectInfo _ firstSources firstSolution) (Command.ProjectInfo _ secondSources secondSolution)) firstOutline secondOutline =
+  do
+    oldDocs <- generateDocs root firstOutline firstSources firstSolution
+    newDocs <- generateDocs root secondOutline secondSources secondSolution
+    writeDiff oldDocs newDocs
 
 -- GENERATE DOCS
 
-generateDocs :: Env -> Task Docs.Documentation
-generateDocs (Env maybeRoot _) =
-  case maybeRoot of
-    Nothing ->
-      Task.throw Exit.DiffNoOutline
-    Just root ->
-      do
-        details <-
-          Task.eio Exit.DiffBadDetails $
-            BW.withScope $ \scope ->
-              Details.load Reporting.silent scope root
+generateDocs :: FilePath -> Outline.PkgOutline -> Map ModuleName.Raw ByteString -> Map Pkg.Name Details.Dependency -> Task.Task Exit.Diff Docs.Documentation
+generateDocs root outline@(Outline.PkgOutline _ _ _ _ exposed _ _ _) sources solution =
+  do
+    details <-
+      Task.eio Exit.DiffBadDetails $
+        Details.loadForMake Reporting.silent (Outline.Pkg outline) solution
 
-        case Details._outline details of
-          Details.ValidApp _ _ ->
-            Task.throw Exit.DiffApplication
-          Details.ValidPkg _ _ exposed ->
-            case exposed of
-              [] ->
-                Task.throw Exit.DiffNoExposed
-              e : es ->
-                Task.eio Exit.DiffBadBuild $
-                  Build.fromExposed Reporting.silent root details Build.KeepDocs (NE.List e es)
+    case Outline.flattenExposed exposed of
+      [] ->
+        Task.throw Exit.DiffNoExposed
+      e : es ->
+        Task.eio Exit.DiffBadBuild $
+          Build.fromExposedSources Reporting.silent root details sources Build.KeepDocs (NE.List e es)
 
 -- WRITE DIFF
 

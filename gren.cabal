@@ -1,7 +1,7 @@
 Cabal-version: 3.8
 
 Name: gren
-Version: 0.5.3
+Version: 0.5.5
 
 Synopsis:
     The `gren` command line interface.
@@ -46,20 +46,8 @@ Library common
     Hs-Source-Dirs:
         compiler/src
         builder/src
-        terminal
 
     Exposed-Modules:
-        Init
-        Make
-        Docs
-        Repl
-        Package.Install
-        Package.Uninstall
-        Package.Outdated
-        Package.Bump
-        Package.Diff
-        Package.Validate
-
         -- from builder/
         AbsoluteSrcDir
         Build
@@ -81,7 +69,6 @@ Library common
         Gren.Platform
         Gren.Details
         Gren.PossibleFilePath
-        --
         Gren.Compiler.Imports
         Gren.Compiler.Type
         Gren.Compiler.Type.Extract
@@ -192,16 +179,14 @@ Library common
     Build-depends:
         ansi-terminal >= 0.11 && < 0.12,
         ansi-wl-pprint >= 0.6.8 && < 0.7,
-        base >= 4.18 && <5,
+        base >= 4.19 && <5,
         binary >= 0.8 && < 0.9,
         bytestring >= 0.11 && < 0.12,
         containers >= 0.6 && < 0.7,
         directory >= 1.2.3.0 && < 2.0,
         edit-distance >= 0.2 && < 0.3,
-        filelock,
         filepath >= 1 && < 2.0,
         ghc-prim >= 0.5.2,
-        haskeline,
         mtl >= 2.2.1 && < 3,
         process,
         raw-strings-qq,
@@ -209,23 +194,44 @@ Library common
         time >= 1.9.1,
         utf8-string,
         vector,
-        text >= 2 && < 3,
         base64-bytestring >= 1.2 && < 2,
         indexed-traversable
 
 Executable gren
     default-language: GHC2021
-    main-is: terminal/Main.hs
-    
+
     if flag(dev)
         ghc-options: -O0 -Wall
     else
         ghc-options: -O2 -Wall -Werror -threaded "-with-rtsopts=-N"
 
+    hs-source-dirs:
+        terminal
+
+    main-is:
+        Main.hs
+
+    other-modules:
+        Command
+        Make
+        Docs
+        Repl
+        Package.Bump
+        Package.Diff
+        Package.Validate
+
     build-depends:
         gren:common,
-        base >= 4.18 && <5,
+        base >= 4.19 && <5,
         bytestring >= 0.11 && < 0.12,
+        containers >= 0.6 && < 0.7,
+        directory >= 1.2.3.0 && < 2.0,
+        filepath >= 1 && < 2.0,
+        process,
+        haskeline,
+        utf8-string,
+        mtl >= 2.2.1 && < 3,
+        ansi-wl-pprint >= 0.6.8 && < 0.7,
 
 Test-Suite gren-tests
     default-language: GHC2021
@@ -256,8 +262,7 @@ Test-Suite gren-tests
 
     Build-Depends:
         gren:common,
-        base >= 4.18 && <5,
-        text >= 2 && < 3,
+        base >= 4.19 && <5,
         utf8-string,
         bytestring >= 0.11 && < 0.12,
         hspec >= 2.7.10 && < 3

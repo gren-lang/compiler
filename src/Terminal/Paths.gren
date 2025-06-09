@@ -1,0 +1,125 @@
+module Terminal.Paths exposing
+    ( Config
+    , Options
+    , run
+    )
+
+import Stream
+import Stream.Log
+import Task exposing (Task)
+import FileSystem
+import FileSystem.Path as Path exposing (Path)
+import Bytes exposing (Bytes)
+import Json.Encode as Json
+import Compiler.Paths
+
+
+type alias Config =
+    { pathToString : (Path -> String)
+    , backendPath : Path
+    , stdout : Stream.Writable Bytes
+    , fsPermission : FileSystem.Permission
+    }
+
+
+type alias Options =
+    { project : Bool
+    , packageCache : Bool
+    , backend : Bool
+    , json : Bool
+    }
+
+
+run : Config -> Options -> Cmd a
+run config opts =
+    when opts is
+        { project = False, packageCache = False, backend = False, json = False } ->
+            Compiler.Paths.projectRoot config.fsPermission
+                |> Task.andThen
+                    (\project ->
+                        [ "project: " ++ config.pathToString project
+                        , "package-cache: " ++ config.pathToString (Path.append (Path.fromPosixString "gren_packages") project)
+                        , "backend: " ++ config.pathToString config.backendPath
+                        ]
+                            |> String.join "\n"
+                            |> Stream.Log.line config.stdout
+                    )
+                |> Task.onError (\_ -> Stream.Log.line config.stdout "Couldn't find project!")
+                |> Task.execute
+
+        { project = False, packageCache = False, backend = False, json = True } ->
+            Compiler.Paths.projectRoot config.fsPermission
+                |> Task.andThen
+                    (\project ->
+                        Json.object
+                            [ { key = "project", value = Json.string (config.pathToString project) }
+                            , { key = "packageCache", value = Json.string (config.pathToString (Path.append (Path.fromPosixString "gren_packages") project)) }
+                            , { key = "backend", value = Json.string (config.pathToString config.backendPath) }
+                            ]
+                            |> Json.encode 4
+                            |> Stream.Log.line config.stdout
+                    )
+                |> Task.onError (\_ -> Stream.Log.line config.stdout "Couldn't find project!")
+                |> Task.execute
+
+        { project = True, packageCache = False, backend = False, json = False } ->
+            Compiler.Paths.projectRoot config.fsPermission
+                |> Task.andThen
+                    (\project ->
+                        Stream.Log.line config.stdout (config.pathToString project)
+                    )
+                |> Task.onError (\_ -> Stream.Log.line config.stdout "Couldn't find project!")
+                |> Task.execute
+
+        { project = True, packageCache = False, backend = False, json = True } ->
+            Compiler.Paths.projectRoot config.fsPermission
+                |> Task.andThen
+                    (\project ->
+                        Json.object
+                            [ { key = "project", value = Json.string (config.pathToString project) }
+                            ]
+                            |> Json.encode 4
+                            |> Stream.Log.line config.stdout
+                    )
+                |> Task.onError (\_ -> Stream.Log.line config.stdout "Couldn't find project!")
+                |> Task.execute
+
+        { project = False, packageCache = True, backend = False, json = False } ->
+            Compiler.Paths.projectRoot config.fsPermission
+                |> Task.andThen
+                    (\project ->
+                         config.pathToString (Path.append (Path.fromPosixString "gren_packages") project)
+                            |> Stream.Log.line config.stdout
+                    )
+                |> Task.onError (\_ -> Stream.Log.line config.stdout "Couldn't find project!")
+                |> Task.execute
+
+        { project = False, packageCache = True, backend = False, json = True } ->
+            Compiler.Paths.projectRoot config.fsPermission
+                |> Task.andThen
+                    (\project ->
+                        Json.object
+                            [ { key = "packageCache", value = Json.string (config.pathToString (Path.append (Path.fromPosixString "gren_packages") project)) }
+                            ]
+                            |> Json.encode 4
+                            |> Stream.Log.line config.stdout
+                    )
+                |> Task.onError (\_ -> Stream.Log.line config.stdout "Couldn't find project!")
+                |> Task.execute
+
+        { project = False, packageCache = False, backend = True, json = False } ->
+            Stream.Log.line config.stdout (config.pathToString config.backendPath)
+                |> Task.execute
+
+        { project = False, packageCache = False, backend = True, json = True } ->
+            Json.object
+                [ { key = "backend", value = Json.string (config.pathToString config.backendPath) }
+                ]
+                |> Json.encode 4
+                |> Stream.Log.line config.stdout
+                |> Task.execute
+
+        _ ->
+            Stream.Log.line config.stdout "You can only use one of --project, --package-cache and --backend!"
+                |> Task.execute
+

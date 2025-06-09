@@ -1,0 +1,680 @@
+module Terminal.Parser exposing
+    ( Command (..)
+    , MakeFlags
+    , MakeStaticOpts
+    , DiffArgs (..)
+    , parser
+    )
+
+
+import CLI.Parser
+import CLI.PrettyPrinter as PP
+import Compiler.Backend
+import Compiler.PackageName as PackageName exposing (PackageName)
+import Compiler.Platform as Platform exposing (Platform)
+import Compiler.ModuleName as ModuleName exposing (ModuleName)
+import Terminal.Paths as Paths
+import SemanticVersion exposing (SemanticVersion)
+import FileSystem.Path as Path exposing (Path)
+import Meta
+
+
+type Command
+    = Init InitFlags
+    | Repl ReplFlags
+    | Make MakeFlags
+    | MakeStatic MakeStaticOpts
+    | Docs DocsFlags
+    | PackageInstall (Maybe PackageName)
+    | PackageUninstall PackageName
+    | PackageOutdated
+    | PackageValidate
+    | PackageBump
+    | PackageDiff DiffArgs
+    | Paths Paths.Options
+    | Run ModuleName
+
+
+type alias InitFlags =
+    { package : Bool
+    , platform : Platform
+    }
+
+
+type alias ReplFlags =
+    { interpreter : Maybe String
+    }
+
+
+type alias MakeFlags =
+    { optimize : Bool
+    , sourcemaps : Bool
+    , output : Maybe Compiler.Backend.MakeOutput
+    , report : Maybe {}
+    , entryPoints : Array ModuleName
+    }
+
+
+type alias MakeStaticOpts =
+    { output : Path
+    , source : ModuleName
+    }
+
+
+type alias DocsFlags =
+    { output : Maybe Compiler.Backend.DocsOutput
+    , report : Maybe {}
+    }
+
+
+type DiffArgs
+    = DiffLatest
+    | DiffVersion SemanticVersion
+    | DiffRange { lower : SemanticVersion, upper : SemanticVersion }
+    | DiffGlobal { package : PackageName, lower : SemanticVersion, upper : SemanticVersion }
+
+
+parser : CLI.Parser.App Command
+parser =
+    { name = "gren"
+    , version = SemanticVersion.toString Meta.version
+    , intro = 
+        PP.verticalBlock
+            [ PP.block
+                [ PP.text "Hi, thank you for trying out "
+                , PP.intenseColor PP.Green <| PP.text ("Gren " ++ Compiler.Backend.version)
+                , PP.text ". I hope you like it!"
+                ]
+            , PP.empty
+            , PP.intenseColor PP.Black <|
+                PP.text
+                    """
+                    -------------------------------------------------------------------------------
+                    I highly recommend working through <https://gren-lang.org/learn> to get started
+                    It teaches many important concepts, including how to use `gren` in the terminal
+                    -------------------------------------------------------------------------------
+                    """
+            ]
+    , outro = 
+        PP.words
+            """
+            Be sure to ask on the Gren Discord (https://discord.gg/Chb9YB9Vmh) if you run into trouble!
+            Folks are friendly and happy to help out. They hang out there because it is fun, so be kind
+            to get the best results!
+            """
+    , commands =
+        CLI.Parser.defineGroup
+            |> CLI.Parser.withCommand
+                { word = "init"
+                , arguments =
+                    CLI.Parser.noArgs
+                , flags =
+                    CLI.Parser.initFlags 
+                        (\package maybePlatform ->
+                            { package = package
+                            , platform = 
+                                if package then
+                                    Maybe.withDefault Platform.Common maybePlatform
+
+                                else
+                                    Maybe.withDefault Platform.Browser maybePlatform
+                            }
+                        )
+                        |> CLI.Parser.toggle "package" "Create a package (as opposed to an application)"
+                        |> CLI.Parser.flag "platform" initPlatformParser "Which platform to target"
+                , commonDescription =
+                    Just "Start a Gren project. It creates a starter gren.json file."
+                , summary =
+                    "The `init` command helps start Gren project:"
+                , example = 
+                    PP.words
+                        """
+                        It will ask permission to create a gren.json file, the one thing
+                        common to all Gren project.
+                        """
+                , builder =
+                    \_args flags -> Init flags
+                }
+            |> CLI.Parser.withCommand
+                { word = "repl"
+                , arguments =
+                    CLI.Parser.noArgs
+                , flags =
+                    CLI.Parser.initFlags
+                        (\maybeInterpreter ->
+                            { interpreter = maybeInterpreter
+                            }
+                        )
+                        |> CLI.Parser.flag "interpreter" interpreterParser "Path to a alternate JS interpreter, like deno or nodejs"
+                , commonDescription =
+                    Just 
+                        """
+                        Open up an interactive programming session. Type in Gren expressions like
+                        (2 + 2) or (String.length \"test\") and see if they equal four!
+                        """
+                , summary =
+                    "The `repl` command opens up an interactive programming session:"
+                , example = 
+                    PP.words
+                        """
+                        Start working through <https://gren-lang.org/learn> to learn how to use this!
+                        It has a whole chapter that uses the REPL for everything, so that is probably
+                        the quickest way to get started.
+                        """
+                , builder =
+                    \_args flags -> Repl flags
+                }
+            |> CLI.Parser.withCommand
+                { word = "paths"
+                , arguments =
+                    CLI.Parser.noArgs
+                , flags =
+                    CLI.Parser.initFlags
+                        (\project packageCache backend json ->
+                            { project = project
+                            , packageCache = packageCache
+                            , backend = backend
+                            , json = json
+                            }
+                        )
+                        |> CLI.Parser.toggle "project" "Only output the path to the project"
+                        |> CLI.Parser.toggle "package-cache" "Only output the path to the package cache"
+                        |> CLI.Parser.toggle "backend" "Only output the path to the compiler backend"
+                        |> CLI.Parser.toggle "json" "Output in JSON format"
+                , commonDescription = Nothing
+                , summary =
+                    "Return the paths used for compiling a project."
+                , example = 
+                    PP.verticalBlock
+                        [ PP.words "For example:"
+                        , PP.empty
+                        , PP.words "gren paths --backend"
+                            |> PP.indent
+                            |> PP.color PP.Green
+                        , PP.empty
+                        , PP.words
+                            """
+                            This will write the path to the compiler backend.
+                            Executing the command without any flags will print _all_ relevant paths.
+                            """
+                        ]
+                , builder =
+                    \_args flags -> Paths flags
+                }
+            |> CLI.Parser.withCommand
+                { word = "make"
+                , arguments =
+                    CLI.Parser.zeroOrMoreArgs moduleNameParser
+                , flags =
+                    CLI.Parser.initFlags 
+                        (\optimize sourcemaps output report ->
+                            { optimize = optimize
+                            , sourcemaps = sourcemaps
+                            , output = output
+                            , report = report
+                            }
+                        )
+                        |> CLI.Parser.toggle "optimize" "Turn on optimizations to make code smaller and faster. For example, the compiler renames record fields to be as short as possible and unboxes values to reduce allocation."
+                        |> CLI.Parser.toggle "sourcemaps" "Add sourcemaps to the resulting JS file. This let's you debug Gren code in a JS debugger, at the cost of longer compile times and a bigger JS file."
+                        |> CLI.Parser.flag "output" outputParser "Specify the name of the resulting JS file. For example --output=assets/gren.js to generate the JS at assets/gren.js. You can also use --output=/dev/stdout to output the JS to the terminal, or --output=/dev/null to generate no output at all!"
+                        |> CLI.Parser.flag "report" reportParser "You can say --report=json to get error messages as JSON. This is only really useful if you are an editor plugin. Humans should avoid it!"
+                , commonDescription =
+                    Nothing
+                , summary =
+                    "The `make` command compiles Gren code into JS or HTML:"
+                , example = 
+                    PP.verticalBlock
+                        [ PP.words "For example:"
+                        , PP.empty
+                        , PP.words "gren make src/Main.gren"
+                            |> PP.indent
+                            |> PP.color PP.Green
+                        , PP.empty
+                        , PP.words
+                            """
+                            This tries to compile an Gren file named src/Main.gren, generating an index.html
+                            file if possible.
+                            """
+                        ]
+                , builder =
+                    \args flags ->
+                        Make
+                            { optimize = flags.optimize
+                            , sourcemaps = flags.sourcemaps
+                            , output = flags.output
+                            , report = flags.report
+                            , entryPoints = args
+                            }
+                }
+            |> CLI.Parser.withCommand
+                { word = "make-static"
+                , arguments =
+                    CLI.Parser.twoArgs 
+                        (\source output ->
+                            { source = source
+                            , output = output
+                            }
+                        )
+                        moduleNameParser
+                        CLI.Parser.pathParser
+                , flags =
+                    CLI.Parser.noFlags
+                , commonDescription =
+                    Nothing
+                , summary =
+                    "The `make-static` command compiles Gren code into a self-contained executable:"
+                , example = 
+                    PP.verticalBlock
+                        [ PP.words "For example:"
+                        , PP.empty
+                        , PP.words "gren make-static src/Main.gren app"
+                            |> PP.indent
+                            |> PP.color PP.Green
+                        , PP.empty
+                        , PP.words
+                            """
+                            This tries to compile a Gren file named `src/Main.gren`, generating an `app`
+                            file if possible. `app` is a static executable that can be run even if `node` is
+                            not installed on the system.
+                            """
+                        ]
+                , builder =
+                    \args _flags -> MakeStatic args
+                }
+            |> CLI.Parser.withCommand
+                { word = "run"
+                , arguments =
+                    CLI.Parser.oneArg moduleNameParser
+                , flags =
+                    CLI.Parser.noFlags
+                , commonDescription =
+                    Nothing
+                , summary =
+                    "The `run` command compiles and runs a Gren module:"
+                , example = 
+                    PP.verticalBlock
+                        [ PP.words "For example:"
+                        , PP.empty
+                        , PP.words "gren run Main"
+                            |> PP.indent
+                            |> PP.color PP.Green
+                        , PP.empty
+                        , PP.words
+                            """
+                            This tries to compile a Gren file named src/Main.gren.
+                            The file must have a `main` function that returns a Node program.
+                            """
+                        ]
+                , builder =
+                    \arg _flags -> Run arg
+                }
+            |> CLI.Parser.withCommand
+                { word = "docs"
+                , arguments =
+                    CLI.Parser.noArgs
+                , flags =
+                    CLI.Parser.initFlags 
+                        (\output report ->
+                            { output = output
+                            , report = report
+                            }
+                        )
+                        |> CLI.Parser.flag "output" docsOutputParser "Specify the name of the resulting JSON file. For example --output=assets/docs.json to generate the JSON at assets/docs.json. You can also use --output=/dev/stdout to output the JSON to the terminal, or --output=/dev/null to verify that generating the documentation would work."
+                        |> CLI.Parser.flag "report" reportParser "You can say --report=json to get error messages as JSON. This is only really useful if you are an editor plugin. Humans should avoid it!"
+                , commonDescription =
+                    Nothing
+                , summary =
+                    "The `docs` command collects all documentation for a package in a JSON file:"
+                , example = 
+                    PP.verticalBlock
+                        [ PP.words "For example:"
+                        , PP.words "gren docs"
+                            |> PP.indent
+                            |> PP.color PP.Green
+                        , PP.words
+                            """
+                            This collects all documentation for the current pacage and writes it to a
+                            docs.json file, if possible.
+                            """
+                        ]
+                , builder =
+                    \_args flags -> Docs flags
+                }
+            |> CLI.Parser.withPrefix "package" packageCommands
+    }
+
+
+packageCommands : CLI.Parser.GroupParser Command
+packageCommands =
+    CLI.Parser.defineGroup
+        |> CLI.Parser.withCommand
+            { word = "install"
+            , arguments =
+                CLI.Parser.oneOfArgs
+                    [ CLI.Parser.noArgs
+                        |> CLI.Parser.mapArgs (\_ -> Nothing)
+                    , CLI.Parser.oneArg PackageName.cliParser
+                        |> CLI.Parser.mapArgs Just
+                    ]
+            , flags =
+                CLI.Parser.noFlags 
+            , commonDescription =
+                Nothing
+            , summary =
+                "The `install` command fetches packages from github for use in your project:"
+            , example = 
+                PP.verticalBlock
+                    [ PP.words 
+                        """
+                        For example, if you want to get access to Web APIs in your project,
+                        you would say:
+                        """
+                    , PP.empty
+                    , PP.text "gren package install gren-lang/browser"
+                        |> PP.indent
+                        |> PP.color PP.Green
+                    , PP.empty
+                    , PP.words
+                        """
+                        Notice that you must say the AUTHOR name and PROJECT name! After running those
+                        commands, you could say `import Browser` in your code.
+                        """
+                    , PP.empty
+                    , PP.words
+                        """
+                        You can also call this command without any arguments to download all dependencies
+                        listed in gren.json. This can be helpful in Continous Integration setups where
+                        you want to cache dependencies between builds.
+                        """
+                    ]
+            , builder =
+                \arg _flags ->
+                    PackageInstall arg
+            }
+        |> CLI.Parser.withCommand
+            { word = "uninstall"
+            , arguments =
+                CLI.Parser.oneArg PackageName.cliParser
+            , flags =
+                CLI.Parser.noFlags 
+            , commonDescription =
+                Nothing
+            , summary =
+                "The `uninstall` command removes packages from your project:"
+            , example = 
+                PP.verticalBlock
+                    [ PP.words 
+                        """
+                        For example, if you want to get rid of the browser package in your project,
+                        you would say:
+                        """
+                    , PP.empty
+                    , PP.text "gren package uninstall gren-lang/browser"
+                        |> PP.indent
+                        |> PP.color PP.Green
+                    , PP.empty
+                    , PP.words 
+                        """
+                        Notice that you must say the AUTHOR name and PROJECT name!
+                        """
+                    , PP.empty
+                    , PP.words
+                        """
+                        What if another package depends on the package you're trying to remove? No problem!
+                        I'll let you know if that's the case, and help you resolve the situation. 
+                        """
+                    ]
+            , builder =
+                \arg _flags -> PackageUninstall arg
+            }
+        |> CLI.Parser.withCommand
+            { word = "outdated"
+            , arguments =
+                CLI.Parser.noArgs
+            , flags =
+                CLI.Parser.noFlags 
+            , commonDescription =
+                Nothing
+            , summary =
+                "The `outdated` command lists the latest version of your dependencies,"
+                    ++ " if you're not already up to date:"
+            , example = 
+                PP.text "gren package outdated"
+                    |> PP.indent
+                    |> PP.color PP.Green
+            , builder =
+                \_args _flags -> PackageOutdated
+            }
+        |> CLI.Parser.withCommand
+            { word = "validate"
+            , arguments =
+                CLI.Parser.noArgs
+            , flags =
+                CLI.Parser.noFlags 
+            , commonDescription =
+                Nothing
+            , summary =
+                "The `validate` command checks that you've done everything necessary for"
+                    ++ " others in the Gren community to use your package as a dependency:"
+            , example = 
+                PP.verticalBlock
+                    [ PP.words 
+                        """
+                        Gren packages are \"just\" git repositories hosted on github. As
+                        long as you've tagged your repository with semver formatted tags,
+                        anyone can add your package as a dependency.
+                        """
+                    , PP.empty
+                    , PP.words 
+                        """
+                        However, a package is no better than its documentation. This command
+                        therefore checks that your package exposes a bare minimum of
+                        prose that the users of your package can read.
+                        """
+                    , PP.empty
+                    , PP.words
+                        """
+                        Keep in mind, you don't just want to tell people HOW to use
+                        your package. It's equally important to tell them WHY. What
+                        problem does it solve? Why should people use this particular
+                        package to solve their problem?
+                        """
+                    , PP.empty
+                    , PP.words
+                        """
+                        Once this command passes, you may want to add your repo to
+                        <https://packages.gren-lang.org> so it becomes easier for the Gren
+                        community to find your package, and its documentation.
+                        """
+                    ]
+            , builder =
+                \_args _flags -> PackageValidate
+            }
+        |> CLI.Parser.withCommand
+            { word = "bump"
+            , arguments =
+                CLI.Parser.noArgs
+            , flags =
+                CLI.Parser.noFlags 
+            , commonDescription =
+                Nothing
+            , summary =
+                "The `bump` command figures out the next version number based on API changes:"
+            , example = 
+                PP.words 
+                    """
+                    Say you just published version 1.0.0, but then decided to remove a function.
+                    I will compare the published API to what you have locally, figure out that
+                    it is a MAJOR change, and bump your version number to 2.0.0. I do this with
+                    all packages, so there cannot be MAJOR changes hiding in PATCH releases in Gren!
+                    """
+            , builder =
+                \_args _flags -> PackageBump
+            }
+        |> CLI.Parser.withCommand
+            { word = "diff"
+            , arguments =
+                CLI.Parser.oneOfArgs
+                    [ CLI.Parser.noArgs
+                        |> CLI.Parser.mapArgs (\{} -> DiffLatest)
+                    , CLI.Parser.oneArg SemanticVersion.cliParser
+                        |> CLI.Parser.mapArgs DiffVersion
+                    , CLI.Parser.twoArgs
+                        (\lower upper ->
+                            DiffRange
+                                { lower = lower
+                                , upper = upper
+                                }
+                        )
+                        SemanticVersion.cliParser
+                        SemanticVersion.cliParser
+                    , CLI.Parser.threeArgs
+                        (\package lower upper ->
+                            DiffGlobal
+                                { package = package
+                                , lower = lower
+                                , upper = upper
+                                }
+                        )
+                        PackageName.cliParser
+                        SemanticVersion.cliParser
+                        SemanticVersion.cliParser
+                    ]
+            , flags =
+                CLI.Parser.noFlags 
+            , commonDescription =
+                Nothing
+            , summary =
+                "The `diff` command detects API changes:"
+            , example = 
+                PP.verticalBlock
+                    [ PP.words 
+                        """
+                        For example, to see what changed in the Browser package between
+                        versions 1.0.0 and 2.0.0, you can say:
+                        """
+                    , PP.empty
+                    , PP.text "gren package diff gren-lang/browser 1.0.0 2.0.0"
+                        |> PP.indent
+                        |> PP.color PP.Green
+                    , PP.empty
+                    , PP.words 
+                        """
+                        Sometimes a MAJOR change is not actually very big, so
+                        this can help you plan your upgrade timelines.
+                        """
+                    ]
+            , builder =
+                \args _flags -> PackageDiff args
+            }
+
+
+initPlatformParser : CLI.Parser.ValueParser Platform
+initPlatformParser =
+    { singular = "platform"
+    , plural = "platforms"
+    , fn = \str ->
+        when str is
+            "common" -> Just Platform.Common
+            "browser" -> Just Platform.Browser
+            "node" -> Just Platform.Node
+            _ -> Nothing
+    , examples =
+        [ "common"
+        , "browser"
+        , "node"
+        ]
+    }
+
+
+reportParser : CLI.Parser.ValueParser {}
+reportParser =
+    { singular = "report-type"
+    , plural = "report-types"
+    , fn = \str ->
+        if str == "json" then
+            Just {}
+
+        else
+            Nothing
+    , examples =
+        [ "json" ]
+    }
+
+
+interpreterParser : CLI.Parser.ValueParser String
+interpreterParser =
+    { singular = "interpreter"
+    , plural = "interpreters"
+    , fn = Just
+    , examples =
+        [ "node"
+        , "deno"
+        , "bun"
+        ]
+    }
+
+
+outputParser : CLI.Parser.ValueParser Compiler.Backend.MakeOutput
+outputParser =
+    { singular = "output-file"
+    , plural = "output-files"
+    , fn = \str ->
+        when str is
+            "/dev/stdout" -> Just Compiler.Backend.StdOut
+            "/dev/null" -> Just Compiler.Backend.DevNull
+            "NUL" -> Just Compiler.Backend.DevNull
+            "$null" -> Just Compiler.Backend.DevNull
+            _ ->
+                if String.endsWith ".html" str then
+                    Just <| Compiler.Backend.Html str
+                
+                else if String.endsWith ".js" str then
+                    Just <| Compiler.Backend.Js str
+
+                else
+                    Just <| Compiler.Backend.Exe str
+    , examples =
+        [ "/dev/stdout"
+        , "/dev/null"
+        , "index.html"
+        , "index.js"
+        , "app"
+        ]
+    }
+
+
+docsOutputParser : CLI.Parser.ValueParser Compiler.Backend.DocsOutput
+docsOutputParser =
+    { singular = "output-file"
+    , plural = "output-files"
+    , fn = \str ->
+        when str is
+            "/dev/stdout" -> Just Compiler.Backend.DocsStdOut
+            "/dev/null" -> Just Compiler.Backend.DocsDevNull
+            "NUL" -> Just Compiler.Backend.DocsDevNull
+            "$null" -> Just Compiler.Backend.DocsDevNull
+            _ ->
+                if String.endsWith ".json" str then
+                    Just <| Compiler.Backend.DocsJson str
+
+                else
+                    Nothing
+    , examples =
+        [ "/dev/stdout"
+        , "/dev/null"
+        , "docs.json"
+        ]
+    }
+
+
+moduleNameParser : CLI.Parser.ValueParser ModuleName
+moduleNameParser =
+    { singular = "module-name"
+    , plural = "module-names"
+    , fn = ModuleName.fromString
+    , examples =
+        [ "Main"
+        , "My.Module"
+        ]
+    }

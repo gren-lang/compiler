@@ -3,21 +3,14 @@ module Main
   )
 where
 
-import Data.ByteString.Char8 qualified as BS
-import Data.Utf8 qualified as Utf8
+import Command qualified
+import Data.ByteString.Char8 qualified
 import Docs qualified
 import GHC.IO.Encoding (setLocaleEncoding, utf8)
-import Gren.Package qualified as Package
-import Gren.Platform qualified as Platform
-import Gren.Version qualified as Version
-import Init qualified
 import Json.Decode qualified as Json
 import Make qualified
 import Package.Bump qualified as Bump
 import Package.Diff qualified as Diff
-import Package.Install qualified as Install
-import Package.Outdated qualified as Outdated
-import Package.Uninstall qualified as Uninstall
 import Package.Validate qualified as Validate
 import Repl qualified
 import System.Environment qualified as Env
@@ -30,220 +23,27 @@ main =
     setLocaleEncoding utf8
     argStrings <- Env.getArgs
     case argStrings of
-      [json] ->
-        let jsonByteString = BS.pack json
-         in case Json.fromByteString commandDecoder jsonByteString of
-              Left err ->
-                error (show err)
-              Right (Init (InitFlags interactive package platform)) ->
-                Init.run $ Init.Flags (not interactive) package platform
-              Right (Repl interpreter) ->
-                Repl.run $ Repl.Flags interpreter
-              Right (Make (MakeFlags optimize sourcemaps output report paths)) ->
-                Make.run paths $ Make.Flags optimize sourcemaps output report
-              Right (Docs (DocsFlags output report)) ->
-                Docs.run $ Docs.Flags output report
-              Right (PackageInstall (InstallFlags interactive Nothing)) ->
-                Install.run Install.NoArgs $ Install.Flags (not interactive)
-              Right (PackageInstall (InstallFlags interactive (Just packageName))) ->
-                Install.run (Install.Install packageName) $ Install.Flags (not interactive)
-              Right (PackageUninstall (UninstallFlags interactive packageName)) ->
-                Uninstall.run packageName $ Uninstall.Flags (not interactive)
-              Right PackageOutdated ->
-                Outdated.run
-              Right PackageValidate ->
-                Validate.run
-              Right (PackageBump (BumpFlags interactive)) ->
-                Bump.run $ Bump.Flags (not interactive)
-              Right PackageDiffLatest ->
-                Diff.run Diff.CodeVsLatest
-              Right (PackageDiffVersion version) ->
-                Diff.run $ Diff.CodeVsExactly version
-              Right (PackageDiffRange from to) ->
-                Diff.run $ Diff.LocalInquiry from to
-              Right (PackageDiffGlobal pkg from to) ->
-                Diff.run $ Diff.GlobalInquiry pkg from to
+      [] -> do
+        json <- Data.ByteString.Char8.getLine
+        case Json.fromByteString Command.commandDecoder json of
+          Left err ->
+            error (show err)
+          Right (Command.Repl interpreter) ->
+            Repl.run $ Repl.Flags interpreter
+          Right (Command.Make (Command.MakeFlags optimize sourcemaps output report paths projectPath outline rootSources deps)) ->
+            Make.run $ Make.Flags optimize sourcemaps output report paths projectPath outline rootSources deps
+          Right (Command.Docs (Command.DocsFlags output report projectPath outline rootSources deps)) ->
+            Docs.run $ Docs.Flags output report projectPath outline rootSources deps
+          Right Command.PackageValidate ->
+            Validate.run
+          Right (Command.PackageBump (Command.BumpFlags interactive projectPath knownVersions currentVersion publishedVersion)) ->
+            Bump.run $ Bump.Flags interactive projectPath knownVersions currentVersion publishedVersion
+          Right (Command.PackageDiff (Command.DiffFlags interactive projectPath firstPackage secondPackage)) ->
+            Diff.run $ Diff.Flags interactive projectPath firstPackage secondPackage
       _ ->
         do
-          putStrLn "Expected exactly 1 argument: a json-encoded command."
+          putStrLn "Expected exactly 0 arguments."
           putStrLn ""
           putStrLn
             "It looks like you are trying to run Gren's internal backend directly.\
             \ To properly install Gren, see https://gren-lang.org/install"
-
-data Command
-  = Init InitFlags
-  | Repl (Maybe String)
-  | Make MakeFlags
-  | Docs DocsFlags
-  | PackageInstall InstallFlags
-  | PackageUninstall UninstallFlags
-  | PackageOutdated
-  | PackageValidate
-  | PackageBump BumpFlags
-  | PackageDiffLatest
-  | PackageDiffVersion Version.Version
-  | PackageDiffRange Version.Version Version.Version
-  | PackageDiffGlobal Package.Name Version.Version Version.Version
-  deriving (Show)
-
-data InitFlags = InitFlags
-  { _init_interactive :: Bool,
-    _init_package :: Bool,
-    _init_platform :: Platform.Platform
-  }
-  deriving (Show)
-
-data MakeFlags = MakeFlags
-  { _make_optimize :: Bool,
-    _make_sourcemaps :: Bool,
-    _make_output :: Maybe Make.Output,
-    _make_report_json :: Bool,
-    _make_paths :: [String]
-  }
-  deriving (Show)
-
-data DocsFlags = DocsFlags
-  { _docs_output :: Maybe Docs.Output,
-    _docs_report_json :: Bool
-  }
-  deriving (Show)
-
-data InstallFlags = InstallFlags
-  { _install_interactive :: Bool,
-    _install_package :: Maybe Package.Name
-  }
-  deriving (Show)
-
-data UninstallFlags = UninstallFlags
-  { _uninstall_interactive :: Bool,
-    _uninstall_package :: Package.Name
-  }
-  deriving (Show)
-
-data BumpFlags = BumpFlags
-  { _bump_interactive :: Bool
-  }
-  deriving (Show)
-
-data CommandDecoderError
-  = UnknownCommand String
-  | InvalidInput
-  deriving (Show)
-
-commandDecoder :: Json.Decoder CommandDecoderError Command
-commandDecoder =
-  do
-    tipe <- Json.field (BS.pack "command") Json.string
-    let commandStr = Utf8.toChars tipe
-    case commandStr of
-      "init" -> Init <$> initDecoder
-      "repl" -> Repl <$> maybeDecoder (fmap Utf8.toChars Json.string)
-      "make" -> Make <$> makeDecoder
-      "docs" -> Docs <$> docsDecoder
-      "packageInstall" -> PackageInstall <$> installDecoder
-      "packageUninstall" -> PackageUninstall <$> uninstallDecoder
-      "packageOutdated" -> Json.succeed PackageOutdated
-      "packageValidate" -> Json.succeed PackageValidate
-      "packageBump" -> PackageBump <$> bumpDecoder
-      "packageDiffLatest" -> Json.succeed PackageDiffLatest
-      "packageDiffVersion" -> diffVersionDecoder
-      "packageDiffRange" -> diffRangeDecoder
-      "packageDiffGlobal" -> diffGlobalDecoder
-      _ -> Json.failure (UnknownCommand $ Utf8.toChars tipe)
-
-packageDecoder :: Json.Decoder CommandDecoderError Package.Name
-packageDecoder =
-  Json.mapError (const InvalidInput) Package.decoder
-
-versionDecoder :: Json.Decoder CommandDecoderError Version.Version
-versionDecoder =
-  Json.mapError (const InvalidInput) Version.decoder
-
-initDecoder :: Json.Decoder CommandDecoderError InitFlags
-initDecoder =
-  InitFlags
-    <$> Json.field (BS.pack "interactive") Json.bool
-    <*> Json.field (BS.pack "package") Json.bool
-    <*> Json.field (BS.pack "platform") (Platform.decoder InvalidInput)
-
-makeDecoder :: Json.Decoder CommandDecoderError MakeFlags
-makeDecoder =
-  MakeFlags
-    <$> Json.field (BS.pack "optimize") Json.bool
-    <*> Json.field (BS.pack "sourcemaps") Json.bool
-    <*> Json.field (BS.pack "output") (maybeDecoder makeOutputDecoder)
-    <*> Json.field (BS.pack "report-json") Json.bool
-    <*> Json.field (BS.pack "paths") (Json.list (fmap Utf8.toChars Json.string))
-
-makeOutputDecoder :: Json.Decoder CommandDecoderError Make.Output
-makeOutputDecoder =
-  do
-    tipe <- Json.field (BS.pack "type") Json.string
-    let commandStr = Utf8.toChars tipe
-    case commandStr of
-      "stdout" -> Json.succeed Make.DevStdOut
-      "null" -> Json.succeed Make.DevNull
-      "html" -> Make.Html <$> Json.field (BS.pack "path") (fmap Utf8.toChars Json.string)
-      "js" -> Make.JS <$> Json.field (BS.pack "path") (fmap Utf8.toChars Json.string)
-      "exe" -> Make.Exe <$> Json.field (BS.pack "path") (fmap Utf8.toChars Json.string)
-      _ -> Json.failure InvalidInput
-
-docsDecoder :: Json.Decoder CommandDecoderError DocsFlags
-docsDecoder =
-  DocsFlags
-    <$> Json.field (BS.pack "output") (maybeDecoder docsOutputDecoder)
-    <*> Json.field (BS.pack "report-json") Json.bool
-
-docsOutputDecoder :: Json.Decoder CommandDecoderError Docs.Output
-docsOutputDecoder =
-  do
-    tipe <- Json.field (BS.pack "type") Json.string
-    let commandStr = Utf8.toChars tipe
-    case commandStr of
-      "stdout" -> Json.succeed Docs.DevStdOut
-      "null" -> Json.succeed Docs.DevNull
-      "json" -> Docs.JSON <$> Json.field (BS.pack "path") (fmap Utf8.toChars Json.string)
-      _ -> Json.failure InvalidInput
-
-installDecoder :: Json.Decoder CommandDecoderError InstallFlags
-installDecoder =
-  InstallFlags
-    <$> Json.field (BS.pack "interactive") Json.bool
-    <*> Json.field (BS.pack "package") (maybeDecoder packageDecoder)
-
-uninstallDecoder :: Json.Decoder CommandDecoderError UninstallFlags
-uninstallDecoder =
-  UninstallFlags
-    <$> Json.field (BS.pack "interactive") Json.bool
-    <*> Json.field (BS.pack "package") packageDecoder
-
-bumpDecoder :: Json.Decoder CommandDecoderError BumpFlags
-bumpDecoder =
-  BumpFlags
-    <$> Json.field (BS.pack "interactive") Json.bool
-
-diffVersionDecoder :: Json.Decoder CommandDecoderError Command
-diffVersionDecoder =
-  PackageDiffVersion
-    <$> Json.field (BS.pack "version") versionDecoder
-
-diffRangeDecoder :: Json.Decoder CommandDecoderError Command
-diffRangeDecoder =
-  PackageDiffRange
-    <$> Json.field (BS.pack "from") versionDecoder
-    <*> Json.field (BS.pack "to") versionDecoder
-
-diffGlobalDecoder :: Json.Decoder CommandDecoderError Command
-diffGlobalDecoder =
-  PackageDiffGlobal
-    <$> Json.field (BS.pack "package") packageDecoder
-    <*> Json.field (BS.pack "from") versionDecoder
-    <*> Json.field (BS.pack "to") versionDecoder
-
-maybeDecoder :: Json.Decoder x a -> Json.Decoder x (Maybe a)
-maybeDecoder subDecoder =
-  Json.oneOf
-    [ fmap Just subDecoder,
-      Json.succeed Nothing
-    ]

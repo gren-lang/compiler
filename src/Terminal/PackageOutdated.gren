@@ -1,0 +1,124 @@
+module Terminal.PackageOutdated exposing
+    ( Error (..)
+    , run
+    )
+
+
+import ChildProcess
+import Compiler.PackageName as PackageName exposing (PackageName)
+import Compiler.Paths
+import Compiler.Outline as Outline exposing (Outline)
+import Compiler.Dependencies
+import Git
+import Stream
+import Stream.Log
+import Task exposing (Task)
+import Dict exposing (Dict)
+import FileSystem
+import FileSystem.Path as Path exposing (Path)
+import Bytes exposing (Bytes)
+import SemanticVersion exposing (SemanticVersion)
+import SemanticVersionRange exposing (SemanticVersionRange)
+import Json.Encode as Json
+import Json.Decode as Decode exposing (Decoder)
+import Stream.Extra
+import Terminal.User as User
+
+
+type alias Config =
+    { fsPermission : FileSystem.Permission
+    , cpPermission : ChildProcess.Permission
+    , interactive : Bool
+    , useColor : Bool
+    , stdout : Stream.Writable Bytes
+    , stdin : Stream.Readable Bytes
+    }
+
+
+type alias Options =
+    { projectPath : Path
+    , outline : Outline
+    }
+
+
+type Error
+    = PackageInstallNoProject FileSystem.Error
+    | PackageInstallNoGrenJson FileSystem.Error
+    | PackageInstallInvalidGrenJson Decode.Error
+    | PackageInstallDebug String
+
+
+run : Config -> Options -> Task Error {}
+run config { projectPath, outline } =
+    let
+        grenJsonPath =
+            Path.append (Path.fromPosixString "gren.json") projectPath
+
+        deps =
+            when outline is
+                Outline.App appOutline ->
+                    Dict.union appOutline.dependencies.direct appOutline.dependencies.indirect
+                        |> Dict.mapAndKeepJust (\_ v -> extractVersion v)
+                        |> Dict.map (\_ v -> SemanticVersionRange.fromExact v)
+
+                Outline.Pkg pkgOutline ->
+                    pkgOutline.dependencies
+                        |> Dict.mapAndKeepJust (\_ v -> extractVersion v)
+
+        extractVersion cons =
+            when cons is
+                Outline.Version v ->
+                    Just v
+
+                Outline.LocalPath _ ->
+                    Nothing
+    in
+    deps
+        |> Dict.foldl
+            (\packageStr versionRange tasks ->
+                when PackageName.fromString packageStr is
+                    Nothing ->
+                        tasks
+
+                    Just packageName ->
+                        let
+                            task =
+                                Git.fetchVersions config.cpPermission packageName
+                                    |> Task.map (\vs -> Array.keepIf (\v -> SemanticVersion.compare v (SemanticVersionRange.lowerBound versionRange) == GT) vs)
+                                    |> Task.map (\vs -> { name = packageName, versions = vs })
+                        in
+                        Array.pushLast task tasks
+            )
+            []
+        |> Task.concurrent
+        |> Task.mapError (\_ -> PackageInstallDebug "failed to get versions")
+        |> Task.map
+            (\vs ->
+                Array.mapAndKeepJust
+                    (\p ->
+                        when Array.last p.versions is
+                            Just v ->
+                                Just
+                                    { name = p.name
+                                    , version = v
+                                    }
+
+                            Nothing ->
+                                Nothing
+                    )
+                    vs
+            )
+        |> Task.andThen
+            (\vs ->
+                if vs == [] then
+                    Stream.Log.line config.stdout "All dependencies are up to date."
+
+                else
+                    let
+                        plan =
+                            "The plan is to update the following dependencies:\n\n"
+                                ++ (Array.foldl (\package acc -> acc ++ "  " ++ PackageName.toString package.name ++ " " ++ SemanticVersion.toString package.version ++ "\n") "" vs)
+                                ++ "\nDo you want me to update the gren.json file accordingly? [Y/n]: "
+                    in
+                    Stream.Log.line config.stdout plan
+            )

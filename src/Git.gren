@@ -1,0 +1,81 @@
+module Git exposing
+    ( clonePackage
+    , fetchLatestVersion
+    , fetchVersions
+    )
+
+
+import Bytes
+import ChildProcess
+import FileSystem.Path as Path exposing (Path)
+import Compiler.PackageName as PackageName exposing (PackageName)
+import SemanticVersion exposing (SemanticVersion)
+import Task exposing (Task)
+
+
+clonePackage : ChildProcess.Permission -> Path -> PackageName -> SemanticVersion -> Task ChildProcess.FailedRun ChildProcess.SuccessfulRun
+clonePackage cpPerm repo name version =
+    let
+        githubUrl =
+            "https://github.com/" ++ PackageName.toString name ++ ".git"
+    in
+    ChildProcess.run
+        cpPerm
+        "git"
+        [ "clone"
+        , "--branch"
+        , SemanticVersion.toString version
+        , "--depth"
+        , "1"
+        , githubUrl
+        , Path.toPosixString repo
+        ]
+        { shell = ChildProcess.NoShell
+        , workingDirectory = ChildProcess.InheritWorkingDirectory
+        , environmentVariables = ChildProcess.InheritEnvironmentVariables
+        , maximumBytesWrittenToStreams = 4096
+        , runDuration = ChildProcess.Milliseconds 30000
+        }
+
+
+fetchLatestVersion : ChildProcess.Permission -> PackageName -> Task ChildProcess.FailedRun (Maybe SemanticVersion)
+fetchLatestVersion cpPerm name =
+    fetchVersions cpPerm name
+        |> Task.map Array.last
+
+
+fetchVersions : ChildProcess.Permission -> PackageName -> Task ChildProcess.FailedRun (Array SemanticVersion)
+fetchVersions cpPerm name =
+    let
+        githubUrl =
+            "https://github.com/" ++ PackageName.toString name ++ ".git"
+    in
+    ChildProcess.run
+        cpPerm
+        "git"
+        [ "ls-remote"
+        , "--tags"
+        , githubUrl
+        ]
+        { shell = ChildProcess.NoShell
+        , workingDirectory = ChildProcess.InheritWorkingDirectory
+        , environmentVariables = ChildProcess.InheritEnvironmentVariables
+        , maximumBytesWrittenToStreams = 4096
+        , runDuration = ChildProcess.Milliseconds 30000
+        }
+        |> Task.andThen
+            (\result ->
+                when Bytes.toString result.stdout is
+                    Nothing ->
+                        -- TODO: Proper error here
+                        Task.succeed []
+
+                    Just tagList ->
+                        -- format: commit hash \t refs/tags/<tag>
+                        tagList
+                            |> String.split "\n"
+                            |> Array.map (String.split "/" >> Array.last >> Maybe.withDefault "")
+                            |> Array.mapAndKeepJust SemanticVersion.fromString
+                            |> Array.sortWith SemanticVersion.compare
+                            |> Task.succeed
+            )

@@ -7,8 +7,8 @@ on:
     branches: [main]
 
 env:
-  ghc: "9.6.6"
-  cabal: "3.10.3.0"
+  ghc: "9.8.4"
+  cabal: "3.12.1.0"
 
 jobs:
   validate-code-formatting:

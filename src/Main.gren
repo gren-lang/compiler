@@ -2,9 +2,23 @@ port module Main exposing (main)
 
 import Node
 import ChildProcess
-import CompilerBlob
+import Terminal.Parser as CliParser
+import Terminal.PackageInstall
+import Terminal.PackageUninstall
+import Terminal.PackageOutdated
+import Terminal.PackageBump
+import Terminal.PackageDiff
+import Terminal.Paths
+import Terminal.Init
+import Terminal.Run
+import Compiler.Backend
+import Compiler.PackageName as PackageName exposing (PackageName)
+import Compiler.Paths
+import Compiler.Outline as Outline exposing (Outline)
+import Git
 import Init
-import Stream exposing (Stream)
+import Stream
+import Stream.Log
 import Task exposing (Task)
 import Dict exposing (Dict)
 import FileSystem
@@ -12,12 +26,12 @@ import FileSystem.Path as Path exposing (Path)
 import HttpClient
 import Bytes exposing (Bytes)
 import Terminal
-import Process
 import CLI.Parser
 import CLI.PrettyPrinter as PP
 import SemanticVersion exposing (SemanticVersion)
-import Package exposing (Package)
 import Json.Encode as Json
+import Stream.Extra
+import Process
 
 
 main : Node.Program Model Msg
@@ -31,16 +45,18 @@ main =
 
 type alias Model = 
     { args : Array String
-    , stdout : Stream
-    , stderr : Stream
+    , stdout : Stream.Writable Bytes
+    , stderr : Stream.Writable Bytes
+    , stdin : Stream.Readable Bytes
     , useColor : Bool
     , interactive : Bool
+    , backendPath : Path
     , fsPermission : FileSystem.Permission
     , cpPermission : ChildProcess.Permission
     , httpPermission : HttpClient.Permission
+    -- TODO: Remove
     , pathToString : Path -> String
     }
-
 
 init : Node.Environment -> Init.Task { model : Model, command : Cmd Msg }
 init env =
@@ -50,74 +66,82 @@ init env =
     Init.await Terminal.initialize <| \terminalConfig ->
     Init.awaitTask Node.getEnvironmentVariables <| \envVars ->
     Init.awaitTask (FileSystem.homeDirectory fsPermission) <| \homeDir ->
-            let
-                userArgs =
-                    Array.dropFirst 2 env.args
+        let
+            userArgs =
+                Array.dropFirst 2 env.args
 
-                interactiveTerminal =
-                    terminalConfig /= Nothing
+            interactiveTerminal =
+                terminalConfig /= Nothing
 
-                useColor =
-                    interactiveTerminal && not (Dict.member "NO_COLOR" envVars)
+            useColor =
+                interactiveTerminal && not (Dict.member "NO_COLOR" envVars)
 
-                maybePaths =
-                    case { platform = env.platform, override = Dict.get "GREN_BIN" envVars } of
-                        { override = Just overridePath, platform = Node.Win32 } ->
-                            Just <|
-                                { remotePath = Nothing
-                                , localPath = Path.fromWin32String overridePath
-                                }
-                        
-                        { override = Just overridePath } ->
-                            Just <|
-                                { remotePath = Nothing
-                                , localPath = Path.fromPosixString overridePath
-                                }
+            maybePaths =
+                when { platform = env.platform, override = Dict.get "GREN_BIN" envVars } is
+                    { override = Just overridePath, platform = Node.Win32 } ->
+                        Just <|
+                            { remotePath = Nothing
+                            , localPath = Path.fromWin32String overridePath
+                            }
+                    
+                    { override = Just overridePath } ->
+                        Just <|
+                            { remotePath = Nothing
+                            , localPath = Path.fromPosixString overridePath
+                            }
 
-                        _ ->
-                            CompilerBlob.downloadUrl env.platform env.cpuArchitecture
-                                |> Result.map 
-                                    (\url ->
-                                        { remotePath = Just url
-                                        , localPath = CompilerBlob.cachePath env.platform envVars homeDir
-                                        }
-                                    )
-                                |> Result.toMaybe
+                    _ ->
+                        Compiler.Backend.downloadUrl env.platform env.cpuArchitecture
+                            |> Result.map 
+                                (\url ->
+                                    { remotePath = Just url
+                                    , localPath = Compiler.Backend.cachePath env.platform envVars homeDir
+                                    }
+                                )
+                            |> Result.toMaybe
 
-            in
-            Node.startProgram
-                { model =
-                    { args = userArgs
-                    , stdout = env.stdout
-                    , stderr = env.stderr
-                    , interactive = interactiveTerminal
-                    , useColor = useColor
-                    , fsPermission = fsPermission
-                    , cpPermission = cpPermission
-                    , httpPermission = httpPermission
-                    , pathToString =
-                        if env.platform == Node.Win32 then
-                            Path.toWin32String
-                        else
-                            Path.toPosixString
-                    }
-                , command =
-                    case maybePaths of
-                        Just paths ->
-                            FileSystem.checkAccess fsPermission [] paths.localPath
-                                |> Task.attempt 
-                                    (\result -> 
-                                        ExistanceChecked
-                                            { maybeRemotePath = paths.remotePath
-                                            , localPath = paths.localPath
-                                            , existanceResult = result
-                                            }
-                                    )
-
+        in
+        Node.startProgram
+            { model =
+                { args = userArgs
+                , stdout = env.stdout
+                , stderr = env.stderr
+                , stdin = env.stdin
+                , interactive = interactiveTerminal
+                , useColor = useColor
+                , backendPath =
+                    when maybePaths is
                         Nothing ->
-                            Stream.sendLine env.stderr "We currently don't support this platform/arch."
-                                |> Task.execute
+                            Compiler.Backend.cachePath env.platform envVars homeDir
+
+                        Just paths ->
+                            paths.localPath
+                , fsPermission = fsPermission
+                , cpPermission = cpPermission
+                , httpPermission = httpPermission
+                , pathToString =
+                    if env.platform == Node.Win32 then
+                        Path.toWin32String
+                    else
+                        Path.toPosixString
                 }
+            , command =
+                when maybePaths is
+                    Just paths ->
+                        FileSystem.checkAccess fsPermission [] paths.localPath
+                            |> Task.attempt 
+                                (\result -> 
+                                    ExistanceChecked
+                                        { maybeRemotePath = paths.remotePath
+                                        , localPath = paths.localPath
+                                        , existanceResult = result
+                                        }
+                                )
+
+                    Nothing ->
+                        Stream.Log.line env.stderr "We currently don't support this platform/arch."
+                            |> Task.execute
+            }
 
 
 type Msg
@@ -128,11 +152,16 @@ type Msg
         }
     | CompilerDownloaded 
         { localPath : Path
-        , downloadResult : Result (HttpClient.Error Bytes) (HttpClient.Response Bytes)
+        , downloadResult : Result HttpClient.Error (HttpClient.Response Bytes)
         }
     | CompilerInstalled (Result FileSystem.Error Path)
+    | CompilerInitialized { quiet : Bool, backendStreams : ChildProcess.StreamIO, encodedCommand : Bytes }
     | CompilerRan Int
-    | CompilerRanStatic String Int
+    | CompilerRanStatic { path : String, exitCode : Int }
+    | CompiledForRun { path : String, exitCode : Int }
+    | RunStarted { processId : Process.Id, streams : ChildProcess.StreamIO }
+    | RunExited Int
+    | RedirectTerminalIO (Result Stream.Error { source : Stream.Readable Bytes, target : Stream.Writable Bytes })
 
 
 port completeStaticBuild : String -> Cmd msg
@@ -142,16 +171,16 @@ update : Msg -> Model -> { model : Model, command : Cmd Msg }
 update msg model =
     { model = model
     , command =
-        case msg of
+        when msg is
             ExistanceChecked { maybeRemotePath, localPath, existanceResult = Err _ } ->
-                case maybeRemotePath of
+                when maybeRemotePath is
                     Just remotePath ->
-                        Stream.sendLine model.stdout ("Compiler not found at " ++ model.pathToString localPath ++ ". Downloading...")
-                            |> Task.andThen (\{} -> CompilerBlob.download model.httpPermission remotePath)
+                        Stream.Log.line model.stdout ("Compiler not found at " ++ model.pathToString localPath ++ ". Downloading...")
+                            |> Task.andThen (\_ -> Compiler.Backend.download model.httpPermission remotePath)
                             |> Task.attempt (\result -> CompilerDownloaded { localPath = localPath, downloadResult = result })
             
                     Nothing ->
-                        Stream.sendLine model.stderr ("Compiler not found at " ++ model.pathToString localPath)
+                        Stream.Log.line model.stderr ("Compiler not found at " ++ model.pathToString localPath)
                             |> Task.execute
 
             ExistanceChecked { existanceResult = Ok compilerPath } ->
@@ -159,21 +188,21 @@ update msg model =
 
             CompilerDownloaded { localPath, downloadResult = Err ((HttpClient.BadStatus res) as err) } ->
                 if res.statusCode == 302 then
-                    case Dict.get "location" res.headers of
+                    when Dict.get "location" res.headers is
                         Just [ location ] ->
-                            CompilerBlob.download model.httpPermission location
+                            Compiler.Backend.download model.httpPermission location
                                 |> Task.attempt (\result -> CompilerDownloaded { localPath = localPath, downloadResult = result })
 
                         _ ->
-                            Stream.sendLine model.stderr "Missing, or vague, 'location' header in 302 response from server."
+                            Stream.Log.line model.stderr "Missing, or vague, 'location' header in 302 response from server."
                                 |> Task.execute
 
                 else
-                    Stream.sendLine model.stderr (HttpClient.errorToString err)
+                    Stream.Log.line model.stderr (HttpClient.errorToString err)
                         |> Task.execute
         
             CompilerDownloaded { downloadResult = Err err } ->
-                Stream.sendLine model.stderr (HttpClient.errorToString err)
+                Stream.Log.line model.stderr (HttpClient.errorToString err)
                     |> Task.execute
         
             CompilerDownloaded { localPath, downloadResult = Ok res } ->
@@ -194,29 +223,69 @@ update msg model =
                         )
                     |> Task.andThen 
                         (\binPath -> 
-                            Stream.sendLine model.stdout "Downloaded"
+                            Stream.Log.line model.stdout "Downloaded"
                                 |> Task.map (\_ -> binPath)
                         )
                     |> Task.attempt CompilerInstalled
         
             CompilerInstalled (Err fsErr) ->
-                Stream.sendLine model.stderr ("Failed to install binary after download, due to error: " ++ FileSystem.errorToString fsErr)
+                Stream.Log.line model.stderr ("Failed to install binary after download, due to error: " ++ FileSystem.errorToString fsErr)
                     |> Task.execute
         
             CompilerInstalled (Ok compilerPath) ->
                 parseUserArgs model compilerPath
 
+            CompilerInitialized { backendStreams, encodedCommand, quiet } ->
+                Cmd.batch
+                    [ Stream.write encodedCommand backendStreams.input
+                        |> Task.map (\_ -> { source = model.stdin, target = backendStreams.input })
+                        |> Task.attempt RedirectTerminalIO
+                    , if quiet then
+                        Cmd.none
+                      else
+                        Task.succeed { source = backendStreams.output, target = model.stdout }
+                            |> Task.attempt RedirectTerminalIO
+                    , Task.succeed { source = backendStreams.error, target = model.stderr }
+                        |> Task.attempt RedirectTerminalIO
+                    ]
+
             CompilerRan exitCode ->
                 Node.exitWithCode exitCode
-                    |> Task.execute
             
-            CompilerRanStatic output exitCode ->
+            CompilerRanStatic { path, exitCode } ->
                 if exitCode == 0 then
-                    completeStaticBuild output
+                    completeStaticBuild path
                 
                 else
                     Node.exitWithCode exitCode
-                        |> Task.execute
+
+            CompiledForRun { path, exitCode } ->
+                if exitCode == 0 then
+                    Terminal.Run.run 
+                        { cpPermission = model.cpPermission
+                        , path = path
+                        , onInit = RunStarted
+                        , onExit = RunExited
+                        }
+
+                else
+                    Node.exitWithCode exitCode
+
+            RunStarted _ ->
+                Cmd.none
+
+            RunExited exitCode ->
+                Node.exitWithCode exitCode
+
+            RedirectTerminalIO (Ok streams) ->
+                Stream.read streams.source
+                    |> Task.andThen (\str -> Stream.write str streams.target)
+                    |> Task.map (\_ -> streams)
+                    |> Task.attempt RedirectTerminalIO
+
+            RedirectTerminalIO (Err err) ->
+                Stream.Log.line model.stderr ("Something went wrong when communicating with compiler backend: " ++ Stream.errorToString err)
+                    |> Task.execute
         }
 
 
@@ -236,579 +305,551 @@ parseUserArgs model compilerPath =
                 |> PP.toStringWithOptions
                     { PP.defaultOptions | maxColumns = 80 }
     in
-    case CLI.Parser.run model.args cliParser of
+    when CLI.Parser.run model.args CliParser.parser is
         CLI.Parser.UnknownCommand commandName ->
-            Stream.sendLine model.stderr ("I don't recognize this command: " ++ commandName)
+            Stream.Log.line model.stderr ("I don't recognize this command: " ++ commandName)
                 |> Task.execute
     
         CLI.Parser.BadFlags err ->
             err
                 |> CLI.Parser.flagErrorPrettified
                 |> prettyTextToTerminal
-                |> Stream.sendLine model.stderr
+                |> Stream.Log.line model.stderr
                 |> Task.execute
     
         CLI.Parser.BadArguments err ->
             err
                 |> CLI.Parser.argumentErrorPrettified
                 |> prettyTextToTerminal
-                |> Stream.sendLine model.stderr
+                |> Stream.Log.line model.stderr
                 |> Task.execute
     
         CLI.Parser.HelpText prettifiedText ->
             prettifiedText
                 |> prettyTextToTerminal
-                |> Stream.sendLine model.stdout
+                |> Stream.Log.line model.stdout
                 |> Task.execute
     
         CLI.Parser.Success parsedCommand ->
             let
-                actualCommand =
-                    case parsedCommand of
-                        MakeStatic opts ->
-                            CompilerBlob.Make
-                                { optimize = True
-                                , sourcemaps = False
-                                , output = Just (CompilerBlob.Exe <| model.pathToString opts.output)
-                                , report = Nothing
-                                }
-                                [ opts.source ]
-
-                        CompilerCommand cmd ->
-                            cmd
-                
-                completionCommand =
-                    case parsedCommand of
-                        MakeStatic opts ->
-                            CompilerRanStatic <| model.pathToString opts.output
-
-                        _ ->
-                            CompilerRan
+                initWithCommand backendCommand =
+                    ChildProcess.External <| \cpOpts ->
+                        CompilerInitialized
+                            { backendStreams = cpOpts.streams
+                            , quiet = False
+                            , encodedCommand =
+                                Compiler.Backend.encodeCommand
+                                    { interactiveSession = model.interactive
+                                    , pathToString = model.pathToString
+                                    }
+                                    backendCommand
+                            }
             in
-            CompilerBlob.run
-                model.cpPermission
-                { command = actualCommand
-                , interactiveSession = model.interactive
-                , useColor = model.useColor
-                , compilerPath = compilerPath
-                , pathToString = model.pathToString
-                , onComplete = completionCommand
-                }
+            when parsedCommand is
+                CliParser.Init flags ->
+                    Terminal.Init.run
+                        { fsPermission = model.fsPermission
+                        , cpPermission = model.cpPermission
+                        , stdout = model.stdout
+                        , stdin = model.stdin
+                        , interactive = model.interactive
+                        , useColor = model.useColor
+                        , package = flags.package
+                        , platform = flags.platform
+                        }
 
+                CliParser.Repl flags ->
+                    -- TODO: DRY up package installation
+                    Terminal.PackageInstall.readProjectOutline model.fsPermission
+                        |> Task.mapError Debug.toString
+                        |> Task.andThen
+                            (\projectOutline ->
+                                Terminal.PackageInstall.run
+                                    { fsPermission = model.fsPermission
+                                    , cpPermission = model.cpPermission
+                                    , interactive = model.interactive
+                                    , useColor = model.useColor
+                                    , stdout = model.stdout
+                                    , stdin = model.stdin
+                                    }
+                                    projectOutline
+                                    |> Task.mapError Debug.toString
+                            )
+                        |> Task.map
+                            (\resolved ->
+                                Compiler.Backend.run
+                                    model.cpPermission
+                                    { useColor = model.useColor
+                                    , compilerPath = compilerPath
+                                    , pathToString = model.pathToString
+                                    , connection =
+                                        initWithCommand <|
+                                            Compiler.Backend.Repl
+                                                { interpreter = flags.interpreter
+                                                , projectPath = resolved.projectPath
+                                                , outline = resolved.outline
+                                                , rootSources = resolved.rootSources
+                                                , dependencies = resolved.dependencies
+                                                }
+                                    , onComplete = CompilerRan
+                                    }
+                            )
+                        |> Task.onError
+                            (\err ->
+                                Stream.Log.line model.stdout err
+                                    |> Task.execute
+                                    |> Task.succeed
+                            )
+                        |> Task.executeCmd
 
--- CLI Parsing
+                CliParser.Make flags ->
+                    Terminal.PackageInstall.readProjectOutline model.fsPermission
+                        |> Task.andThen
+                            (\projectOutline ->
+                                Terminal.PackageInstall.run
+                                    { fsPermission = model.fsPermission
+                                    , cpPermission = model.cpPermission
+                                    , interactive = model.interactive
+                                    , useColor = model.useColor
+                                    , stdout = model.stdout
+                                    , stdin = model.stdin
+                                    }
+                                    projectOutline
+                            )
+                        |> Task.map
+                            (\resolved ->
+                                Compiler.Backend.run
+                                    model.cpPermission
+                                    { useColor = model.useColor
+                                    , compilerPath = compilerPath
+                                    , pathToString = model.pathToString
+                                    , connection = initWithCommand <|
+                                        Compiler.Backend.Make
+                                            { optimize = flags.optimize
+                                            , sourcemaps = flags.sourcemaps
+                                            , output = flags.output
+                                            , report = flags.report
+                                            , projectPath = resolved.projectPath
+                                            , entryPoints = flags.entryPoints
+                                            , outline = resolved.outline
+                                            , rootSources = resolved.rootSources
+                                            , dependencies = resolved.dependencies
+                                            }
+                                    , onComplete = CompilerRan
+                                    }
+                            )
+                        |> Task.onError
+                            (\err ->
+                                Stream.Log.line model.stdout (Debug.toString err)
+                                    |> Task.execute
+                                    |> Task.succeed
+                            )
+                        |> Task.executeCmd
 
+                CliParser.MakeStatic opts ->
+                    Terminal.PackageInstall.readProjectOutline model.fsPermission
+                        |> Task.mapError Debug.toString
+                        |> Task.andThen
+                            (\projectOutline ->
+                                Terminal.PackageInstall.run
+                                    { fsPermission = model.fsPermission
+                                    , cpPermission = model.cpPermission
+                                    , interactive = model.interactive
+                                    , useColor = model.useColor
+                                    , stdout = model.stdout
+                                    , stdin = model.stdin
+                                    }
+                                    projectOutline
+                                    |> Task.mapError Debug.toString
+                            )
+                        |> Task.map
+                            (\resolved ->
+                                Compiler.Backend.run
+                                    model.cpPermission
+                                    { useColor = model.useColor
+                                    , compilerPath = compilerPath
+                                    , pathToString = model.pathToString
+                                    , connection = initWithCommand <|
+                                        Compiler.Backend.Make
+                                            { optimize = True
+                                            , sourcemaps = False
+                                            , output = Just (Compiler.Backend.Exe <| model.pathToString opts.output)
+                                            , report = Nothing
+                                            , projectPath = resolved.projectPath
+                                            , entryPoints = [ opts.source ]
+                                            , outline = resolved.outline
+                                            , rootSources = resolved.rootSources
+                                            , dependencies = resolved.dependencies
+                                            }
+                                    , onComplete =
+                                        (\exitCode ->
+                                            CompilerRanStatic
+                                                { path = model.pathToString opts.output
+                                                , exitCode = exitCode
+                                                }
+                                        )
+                                    }
+                            )
+                        |> Task.onError
+                            (\err ->
+                                Stream.Log.line model.stdout err
+                                    |> Task.execute
+                                    |> Task.succeed
+                            )
+                        |> Task.executeCmd
 
-type ParsedCommand
-    = MakeStatic MakeStaticOpts
-    | CompilerCommand CompilerBlob.Command
+                CliParser.Run moduleName ->
+                    Terminal.Run.make
+                        { fsPermission = model.fsPermission
+                        , cpPermission = model.cpPermission
+                        , useColor = model.useColor
+                        , compilerPath = compilerPath
+                        , pathToString = model.pathToString
+                        , moduleName = moduleName
+                        , onBackendInitialized = 
+                            (\{ backendStreams, encodedCommand } ->
+                                CompilerInitialized
+                                    { backendStreams = backendStreams
+                                    , encodedCommand = encodedCommand
+                                    , quiet = True
+                                    }
+                            )
+                        , onCompiled = 
+                            (\outputPath exitCode ->
+                                CompiledForRun
+                                    { path = model.pathToString outputPath
+                                    , exitCode = exitCode
+                                    }
+                            )
+                        }
+                        |> Task.onError
+                            (\err ->
+                                Stream.Log.line model.stdout (Debug.toString err)
+                                    |> Task.execute
+                                    |> Task.succeed
+                            )
+                        |> Task.executeCmd
 
+                CliParser.Docs flags ->
+                    -- TODO: DRY up package installation
+                    Terminal.PackageInstall.readProjectOutline model.fsPermission
+                        |> Task.mapError Debug.toString
+                        |> Task.andThen
+                            (\projectOutline ->
+                                Terminal.PackageInstall.run
+                                    { fsPermission = model.fsPermission
+                                    , cpPermission = model.cpPermission
+                                    , interactive = model.interactive
+                                    , useColor = model.useColor
+                                    , stdout = model.stdout
+                                    , stdin = model.stdin
+                                    }
+                                    projectOutline
+                                    |> Task.mapError Debug.toString
+                            )
+                        |> Task.map
+                            (\resolved ->
+                                Compiler.Backend.run
+                                    model.cpPermission
+                                    { useColor = model.useColor
+                                    , compilerPath = compilerPath
+                                    , pathToString = model.pathToString
+                                    , connection =
+                                        initWithCommand <|
+                                            Compiler.Backend.Docs
+                                                { output = flags.output
+                                                , report = flags.report
+                                                , projectPath = resolved.projectPath
+                                                , outline = resolved.outline
+                                                , rootSources = resolved.rootSources
+                                                , dependencies = resolved.dependencies
+                                                }
+                                    , onComplete = CompilerRan
+                                    }
+                            )
+                        |> Task.onError
+                            (\err ->
+                                Stream.Log.line model.stdout err
+                                    |> Task.execute
+                                    |> Task.succeed
+                            )
+                        |> Task.executeCmd
 
-type alias MakeStaticOpts =
-    { output : Path
-    , source : Path
-    }
+                CliParser.PackageInstall Nothing ->
+                    Terminal.PackageInstall.readProjectOutline model.fsPermission
+                        |> Task.andThen
+                            (\projectOutline ->
+                                Terminal.PackageInstall.run
+                                    { fsPermission = model.fsPermission
+                                    , cpPermission = model.cpPermission
+                                    , interactive = model.interactive
+                                    , useColor = model.useColor
+                                    , stdout = model.stdout
+                                    , stdin = model.stdin
+                                    }
+                                    projectOutline
+                            )
+                        |> Task.andThen
+                            (\err ->
+                                Stream.Log.line model.stdout "Done"
+                            )
+                        |> Task.onError
+                            (\err ->
+                                Stream.Log.line model.stdout (Debug.toString err)
+                            )
+                        |> Task.execute
 
+                CliParser.PackageInstall (Just requestedPackage) ->
+                    Terminal.PackageInstall.readProjectOutline model.fsPermission
+                        |> Task.andThen
+                            (\projectOutline ->
+                                Terminal.PackageInstall.addPackage
+                                    { fsPermission = model.fsPermission
+                                    , cpPermission = model.cpPermission
+                                    , interactive = model.interactive
+                                    , useColor = model.useColor
+                                    , stdout = model.stdout
+                                    , stdin = model.stdin
+                                    }
+                                    projectOutline
+                                    requestedPackage
+                            )
+                        |> Task.andThen
+                            (\err ->
+                                Stream.Log.line model.stdout "Done"
+                            )
+                        |> Task.onError
+                            (\err ->
+                                Stream.Log.line model.stdout (Debug.toString err)
+                            )
+                        |> Task.execute
 
-cliParser : CLI.Parser.App ParsedCommand
-cliParser =
-    { name = "gren"
-    , version = "0.5.4"
-    , intro = 
-        PP.verticalBlock
-            [ PP.block
-                [ PP.text "Hi, thank you for trying out "
-                , PP.intenseColor PP.Green <| PP.text ("Gren " ++ CompilerBlob.version)
-                , PP.text ". I hope you like it!"
-                ]
-            , PP.empty
-            , PP.intenseColor PP.Black <|
-                PP.text
-                    """
-                    -------------------------------------------------------------------------------
-                    I highly recommend working through <https://gren-lang.org/learn> to get started
-                    It teaches many important concepts, including how to use `gren` in the terminal
-                    -------------------------------------------------------------------------------
-                    """
-            ]
-    , outro = 
-        PP.words
-            """
-            Be sure to ask on the Gren Discord (https://discord.gg/Chb9YB9Vmh) if you run into trouble!
-            Folks are friendly and happy to help out. They hang out there because it is fun, so be kind
-            to get the best results!
-            """
-    , commands =
-        CLI.Parser.defineGroup
-            |> CLI.Parser.withCommand
-                { word = "init"
-                , arguments =
-                    CLI.Parser.noArgs
-                , flags =
-                    CLI.Parser.initFlags 
-                        (\package maybePlatform ->
-                            { package = package
-                            , platform = 
-                                if package then
-                                    Maybe.withDefault CompilerBlob.Common maybePlatform
+                CliParser.PackageUninstall packageName ->
+                    Terminal.PackageInstall.readProjectOutline model.fsPermission
+                        |> Task.mapError Debug.toString
+                        |> Task.andThen
+                            (\projectOutline ->
+                                Terminal.PackageUninstall.run
+                                    { fsPermission = model.fsPermission
+                                    , cpPermission = model.cpPermission
+                                    , interactive = model.interactive
+                                    , useColor = model.useColor
+                                    , stdout = model.stdout
+                                    , stdin = model.stdin
+                                    }
+                                    projectOutline
+                                    packageName
+                                    |> Task.mapError Debug.toString
+                            )
+                        |> Task.andThen
+                            (\err ->
+                                Stream.Log.line model.stdout "Done"
+                            )
+                        |> Task.onError
+                            (\err ->
+                                Stream.Log.line model.stdout (Debug.toString err)
+                            )
+                        |> Task.execute
 
-                                else
-                                    Maybe.withDefault CompilerBlob.Browser maybePlatform
-                            }
-                        )
-                        |> CLI.Parser.toggle "package" "Create a package (as opposed to an application)"
-                        |> CLI.Parser.flag "platform" initPlatformParser "Which platform to target"
-                , commonDescription =
-                    Just "Start a Gren project. It creates a starter gren.json file."
-                , summary =
-                    "The `init` command helps start Gren project:"
-                , example = 
-                    PP.words
-                        """
-                        It will ask permission to create a gren.json file, the one thing
-                        common to all Gren project.
-                        """
-                , builder =
-                    \_args flags -> CompilerCommand <| CompilerBlob.Init flags
-                }
-            |> CLI.Parser.withCommand
-                { word = "repl"
-                , arguments =
-                    CLI.Parser.noArgs
-                , flags =
-                    CLI.Parser.initFlags
-                        (\maybeInterpreter ->
-                            { interpreter = maybeInterpreter
-                            }
-                        )
-                        |> CLI.Parser.flag "interpreter" interpreterParser "Path to a alternate JS interpreter, like deno or nodejs."
-                , commonDescription =
-                    Just 
-                        """
-                        Open up an interactive programming session. Type in Gren expressions like
-                        (2 + 2) or (String.length \"test\") and see if they equal four!
-                        """
-                , summary =
-                    "The `repl` command opens up an interactive programming session:"
-                , example = 
-                    PP.words
-                        """
-                        Start working through <https://gren-lang.org/learn> to learn how to use this!
-                        It has a whole chapter that uses the REPL for everything, so that is probably
-                        the quickest way to get started.
-                        """
-                , builder =
-                    \_args flags -> CompilerCommand <| CompilerBlob.Repl flags
-                }
-            |> CLI.Parser.withCommand
-                { word = "make"
-                , arguments =
-                    CLI.Parser.zeroOrMoreArgs CLI.Parser.grenFileParser
-                , flags =
-                    CLI.Parser.initFlags 
-                        (\optimize sourcemaps output report ->
-                            { optimize = optimize
-                            , sourcemaps = sourcemaps
-                            , output = output
-                            , report = report
-                            }
-                        )
-                        |> CLI.Parser.toggle "optimize" "Turn on optimizations to make code smaller and faster. For example, the compiler renames record fields to be as short as possible and unboxes values to reduce allocation."
-                        |> CLI.Parser.toggle "sourcemaps" "Add sourcemaps to the resulting JS file. This let's you debug Gren code in a JS debugger, at the cost of longer compile times and a bigger JS file."
-                        |> CLI.Parser.flag "output" outputParser "Specify the name of the resulting JS file. For example --output=assets/gren.js to generate the JS at assets/gren.js. You can also use --output=/dev/stdout to output the JS to the terminal, or --output=/dev/null to generate no output at all!"
-                        |> CLI.Parser.flag "report" reportParser "You can say --report=json to get error messages as JSON. This is only really useful if you are an editor plugin. Humans should avoid it!"
-                , commonDescription =
-                    Nothing
-                , summary =
-                    "The `make` command compiles Gren code into JS or HTML:"
-                , example = 
-                    PP.verticalBlock
-                        [ PP.words "For example:"
-                        , PP.empty
-                        , PP.words "gren make src/Main.gren"
-                            |> PP.indent
-                            |> PP.color PP.Green
-                        , PP.empty
-                        , PP.words
-                            """
-                            This tries to compile an Gren file named src/Main.gren, generating an index.html
-                            file if possible.
-                            """
-                        ]
-                , builder =
-                    \args flags -> CompilerCommand <| CompilerBlob.Make flags args
-                }
-            |> CLI.Parser.withCommand
-                { word = "make-static"
-                , arguments =
-                    CLI.Parser.twoArgs 
-                        (\source output ->
-                            { source = source
-                            , output = output
-                            }
-                        )
-                        CLI.Parser.grenFileParser
-                        CLI.Parser.pathParser
-                , flags =
-                    CLI.Parser.noFlags
-                , commonDescription =
-                    Nothing
-                , summary =
-                    "The `make-static` command compiles Gren code into a self-contained executable:"
-                , example = 
-                    PP.verticalBlock
-                        [ PP.words "For example:"
-                        , PP.empty
-                        , PP.words "gren make-static src/Main.gren app"
-                            |> PP.indent
-                            |> PP.color PP.Green
-                        , PP.empty
-                        , PP.words
-                            """
-                            This tries to compile a Gren file named `src/Main.gren`, generating an `app`
-                            file if possible. `app` is a static executable that can be run even if `node` is
-                            not installed on the system.
-                            """
-                        ]
-                , builder =
-                    \args _flags -> MakeStatic args
-                }
-            |> CLI.Parser.withCommand
-                { word = "docs"
-                , arguments =
-                    CLI.Parser.noArgs
-                , flags =
-                    CLI.Parser.initFlags 
-                        (\output report ->
-                            { output = output
-                            , report = report
-                            }
-                        )
-                        |> CLI.Parser.flag "output" docsOutputParser "Specify the name of the resulting JSON file. For example --output=assets/docs.json to generate the JSON at assets/docs.json. You can also use --output=/dev/stdout to output the JSON to the terminal, or --output=/dev/null to verify that generating the documentation would work."
-                        |> CLI.Parser.flag "report" reportParser "You can say --report=json to get error messages as JSON. This is only really useful if you are an editor plugin. Humans should avoid it!"
-                , commonDescription =
-                    Nothing
-                , summary =
-                    "The `docs` command collects all documentation for a package in a JSON file:"
-                , example = 
-                    PP.verticalBlock
-                        [ PP.words "For example:"
-                        , PP.words "gren docs"
-                            |> PP.indent
-                            |> PP.color PP.Green
-                        , PP.words
-                            """
-                            This collects all documentation for the current pacage and writes it to a
-                            docs.json file, if possible.
-                            """
-                        ]
-                , builder =
-                    \_args flags -> CompilerCommand <| CompilerBlob.Docs flags
-                }
-            |> CLI.Parser.withPrefix "package" packageCommands
-    }
+                CliParser.PackageOutdated ->
+                    Terminal.PackageInstall.readProjectOutline model.fsPermission
+                        |> Task.mapError Debug.toString
+                        |> Task.andThen
+                            (\projectOutline ->
+                                Terminal.PackageOutdated.run
+                                    { fsPermission = model.fsPermission
+                                    , cpPermission = model.cpPermission
+                                    , interactive = model.interactive
+                                    , useColor = model.useColor
+                                    , stdout = model.stdout
+                                    , stdin = model.stdin
+                                    }
+                                    projectOutline
+                                    |> Task.mapError Debug.toString
+                            )
+                        |> Task.andThen
+                            (\err ->
+                                Stream.Log.line model.stdout "Done"
+                            )
+                        |> Task.onError
+                            (\err ->
+                                Stream.Log.line model.stdout (Debug.toString err)
+                            )
+                        |> Task.execute
 
+                CliParser.PackageValidate ->
+                    -- Terminal.PackageInstall.readProjectOutline model.fsPermission
+                    --     |> Task.mapError Debug.toString
+                    --     |> Task.andThen
+                    --         (\projectOutline ->
+                    --             Terminal.PackageInstall.run
+                    --                 { fsPermission = model.fsPermission
+                    --                 , cpPermission = model.cpPermission
+                    --                 , interactive = model.interactive
+                    --                 , useColor = model.useColor
+                    --                 , stdout = model.stdout
+                    --                 , stdin = model.stdin
+                    --                 }
+                    --                 projectOutline
+                    --                 |> Task.mapError Debug.toString
+                    --         )
+                    --     |> Task.map
+                    --         (\resolved ->
+                    --             Compiler.Backend.run
+                    --                 model.cpPermission
+                    --                 { onInit =
+                    --                     initWithCommand <|
+                    --                         Compiler.Backend.PackageValidate
+                    --                             { projectPath = resolved.projectPath
+                    --                             , knownVersions = []
+                    --                             , outline = resolved.outline
+                    --                             , rootSources = resolved.rootSources
+                    --                             , dependencies = resolved.dependencies
+                    --                             }
+                    --                 , useColor = model.useColor
+                    --                 , compilerPath = compilerPath
+                    --                 , pathToString = model.pathToString
+                    --                 , onComplete = CompilerRan
+                    --                 }
+                    --         )
+                    --     |> Task.onError
+                    --         (\err ->
+                    --             Stream.Log.line model.stdout err
+                    --                 |> Task.execute
+                    --                 |> Task.succeed
+                    --         )
+                    --     |> Task.executeCmd
+                    Cmd.none
 
-packageCommands : CLI.Parser.GroupParser ParsedCommand
-packageCommands =
-    CLI.Parser.defineGroup
-        |> CLI.Parser.withCommand
-            { word = "install"
-            , arguments =
-                CLI.Parser.oneOfArgs
-                    [ CLI.Parser.noArgs
-                        |> CLI.Parser.mapArgs (\_ -> Nothing)
-                    , CLI.Parser.oneArg Package.cliParser
-                        |> CLI.Parser.mapArgs Just
-                    ]
-            , flags =
-                CLI.Parser.noFlags 
-            , commonDescription =
-                Nothing
-            , summary =
-                "The `install` command fetches packages from github for use in your project:"
-            , example = 
-                PP.verticalBlock
-                    [ PP.words 
-                        """
-                        For example, if you want to get access to Web APIs in your project,
-                        you would say:
-                        """
-                    , PP.empty
-                    , PP.text "gren package install gren-lang/browser"
-                        |> PP.indent
-                        |> PP.color PP.Green
-                    , PP.empty
-                    , PP.words
-                        """
-                        Notice that you must say the AUTHOR name and PROJECT name! After running those
-                        commands, you could say `import Browser` in your code.
-                        """
-                    , PP.empty
-                    , PP.words
-                        """
-                        You can also call this command without any arguments to download all dependencies
-                        listed in gren.json. This can be helpful in Continous Integration setups where
-                        you want to cache dependencies between builds.
-                        """
-                    ]
-            , builder =
-                \arg _flags -> CompilerCommand <| CompilerBlob.PackageInstall arg
-            }
-        |> CLI.Parser.withCommand
-            { word = "uninstall"
-            , arguments =
-                CLI.Parser.oneArg Package.cliParser
-            , flags =
-                CLI.Parser.noFlags 
-            , commonDescription =
-                Nothing
-            , summary =
-                "The `uninstall` command removes packages from your project:"
-            , example = 
-                PP.verticalBlock
-                    [ PP.words 
-                        """
-                        For example, if you want to get rid of the browser package in your project,
-                        you would say:
-                        """
-                    , PP.empty
-                    , PP.text "gren package uninstall gren-lang/browser"
-                        |> PP.indent
-                        |> PP.color PP.Green
-                    , PP.empty
-                    , PP.words 
-                        """
-                        Notice that you must say the AUTHOR name and PROJECT name!
-                        """
-                    , PP.empty
-                    , PP.words
-                        """
-                        What if another package depends on the package you're trying to remove? No problem!
-                        I'll let you know if that's the case, and help you resolve the situation. 
-                        """
-                    ]
-            , builder =
-                \arg _flags -> CompilerCommand <| CompilerBlob.PackageUninstall arg
-            }
-        |> CLI.Parser.withCommand
-            { word = "outdated"
-            , arguments =
-                CLI.Parser.noArgs
-            , flags =
-                CLI.Parser.noFlags 
-            , commonDescription =
-                Nothing
-            , summary =
-                "The `outdated` command lists the latest version of your dependencies,"
-                    ++ " if you're not already up to date:"
-            , example = 
-                PP.text "gren package outdated"
-                    |> PP.indent
-                    |> PP.color PP.Green
-            , builder =
-                \_args _flags -> CompilerCommand CompilerBlob.PackageOutdated
-            }
-        |> CLI.Parser.withCommand
-            { word = "validate"
-            , arguments =
-                CLI.Parser.noArgs
-            , flags =
-                CLI.Parser.noFlags 
-            , commonDescription =
-                Nothing
-            , summary =
-                "The `validate` command checks that you've done everything necessary for"
-                    ++ " others in the Gren community to use your package as a dependency:"
-            , example = 
-                PP.verticalBlock
-                    [ PP.words 
-                        """
-                        Gren packages are \"just\" git repositories hosted on github. As
-                        long as you've tagged your repository with semver formatted tags,
-                        anyone can add your package as a dependency.
-                        """
-                    , PP.empty
-                    , PP.words 
-                        """
-                        However, a package is no better than its documentation. This command
-                        therefore checks that your package exposes a bare minimum of
-                        prose that the users of your package can read.
-                        """
-                    , PP.empty
-                    , PP.words
-                        """
-                        Keep in mind, you don't just want to tell people HOW to use
-                        your package. It's equally important to tell them WHY. What
-                        problem does it solve? Why should people use this particular
-                        package to solve their problem?
-                        """
-                    , PP.empty
-                    , PP.words
-                        """
-                        Once this command passes, you may want to add your repo to
-                        <https://packages.gren-lang.org> so it becomes easier for the Gren
-                        community to find your package, and its documentation.
-                        """
-                    ]
-            , builder =
-                \_args _flags -> CompilerCommand CompilerBlob.PackageValidate
-            }
-        |> CLI.Parser.withCommand
-            { word = "bump"
-            , arguments =
-                CLI.Parser.noArgs
-            , flags =
-                CLI.Parser.noFlags 
-            , commonDescription =
-                Nothing
-            , summary =
-                "The `bump` command figures out the next version number based on API changes:"
-            , example = 
-                PP.words 
-                    """
-                    Say you just published version 1.0.0, but then decided to remove a function.
-                    I will compare the published API to what you have locally, figure out that
-                    it is a MAJOR change, and bump your version number to 2.0.0. I do this with
-                    all packages, so there cannot be MAJOR changes hiding in PATCH releases in Gren!
-                    """
-            , builder =
-                \_args _flags -> CompilerCommand CompilerBlob.PackageBump
-            }
-        |> CLI.Parser.withCommand
-            { word = "diff"
-            , arguments =
-                CLI.Parser.oneOfArgs
-                    [ CLI.Parser.noArgs
-                        |> CLI.Parser.mapArgs (\{} -> CompilerBlob.DiffLatest)
-                    , CLI.Parser.oneArg SemanticVersion.cliParser
-                        |> CLI.Parser.mapArgs CompilerBlob.DiffVersion
-                    , CLI.Parser.twoArgs CompilerBlob.DiffRange SemanticVersion.cliParser SemanticVersion.cliParser
-                    , CLI.Parser.threeArgs CompilerBlob.DiffGlobal Package.cliParser SemanticVersion.cliParser SemanticVersion.cliParser
-                    ]
-            , flags =
-                CLI.Parser.noFlags 
-            , commonDescription =
-                Nothing
-            , summary =
-                "The `diff` command detects API changes:"
-            , example = 
-                PP.verticalBlock
-                    [ PP.words 
-                        """
-                        For example, to see what changed in the Browser package between
-                        versions 1.0.0 and 2.0.0, you can say:
-                        """
-                    , PP.empty
-                    , PP.text "gren package diff gren-lang/browser 1.0.0 2.0.0"
-                        |> PP.indent
-                        |> PP.color PP.Green
-                    , PP.empty
-                    , PP.words 
-                        """
-                        Sometimes a MAJOR change is not actually very big, so
-                        this can help you plan your upgrade timelines.
-                        """
-                    ]
-            , builder =
-                \args _flags -> CompilerCommand <| CompilerBlob.PackageDiff args
-            }
+                CliParser.PackageBump ->
+                    Terminal.PackageInstall.readProjectOutline model.fsPermission
+                        |> Task.mapError Debug.toString
+                        |> Task.andThen
+                            (\projectOutline ->
+                                Terminal.PackageBump.run
+                                    { fsPermission = model.fsPermission
+                                    , cpPermission = model.cpPermission
+                                    , interactive = model.interactive
+                                    , useColor = model.useColor
+                                    , stdout = model.stdout
+                                    , stdin = model.stdin
+                                    }
+                                    projectOutline
+                            )
+                        |> Task.mapError Debug.toString
+                        |> Task.map
+                            (\backendFlags ->
+                                Compiler.Backend.run
+                                    model.cpPermission
+                                    { connection =
+                                        initWithCommand <|
+                                            Compiler.Backend.PackageBump backendFlags
+                                    , useColor = model.useColor
+                                    , compilerPath = compilerPath
+                                    , pathToString = model.pathToString
+                                    , onComplete = CompilerRan
+                                    }
+                            )
+                        |> Task.onError
+                            (\err ->
+                                Stream.Log.line model.stdout err
+                                    |> Task.execute
+                                    |> Task.succeed
+                            )
+                        |> Task.executeCmd
 
+                CliParser.PackageDiff args ->
+                    let
+                        diffTask =
+                            when args is
+                                CliParser.DiffLatest ->
+                                    Terminal.PackageDiff.runLocal
+                                        { fsPermission = model.fsPermission
+                                        , cpPermission = model.cpPermission
+                                        , interactive = model.interactive
+                                        , useColor = model.useColor
+                                        , stdout = model.stdout
+                                        , stdin = model.stdin
+                                        }
+                                        Nothing
 
-initPlatformParser : CLI.Parser.ValueParser CompilerBlob.Platform
-initPlatformParser =
-    { singular = "platform"
-    , plural = "platforms"
-    , fn = \str ->
-        case str of
-            "common" -> Just CompilerBlob.Common
-            "browser" -> Just CompilerBlob.Browser
-            "node" -> Just CompilerBlob.Node
-            _ -> Nothing
-    , examples =
-        [ "common"
-        , "browser"
-        , "node"
-        ]
-    }
+                                CliParser.DiffVersion version ->
+                                    Terminal.PackageDiff.runLocal
+                                        { fsPermission = model.fsPermission
+                                        , cpPermission = model.cpPermission
+                                        , interactive = model.interactive
+                                        , useColor = model.useColor
+                                        , stdout = model.stdout
+                                        , stdin = model.stdin
+                                        }
+                                        (Just version)
 
+                                CliParser.DiffRange { lower, upper } ->
+                                    Terminal.PackageInstall.readProjectOutline model.fsPermission
+                                        |> Task.mapError Debug.toString
+                                        |> Task.andThen
+                                            (\{ outline } ->
+                                                when outline is
+                                                    Outline.App _ ->
+                                                        -- TODO
+                                                        Task.fail "Only supported on packages"
 
-reportParser : CLI.Parser.ValueParser {}
-reportParser =
-    { singular = "report-type"
-    , plural = "report-types"
-    , fn = \str ->
-        if str == "json" then
-            Just {}
+                                                    Outline.Pkg pkgOutline ->
+                                                        Terminal.PackageDiff.runGlobal
+                                                            { fsPermission = model.fsPermission
+                                                            , cpPermission = model.cpPermission
+                                                            , interactive = model.interactive
+                                                            , useColor = model.useColor
+                                                            , stdout = model.stdout
+                                                            , stdin = model.stdin
+                                                            }
+                                                            pkgOutline.name
+                                                            lower
+                                                            upper
+                                            )
 
-        else
-            Nothing
-    , examples =
-        [ "json" ]
-    }
+                                CliParser.DiffGlobal { package, lower, upper } ->
+                                    Terminal.PackageDiff.runGlobal
+                                        { fsPermission = model.fsPermission
+                                        , cpPermission = model.cpPermission
+                                        , interactive = model.interactive
+                                        , useColor = model.useColor
+                                        , stdout = model.stdout
+                                        , stdin = model.stdin
+                                        }
+                                        package
+                                        lower
+                                        upper
+                    in
+                    diffTask
+                        |> Task.mapError Debug.toString
+                        |> Task.map
+                            (\backendFlags ->
+                                Compiler.Backend.run
+                                    model.cpPermission
+                                    { connection =
+                                        initWithCommand <|
+                                            Compiler.Backend.PackageDiff backendFlags
+                                    , useColor = model.useColor
+                                    , compilerPath = compilerPath
+                                    , pathToString = model.pathToString
+                                    , onComplete = CompilerRan
+                                    }
+                            )
+                        |> Task.onError
+                            (\err ->
+                                Stream.Log.line model.stdout err
+                                    |> Task.execute
+                                    |> Task.succeed
+                            )
+                        |> Task.executeCmd
 
+                CliParser.Paths opts ->
+                    Terminal.Paths.run
+                        { fsPermission = model.fsPermission
+                        , stdout = model.stdout
+                        , pathToString = model.pathToString
+                        , backendPath = model.backendPath
+                        }
+                        opts
 
-interpreterParser : CLI.Parser.ValueParser String
-interpreterParser =
-    { singular = "interpreter"
-    , plural = "interpreters"
-    , fn = Just
-    , examples =
-        [ "node"
-        , "deno"
-        , "bun"
-        ]
-    }
-
-
-outputParser : CLI.Parser.ValueParser CompilerBlob.MakeOutput
-outputParser =
-    { singular = "output-file"
-    , plural = "output-files"
-    , fn = \str ->
-        case str of
-            "/dev/stdout" -> Just CompilerBlob.StdOut
-            "/dev/null" -> Just CompilerBlob.DevNull
-            "NUL" -> Just CompilerBlob.DevNull
-            "$null" -> Just CompilerBlob.DevNull
-            _ ->
-                if String.endsWith ".html" str then
-                    Just <| CompilerBlob.Html str
-                
-                else if String.endsWith ".js" str then
-                    Just <| CompilerBlob.Js str
-
-                else
-                    Just <| CompilerBlob.Exe str
-    , examples =
-        [ "/dev/stdout"
-        , "/dev/null"
-        , "index.html"
-        , "index.js"
-        , "app"
-        ]
-    }
-
-
-docsOutputParser : CLI.Parser.ValueParser CompilerBlob.DocsOutput
-docsOutputParser =
-    { singular = "output-file"
-    , plural = "output-files"
-    , fn = \str ->
-        case str of
-            "/dev/stdout" -> Just CompilerBlob.DocsStdOut
-            "/dev/null" -> Just CompilerBlob.DocsDevNull
-            "NUL" -> Just CompilerBlob.DocsDevNull
-            "$null" -> Just CompilerBlob.DocsDevNull
-            _ ->
-                if String.endsWith ".json" str then
-                    Just <| CompilerBlob.DocsJson str
-
-                else
-                    Nothing
-    , examples =
-        [ "/dev/stdout"
-        , "/dev/null"
-        , "docs.json"
-        ]
-    }

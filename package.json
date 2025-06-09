@@ -1,11 +1,12 @@
 {
   "name": "gren-lang",
-  "version": "0.5.4",
+  "version": "0.5.5",
   "description": "Compiler for the Gren programming language",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "prepublishOnly": "npx --package=gren-lang@0.4.5 --yes -- gren make src/Main.gren --output=/dev/stdout | terser -c -m -o compiler.js",
-    "build": "npx --package=gren-lang@0.4.5 --yes -- gren make src/Main.gren --output=compiler.js",
+    "prepublishOnly": "npx --package=gren-lang@0.5 gren make src/Main.gren --optimize --output=/dev/stdout | terser -c -m -o compiler.js",
+    "build": "npx --package=gren-lang@0.5 gren make src/Main.gren --output=compiler.js",
+    "build:sourcemaps": "npx --package=gren-lang@0.5 gren make src/Main.gren --output=compiler.js --sourcemaps",
     "prettier": "prettier -w \"!**/*.json\" .",
     "prettier:check": "prettier -c \"!**/*.json\" ."
   },
@@ -36,6 +37,7 @@
     "postject": "^1.0.0-alpha.6"
   },
   "devDependencies": {
+    "gren-lang": "^0.5.4",
     "prettier": "^3.4.2",
     "terser": "^5.38.1"
   }

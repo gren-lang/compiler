@@ -15,6 +15,7 @@ import Data.List qualified as List
 
 data List a
   = List a [a]
+  deriving (Show)
 
 singleton :: a -> List a
 singleton a =

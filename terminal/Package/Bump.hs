@@ -2,21 +2,24 @@
 
 module Package.Bump
   ( run,
-    Flags (Flags),
+    Flags (..),
   )
 where
 
-import BackgroundWriter qualified as BW
 import Build qualified
+import Command qualified
+import Data.ByteString.Internal (ByteString)
 import Data.List qualified as List
+import Data.Map (Map)
 import Data.NonEmptyList qualified as NE
 import Deps.Diff qualified as Diff
 import Deps.Package qualified as Package
-import Directories qualified as Dirs
 import Gren.Details qualified as Details
 import Gren.Docs qualified as Docs
 import Gren.Magnitude qualified as M
+import Gren.ModuleName qualified as ModuleName
 import Gren.Outline qualified as Outline
+import Gren.Package qualified as Pkg
 import Gren.Version qualified as V
 import Reporting qualified
 import Reporting.Doc ((<+>))
@@ -27,61 +30,45 @@ import Reporting.Task qualified as Task
 
 -- RUN
 
-newtype Flags = Flags
-  {_skipPrompts :: Bool}
+data Flags = Flags
+  { _interactive :: Bool,
+    _project_path :: String,
+    _known_versions :: [V.Version],
+    _current_version :: Command.ProjectInfo,
+    _published_version :: Command.ProjectInfo
+  }
+  deriving (Show)
 
 run :: Flags -> IO ()
-run flags =
+run flags@(Flags _ _ _ currentVersion publishedVersion) =
   Reporting.attempt Exit.bumpToReport $
-    Task.run (bump flags =<< getEnv)
-
--- ENV
-
-data Env = Env
-  { _root :: FilePath,
-    _cache :: Dirs.PackageCache,
-    _outline :: Outline.PkgOutline
-  }
-
-getEnv :: Task.Task Exit.Bump Env
-getEnv =
-  do
-    maybeRoot <- Task.io Dirs.findRoot
-    case maybeRoot of
-      Nothing ->
-        Task.throw Exit.BumpNoOutline
-      Just root ->
-        do
-          cache <- Task.io Dirs.getPackageCache
-          outline <- Task.eio Exit.BumpBadOutline $ Outline.read root
-          case outline of
-            Outline.App _ ->
-              Task.throw Exit.BumpApplication
-            Outline.Pkg pkgOutline ->
-              return $ Env root cache pkgOutline
+    case (Command._project_outline currentVersion, Command._project_outline publishedVersion) of
+      (Outline.Pkg currentPackage, Outline.Pkg publishedPkg) ->
+        Task.run (bump flags currentPackage publishedPkg)
+      _ ->
+        error "Received outlines are in the wrong format"
 
 -- BUMP
 
-bump :: Flags -> Env -> Task.Task Exit.Bump ()
-bump flags env@(Env root _ outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _)) =
+bump :: Flags -> Outline.PkgOutline -> Outline.PkgOutline -> Task.Task Exit.Bump ()
+bump flags@(Flags _ root knownVersions _ _) currentOutline@(Outline.PkgOutline _ _ _ vsn _ _ _ _) publishedOutline =
   Task.eio id $
-    do
-      versionResult <- Package.getVersions pkg
-      case versionResult of
-        Right knownVersions ->
-          let bumpableVersions =
-                map (\(old, _, _) -> old) (Package.bumpPossibilities knownVersions)
-           in if elem vsn bumpableVersions
-                then Task.run $ suggestVersion flags env
-                else do
-                  return $
-                    Left $
-                      Exit.BumpUnexpectedVersion vsn $
-                        map head (List.group (List.sort bumpableVersions))
-        Left _ ->
-          do
-            checkNewPackage flags root outline
-            return $ Right ()
+    case reverse knownVersions of
+      (v : vs) ->
+        let bumpableVersions =
+              map (\(old, _, _) -> old) (Package.bumpPossibilities (v, vs))
+         in if elem vsn bumpableVersions
+              then Task.run $ suggestVersion flags currentOutline publishedOutline
+              else do
+                return $
+                  Left $
+                    Exit.BumpUnexpectedVersion vsn $
+                      map head (List.group (List.sort bumpableVersions))
+      [] ->
+        do
+          -- TODO: move to frontend
+          checkNewPackage flags root currentOutline
+          return $ Right ()
 
 -- CHECK NEW PACKAGE
 
@@ -100,19 +87,15 @@ checkNewPackage flags root outline@(Outline.PkgOutline _ _ _ version _ _ _ _) =
 
 -- SUGGEST VERSION
 
-suggestVersion :: Flags -> Env -> Task.Task Exit.Bump ()
-suggestVersion flags (Env root cache outline@(Outline.PkgOutline pkg _ _ vsn _ _ _ _)) =
+suggestVersion :: Flags -> Outline.PkgOutline -> Outline.PkgOutline -> Task.Task Exit.Bump ()
+suggestVersion flags@(Flags _ root _ (Command.ProjectInfo _ currentSources currentDeps) (Command.ProjectInfo _ publishedSources publishedDeps)) currentOutline@(Outline.PkgOutline _ _ _ vsn _ _ _ _) publishedOutline =
   do
-    oldDocs <-
-      Task.mapError
-        (Exit.BumpCannotFindDocs pkg vsn)
-        (Diff.getDocs cache pkg vsn)
-
-    newDocs <- generateDocs root outline
+    oldDocs <- generateDocs root currentOutline currentSources currentDeps
+    newDocs <- generateDocs root publishedOutline publishedSources publishedDeps
     let changes = Diff.diff oldDocs newDocs
     let newVersion = Diff.bump changes vsn
     Task.io $
-      changeVersion flags root outline newVersion $
+      changeVersion flags root currentOutline newVersion $
         let old = D.fromVersion vsn
             new = D.fromVersion newVersion
             mag = D.fromChars $ M.toChars (Diff.toMagnitude changes)
@@ -131,27 +114,26 @@ suggestVersion flags (Env root cache outline@(Outline.PkgOutline pkg _ _ vsn _ _
               <> new
               <> ") in gren.json? [Y/n] "
 
-generateDocs :: FilePath -> Outline.PkgOutline -> Task.Task Exit.Bump Docs.Documentation
-generateDocs root (Outline.PkgOutline _ _ _ _ exposed _ _ _) =
+generateDocs :: FilePath -> Outline.PkgOutline -> Map ModuleName.Raw ByteString -> Map Pkg.Name Details.Dependency -> Task.Task Exit.Bump Docs.Documentation
+generateDocs root outline@(Outline.PkgOutline _ _ _ _ exposed _ _ _) sources solution =
   do
     details <-
       Task.eio Exit.BumpBadDetails $
-        BW.withScope $ \scope ->
-          Details.load Reporting.silent scope root
+        Details.loadForMake Reporting.silent (Outline.Pkg outline) solution
 
     case Outline.flattenExposed exposed of
       [] ->
         Task.throw Exit.BumpNoExposed
       e : es ->
         Task.eio Exit.BumpBadBuild $
-          Build.fromExposed Reporting.silent root details Build.KeepDocs (NE.List e es)
+          Build.fromExposedSources Reporting.silent root details sources Build.KeepDocs (NE.List e es)
 
 -- CHANGE VERSION
 
 changeVersion :: Flags -> FilePath -> Outline.PkgOutline -> V.Version -> D.Doc -> IO ()
 changeVersion flags root outline targetVersion question =
   do
-    approved <- Reporting.ask (_skipPrompts flags) question
+    approved <- Reporting.ask (not $ _interactive flags) question
     if not approved
       then putStrLn "Okay, I did not change anything!"
       else do

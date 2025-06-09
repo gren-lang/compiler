@@ -1,5 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
-
 module Generate
   ( dev,
     prod,

@@ -34,7 +34,6 @@ import Control.Exception (AsyncException (UserInterrupt), SomeException, catch, 
 import Control.Monad (when)
 import Data.ByteString.Builder qualified as B
 import Data.NonEmptyList qualified as NE
-import GHC.IO.Handle (hIsTerminalDevice)
 import Gren.ModuleName qualified as ModuleName
 import Gren.Package qualified as Pkg
 import Gren.Version qualified as V
@@ -131,13 +130,11 @@ ignorer =
 
 ask :: Bool -> D.Doc -> IO Bool
 ask skipPrompts doc =
-  do
-    interactive <- hIsTerminalDevice stdout
-    if skipPrompts || not interactive
-      then pure True
-      else do
-        Help.toStdout doc
-        askHelp
+  if skipPrompts
+    then pure True
+    else do
+      Help.toStdout doc
+      askHelp
 
 askHelp :: IO Bool
 askHelp =

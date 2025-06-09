@@ -23,8 +23,7 @@ module Data.Utf8
     putVeryLong,
     --
     toChars,
-    toText,
-    toShortByteString,
+    toByteString,
     toBuilder,
     toEscapedBuilder,
     --
@@ -44,12 +43,12 @@ import Data.Binary (Get, Put, get, getWord8, put, putWord8)
 import Data.Binary.Get.Internal (readN)
 import Data.Binary.Put (putBuilder)
 import Data.Bits (shiftR, (.&.))
+import Data.ByteString.Builder qualified as Builder
 import Data.ByteString.Builder.Internal qualified as B
 import Data.ByteString.Internal qualified as B
-import Data.ByteString.Short qualified as BSS
+import Data.ByteString.Lazy qualified as LazyByteString
 import Data.Char qualified as Char
 import Data.List qualified as List
-import Data.Text qualified as Text
 import Foreign.ForeignPtr (touchForeignPtr)
 import Foreign.ForeignPtr.Unsafe (unsafeForeignPtrToPtr)
 import Foreign.Ptr (minusPtr, plusPtr)
@@ -334,24 +333,17 @@ word8ToInt# :: Word8# -> Int#
 word8ToInt# word8 =
   word2Int# (word8ToWord# word8)
 
--- TO TEXT
-
-toText :: Utf8 t -> Text.Text
-toText =
-  -- This could most certainly be optimized for better performance
-  Text.pack . toChars
-
 -- TO BYTESTRING
 
-toShortByteString :: Utf8 t -> BSS.ShortByteString
-toShortByteString (Utf8 bytes) =
-  BSS.SBS bytes
+toByteString :: Utf8 t -> B.ByteString
+toByteString bytes =
+  LazyByteString.toStrict $ Builder.toLazyByteString $ toBuilder bytes
 
 -- TO BUILDER
 
 toBuilder :: Utf8 t -> B.Builder
-toBuilder =
-  \bytes -> B.builder (toBuilderHelp bytes)
+toBuilder bytes =
+  B.builder (toBuilderHelp bytes)
 
 toBuilderHelp :: Utf8 t -> B.BuildStep a -> B.BuildStep a
 toBuilderHelp !bytes@(Utf8 ba#) k =
