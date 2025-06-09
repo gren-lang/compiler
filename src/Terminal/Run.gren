@@ -32,7 +32,7 @@ type alias MakeConfig msg =
     , compilerPath : Path
     , pathToString : Path -> String
     , moduleName : ModuleName
-    , onBackendInitialized : { backendStreams : Maybe ChildProcess.StreamIO, encodedCommand : Bytes } -> msg
+    , onBackendInitialized : { backendStreams : ChildProcess.StreamIO, encodedCommand : Bytes } -> msg
     , onCompiled : Path -> Int -> msg
     }
 
@@ -40,9 +40,7 @@ type alias MakeConfig msg =
 type alias RunConfig msg =
     { cpPermission : ChildProcess.Permission
     , path : String
-    , onInit :
-        { processId : Process.Id, streams : Maybe ChildProcess.StreamIO }
-        -> msg
+    , onInit : { processId : Process.Id, streams : ChildProcess.StreamIO } -> msg
     , onExit : Int -> msg
     }
 
@@ -95,13 +93,14 @@ make config =
                 { useColor = config.useColor
                 , compilerPath = config.compilerPath
                 , pathToString = config.pathToString
-                , onInit = 
-                    (\cpOpts ->
-                        config.onBackendInitialized
-                            { backendStreams = cpOpts.streams
-                            , encodedCommand = encodedCommand_
-                            }
-                    )
+                , connection = 
+                    ChildProcess.External
+                        (\cpOpts ->
+                            config.onBackendInitialized
+                                { backendStreams = cpOpts.streams
+                                , encodedCommand = encodedCommand_
+                                }
+                        )
                 , onComplete = config.onCompiled outputPath
                 }
     in
@@ -125,7 +124,7 @@ getOutputPath fsPermission =
 run : RunConfig msg -> Cmd msg
 run config =
     ChildProcess.spawn config.cpPermission "node" [ config.path ] <|
-        ChildProcess.defaultSpawnOptions config.onInit config.onExit
+        ChildProcess.defaultSpawnOptions (ChildProcess.External config.onInit) config.onExit
 
 
 -- not sure if this is the best way to do this?

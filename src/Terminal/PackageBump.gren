@@ -109,7 +109,7 @@ run config { projectPath, outline } =
                             repoPath =
                                 Terminal.PackageInstall.localRepoPath packageName packageVersion projectPath
                         in
-                        FileSystem.remove config.fsPermission { recursive = True, ignoreErrors = False } repoPath
+                        FileSystem.remove config.fsPermission { recursive = True } repoPath
                             |> Task.onError (\_ -> Task.succeed repoPath) -- Probably because directory doesn't exist, that's fine
                             |> Task.andThen (\_ -> Git.clonePackage config.cpPermission repoPath packageName packageVersion)
                             |> Task.mapError (\{ stderr } -> Maybe.withDefault "" <| Bytes.toString stderr)

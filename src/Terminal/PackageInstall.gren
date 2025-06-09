@@ -239,7 +239,7 @@ installStep config { projectPath, outline, projectSources, rootPackages, loadedP
                         repoPath =
                             localRepoPath name lowerBound projectPath
                     in
-                    FileSystem.remove config.fsPermission { recursive = True, ignoreErrors = False } repoPath
+                    FileSystem.remove config.fsPermission { recursive = True } repoPath
                         |> Task.onError (\_ -> Task.succeed repoPath) -- Probably because directory doesn't exist, that's fine
                         |> Task.andThen (\_ -> Git.clonePackage config.cpPermission repoPath name lowerBound)
                         |> Task.mapError (\{ stderr } -> Maybe.withDefault "" <| Bytes.toString stderr)
@@ -296,7 +296,7 @@ installStep config { projectPath, outline, projectSources, rootPackages, loadedP
                                             else
                                                 Task.fail err
                                         )
-                                    |> Task.andThen (\_ -> FileSystem.writeFileStream config.fsPermission bundlePath)
+                                    |> Task.andThen (\_ -> FileSystem.writeFileStream config.fsPermission FileSystem.Replace bundlePath)
                                     |> Task.mapError FileSystem.errorToString
                                     |> Task.andThen
                                         (\stream ->
@@ -630,7 +630,7 @@ loadPackageFromPath fsPermission name path =
 loadPackageFromBundle : FileSystem.Permission -> PackageName -> SemanticVersion -> Path -> Task String (Maybe LoadedPackage)
 loadPackageFromBundle fsPermission name vsn projectPath =
     packageBundlePath name vsn projectPath
-        |> FileSystem.readFileStream fsPermission
+        |> FileSystem.readFileStream fsPermission FileSystem.Beginning
         |> Task.mapError FileSystem.errorToString
         |> Task.andThen
             (\stream ->
