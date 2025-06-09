@@ -161,6 +161,7 @@ type Msg
     | CompiledForRun { path : String, exitCode : Int }
     | RunStarted { processId : Process.Id, streams : ChildProcess.StreamIO }
     | RunExited Int
+    | RedirectTerminalIO (Result Stream.Error { source : Stream.Readable Bytes, target : Stream.Writable Bytes })
 
 
 port completeStaticBuild : String -> Cmd msg
@@ -235,36 +236,18 @@ update msg model =
                 parseUserArgs model compilerPath
 
             CompilerInitialized { backendStreams, encodedCommand, quiet } ->
-                -- TODO: prompts from the backend no longer works, which will probably block the repl
-                Stream.write encodedCommand backendStreams.input
-                    |> Task.andThen (\_ -> Stream.closeWritable backendStreams.input)
-                    |> Task.onError
-                        (\streamErr ->
-                            Stream.Log.line model.stderr ("Failed to send command to compiler backend due to error: " ++ Stream.errorToString streamErr)
-                        )
-                    |> Task.andThen
-                        (\_ ->
-                            if quiet then
-                                Task.succeed model.stdout
-                            else
-                                backendStreams.output
-                                    |> Stream.awaitAndPipeThrough Stream.textDecoder
-                                    |> Task.andThen Stream.Extra.consumeString
-                                    |> Task.andThen (\str -> Stream.writeStringAsBytes str model.stdout)
-                        )
-                    |> Task.andThen
-                        (\_ ->
-                            backendStreams.error
-                                |> Stream.awaitAndPipeThrough Stream.textDecoder
-                                |> Task.andThen Stream.Extra.consumeString
-                                |> Task.andThen (\str -> Stream.writeStringAsBytes str model.stderr)
-                        )
-                    |> Task.map (\_ -> {})
-                    |> Task.onError
-                        (\streamErr ->
-                            Stream.Log.line model.stderr ("Something went wrong when reading from backend: " ++ Stream.errorToString streamErr)
-                        )
-                    |> Task.execute
+                Cmd.batch
+                    [ Stream.write encodedCommand backendStreams.input
+                        |> Task.map (\_ -> { source = model.stdin, target = backendStreams.input })
+                        |> Task.attempt RedirectTerminalIO
+                    , if quiet then
+                        Cmd.none
+                      else
+                        Task.succeed { source = backendStreams.output, target = model.stdout }
+                            |> Task.attempt RedirectTerminalIO
+                    , Task.succeed { source = backendStreams.error, target = model.stderr }
+                        |> Task.attempt RedirectTerminalIO
+                    ]
 
             CompilerRan exitCode ->
                 Node.exitWithCode exitCode
@@ -293,6 +276,16 @@ update msg model =
 
             RunExited exitCode ->
                 Node.exitWithCode exitCode
+
+            RedirectTerminalIO (Ok streams) ->
+                Stream.read streams.source
+                    |> Task.andThen (\str -> Stream.write str streams.target)
+                    |> Task.map (\_ -> streams)
+                    |> Task.attempt RedirectTerminalIO
+
+            RedirectTerminalIO (Err err) ->
+                Stream.Log.line model.stderr ("Something went wrong when communicating with compiler backend: " ++ Stream.errorToString err)
+                    |> Task.execute
         }
 
 

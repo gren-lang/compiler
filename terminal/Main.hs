@@ -4,7 +4,7 @@ module Main
 where
 
 import Command qualified
-import Data.ByteString qualified
+import Data.ByteString.Char8 qualified
 import Docs qualified
 import GHC.IO.Encoding (setLocaleEncoding, utf8)
 import Json.Decode qualified as Json
@@ -24,7 +24,7 @@ main =
     argStrings <- Env.getArgs
     case argStrings of
       [] -> do
-        json <- Data.ByteString.getContents
+        json <- Data.ByteString.Char8.getLine
         case Json.fromByteString Command.commandDecoder json of
           Left err ->
             error (show err)
