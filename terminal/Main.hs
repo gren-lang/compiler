@@ -28,8 +28,8 @@ main =
         case Json.fromByteString Command.commandDecoder json of
           Left err ->
             error (show err)
-          Right (Command.Repl interpreter) ->
-            Repl.run $ Repl.Flags interpreter
+          Right (Command.Repl (Command.ReplFlags interpreter root outline rootSources deps)) ->
+            Repl.run $ Repl.Flags interpreter root outline rootSources deps
           Right (Command.Make (Command.MakeFlags optimize sourcemaps output report paths projectPath outline rootSources deps)) ->
             Make.run $ Make.Flags optimize sourcemaps output report paths projectPath outline rootSources deps
           Right (Command.Docs (Command.DocsFlags output report projectPath outline rootSources deps)) ->

@@ -393,6 +393,7 @@ parseUserArgs model compilerPath =
 
                 CliParser.Repl flags ->
                     -- TODO: DRY up package installation
+                    -- TODO: create repl project when no project outline is found
                     Terminal.PackageInstall.readProjectOutline model.fsPermission
                         |> Task.mapError Debug.toString
                         |> Task.andThen

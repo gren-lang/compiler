@@ -169,74 +169,73 @@ addGlobalHelp mode graph global@(Opt.Global home _) state =
         Set.foldl' (addGlobal mode graph) someState deps
 
       argLookup = makeArgLookup graph
-   in
-   case Map.lookup global graph of
-      Nothing ->
-        error ("Compiler bug: failed to find " ++ show global)
-      Just (Opt.Define region (Opt.Function (A.Region funcStart _) args body) deps)
-        | length args > 1 ->
-            addStmt
-              (addDeps deps state)
-              ( trackedFn region global args (Expr.generateFunctionImplementation mode argLookup home funcStart args body)
-              )
-      Just (Opt.Define region expr deps) ->
-        addStmt
-          (addDeps deps state)
-          ( trackedVar region global (Expr.generate mode argLookup home expr)
-          )
-      Just (Opt.DefineTailFunc region argNames body deps) ->
-        addStmt
-          (addDeps deps state)
-          ( let (Opt.Global _ name) = global
-             in trackedVar region global (Expr.generateTailDef mode argLookup home name argNames body)
-          )
-      Just (Opt.Ctor index arity)
-        | arity > 1 ->
-            addStmt
-              state
-              ( ctor global arity (Expr.generateCtorImplementation mode global index arity)
-              )
-      Just (Opt.Ctor index arity) ->
-        addStmt
-          state
-          ( var global (Expr.generateCtor mode global index arity)
-          )
-      Just (Opt.Link linkedGlobal) ->
-        addGlobal mode graph state linkedGlobal
-      Just (Opt.Cycle names values functions deps) ->
-        addStmt
-          (addDeps deps state)
-          ( generateCycle mode argLookup global names values functions
-          )
-      Just (Opt.Manager effectsType) ->
-        generateManager mode graph global effectsType state
-      Just (Opt.Kernel chunks deps) ->
-        addDeps deps (addKernel state (generateKernel mode chunks))
-      Just (Opt.Enum index) ->
-        addStmt
-          state
-          ( generateEnum mode global index
-          )
-      Just Opt.Box ->
-        addStmt
-          (addGlobal mode graph state identity)
-          ( generateBox mode global
-          )
-      Just (Opt.PortIncoming decoder deps) ->
-        addStmt
-          (addDeps deps state)
-          ( generatePort mode global "incomingPort" decoder
-          )
-      Just (Opt.PortOutgoing encoder deps) ->
-        addStmt
-          (addDeps deps state)
-          ( generatePort mode global "outgoingPort" encoder
-          )
-      Just (Opt.PortTask maybeEncoder decoder deps) ->
-        addStmt
-          (addDeps deps state)
-          ( generateTaskPort mode global maybeEncoder decoder
-          )
+   in case Map.lookup global graph of
+        Nothing ->
+          error ("Compiler bug: failed to find " ++ show global)
+        Just (Opt.Define region (Opt.Function (A.Region funcStart _) args body) deps)
+          | length args > 1 ->
+              addStmt
+                (addDeps deps state)
+                ( trackedFn region global args (Expr.generateFunctionImplementation mode argLookup home funcStart args body)
+                )
+        Just (Opt.Define region expr deps) ->
+          addStmt
+            (addDeps deps state)
+            ( trackedVar region global (Expr.generate mode argLookup home expr)
+            )
+        Just (Opt.DefineTailFunc region argNames body deps) ->
+          addStmt
+            (addDeps deps state)
+            ( let (Opt.Global _ name) = global
+               in trackedVar region global (Expr.generateTailDef mode argLookup home name argNames body)
+            )
+        Just (Opt.Ctor index arity)
+          | arity > 1 ->
+              addStmt
+                state
+                ( ctor global arity (Expr.generateCtorImplementation mode global index arity)
+                )
+        Just (Opt.Ctor index arity) ->
+          addStmt
+            state
+            ( var global (Expr.generateCtor mode global index arity)
+            )
+        Just (Opt.Link linkedGlobal) ->
+          addGlobal mode graph state linkedGlobal
+        Just (Opt.Cycle names values functions deps) ->
+          addStmt
+            (addDeps deps state)
+            ( generateCycle mode argLookup global names values functions
+            )
+        Just (Opt.Manager effectsType) ->
+          generateManager mode graph global effectsType state
+        Just (Opt.Kernel chunks deps) ->
+          addDeps deps (addKernel state (generateKernel mode chunks))
+        Just (Opt.Enum index) ->
+          addStmt
+            state
+            ( generateEnum mode global index
+            )
+        Just Opt.Box ->
+          addStmt
+            (addGlobal mode graph state identity)
+            ( generateBox mode global
+            )
+        Just (Opt.PortIncoming decoder deps) ->
+          addStmt
+            (addDeps deps state)
+            ( generatePort mode global "incomingPort" decoder
+            )
+        Just (Opt.PortOutgoing encoder deps) ->
+          addStmt
+            (addDeps deps state)
+            ( generatePort mode global "outgoingPort" encoder
+            )
+        Just (Opt.PortTask maybeEncoder decoder deps) ->
+          addStmt
+            (addDeps deps state)
+            ( generateTaskPort mode global maybeEncoder decoder
+            )
 
 addStmt :: State -> JS.Stmt -> State
 addStmt (State seen builder) stmt =

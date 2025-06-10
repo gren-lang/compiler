@@ -18,7 +18,6 @@ module Repl
 where
 
 import AST.Source qualified as Src
-import BackgroundWriter qualified as BW
 import Build qualified
 import Control.Applicative ((<|>))
 import Control.Monad.State.Strict qualified as State
@@ -26,25 +25,21 @@ import Control.Monad.Trans (lift, liftIO)
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder qualified as B
 import Data.ByteString.Char8 qualified as BSC
+import Data.ByteString.Internal (ByteString)
 import Data.ByteString.Lazy qualified as LBS
 import Data.ByteString.UTF8 qualified as BS_UTF8
 import Data.Char qualified as Char
 import Data.List qualified as List
+import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Maybe qualified as Maybe
 import Data.Name qualified as N
-import Deps.Package qualified as DPkg
-import Deps.Solver qualified as Solver
 import Directories qualified as Dirs
 import Generate qualified
-import Gren.Constraint qualified as C
 import Gren.Details qualified as Details
-import Gren.Licenses qualified as Licenses
 import Gren.ModuleName qualified as ModuleName
-import Gren.Outline qualified as Outline
+import Gren.Outline (Outline)
 import Gren.Package qualified as Pkg
-import Gren.Platform qualified as Platform
-import Gren.PossibleFilePath as PossibleFilePath
 import Gren.Version qualified as V
 import Parse.Declaration qualified as PD
 import Parse.Expression qualified as PE
@@ -75,7 +70,11 @@ import Prelude hiding (lines, read)
 -- RUN
 
 data Flags = Flags
-  { _maybeInterpreter :: Maybe FilePath
+  { _maybeInterpreter :: Maybe FilePath,
+    _root :: FilePath,
+    _outline :: Outline,
+    _root_sources :: Map ModuleName.Raw ByteString,
+    _dependencies :: Map Pkg.Name Details.Dependency
   }
 
 run :: Flags -> IO ()
@@ -84,7 +83,7 @@ run flags =
     settings <- initSettings
     env <- initEnv flags
     printWelcomeMessage
-    let looper = Repl.runInputT settings (Repl.withInterrupt (loop env initialState))
+    let looper = Repl.runInputT settings (Repl.withInterrupt (loop flags env initialState))
     exitCode <- State.evalStateT looper initialState
     Exit.exitWith exitCode
 
@@ -106,34 +105,17 @@ printWelcomeMessage =
 -- ENV
 
 data Env = Env
-  { _root :: FilePath,
-    _interpreter :: FilePath,
+  { _interpreter :: FilePath,
     _ansi :: Bool
   }
 
 initEnv :: Flags -> IO Env
-initEnv (Flags maybeAlternateInterpreter) =
+initEnv (Flags maybeAlternateInterpreter _ _ _ _) =
   do
     noColorsEnv <- System.Environment.lookupEnv "NO_COLOR"
     let noColors = Maybe.isJust noColorsEnv
-    root <- getRoot
-    _ <- installDeps root
     interpreter <- getInterpreter maybeAlternateInterpreter
-    return $ Env root interpreter (not noColors)
-
-installDeps :: FilePath -> IO ()
-installDeps root =
-  do
-    potentialOutline <- Outline.read root
-    case potentialOutline of
-      Left _ ->
-        return ()
-      Right outline -> do
-        packageCache <- Dirs.getPackageCache
-        let platform = Outline.platform outline
-        let dependencies = Outline.dependencyConstraints outline
-        _ <- Solver.verify Reporting.ignorer packageCache platform dependencies
-        return ()
+    return $ Env interpreter (not noColors)
 
 -- LOOP
 
@@ -144,16 +126,16 @@ data Outcome
 type M =
   State.StateT State IO
 
-loop :: Env -> State -> Repl.InputT M Exit.ExitCode
-loop env state =
+loop :: Flags -> Env -> State -> Repl.InputT M Exit.ExitCode
+loop flags env state =
   do
     input <- Repl.handleInterrupt (return Skip) read
-    outcome <- liftIO (eval env state input)
+    outcome <- liftIO (eval flags env state input)
     case outcome of
       Loop state ->
         do
           lift (State.put state)
-          loop env state
+          loop flags env state
       End exitCode ->
         return exitCode
 
@@ -369,8 +351,8 @@ initialState =
 
 -- EVAL
 
-eval :: Env -> State -> Input -> IO Outcome
-eval env state@(State imports types decls) input =
+eval :: Flags -> Env -> State -> Input -> IO Outcome
+eval flags env state@(State imports types decls) input =
   Repl.handleInterrupt (putStrLn "<cancelled>" >> return (Loop state)) $
     case input of
       Skip ->
@@ -388,11 +370,11 @@ eval env state@(State imports types decls) input =
       Import name src ->
         do
           let newState = state {_imports = Map.insert name (B.byteString src) imports}
-          Loop <$> attemptEval env state newState OutputNothing
+          Loop <$> attemptEval flags env state newState OutputNothing
       Type name src ->
         do
           let newState = state {_types = Map.insert name (B.byteString src) types}
-          Loop <$> attemptEval env state newState OutputNothing
+          Loop <$> attemptEval flags env state newState OutputNothing
       Port ->
         do
           putStrLn "I cannot handle port declarations."
@@ -400,9 +382,9 @@ eval env state@(State imports types decls) input =
       Decl name src ->
         do
           let newState = state {_decls = Map.insert name (B.byteString src) decls}
-          Loop <$> attemptEval env state newState (OutputDecl name)
+          Loop <$> attemptEval flags env state newState (OutputDecl name)
       Expr src ->
-        Loop <$> attemptEval env state state (OutputExpr src)
+        Loop <$> attemptEval flags env state state (OutputExpr src)
 
 -- ATTEMPT EVAL
 
@@ -411,22 +393,21 @@ data Output
   | OutputDecl N.Name
   | OutputExpr BS.ByteString
 
-attemptEval :: Env -> State -> State -> Output -> IO State
-attemptEval (Env root interpreter ansi) oldState newState output =
+attemptEval :: Flags -> Env -> State -> State -> Output -> IO State
+attemptEval (Flags _ root outline sources deps) (Env interpreter ansi) oldState newState output =
   do
     result <-
-      BW.withScope $ \scope ->
-        Task.run $
-          do
-            details <-
-              Task.eio Exit.ReplBadDetails $
-                Details.load Reporting.silent scope root
+      Task.run $
+        do
+          details <-
+            Task.eio Exit.ReplBadDetails $
+              Details.loadForMake Reporting.silent outline deps
 
-            artifacts <-
-              Task.eio id $
-                Build.fromRepl root details (toByteString newState output)
+          artifacts <-
+            Task.eio id $
+              Build.fromRepl root details sources (toByteString newState output)
 
-            traverse (Task.mapError Exit.ReplBadGenerate . Generate.repl root details ansi artifacts) (toPrintName output)
+          traverse (Task.mapError Exit.ReplBadGenerate . Generate.repl root details ansi artifacts) (toPrintName output)
 
     case result of
       Left exit ->
@@ -506,44 +487,6 @@ genericHelpMessage =
   \  :exit    Exit the REPL\n\
   \  :help    Show this information\n\
   \  :reset   Clear all previous imports and definitions\n"
-
--- GET ROOT
-
-getRoot :: IO FilePath
-getRoot =
-  do
-    maybeRoot <- Dirs.findRoot
-    case maybeRoot of
-      Just root ->
-        return root
-      Nothing ->
-        do
-          cache <- Dirs.getReplCache
-          let root = cache </> "tmp"
-          Dir.createDirectoryIfMissing True (root </> "src")
-          packageCache <- Dirs.getPackageCache
-          potentialDeps <- DPkg.latestCompatibleVersionForPackages packageCache defaultDeps
-          case potentialDeps of
-            Left _ ->
-              error "Failed to find compatible dependencies for this Gren version."
-            Right compatibleDeps -> do
-              Outline.write root $
-                Outline.Pkg $
-                  Outline.PkgOutline
-                    Pkg.dummyName
-                    Outline.defaultSummary
-                    Licenses.bsd3
-                    V.one
-                    (Outline.ExposedList [])
-                    (Map.map PossibleFilePath.Other compatibleDeps)
-                    C.defaultGren
-                    Platform.Common
-
-              return root
-
-defaultDeps :: [Pkg.Name]
-defaultDeps =
-  [Pkg.core]
 
 -- GET INTERPRETER
 

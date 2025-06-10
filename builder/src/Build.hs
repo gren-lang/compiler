@@ -907,8 +907,8 @@ data ReplArtifacts = ReplArtifacts
     _repl_annotations :: Map.Map Name.Name Can.Annotation
   }
 
-fromRepl :: FilePath -> Details.Details -> B.ByteString -> IO (Either Exit.Repl ReplArtifacts)
-fromRepl root details source =
+fromRepl :: FilePath -> Details.Details -> Map ModuleName.Raw ByteString -> B.ByteString -> IO (Either Exit.Repl ReplArtifacts)
+fromRepl root details rootSources source =
   do
     env@(Env _ _ projectType _ _ _ _ _) <- makeEnv Reporting.ignorer root details
     case Parse.fromByteString projectType source of
@@ -920,7 +920,7 @@ fromRepl root details source =
 
           let deps = map (Src.getImportName . snd) imports
           mvar <- newMVar Map.empty
-          crawlDeps env mvar deps ()
+          crawlDepsSources env mvar rootSources deps ()
 
           statuses <- traverse readMVar =<< readMVar mvar
           midpoint <- checkMidpoint dmvar statuses
