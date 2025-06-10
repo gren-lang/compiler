@@ -161,7 +161,16 @@ type Msg
     | CompiledForRun { path : String, exitCode : Int }
     | RunStarted { processId : Process.Id, streams : ChildProcess.StreamIO }
     | RunExited Int
-    | RedirectTerminalIO (Result Stream.Error { source : Stream.Readable Bytes, target : Stream.Writable Bytes })
+    | RedirectTerminalIO
+        (Result
+            { error : Stream.Error
+            , source : Stream.Readable Bytes
+            , target : Stream.Writable Bytes
+            }
+            { source : Stream.Readable Bytes
+            , target : Stream.Writable Bytes
+            }
+        )
 
 
 port completeStaticBuild : String -> Cmd msg
@@ -239,6 +248,13 @@ update msg model =
                 Cmd.batch
                     [ Stream.write encodedCommand backendStreams.input
                         |> Task.map (\_ -> { source = model.stdin, target = backendStreams.input })
+                        |> Task.mapError
+                            (\err ->
+                                { error = err
+                                , source = model.stdin
+                                , target = backendStreams.input
+                                }
+                            )
                         |> Task.attempt RedirectTerminalIO
                     , if quiet then
                         Cmd.none
@@ -281,11 +297,28 @@ update msg model =
                 Stream.read streams.source
                     |> Task.andThen (\str -> Stream.write str streams.target)
                     |> Task.map (\_ -> streams)
+                    |> Task.mapError
+                        (\err ->
+                            { error = err
+                            , source = streams.source
+                            , target = streams.target
+                            }
+                        )
                     |> Task.attempt RedirectTerminalIO
 
-            RedirectTerminalIO (Err err) ->
-                Stream.Log.line model.stderr ("Something went wrong when communicating with compiler backend: " ++ Stream.errorToString err)
-                    |> Task.execute
+            RedirectTerminalIO (Err { error, source, target }) ->
+                when error is
+                    Stream.Closed ->
+                        Stream.closeWritable target
+                            |> Task.onError
+                                (\err ->
+                                    Stream.Log.line model.stderr ("Failed to close stream:  " ++ Stream.errorToString error)
+                                )
+                            |> Task.execute
+
+                    _ ->
+                        Stream.Log.line model.stderr ("Something went wrong when communicating with compiler backend: " ++ Stream.errorToString error)
+                            |> Task.execute
         }
 
 
