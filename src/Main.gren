@@ -436,6 +436,7 @@ parseUserArgs model compilerPath =
                         |> Task.executeCmd
 
                 CliParser.Make flags ->
+                    -- TODO: Verify correct gren compiler version
                     Terminal.PackageInstall.readProjectOutline model.fsPermission
                         |> Task.andThen
                             (\projectOutline ->
