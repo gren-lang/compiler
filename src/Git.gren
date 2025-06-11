@@ -2,6 +2,8 @@ module Git exposing
     ( clonePackage
     , fetchLatestVersion
     , fetchVersions
+    , hasLocalTag
+    , hasNoLocalChangesSinceTag
     )
 
 
@@ -79,3 +81,29 @@ fetchVersions cpPerm name =
                             |> Array.sortWith SemanticVersion.compare
                             |> Task.succeed
             )
+
+
+hasLocalTag : ChildProcess.Permission -> SemanticVersion -> Task String {}
+hasLocalTag permission vsn =
+    ChildProcess.run permission "git" [ "show", "--name-only", SemanticVersion.toString vsn ]
+        { shell = ChildProcess.NoShell
+        , workingDirectory = ChildProcess.InheritWorkingDirectory
+        , environmentVariables = ChildProcess.InheritEnvironmentVariables
+        , maximumBytesWrittenToStreams = 4096
+        , runDuration = ChildProcess.Milliseconds 5000
+        }
+        |> Task.mapError Debug.toString
+        |> Task.map (\_ -> {})
+
+
+hasNoLocalChangesSinceTag : ChildProcess.Permission -> SemanticVersion -> Task String {}
+hasNoLocalChangesSinceTag permission vsn =
+    ChildProcess.run permission "git" [ "diff-index", "--quiet", SemanticVersion.toString vsn ]
+        { shell = ChildProcess.NoShell
+        , workingDirectory = ChildProcess.InheritWorkingDirectory
+        , environmentVariables = ChildProcess.InheritEnvironmentVariables
+        , maximumBytesWrittenToStreams = 4096
+        , runDuration = ChildProcess.Milliseconds 5000
+        }
+        |> Task.mapError Debug.toString
+        |> Task.map (\_ -> {})

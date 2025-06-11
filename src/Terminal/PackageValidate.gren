@@ -1,0 +1,246 @@
+module Terminal.PackageValidate exposing
+    ( Config
+    , Options
+    , Error (..)
+    , Result
+    , run
+    )
+
+
+import Bytes
+import ChildProcess
+import Compiler.Backend
+import Compiler.PackageName as PackageName exposing (PackageName)
+import Compiler.Paths
+import Compiler.Outline as Outline exposing (Outline)
+import Compiler.Dependencies
+import Git
+import Stream
+import Stream.Log
+import Task exposing (Task)
+import Dict exposing (Dict)
+import FileSystem
+import FileSystem.Path as Path exposing (Path)
+import Bytes exposing (Bytes)
+import SemanticVersion exposing (SemanticVersion)
+import SemanticVersionRange exposing (SemanticVersionRange)
+import Json.Encode as Json
+import Json.Decode as Decode exposing (Decoder)
+import Stream.Extra
+import Terminal.User as User
+import Terminal.PackageInstall
+
+
+type alias Config =
+    { fsPermission : FileSystem.Permission
+    , cpPermission : ChildProcess.Permission
+    , interactive : Bool
+    , useColor : Bool
+    , stdout : Stream.Writable Bytes
+    , stdin : Stream.Readable Bytes
+    }
+
+
+type alias Options =
+    { projectPath : Path
+    , outline : Outline
+    }
+
+
+type Error
+    = ErrorDebug String
+
+
+type alias Result =
+    { projectPath : Path
+    , knownVersions : Array SemanticVersion
+    , previousVersion :
+        Maybe
+            { outline : Outline
+            , rootSources : Dict String String
+            , dependencies : Dict String { outline : Outline.PkgOutline, sources : Dict String String }
+            }
+    , currentVersion :
+        { outline : Outline
+        , rootSources : Dict String String
+        , dependencies : Dict String { outline : Outline.PkgOutline, sources : Dict String String }
+        }
+    }
+
+
+run : Config -> Options -> Task String Result
+run config { projectPath, outline } =
+    when outline is
+        Outline.App _ ->
+            Task.fail "Can only use validate on packages"
+
+        Outline.Pkg pkgOutline ->
+            if noExposed pkgOutline.exposedModules then
+                Task.fail "No exposed modules"
+
+            else if badSummary pkgOutline.summary then
+                Task.fail "Bad summary"
+
+            else if hasLocalDeps pkgOutline.dependencies then
+                Task.fail "Has local dependencies"
+
+            else
+                Task.await (Task.mapError Debug.toString <| Git.fetchVersions config.cpPermission pkgOutline.name) <| \knownVersions ->
+                Task.await (verifyVersion pkgOutline.version knownVersions) <| \{} ->
+                Task.await (verifyReadme config.fsPermission projectPath) <| \{} ->
+                Task.await (verifyLicense config.fsPermission projectPath) <| \{} ->
+                Task.await (Task.mapError Debug.toString <| Git.hasLocalTag config.cpPermission pkgOutline.version) <| \{} ->
+                Task.await (Task.mapError Debug.toString <| Git.hasNoLocalChangesSinceTag config.cpPermission pkgOutline.version) <| \{} ->
+                    Terminal.PackageInstall.run
+                        { fsPermission = config.fsPermission
+                        , cpPermission = config.cpPermission
+                        , interactive = config.interactive
+                        , useColor = config.useColor
+                        , stdout = config.stdout
+                        , stdin = config.stdin
+                        }
+                        { projectPath = projectPath, outline = outline }
+                        |> Task.mapError Debug.toString
+                        |> Task.andThen
+                            (\currentPackage ->
+                                 let
+                                    maybePreviousPackageVersion =
+                                        knownVersions
+                                            |> Array.keepIf (\v -> SemanticVersion.compare v pkgOutline.version == LT)
+                                            |> Array.sortWith SemanticVersion.compare
+                                            |> Array.last
+                                in
+                                when maybePreviousPackageVersion is
+                                    Nothing ->
+                                        Task.succeed
+                                            { projectPath = projectPath
+                                            , knownVersions = knownVersions
+                                            , previousVersion = Nothing
+                                            , currentVersion =
+                                                { outline = currentPackage.outline
+                                                , rootSources = currentPackage.rootSources
+                                                , dependencies = currentPackage.dependencies
+                                                }
+                                            }
+
+                                    Just packageVersion ->
+                                        let
+                                            repoPath =
+                                                Terminal.PackageInstall.localRepoPath pkgOutline.name packageVersion projectPath
+                                        in
+                                        FileSystem.remove config.fsPermission { recursive = True } repoPath
+                                            |> Task.onError (\_ -> Task.succeed repoPath) -- Probably because directory doesn't exist, that's fine
+                                            |> Task.andThen (\_ -> Git.clonePackage config.cpPermission repoPath pkgOutline.name packageVersion)
+                                            |> Task.mapError (\{ stderr } -> Maybe.withDefault "" <| Bytes.toString stderr)
+                                            |> Task.andThen
+                                                (\_ ->
+                                                    Path.append (Path.fromPosixString "gren.json") repoPath
+                                                        |> Terminal.PackageInstall.readOutline config.fsPermission
+                                                        |> Task.mapError Debug.toString
+                                                        |> Task.andThen
+                                                            (\result ->
+                                                                when result is
+                                                                    Ok decodedOutline ->
+                                                                        Task.succeed decodedOutline
+
+                                                                    Err err ->
+                                                                        Task.fail (Debug.toString err)
+                                                            )
+                                                )
+                                            |> Task.andThen
+                                                (\previousOutline ->
+                                                    Terminal.PackageInstall.run
+                                                        { fsPermission = config.fsPermission
+                                                        , cpPermission = config.cpPermission
+                                                        , interactive = config.interactive
+                                                        , useColor = config.useColor
+                                                        , stdout = config.stdout
+                                                        , stdin = config.stdin
+                                                        }
+                                                        { projectPath = repoPath, outline = previousOutline }
+                                                        |> Task.mapError Debug.toString
+                                                )
+                                            |> Task.map
+                                                (\previousPackage ->
+                                                    { projectPath = projectPath
+                                                    , knownVersions = knownVersions
+                                                    , previousVersion =
+                                                        Just
+                                                            { outline = previousPackage.outline
+                                                            , rootSources = previousPackage.rootSources
+                                                            , dependencies = previousPackage.dependencies
+                                                            }
+                                                    , currentVersion =
+                                                        { outline = currentPackage.outline
+                                                        , rootSources = currentPackage.rootSources
+                                                        , dependencies = currentPackage.dependencies
+                                                        }
+                                                    }
+                                                )
+                            )
+
+
+badSummary : String -> Bool
+badSummary summary =
+    String.isEmpty summary || Outline.defaultSummary == summary
+
+
+noExposed : Outline.Exposed -> Bool
+noExposed exposed =
+    when exposed is
+        Outline.ExposedArray modules ->
+            Array.isEmpty modules
+
+        Outline.ExposedDict chunks ->
+            Dict.all (\_ modules -> Array.isEmpty modules) chunks
+
+
+hasLocalDeps : Dict String (Outline.VersionConstraint SemanticVersionRange) -> Bool
+hasLocalDeps dependencies =
+    Dict.any
+        (\_ cons ->
+            when cons is
+                Outline.LocalPath _ ->
+                    True
+
+                Outline.Version _ ->
+                    False
+        )
+        dependencies
+
+
+verifyVersion : SemanticVersion -> Array SemanticVersion -> Task String {}
+verifyVersion vsn publishedVersions =
+    if Array.isEmpty publishedVersions then
+        if vsn.major == 1 && vsn.minor == 0 && vsn.patch == 0 then
+            Task.succeed {}
+
+        else
+            Task.fail "No published version and version isn't 1.0.0"
+
+    else
+        Task.succeed {}
+
+
+verifyReadme : FileSystem.Permission -> Path -> Task String {}
+verifyReadme permission projectPath =
+    let
+        readmePath = Path.appendPosixString "README" projectPath
+    in
+    FileSystem.readFile permission readmePath
+        |> Task.mapError (\_ -> "Couldn't read README")
+        |> Task.andThen
+            (\content ->
+                if Bytes.length content < 300 then
+                    Task.fail "Short readme"
+
+                else
+                    Task.succeed {}
+            )
+
+
+verifyLicense : FileSystem.Permission -> Path -> Task String {}
+verifyLicense permission projectPath =
+    FileSystem.checkAccess permission [] (Path.appendPosixString "LICENSE" projectPath)
+        |> Task.mapError (\_ -> "Couldn't read LICENSE")
+        |> Task.map (\_ -> {})
