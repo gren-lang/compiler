@@ -152,9 +152,7 @@ run config =
 
 getNullStream : Task x (Stream.Transformation Bytes Bytes)
 getNullStream =
-    Stream.customTransformation
-        (\_ _ -> Stream.UpdateState (Bytes.fromString ""))
-        (Bytes.fromString "")
+    Stream.nullTransformation (Bytes.fromString "")
 
 
 getProjectOutline : FileSystem.Permission -> Task Error { projectPath : Path, outline : Outline }
