@@ -288,9 +288,7 @@ update msg model =
                             (\error ->
                                 -- TODO: Terminal.Run.errorToString
                                 Stream.Log.line model.stderr (Debug.toString error)
-                                    |> Task.andThen (\_ -> Node.exitWithCode 1)
-                                    |> Task.execute
-                                    |> Task.succeed
+                                    |> Task.map (\_ -> Node.exitWithCode 1)
                             )
                         |> Task.executeCmd
 
