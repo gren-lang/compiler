@@ -45,7 +45,7 @@ type alias RunConfig msg =
     { cpPermission : ChildProcess.Permission
     , fsPermission : FileSystem.Permission
     , path : String
-    , onInit : { processId : Process.Id, streams : ChildProcess.StreamIO } -> msg
+    , onInit : Process.Id -> msg
     , onExit : Int -> msg
     }
 
@@ -127,7 +127,7 @@ run config =
                         outline_.platform
             
             runWith command =
-                ChildProcess.defaultSpawnOptions (ChildProcess.External config.onInit) config.onExit
+                ChildProcess.defaultSpawnOptions (ChildProcess.Integrated config.onInit) config.onExit
                     |> ChildProcess.spawn config.cpPermission command [ config.path ]
                     |> Task.succeed
         in

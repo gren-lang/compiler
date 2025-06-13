@@ -159,7 +159,7 @@ type Msg
     | CompilerRan Int
     | CompilerRanStatic { path : String, exitCode : Int }
     | CompiledForRun { path : String, exitCode : Int }
-    | RunStarted { processId : Process.Id, streams : ChildProcess.StreamIO }
+    | RunStarted Process.Id
     | RunExited Int
     | RedirectTerminalIO
         (Result
