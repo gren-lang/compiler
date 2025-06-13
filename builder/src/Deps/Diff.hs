@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Deps.Diff
   ( diff,
     PackageChanges (..),
@@ -8,36 +6,21 @@ module Deps.Diff
     moduleChangeMagnitude,
     toMagnitude,
     bump,
-    getDocs,
   )
 where
 
-import BackgroundWriter qualified as BW
-import Build qualified
 import Control.Monad (zipWithM)
 import Data.Function (on)
 import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Monoid qualified as Monoid
 import Data.Name qualified as Name
-import Data.NonEmptyList qualified as NE
 import Data.Set qualified as Set
-import Deps.Package qualified as Package
-import Directories qualified as Dirs
-import File qualified
 import Gren.Compiler.Type qualified as Type
-import Gren.Details qualified as Details
 import Gren.Docs qualified as Docs
 import Gren.Magnitude qualified as M
 import Gren.ModuleName qualified as ModuleName
-import Gren.Outline qualified as Outline
-import Gren.Package qualified as Pkg
 import Gren.Version qualified as V
-import Json.Decode qualified as D
-import Reporting qualified
-import Reporting.Exit qualified as Exit
-import Reporting.Task qualified as Task
-import System.FilePath ((</>))
 
 -- CHANGES
 
@@ -283,40 +266,3 @@ unionChangesMagnitude unionChanges =
       unionChanges
     then M.MINOR
     else M.MAJOR
-
--- GET DOCS
-
--- TODO: Return better error message than DP_Cache
-getDocs :: Dirs.PackageCache -> Pkg.Name -> V.Version -> Task.Task Exit.DocsProblem Docs.Documentation
-getDocs cache pkg vsn =
-  do
-    Task.eio Exit.DP_Git $ Package.installPackageVersion cache pkg vsn
-    let home = Dirs.package cache pkg vsn
-    let path = home </> "docs.json"
-    exists <- Task.io $ File.exists path
-    if exists
-      then do
-        bytes <- Task.io $ File.readUtf8 path
-        case D.fromByteString Docs.decoder bytes of
-          Right docs ->
-            return docs
-          Left _ ->
-            do
-              Task.io $ File.remove home
-              Task.throw Exit.DP_Cache
-      else do
-        details <- Task.eio (const Exit.DP_Cache) $
-          BW.withScope $ \scope ->
-            Details.load Reporting.silent scope home
-
-        outline <- Task.eio (const Exit.DP_Cache) $ Outline.read home
-        case outline of
-          (Outline.Pkg (Outline.PkgOutline _ _ _ _ exposed _ _ _)) ->
-            case Outline.flattenExposed exposed of
-              [] ->
-                Task.throw Exit.DP_Cache
-              e : es ->
-                Task.eio (const Exit.DP_Cache) $
-                  Build.fromExposed Reporting.silent home details Build.KeepDocs (NE.List e es)
-          _ ->
-            Task.throw Exit.DP_Cache

@@ -1,6 +1,5 @@
 module File
   ( Time,
-    getTime,
     zeroTime,
     writeBinary,
     readBinary,
@@ -19,8 +18,6 @@ import Data.ByteString qualified as BS
 import Data.ByteString.Builder qualified as B
 import Data.ByteString.Internal qualified as BS
 import Data.Fixed qualified as Fixed
-import Data.Time.Clock qualified as Time
-import Data.Time.Clock.POSIX qualified as Time
 import Foreign.ForeignPtr qualified as FPtr
 import GHC.IO.Exception (IOErrorType (InvalidArgument), IOException)
 import System.Directory qualified as Dir
@@ -33,12 +30,6 @@ import System.IO.Error (annotateIOError, ioeGetErrorType, modifyIOError)
 
 newtype Time = Time Fixed.Pico
   deriving (Eq, Ord)
-
-getTime :: FilePath -> IO Time
-getTime path =
-  fmap
-    (Time . Time.nominalDiffTimeToSeconds . Time.utcTimeToPOSIXSeconds)
-    (Dir.getModificationTime path)
 
 zeroTime :: Time
 zeroTime =

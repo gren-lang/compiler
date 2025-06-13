@@ -65,10 +65,7 @@ bump flags@(Flags _ root knownVersions _ _) currentOutline@(Outline.PkgOutline _
                     Exit.BumpUnexpectedVersion vsn $
                       map head (List.group (List.sort bumpableVersions))
       [] ->
-        do
-          -- TODO: move to frontend
-          checkNewPackage flags root currentOutline
-          return $ Right ()
+        error "known versions was empty"
 
 -- CHECK NEW PACKAGE
 
@@ -119,14 +116,14 @@ generateDocs root outline@(Outline.PkgOutline _ _ _ _ exposed _ _ _) sources sol
   do
     details <-
       Task.eio Exit.BumpBadDetails $
-        Details.loadForMake Reporting.silent (Outline.Pkg outline) solution
+        Details.load Reporting.silent (Outline.Pkg outline) solution
 
     case Outline.flattenExposed exposed of
       [] ->
         Task.throw Exit.BumpNoExposed
       e : es ->
         Task.eio Exit.BumpBadBuild $
-          Build.fromExposedSources Reporting.silent root details sources Build.KeepDocs (NE.List e es)
+          Build.fromExposed Reporting.silent root details sources Build.KeepDocs (NE.List e es)
 
 -- CHANGE VERSION
 

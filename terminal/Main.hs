@@ -34,8 +34,8 @@ main =
             Make.run $ Make.Flags optimize sourcemaps output report paths projectPath outline rootSources deps
           Right (Command.Docs (Command.DocsFlags output report projectPath outline rootSources deps)) ->
             Docs.run $ Docs.Flags output report projectPath outline rootSources deps
-          Right Command.PackageValidate ->
-            Validate.run
+          Right (Command.PackageValidate (Command.ValidateFlags projectPath knownVersions currentVersion maybePreviousVersion)) ->
+            Validate.run $ Validate.Flags projectPath knownVersions currentVersion maybePreviousVersion
           Right (Command.PackageBump (Command.BumpFlags interactive projectPath knownVersions currentVersion publishedVersion)) ->
             Bump.run $ Bump.Flags interactive projectPath knownVersions currentVersion publishedVersion
           Right (Command.PackageDiff (Command.DiffFlags interactive projectPath firstPackage secondPackage)) ->

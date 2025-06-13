@@ -55,7 +55,7 @@ runHelp :: Reporting.Style -> Flags -> IO (Either Exit.Docs ())
 runHelp style (Flags maybeOutput _ root outline sources dependencies) =
   Task.run $
     do
-      details <- Task.eio Exit.DocsBadDetails (Details.loadForMake style outline dependencies)
+      details <- Task.eio Exit.DocsBadDetails (Details.load style outline dependencies)
       exposed <- getExposed details
       case maybeOutput of
         Just DevNull ->
@@ -93,4 +93,4 @@ getExposed (Details.Details _ validOutline _ _ _ _) =
 buildExposed :: Reporting.Style -> FilePath -> Details.Details -> Map ModuleName.Raw ByteString -> Build.DocsGoal a -> NE.List ModuleName.Raw -> Task a
 buildExposed style root details sources docsGoal exposed =
   Task.eio Exit.DocsBadBuild $
-    Build.fromExposedSources style root details sources docsGoal exposed
+    Build.fromExposed style root details sources docsGoal exposed

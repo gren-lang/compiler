@@ -5,6 +5,7 @@ module Command
     MakeFlags (..),
     DocsFlags (..),
     BumpFlags (..),
+    ValidateFlags (..),
     DiffFlags (..),
     ProjectInfo (..),
   )
@@ -28,7 +29,7 @@ data Command
   = Repl ReplFlags
   | Make MakeFlags
   | Docs DocsFlags
-  | PackageValidate
+  | PackageValidate ValidateFlags
   | PackageBump BumpFlags
   | PackageDiff DiffFlags
   deriving (Show)
@@ -74,6 +75,14 @@ data BumpFlags = BumpFlags
   }
   deriving (Show)
 
+data ValidateFlags = ValidateFlags
+  { _validate_project_path :: String,
+    _validate_known_versions :: [Version.Version],
+    _validate_current :: ProjectInfo,
+    _validate_previous :: Maybe ProjectInfo
+  }
+  deriving (Show)
+
 data ProjectInfo = ProjectInfo
   { _project_outline :: Outline,
     _project_root_sources :: Map ModuleName.Raw ByteString,
@@ -103,7 +112,7 @@ commandDecoder =
       "repl" -> Repl <$> replDecoder
       "make" -> Make <$> makeDecoder
       "docs" -> Docs <$> docsDecoder
-      "packageValidate" -> Json.succeed PackageValidate
+      "packageValidate" -> PackageValidate <$> validateDecoder
       "packageBump" -> PackageBump <$> bumpDecoder
       "packageDiff" -> PackageDiff <$> diffDecoder
       _ -> Json.failure (UnknownCommand $ Utf8.toChars tipe)
@@ -182,6 +191,14 @@ bumpDecoder =
     <*> Json.field (BS.pack "known-versions") (Json.list versionDecoder)
     <*> Json.field (BS.pack "current-version") projectInfoDecoder
     <*> Json.field (BS.pack "published-version") projectInfoDecoder
+
+validateDecoder :: Json.Decoder CommandDecoderError ValidateFlags
+validateDecoder =
+  ValidateFlags
+    <$> Json.field (BS.pack "project-path") (fmap Utf8.toChars Json.string)
+    <*> Json.field (BS.pack "known-versions") (Json.list versionDecoder)
+    <*> Json.field (BS.pack "current-version") projectInfoDecoder
+    <*> Json.field (BS.pack "previous-version") (maybeDecoder projectInfoDecoder)
 
 projectInfoDecoder :: Json.Decoder CommandDecoderError ProjectInfo
 projectInfoDecoder =

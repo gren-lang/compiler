@@ -71,14 +71,14 @@ generateDocs root outline@(Outline.PkgOutline _ _ _ _ exposed _ _ _) sources sol
   do
     details <-
       Task.eio Exit.DiffBadDetails $
-        Details.loadForMake Reporting.silent (Outline.Pkg outline) solution
+        Details.load Reporting.silent (Outline.Pkg outline) solution
 
     case Outline.flattenExposed exposed of
       [] ->
         Task.throw Exit.DiffNoExposed
       e : es ->
         Task.eio Exit.DiffBadBuild $
-          Build.fromExposedSources Reporting.silent root details sources Build.KeepDocs (NE.List e es)
+          Build.fromExposed Reporting.silent root details sources Build.KeepDocs (NE.List e es)
 
 -- WRITE DIFF
 

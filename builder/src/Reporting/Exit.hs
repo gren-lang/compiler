@@ -52,7 +52,6 @@ import Data.Maybe (mapMaybe)
 import Data.Name qualified as N
 import Data.NonEmptyList qualified as NE
 import File qualified
-import Git qualified
 import Gren.Constraint qualified as C
 import Gren.Magnitude qualified as M
 import Gren.ModuleName qualified as ModuleName
@@ -94,7 +93,7 @@ data Init
   = InitNoSolution [Pkg.Name]
   | InitSolverProblem Solver
   | InitAlreadyExists
-  | InitNoCompatibleDependencies (Maybe Git.Error)
+  | InitNoCompatibleDependencies (Maybe ())
 
 initToReport :: Init -> Help.Report
 initToReport exit =
@@ -852,7 +851,7 @@ toBadReadmeReport title summary =
 -- DOCS
 
 data DocsProblem
-  = DP_Git Git.Error
+  = DP_Git ()
   | DP_Data String BS.ByteString
   | DP_Cache
 
@@ -1045,7 +1044,7 @@ uninstallToReport exit =
 data Outdated
   = OutdatedNoOutline
   | OutdatedBadOutline Outline
-  | OutdatedGitTrouble Git.Error
+  | OutdatedGitTrouble ()
 
 outdatedToReport :: Outdated -> Help.Report
 outdatedToReport exit =
@@ -1073,8 +1072,8 @@ data Solver
   | SolverBadLocalDepInvalidGrenJson FilePath Pkg.Name
   | SolverLocalDepNotFound FilePath Pkg.Name
   | SolverTransientLocalDep Pkg.Name Pkg.Name
-  | SolverBadGitOperationUnversionedPkg Pkg.Name Git.Error
-  | SolverBadGitOperationVersionedPkg Pkg.Name V.Version Git.Error
+  | SolverBadGitOperationUnversionedPkg Pkg.Name ()
+  | SolverBadGitOperationVersionedPkg Pkg.Name V.Version ()
   | SolverIncompatibleSolvedVersion Pkg.Name Pkg.Name C.Constraint V.Version
   | SolverIncompatibleVersionRanges Pkg.Name Pkg.Name C.Constraint C.Constraint
   | SolverIncompatiblePlatforms Pkg.Name Platform.Platform Platform.Platform
@@ -2045,49 +2044,51 @@ toDetailsReport details =
 
 --
 
-toGitErrorReport :: String -> Git.Error -> String -> Help.Report
-toGitErrorReport title err context =
-  let toGitReport intro details =
-        Help.report title Nothing intro details
-   in case err of
-        Git.MissingGit ->
-          toGitReport
-            (context ++ ", but I couldn't find a git binary.")
-            [ D.reflow
-                "I use git to clone dependencies from github.\
-                \ Make sure that git is installed and present in your PATH."
-            ]
-        Git.NoVersions ->
-          toGitReport
-            (context ++ ", but I couldn't find any semver compatible tags in this repo.")
-            [ D.reflow
-                "Gren packages are just git repositories with tags following the \
-                \ semantic versioning scheme. However, it seems that this particular repo \
-                \ doesn't have _any_ semantic version tags!"
-            ]
-        Git.NoSuchRepo ->
-          toGitReport
-            (context ++ ", but I couldn't find the repo on github.")
-            [ D.reflow
-                "Gren packages are just git repositories hosted on github, however \
-                \ it seems like this repo doesn't exist."
-            ]
-        Git.NoSuchRepoOrVersion vsn ->
-          toGitReport
-            (context ++ ", but I couldn't find the correct version of this package on github.")
-            [ D.reflow $
-                "Gren packages are just git repositories hosted on github with semver \
-                \ formatted tags. However, it seems like this package, or version "
-                  ++ V.toChars vsn
-                  ++ ", doesn't exist."
-            ]
-        Git.FailedCommand args errorMsg ->
-          toGitReport
-            (context ++ ", so I tried to execute:")
-            [ D.indent 4 $ D.reflow $ unwords args,
-              D.reflow "But it returned the following error message:",
-              D.indent 4 $ D.reflow errorMsg
-            ]
+toGitErrorReport :: String -> () -> String -> Help.Report
+toGitErrorReport title _ _ =
+  Help.report title Nothing "" []
+
+--   let toGitReport intro details =
+--         Help.report title Nothing intro details
+--    in case err of
+--         Git.MissingGit ->
+--           toGitReport
+--             (context ++ ", but I couldn't find a git binary.")
+--             [ D.reflow
+--                 "I use git to clone dependencies from github.\
+--                 \ Make sure that git is installed and present in your PATH."
+--             ]
+--         Git.NoVersions ->
+--           toGitReport
+--             (context ++ ", but I couldn't find any semver compatible tags in this repo.")
+--             [ D.reflow
+--                 "Gren packages are just git repositories with tags following the \
+--                 \ semantic versioning scheme. However, it seems that this particular repo \
+--                 \ doesn't have _any_ semantic version tags!"
+--             ]
+--         Git.NoSuchRepo ->
+--           toGitReport
+--             (context ++ ", but I couldn't find the repo on github.")
+--             [ D.reflow
+--                 "Gren packages are just git repositories hosted on github, however \
+--                 \ it seems like this repo doesn't exist."
+--             ]
+--         Git.NoSuchRepoOrVersion vsn ->
+--           toGitReport
+--             (context ++ ", but I couldn't find the correct version of this package on github.")
+--             [ D.reflow $
+--                 "Gren packages are just git repositories hosted on github with semver \
+--                 \ formatted tags. However, it seems like this package, or version "
+--                   ++ V.toChars vsn
+--                   ++ ", doesn't exist."
+--             ]
+--         Git.FailedCommand args errorMsg ->
+--           toGitReport
+--             (context ++ ", so I tried to execute:")
+--             [ D.indent 4 $ D.reflow $ unwords args,
+--               D.reflow "But it returned the following error message:",
+--               D.indent 4 $ D.reflow errorMsg
+--             ]
 
 -- MAKE
 

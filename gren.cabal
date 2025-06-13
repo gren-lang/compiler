@@ -51,13 +51,10 @@ Library common
         -- from builder/
         AbsoluteSrcDir
         Build
-        BackgroundWriter
         Deps.Diff
         Deps.Package
-        Deps.Solver
         File
         Generate
-        Git
         Reporting
         Reporting.Exit
         Reporting.Exit.Help
@@ -188,10 +185,8 @@ Library common
         filepath >= 1 && < 2.0,
         ghc-prim >= 0.5.2,
         mtl >= 2.2.1 && < 3,
-        process,
         raw-strings-qq,
         scientific,
-        time >= 1.9.1,
         utf8-string,
         vector,
         base64-bytestring >= 1.2 && < 2,
@@ -231,7 +226,6 @@ Executable gren
         haskeline,
         utf8-string,
         mtl >= 2.2.1 && < 3,
-        ansi-wl-pprint >= 0.6.8 && < 0.7,
 
 Test-Suite gren-tests
     default-language: GHC2021

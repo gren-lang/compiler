@@ -1,104 +1,11 @@
 module Deps.Package
-  ( getVersions,
-    --
-    LatestCompatibleVersionError (..),
-    latestCompatibleVersion,
-    latestCompatibleVersionForPackages,
-    --
-    bumpPossibilities,
-    isPackageInCache,
-    installPackageVersion,
+  ( bumpPossibilities,
   )
 where
 
 import Data.List qualified as List
-import Data.Map qualified as Map
-import Directories qualified as Dirs
-import Git qualified
-import Gren.Constraint qualified as C
 import Gren.Magnitude qualified as M
-import Gren.Outline qualified as Outline
-import Gren.Package qualified as Pkg
 import Gren.Version qualified as V
-import System.Directory qualified as Dir
-
--- GET VERSIONS
-
-getVersions :: Pkg.Name -> IO (Either Git.Error (V.Version, [V.Version]))
-getVersions name =
-  Git.tags (Git.githubUrl name)
-
--- GET LATEST COMPATIBLE VERSION
-
-data LatestCompatibleVersionError
-  = NoCompatiblePackage
-  | GitError Git.Error
-
-latestCompatibleVersion ::
-  Dirs.PackageCache ->
-  Pkg.Name ->
-  IO (Either LatestCompatibleVersionError V.Version)
-latestCompatibleVersion cache name = do
-  versionsResult <- getVersions name
-  case versionsResult of
-    Right (first, rest) ->
-      let versionsHighToLow = List.reverse $ List.sort (first : rest)
-       in do
-            potentiallyCompatibleVersion <- getCompatibleVersion cache name versionsHighToLow
-            case potentiallyCompatibleVersion of
-              Nothing ->
-                return $ Left NoCompatiblePackage
-              Just v ->
-                return $ Right v
-    Left gitError ->
-      return $ Left $ GitError gitError
-
-getCompatibleVersion :: Dirs.PackageCache -> Pkg.Name -> [V.Version] -> IO (Maybe V.Version)
-getCompatibleVersion cache name versions =
-  case versions of
-    [] ->
-      return Nothing
-    vsn : rest -> do
-      potentialInstallationError <- installPackageVersion cache name vsn
-      case potentialInstallationError of
-        Left _ ->
-          getCompatibleVersion cache name rest
-        Right () -> do
-          let pkgPath = Dirs.package cache name vsn
-          potentialOutline <- Outline.read pkgPath
-          case potentialOutline of
-            Right (Outline.Pkg outline) ->
-              if C.goodGren (Outline._pkg_gren_version outline)
-                then return $ Just vsn
-                else getCompatibleVersion cache name rest
-            _ ->
-              getCompatibleVersion cache name rest
-
--- LATEST COMPATIBLE VERSION FOR PACKAGES
-
-latestCompatibleVersionForPackages ::
-  Dirs.PackageCache ->
-  [Pkg.Name] ->
-  IO (Either LatestCompatibleVersionError (Map.Map Pkg.Name C.Constraint))
-latestCompatibleVersionForPackages cache pkgs =
-  latestCompatibleVersionForPackagesHelp cache pkgs Map.empty
-
-latestCompatibleVersionForPackagesHelp ::
-  Dirs.PackageCache ->
-  [Pkg.Name] ->
-  Map.Map Pkg.Name C.Constraint ->
-  IO (Either LatestCompatibleVersionError (Map.Map Pkg.Name C.Constraint))
-latestCompatibleVersionForPackagesHelp cache pkgs result =
-  case pkgs of
-    [] -> return $ Right result
-    pkg : rest -> do
-      possibleVersion <- latestCompatibleVersion cache pkg
-      case possibleVersion of
-        Left err ->
-          return $ Left err
-        Right vsn ->
-          let newResult = Map.insert pkg (C.untilNextMajor vsn) result
-           in latestCompatibleVersionForPackagesHelp cache rest newResult
 
 -- GET POSSIBILITIES
 
@@ -118,19 +25,3 @@ sameMajor (V.Version major1 _ _) (V.Version major2 _ _) =
 sameMinor :: V.Version -> V.Version -> Bool
 sameMinor (V.Version major1 minor1 _) (V.Version major2 minor2 _) =
   major1 == major2 && minor1 == minor2
-
--- INSTALL PACKAGE VERSION
-
-isPackageInCache :: Dirs.PackageCache -> Pkg.Name -> V.Version -> IO Bool
-isPackageInCache cache pkg vsn = do
-  let versionedPkgPath = Dirs.package cache pkg vsn
-  Dir.doesDirectoryExist versionedPkgPath
-
-installPackageVersion :: Dirs.PackageCache -> Pkg.Name -> V.Version -> IO (Either Git.Error ())
-installPackageVersion cache pkg vsn = do
-  let versionedPkgPath = Dirs.package cache pkg vsn
-  versionedPkgExists <- Dir.doesDirectoryExist versionedPkgPath
-  if versionedPkgExists
-    then return $ Right ()
-    else do
-      Git.clone (Git.githubUrl pkg) vsn versionedPkgPath

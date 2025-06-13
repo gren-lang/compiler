@@ -75,7 +75,7 @@ runHelp style flags@(Flags optimize withSourceMaps maybeOutput _ modules root ou
   Task.run $
     do
       desiredMode <- getMode optimize
-      details <- Task.eio Exit.MakeBadDetails (Details.loadForMake style outline deps)
+      details <- Task.eio Exit.MakeBadDetails (Details.load style outline deps)
       let platform = getPlatform details
       case modules of
         [] ->
@@ -180,7 +180,7 @@ getPlatform (Details.Details _ validOutline _ _ _ _) = do
 buildExposed :: Reporting.Style -> FilePath -> Details.Details -> Map ModuleName.Raw ByteString -> NE.List ModuleName.Raw -> Task ()
 buildExposed style root details sources exposed =
   Task.eio Exit.MakeCannotBuild $
-    Build.fromExposedSources style root details sources Build.IgnoreDocs exposed
+    Build.fromExposed style root details sources Build.IgnoreDocs exposed
 
 buildPaths :: Reporting.Style -> FilePath -> Details.Details -> Map ModuleName.Raw ByteString -> NE.List ModuleName.Raw -> Task Build.Artifacts
 buildPaths style root details sources modules =

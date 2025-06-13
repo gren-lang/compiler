@@ -401,7 +401,7 @@ attemptEval (Flags _ root outline sources deps) (Env interpreter ansi) oldState 
         do
           details <-
             Task.eio Exit.ReplBadDetails $
-              Details.loadForMake Reporting.silent outline deps
+              Details.load Reporting.silent outline deps
 
           artifacts <-
             Task.eio id $

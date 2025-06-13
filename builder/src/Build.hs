@@ -5,9 +5,7 @@
 
 module Build
   ( fromExposed,
-    fromExposedSources,
     fromPaths,
-    fromPathsSources,
     fromMainModules,
     fromRepl,
     Artifacts (..),
@@ -63,7 +61,7 @@ import Reporting.Error.Syntax qualified as Syntax
 import Reporting.Exit qualified as Exit
 import Reporting.Render.Type.Localizer qualified as L
 import System.Directory qualified as Dir
-import System.FilePath ((<.>), (</>))
+import System.FilePath ((<.>))
 import System.FilePath qualified as FP
 
 -- ENVIRONMENT
@@ -110,8 +108,8 @@ forkWithKey func dict =
 
 -- FROM EXPOSED
 
-fromExposed :: Reporting.Style -> FilePath -> Details.Details -> DocsGoal docs -> NE.List ModuleName.Raw -> IO (Either Exit.BuildProblem docs)
-fromExposed style root details docsGoal exposed@(NE.List e es) =
+fromExposed :: Reporting.Style -> FilePath -> Details.Details -> Map ModuleName.Raw ByteString -> DocsGoal docs -> NE.List ModuleName.Raw -> IO (Either Exit.BuildProblem docs)
+fromExposed style root details sources docsGoal exposed@(NE.List e es) =
   Reporting.trackBuild style $ \key ->
     do
       env <- makeEnv key root details
@@ -120,36 +118,7 @@ fromExposed style root details docsGoal exposed@(NE.List e es) =
       -- crawl
       mvar <- newEmptyMVar
       let docsNeed = toDocsNeed docsGoal
-      roots <- Map.fromKeysA (fork . crawlModule env mvar docsNeed) (e : es)
-      putMVar mvar roots
-      mapM_ readMVar roots
-      statuses <- traverse readMVar =<< readMVar mvar
-
-      -- compile
-      midpoint <- checkMidpoint dmvar statuses
-      case midpoint of
-        Left problem ->
-          return (Left (Exit.BuildProjectProblem problem))
-        Right foreigns ->
-          do
-            rmvar <- newEmptyMVar
-            resultMVars <- forkWithKey (checkModule env foreigns rmvar) statuses
-            putMVar rmvar resultMVars
-            results <- traverse readMVar resultMVars
-            writeDetails root details results
-            finalizeExposed root docsGoal exposed results
-
-fromExposedSources :: Reporting.Style -> FilePath -> Details.Details -> Map ModuleName.Raw ByteString -> DocsGoal docs -> NE.List ModuleName.Raw -> IO (Either Exit.BuildProblem docs)
-fromExposedSources style root details sources docsGoal exposed@(NE.List e es) =
-  Reporting.trackBuild style $ \key ->
-    do
-      env <- makeEnv key root details
-      dmvar <- Details.loadInterfaces root details
-
-      -- crawl
-      mvar <- newEmptyMVar
-      let docsNeed = toDocsNeed docsGoal
-      roots <- Map.fromKeysA (fork . crawlModuleSources env mvar sources docsNeed) (e : es)
+      roots <- Map.fromKeysA (fork . crawlModule env mvar sources docsNeed) (e : es)
       putMVar mvar roots
       mapM_ readMVar roots
       statuses <- traverse readMVar =<< readMVar mvar
@@ -184,8 +153,8 @@ data Module
 type Dependencies =
   Map.Map ModuleName.Canonical I.DependencyInterface
 
-fromPaths :: Reporting.Style -> FilePath -> Details.Details -> NE.List FilePath -> IO (Either Exit.BuildProblem Artifacts)
-fromPaths style root details paths =
+fromPaths :: Reporting.Style -> FilePath -> Details.Details -> Map ModuleName.Raw ByteString -> NE.List FilePath -> IO (Either Exit.BuildProblem Artifacts)
+fromPaths style root details sources paths =
   Reporting.trackBuild style $ \key ->
     do
       env <- makeEnv key root details
@@ -199,41 +168,7 @@ fromPaths style root details paths =
             -- crawl
             dmvar <- Details.loadInterfaces root details
             smvar <- newMVar Map.empty
-            srootMVars <- traverse (fork . crawlRoot env smvar) lroots
-            sroots <- traverse readMVar srootMVars
-            statuses <- traverse readMVar =<< readMVar smvar
-
-            midpoint <- checkMidpointAndRoots dmvar statuses sroots
-            case midpoint of
-              Left problem ->
-                return (Left (Exit.BuildProjectProblem problem))
-              Right foreigns ->
-                do
-                  -- compile
-                  rmvar <- newEmptyMVar
-                  resultsMVars <- forkWithKey (checkModule env foreigns rmvar) statuses
-                  putMVar rmvar resultsMVars
-                  rrootMVars <- traverse (fork . checkRoot env resultsMVars) sroots
-                  results <- traverse readMVar resultsMVars
-                  writeDetails root details results
-                  toArtifacts env foreigns results <$> traverse readMVar rrootMVars
-
-fromPathsSources :: Reporting.Style -> FilePath -> Details.Details -> Map ModuleName.Raw ByteString -> NE.List FilePath -> IO (Either Exit.BuildProblem Artifacts)
-fromPathsSources style root details sources paths =
-  Reporting.trackBuild style $ \key ->
-    do
-      env <- makeEnv key root details
-
-      elroots <- findRoots env paths
-      case elroots of
-        Left problem ->
-          return (Left (Exit.BuildProjectProblem problem))
-        Right lroots ->
-          do
-            -- crawl
-            dmvar <- Details.loadInterfaces root details
-            smvar <- newMVar Map.empty
-            srootMVars <- traverse (fork . crawlRootSources env smvar sources) lroots
+            srootMVars <- traverse (fork . crawlRoot env smvar sources) lroots
             sroots <- traverse readMVar srootMVars
             statuses <- traverse readMVar =<< readMVar smvar
 
@@ -305,8 +240,8 @@ data Status
   | SForeign Pkg.Name
   | SKernel
 
-crawlDeps :: Env -> MVar StatusDict -> [ModuleName.Raw] -> a -> IO a
-crawlDeps env mvar deps blockedValue =
+crawlDeps :: Env -> MVar StatusDict -> Map ModuleName.Raw ByteString -> [ModuleName.Raw] -> a -> IO a
+crawlDeps env mvar sources deps blockedValue =
   do
     statusDict <- takeMVar mvar
     let depsDict = Map.fromKeys (\_ -> ()) deps
@@ -316,64 +251,12 @@ crawlDeps env mvar deps blockedValue =
     mapM_ readMVar statuses
     return blockedValue
   where
-    crawlNew name () = fork (crawlModule env mvar (DocsNeed False) name)
-
-crawlDepsSources :: Env -> MVar StatusDict -> Map ModuleName.Raw ByteString -> [ModuleName.Raw] -> a -> IO a
-crawlDepsSources env mvar sources deps blockedValue =
-  do
-    statusDict <- takeMVar mvar
-    let depsDict = Map.fromKeys (\_ -> ()) deps
-    let newsDict = Map.difference depsDict statusDict
-    statuses <- Map.traverseWithKey crawlNew newsDict
-    putMVar mvar (Map.union statuses statusDict)
-    mapM_ readMVar statuses
-    return blockedValue
-  where
-    crawlNew name () = fork (crawlModuleSources env mvar sources (DocsNeed False) name)
-
-crawlModule :: Env -> MVar StatusDict -> DocsNeed -> ModuleName.Raw -> IO Status
-crawlModule env@(Env _ root projectType _ srcDirs buildID locals foreigns) mvar docsNeed name =
-  do
-    let fileName = ModuleName.toFilePath name <.> "gren"
-
-    paths <- filterM File.exists (map (`AbsoluteSrcDir.addRelative` fileName) srcDirs)
-
-    case paths of
-      [path] ->
-        case Map.lookup name foreigns of
-          Just (Details.Foreign dep deps) ->
-            return $ SBadImport $ Import.Ambiguous path [] dep deps
-          Nothing ->
-            do
-              newTime <- File.getTime path
-              case Map.lookup name locals of
-                Nothing ->
-                  crawlFile env mvar docsNeed name path newTime buildID
-                Just local@(Details.Local oldPath oldTime deps _ lastChange _) ->
-                  if path /= oldPath || oldTime /= newTime || needsDocs docsNeed
-                    then crawlFile env mvar docsNeed name path newTime lastChange
-                    else crawlDeps env mvar deps (SCached local)
-      p1 : p2 : ps ->
-        return $ SBadImport $ Import.AmbiguousLocal (FP.makeRelative root p1) (FP.makeRelative root p2) (map (FP.makeRelative root) ps)
-      [] ->
-        case Map.lookup name foreigns of
-          Just (Details.Foreign dep deps) ->
-            case deps of
-              [] ->
-                return $ SForeign dep
-              d : ds ->
-                return $ SBadImport $ Import.AmbiguousForeign dep d ds
-          Nothing ->
-            if Name.isKernel name && Parse.isKernel projectType
-              then do
-                exists <- File.exists ("src" </> ModuleName.toFilePath name <.> "js")
-                return $ if exists then SKernel else SBadImport Import.NotFound
-              else return $ SBadImport Import.NotFound
+    crawlNew name () = fork (crawlModule env mvar sources (DocsNeed False) name)
 
 -- TODO: Use (slimmed down) locals to avoid compiling a module twice
 -- TODO: Pass on path from frontend
-crawlModuleSources :: Env -> MVar StatusDict -> Map ModuleName.Raw ByteString -> DocsNeed -> ModuleName.Raw -> IO Status
-crawlModuleSources env@(Env _ _ projectType _ _ buildID _ foreigns) mvar sources docsNeed name =
+crawlModule :: Env -> MVar StatusDict -> Map ModuleName.Raw ByteString -> DocsNeed -> ModuleName.Raw -> IO Status
+crawlModule env@(Env _ _ projectType _ _ buildID _ foreigns) mvar sources docsNeed name =
   let path = ModuleName.toFilePath name <.> "gren"
    in case Map.lookup name sources of
         Just source ->
@@ -386,7 +269,7 @@ crawlModuleSources env@(Env _ _ projectType _ _ buildID _ foreigns) mvar sources
                   if Parse.isKernel projectType
                     then return SKernel
                     else return $ SBadImport Import.NotFound
-                else crawlFileSources env mvar sources docsNeed name path source buildID
+                else crawlFile env mvar sources docsNeed name path source buildID
         Nothing ->
           case Map.lookup name foreigns of
             Just (Details.Foreign dep deps) ->
@@ -398,28 +281,8 @@ crawlModuleSources env@(Env _ _ projectType _ _ buildID _ foreigns) mvar sources
             Nothing ->
               return $ SBadImport Import.NotFound
 
-crawlFile :: Env -> MVar StatusDict -> DocsNeed -> ModuleName.Raw -> FilePath -> File.Time -> Details.BuildID -> IO Status
-crawlFile env@(Env _ root projectType _ _ buildID _ _) mvar docsNeed expectedName path time lastChange =
-  do
-    source <- File.readUtf8 (root </> path)
-
-    case Parse.fromByteString projectType source of
-      Left err ->
-        return $ SBadSyntax path time source err
-      Right modul@(Src.Module maybeActualName _ _ imports values _ _ _ _ _ _) ->
-        case maybeActualName of
-          Nothing ->
-            return $ SBadSyntax path time source (Syntax.ModuleNameUnspecified expectedName)
-          Just name@(A.At _ actualName) ->
-            if expectedName == actualName
-              then
-                let deps = map (Src.getImportName . snd) imports
-                    local = Details.Local path time deps (any (isMain . snd) values) lastChange buildID
-                 in crawlDeps env mvar deps (SChanged local source modul docsNeed)
-              else return $ SBadSyntax path time source (Syntax.ModuleNameMismatch expectedName name)
-
-crawlFileSources :: Env -> MVar StatusDict -> Map ModuleName.Raw ByteString -> DocsNeed -> ModuleName.Raw -> FilePath -> ByteString -> Details.BuildID -> IO Status
-crawlFileSources env@(Env _ _ projectType _ _ buildID _ _) mvar sources docsNeed expectedName path source lastChange =
+crawlFile :: Env -> MVar StatusDict -> Map ModuleName.Raw ByteString -> DocsNeed -> ModuleName.Raw -> FilePath -> ByteString -> Details.BuildID -> IO Status
+crawlFile env@(Env _ _ projectType _ _ buildID _ _) mvar sources docsNeed expectedName path source lastChange =
   case Parse.fromByteString projectType source of
     Left err ->
       return $ SBadSyntax path File.zeroTime source err
@@ -432,7 +295,7 @@ crawlFileSources env@(Env _ _ projectType _ _ buildID _ _) mvar sources docsNeed
             then
               let deps = map (Src.getImportName . snd) imports
                   local = Details.Local path File.zeroTime deps (any (isMain . snd) values) lastChange buildID
-               in crawlDepsSources env mvar sources deps (SChanged local source modul docsNeed)
+               in crawlDeps env mvar sources deps (SChanged local source modul docsNeed)
             else return $ SBadSyntax path File.zeroTime source (Syntax.ModuleNameMismatch expectedName name)
 
 isMain :: A.Located Src.Value -> Bool
@@ -920,7 +783,7 @@ fromRepl root details rootSources source =
 
           let deps = map (Src.getImportName . snd) imports
           mvar <- newMVar Map.empty
-          crawlDepsSources env mvar rootSources deps ()
+          crawlDeps env mvar rootSources deps ()
 
           statuses <- traverse readMVar =<< readMVar mvar
           midpoint <- checkMidpoint dmvar statuses
@@ -1090,55 +953,18 @@ data RootStatus
   | SOutsideOk Details.Local B.ByteString Src.Module
   | SOutsideErr Error.Module
 
-crawlRoot :: Env -> MVar StatusDict -> RootLocation -> IO RootStatus
-crawlRoot env@(Env _ _ projectType _ _ buildID _ _) mvar root =
+crawlRoot :: Env -> MVar StatusDict -> Map ModuleName.Raw ByteString -> RootLocation -> IO RootStatus
+crawlRoot env mvar sources root =
   case root of
     LInside name ->
       do
         statusMVar <- newEmptyMVar
         statusDict <- takeMVar mvar
         putMVar mvar (Map.insert name statusMVar statusDict)
-        putMVar statusMVar =<< crawlModule env mvar (DocsNeed False) name
+        putMVar statusMVar =<< crawlModule env mvar sources (DocsNeed False) name
         return (SInside name)
-    LOutside path ->
-      do
-        time <- File.getTime path
-        source <- File.readUtf8 path
-        case Parse.fromByteString projectType source of
-          Right modul@(Src.Module _ _ _ imports values _ _ _ _ _ _) ->
-            do
-              let deps = map (Src.getImportName . snd) imports
-              let local = Details.Local path time deps (any (isMain . snd) values) buildID buildID
-              crawlDeps env mvar deps (SOutsideOk local source modul)
-          Left syntaxError ->
-            return $
-              SOutsideErr $
-                Error.Module "???" path time source (Error.BadSyntax syntaxError)
-
-crawlRootSources :: Env -> MVar StatusDict -> Map ModuleName.Raw ByteString -> RootLocation -> IO RootStatus
-crawlRootSources env@(Env _ _ projectType _ _ buildID _ _) mvar sources root =
-  case root of
-    LInside name ->
-      do
-        statusMVar <- newEmptyMVar
-        statusDict <- takeMVar mvar
-        putMVar mvar (Map.insert name statusMVar statusDict)
-        putMVar statusMVar =<< crawlModuleSources env mvar sources (DocsNeed False) name
-        return (SInside name)
-    LOutside path ->
-      do
-        time <- File.getTime path
-        source <- File.readUtf8 path
-        case Parse.fromByteString projectType source of
-          Right modul@(Src.Module _ _ _ imports values _ _ _ _ _ _) ->
-            do
-              let deps = map (Src.getImportName . snd) imports
-              let local = Details.Local path time deps (any (isMain . snd) values) buildID buildID
-              crawlDeps env mvar deps (SOutsideOk local source modul)
-          Left syntaxError ->
-            return $
-              SOutsideErr $
-                Error.Module "???" path time source (Error.BadSyntax syntaxError)
+    LOutside _ ->
+      error "Bad assumption"
 
 crawlRootModule :: Env -> MVar StatusDict -> Map ModuleName.Raw ByteString -> ModuleName.Raw -> IO RootStatus
 crawlRootModule env mvar sources root =
@@ -1146,7 +972,7 @@ crawlRootModule env mvar sources root =
     statusMVar <- newEmptyMVar
     statusDict <- takeMVar mvar
     putMVar mvar (Map.insert root statusMVar statusDict)
-    putMVar statusMVar =<< crawlModuleSources env mvar sources (DocsNeed False) root
+    putMVar statusMVar =<< crawlModule env mvar sources (DocsNeed False) root
     return (SInside root)
 
 -- CHECK ROOTS
