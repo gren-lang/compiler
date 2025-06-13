@@ -159,7 +159,7 @@ type Msg
     | CompilerRan Int
     | CompilerRanStatic { path : String, exitCode : Int }
     | CompiledForRun { path : String, exitCode : Int }
-    | RunStarted { processId : Process.Id, streams : ChildProcess.StreamIO }
+    | RunStarted Process.Id
     | RunExited Int
     | RedirectTerminalIO
         (Result
@@ -279,10 +279,18 @@ update msg model =
                 if exitCode == 0 then
                     Terminal.Run.run 
                         { cpPermission = model.cpPermission
+                        , fsPermission = model.fsPermission
                         , path = path
                         , onInit = RunStarted
                         , onExit = RunExited
                         }
+                        |> Task.onError
+                            (\error ->
+                                -- TODO: Terminal.Run.errorToString
+                                Stream.Log.line model.stderr (Debug.toString error)
+                                    |> Task.map (\_ -> Node.exitWithCode 1)
+                            )
+                        |> Task.executeCmd
 
                 else
                     Node.exitWithCode exitCode

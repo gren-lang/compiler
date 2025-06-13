@@ -7,9 +7,12 @@ module Terminal.Run exposing
 {-| Support the `gren run ModuleName` command.
 -}
 
+import Compiler.Backend as Backend
 import Bytes exposing (Bytes)
 import ChildProcess
 import Compiler.Backend
+import Compiler.Outline as Outline exposing (Outline)
+import Compiler.Platform as Platform
 import FileSystem
 import FileSystem.Path as Path exposing (Path)
 import Compiler.ModuleName as ModuleName exposing (ModuleName)
@@ -23,6 +26,7 @@ import Terminal.PackageInstall as PackageInstall
 type Error
     = TempPathError FileSystem.Error
     | PackageInstallError PackageInstall.PackageInstallError
+    | NotAnApplication
 
 
 type alias MakeConfig msg =
@@ -39,8 +43,9 @@ type alias MakeConfig msg =
 
 type alias RunConfig msg =
     { cpPermission : ChildProcess.Permission
+    , fsPermission : FileSystem.Permission
     , path : String
-    , onInit : { processId : Process.Id, streams : ChildProcess.StreamIO } -> msg
+    , onInit : Process.Id -> msg
     , onExit : Int -> msg
     }
 
@@ -48,23 +53,19 @@ type alias RunConfig msg =
 make : MakeConfig msg -> Task Error (Cmd msg)
 make config =
     let
-        installPackages nullStream =
-            PackageInstall.readProjectOutline config.fsPermission
-                |> Task.andThen
-                    (\projectOutline ->
-                        PackageInstall.run
-                            { fsPermission = config.fsPermission
-                            , cpPermission = config.cpPermission
-                            , useColor = config.useColor
-                            , interactive = False
-                            , stdout = nullStream |> Stream.writable
-                            , stdin = nullStream |> Stream.readable
-                            }
-                            projectOutline
-                    )
-                |> Task.mapError PackageInstallError
+        installPackages nullStream projectOutline =
+            PackageInstall.run
+                { fsPermission = config.fsPermission
+                , cpPermission = config.cpPermission
+                , useColor = config.useColor
+                , interactive = False
+                , stdout = nullStream |> Stream.writable
+                , stdin = nullStream |> Stream.readable
+                }
+                projectOutline
+                    |> Task.mapError PackageInstallError
 
-        backendCommand outputPath packageResolution =
+        backendCommand outputType outputPath packageResolution =
             let
                 path =
                     config.pathToString outputPath
@@ -76,7 +77,7 @@ make config =
                 ( Compiler.Backend.Make
                     { optimize = False
                     , sourcemaps = False
-                    , output = Just (Compiler.Backend.Exe path)
+                    , output = Just (outputType path)
                     , report = Nothing
                     , projectPath = packageResolution.projectPath
                     , entryPoints = [ config.moduleName ]
@@ -104,32 +105,87 @@ make config =
                 , onComplete = config.onCompiled outputPath
                 }
     in
-    getOutputPath config.fsPermission
-        |> Task.andThen
-            (\outputPath ->
-                getNullStream
-                    |> Task.andThen installPackages
-                    |> Task.map (backendCommand outputPath)
-                    |> Task.map (compile outputPath)
-            )
+    Task.await getNullStream <| \nullStream ->
+    Task.await (getProjectOutline config.fsPermission) <| \projectOutline ->
+    Task.await (getOutputPath config.fsPermission projectOutline.outline) <| \{ outputType, outputPath } ->
+    Task.await (installPackages nullStream projectOutline) <| \packageResolution ->
+        backendCommand outputType outputPath packageResolution
+            |> compile outputPath
+            |> Task.succeed
 
 
-getOutputPath : FileSystem.Permission -> Task Error Path
-getOutputPath fsPermission =
-    FileSystem.makeTempDirectory fsPermission "gren-run"
-        |> Task.map (Path.append (Path.fromPosixString "app"))
-        |> Task.mapError TempPathError
-
-
-run : RunConfig msg -> Cmd msg
+run : RunConfig msg -> Task Error (Cmd msg)
 run config =
-    ChildProcess.spawn config.cpPermission "node" [ config.path ] <|
-        ChildProcess.defaultSpawnOptions (ChildProcess.External config.onInit) config.onExit
+    Task.await Node.getPlatform <| \systemPlatform ->
+    Task.await (getProjectOutline config.fsPermission) <| \projectOutline ->
+        let
+            projectPlatform =
+                when projectOutline.outline is
+                    Outline.Pkg outline_ ->
+                        outline_.platform
+                    Outline.App outline_ ->
+                        outline_.platform
+            
+            runWith command =
+                ChildProcess.defaultSpawnOptions (ChildProcess.Integrated config.onInit) config.onExit
+                    |> ChildProcess.spawn config.cpPermission command [ config.path ]
+                    |> Task.succeed
+        in
+        when projectPlatform is
+            Platform.Node ->
+                runWith "node"
+
+            Platform.Common ->
+                Task.fail NotAnApplication
+
+            Platform.Browser ->
+                when systemPlatform is
+                    Node.Win32 ->
+                        runWith "start"
+
+                    _ ->
+                        runWith "open"
 
 
--- not sure if this is the best way to do this?
+-- HELPERS
+
+
 getNullStream : Task x (Stream.Transformation Bytes Bytes)
 getNullStream =
-    Stream.customTransformation
-        (\_ _ -> Stream.UpdateState (Bytes.fromString ""))
-        (Bytes.fromString "")
+    Stream.nullTransformation (Bytes.fromString "")
+
+
+getProjectOutline : FileSystem.Permission -> Task Error { projectPath : Path, outline : Outline }
+getProjectOutline fsPermission =
+    PackageInstall.readProjectOutline fsPermission
+        |> Task.mapError PackageInstallError
+
+
+getOutputPath : FileSystem.Permission -> Outline -> Task Error { outputType : (String -> Backend.MakeOutput), outputPath : Path }
+getOutputPath fsPermission outline =
+    let
+        platform =
+            when outline is
+                Outline.Pkg outline_ ->
+                    outline_.platform
+                Outline.App outline_ ->
+                    outline_.platform
+
+        getPath outputType fileName =
+            FileSystem.makeTempDirectory fsPermission "gren-run"
+                |> Task.map (Path.append (Path.fromPosixString fileName))
+                |> Task.mapError TempPathError
+                |> Task.map
+                    (\path ->
+                        { outputType = outputType
+                        , outputPath = path
+                        }
+                    )
+    in
+    when platform is
+        Platform.Node ->
+            getPath Backend.Exe "app"
+        Platform.Browser ->
+            getPath Backend.Html "app.html"
+        Platform.Common ->
+            Task.fail NotAnApplication
