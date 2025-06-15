@@ -1,4 +1,4 @@
-port module Main exposing (main)
+module Main exposing (main)
 
 import Node
 import ChildProcess
@@ -158,7 +158,6 @@ type Msg
     | CompilerInstalled (Result FileSystem.Error Path)
     | CompilerInitialized { quiet : Bool, backendStreams : ChildProcess.StreamIO, encodedCommand : Bytes }
     | CompilerRan Int
-    | CompilerRanStatic { path : String, exitCode : Int }
     | CompiledForRun { path : String, exitCode : Int }
     | RunStarted Process.Id
     | RunExited Int
@@ -172,9 +171,6 @@ type Msg
             , target : Stream.Writable Bytes
             }
         )
-
-
-port completeStaticBuild : String -> Cmd msg
 
 
 update : Msg -> Model -> { model : Model, command : Cmd Msg }
@@ -269,13 +265,6 @@ update msg model =
             CompilerRan exitCode ->
                 Node.exitWithCode exitCode
             
-            CompilerRanStatic { path, exitCode } ->
-                if exitCode == 0 then
-                    completeStaticBuild path
-                
-                else
-                    Node.exitWithCode exitCode
-
             CompiledForRun { path, exitCode } ->
                 if exitCode == 0 then
                     Terminal.Run.run 
@@ -485,58 +474,6 @@ parseUserArgs model compilerPath =
                         |> Task.onError
                             (\err ->
                                 Stream.Log.line model.stdout (Debug.toString err)
-                                    |> Task.execute
-                                    |> Task.succeed
-                            )
-                        |> Task.executeCmd
-
-                CliParser.MakeStatic opts ->
-                    Terminal.PackageInstall.readProjectOutline model.fsPermission
-                        |> Task.mapError Debug.toString
-                        |> Task.andThen
-                            (\projectOutline ->
-                                Terminal.PackageInstall.run
-                                    { fsPermission = model.fsPermission
-                                    , cpPermission = model.cpPermission
-                                    , interactive = model.interactive
-                                    , useColor = model.useColor
-                                    , stdout = model.stdout
-                                    , stdin = model.stdin
-                                    }
-                                    projectOutline
-                                    |> Task.mapError Debug.toString
-                            )
-                        |> Task.map
-                            (\resolved ->
-                                Compiler.Backend.run
-                                    model.cpPermission
-                                    { useColor = model.useColor
-                                    , compilerPath = compilerPath
-                                    , pathToString = model.pathToString
-                                    , connection = initWithCommand <|
-                                        Compiler.Backend.Make
-                                            { optimize = True
-                                            , sourcemaps = False
-                                            , output = Just (Compiler.Backend.Exe <| model.pathToString opts.output)
-                                            , report = Nothing
-                                            , projectPath = resolved.projectPath
-                                            , entryPoints = [ opts.source ]
-                                            , outline = resolved.outline
-                                            , rootSources = resolved.rootSources
-                                            , dependencies = resolved.dependencies
-                                            }
-                                    , onComplete =
-                                        (\exitCode ->
-                                            CompilerRanStatic
-                                                { path = model.pathToString opts.output
-                                                , exitCode = exitCode
-                                                }
-                                        )
-                                    }
-                            )
-                        |> Task.onError
-                            (\err ->
-                                Stream.Log.line model.stdout err
                                     |> Task.execute
                                     |> Task.succeed
                             )

@@ -6,7 +6,7 @@ const util = require("util");
 
 const execFile = util.promisify(childProcess.execFile);
 
-const compilerPath = require.resolve("./cli.js");
+const compilerPath = require.resolve("./compiler");
 
 /* Execute an arbitrary command on the Gren compiler.
  *

@@ -1,7 +1,6 @@
 module Terminal.Parser exposing
     ( Command (..)
     , MakeFlags
-    , MakeStaticOpts
     , DiffArgs (..)
     , parser
     )
@@ -23,7 +22,6 @@ type Command
     = Init InitFlags
     | Repl ReplFlags
     | Make MakeFlags
-    | MakeStatic MakeStaticOpts
     | Docs DocsFlags
     | PackageInstall (Maybe PackageName)
     | PackageUninstall PackageName
@@ -52,12 +50,6 @@ type alias MakeFlags =
     , output : Maybe Compiler.Backend.MakeOutput
     , report : Maybe {}
     , entryPoints : Array ModuleName
-    }
-
-
-type alias MakeStaticOpts =
-    { output : Path
-    , source : ModuleName
     }
 
 
@@ -245,41 +237,6 @@ parser =
                             , report = flags.report
                             , entryPoints = args
                             }
-                }
-            |> CLI.Parser.withCommand
-                { word = "make-static"
-                , arguments =
-                    CLI.Parser.twoArgs 
-                        (\source output ->
-                            { source = source
-                            , output = output
-                            }
-                        )
-                        moduleNameParser
-                        CLI.Parser.pathParser
-                , flags =
-                    CLI.Parser.noFlags
-                , commonDescription =
-                    Nothing
-                , summary =
-                    "The `make-static` command compiles Gren code into a self-contained executable:"
-                , example = 
-                    PP.verticalBlock
-                        [ PP.words "For example:"
-                        , PP.empty
-                        , PP.words "gren make-static src/Main.gren app"
-                            |> PP.indent
-                            |> PP.color PP.Green
-                        , PP.empty
-                        , PP.words
-                            """
-                            This tries to compile a Gren file named `src/Main.gren`, generating an `app`
-                            file if possible. `app` is a static executable that can be run even if `node` is
-                            not installed on the system.
-                            """
-                        ]
-                , builder =
-                    \args _flags -> MakeStatic args
                 }
             |> CLI.Parser.withCommand
                 { word = "run"

@@ -4,9 +4,9 @@
   "description": "Compiler for the Gren programming language",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "prepublishOnly": "npx --package=gren-lang@0.5 gren make src/Main.gren --optimize --output=/dev/stdout | terser -c -m -o compiler.js",
-    "build": "npx --package=gren-lang@0.5 gren make src/Main.gren --output=compiler.js",
-    "build:sourcemaps": "npx --package=gren-lang@0.5 gren make src/Main.gren --output=compiler.js --sourcemaps",
+    "prepublishOnly": "npx --package=gren-lang@0.5 gren make src/Main.gren --optimize --output=app && terser app -c -m -o app",
+    "build": "npx --package=gren-lang@0.5 gren make src/Main.gren --output=app",
+    "build:sourcemaps": "npx --package=gren-lang@0.5 gren make src/Main.gren --output=app --sourcemaps",
     "prettier": "prettier -w \"!**/*.json\" .",
     "prettier:check": "prettier -c \"!**/*.json\" ."
   },
@@ -16,11 +16,10 @@
   },
   "files": [
     "index.js",
-    "compiler.js",
-    "cli.js"
+    "app"
   ],
   "bin": {
-    "gren": "cli.js"
+    "gren": "app"
   },
   "keywords": [
     "gren",
@@ -33,9 +32,7 @@
     "url": "https://github.com/gren-lang/compiler/issues"
   },
   "homepage": "https://gren-lang.org",
-  "dependencies": {
-    "postject": "^1.0.0-alpha.6"
-  },
+  "dependencies": {},
   "devDependencies": {
     "gren-lang": "^0.5.4",
     "prettier": "^3.4.2",
