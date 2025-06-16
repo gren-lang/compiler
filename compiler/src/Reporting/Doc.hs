@@ -64,19 +64,19 @@ where
 
 import Data.Index qualified as Index
 import Data.List qualified as List
+import Data.Name qualified as Name
 import Data.Text (Text)
 import Data.Text qualified as Text
-import Data.Name qualified as Name
 import Gren.Package qualified as Pkg
 import Gren.Version qualified as V
 import Json.Encode ((==>))
 import Json.Encode qualified as E
 import Json.String qualified as Json
+import Prettyprinter qualified as PP
 import System.Environment qualified
 import System.IO (Handle)
 import System.Info qualified as Info
 import Text.PrettyPrint.ANSI.Leijen qualified as P
-import Prettyprinter qualified as PP
 import Prelude hiding (cycle)
 
 -- FROM
@@ -300,7 +300,6 @@ toJsonHelp style revChunks simpleDoc =
       toJsonHelp style revChunks rest
     PP.SAnnPop rest ->
       toJsonHelp style revChunks rest
-
 
 encodeChunks :: Style -> [Text] -> E.Value
 encodeChunks (Style bold underline color) revChunks =
