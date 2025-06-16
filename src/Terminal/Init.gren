@@ -266,6 +266,77 @@ displayError err =
                         ]
                     )
 
-            _ ->
-                -- TODO
-                PP.text ""
+            FileSystemFailure fsErr ->
+                Terminal.User.report
+                    "FILESYSTEM ERROR"
+                    (Just <| FileSystem.errorPath fsErr)
+                    (PP.verticalBlock
+                        [ PP.words "An unexpected error occured when accessing the filesystem."
+                        , PP.empty
+                        , PP.words "The error provided by the operating system is:"
+                        , PP.empty
+                        , PP.words (FileSystem.errorToString fsErr)
+                            |> PP.color PP.Red
+                            |> PP.indent
+                        , PP.empty
+                        , PP.words "Verify that you have access to this path. If the error persist, consider submitting a bug report."
+                        ]
+                    )
+
+            PromptError streamError ->
+                Terminal.User.report
+                    "STREAM ERROR"
+                    Nothing
+                    (PP.verticalBlock
+                        [ PP.words "An unexpected error occured with either the standard output or standard input streams."
+                        , PP.empty
+                        , PP.words "The error is:"
+                        , PP.empty
+                        , PP.words (Stream.errorToString streamError)
+                            |> PP.color PP.Red
+                            |> PP.indent
+                        , PP.empty
+                        , PP.words "This is most likely a bug. Consider submitting a bug report."
+                        ]
+                    )
+
+            CouldNotRetrieveVersions { packageName, error } ->
+                Terminal.User.report
+                    "FAILED TO LOAD DEPENDENCIES"
+                    Nothing
+                    (PP.verticalBlock
+                        [ PP.words "I tried to find the latest compatible versions of the"
+                        , PP.text " "
+                        , PP.text (PackageName.toString packageName)
+                            |> PP.color PP.Green
+                        , PP.text " "
+                        , PP.words "but failed due to a problem with Git. I use Git to download external dependencies from Github."
+                        , PP.empty
+                        , PP.words "The error is:"
+                        , PP.empty
+                        , PP.words (Git.errorToString error)
+                            |> PP.color PP.Red
+                            |> PP.indent
+                        , PP.empty
+                        , PP.words "Please check your git configuration. If the problem persist, consider submitting a bug report."
+                        ]
+                    )
+
+            NoVersionFound packageName ->
+                Terminal.User.report
+                    "FAILED TO LOAD DEPENDENCIES"
+                    Nothing
+                    (PP.verticalBlock
+                        [ PP.words "I tried to find the latest compatible versions of the"
+                        , PP.text " "
+                        , PP.text (PackageName.toString packageName)
+                            |> PP.color PP.Green
+                        , PP.text " "
+                        , PP.words "but failed to find any versions for that package!"
+                        , PP.empty
+                        , PP.words "This is most likely a bug. Consider submitting a bug report."
+                        ]
+                    )
+
+            InstallError ->
+                PP.text "Install error"

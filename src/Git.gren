@@ -1,6 +1,6 @@
 module Git exposing
     ( Error(..)
-    , displayError
+    , errorToString
     , clonePackage
     , fetchLatestVersion
     , fetchVersions
@@ -25,8 +25,8 @@ type Error
 
 
 -- TODO
-displayError : Error -> String
-displayError err =
+errorToString : Error -> String
+errorToString err =
     ""
         -- Git.MissingGit ->
         --   toGitReport

@@ -1,9 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Reporting.Exit
-  ( Init (..),
-    initToReport,
-    Diff (..),
+  ( Diff (..),
     diffToReport,
     Make (..),
     makeToReport,
@@ -86,66 +84,6 @@ toStderr report =
 toJson :: Help.Report -> Encode.Value
 toJson report =
   Help.reportToJson report
-
--- INIT
-
-data Init
-  = InitNoSolution [Pkg.Name]
-  | InitSolverProblem Solver
-  | InitAlreadyExists
-  | InitNoCompatibleDependencies (Maybe ())
-
-initToReport :: Init -> Help.Report
-initToReport exit =
-  case exit of
-    InitNoSolution pkgs ->
-      Help.report
-        "NO SOLUTION"
-        Nothing
-        "I tried to create an gren.json with the following direct dependencies:"
-        [ D.indent 4 $
-            D.vcat $
-              map (D.dullyellow . D.fromChars . Pkg.toChars) pkgs,
-          D.reflow $
-            "I could not find compatible versions though! This should not happen, so please\
-            \ ask around one of the community forums at https://gren-lang.org/community to learn\
-            \ what is going on!"
-        ]
-    InitSolverProblem solver ->
-      toSolverReport solver
-    InitAlreadyExists ->
-      Help.report
-        "EXISTING PROJECT"
-        Nothing
-        "You already have an gren.json file, so there is nothing for me to initialize!"
-        [ D.fillSep
-            [ "Maybe",
-              D.green (D.fromChars (D.makeLink "init")),
-              "can",
-              "help",
-              "you",
-              "figure",
-              "out",
-              "what",
-              "to",
-              "do",
-              "next?"
-            ]
-        ]
-    InitNoCompatibleDependencies Nothing ->
-      Help.report
-        "NO COMPATIBLE DEPENDENCIES"
-        Nothing
-        "I failed to find versions of the core packages which are compatible with your current\
-        \ Gren compiler. "
-        [ D.reflow "Maybe you need to update the compiler?"
-        ]
-    InitNoCompatibleDependencies (Just gitError) ->
-      toGitErrorReport
-        "FAILED TO LOAD DEPENDENCIES"
-        gitError
-        "I tried to find the latest compatible versions of some core packages, but failed\
-        \ due to a problem with Git. I use Git to download external dependencies from Github."
 
 -- DIFF
 
