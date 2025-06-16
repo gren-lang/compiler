@@ -4,6 +4,7 @@ module Terminal.PackageUninstall exposing
     )
 
 
+import CLI.PrettyPrinter as PP
 import ChildProcess
 import Compiler.PackageName as PackageName exposing (PackageName)
 import Compiler.Paths
@@ -49,7 +50,6 @@ type Error
     | PackageInstallDebug String
 
 
--- TODO: Respect interactivity flag
 -- TODO: Also remove indirect dependencies which are no longer needed
 -- TODO: Suggest moving a direct dependency to indirect
 -- TODO: Make sure to clean gren_packages folder
@@ -113,9 +113,16 @@ run config { projectPath, outline } requestedPackage =
                                             |> Dict.keys
 
                                     plan =
-                                        "The plan is to remove the following dependencies:\n\n"
-                                            ++ (Array.foldl (\package acc -> acc ++ "  " ++ package ++ "\n") "" removedPackages)
-                                            ++ "\nDo you want me to update the gren.json file accordingly? [Y/n]: "
+                                        PP.verticalBlock
+                                            [ PP.words "The plan is to remove the following dependencies:"
+                                            , PP.empty
+                                            , removedPackages
+                                                |> Array.map PP.text
+                                                |> PP.verticalBlock
+                                                |> PP.indent
+                                            , PP.empty
+                                            , PP.words "Do you want me to update the gren.json file accordingly?"
+                                            ]
                                 in
                                 User.confirm
                                     { stdout = config.stdout

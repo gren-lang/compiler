@@ -3,6 +3,7 @@ module Terminal.Init exposing
     , run
     )
 
+import CLI.PrettyPrinter as PP
 import ChildProcess
 import Stream
 import Stream.Log
@@ -37,45 +38,79 @@ type alias Config =
     }
 
 
+type Error
+    = AlreadyInitialized
+    | FileSystemFailure FileSystem.Error
+    | PromptError Stream.Error
+    | CouldNotRetrieveVersions { packageName : PackageName, error : Git.Error }
+    | NoVersionFound PackageName
+    -- TODO
+    | InstallError
+
+
 run : Config -> Cmd a
 run config =
-    FileSystem.checkAccess config.fsPermission [] (Path.fromPosixString "gren.json")
+    let
+        grenJsonExists =
+            FileSystem.checkAccess config.fsPermission [] (Path.fromPosixString "gren.json")
+                |> Task.andThen
+                    (\_ ->
+                        Task.succeed True
+                    )
+                |> Task.onError
+                    (\err ->
+                        if FileSystem.errorIsNoSuchFileOrDirectory err then
+                            Task.succeed False
+
+                        else
+                            Task.fail (FileSystemFailure err)
+                    )
+    
+    in
+    grenJsonExists
         |> Task.andThen
-            (\_ ->
-                Stream.Log.line config.stdout "File exists!"
+            (\exists ->
+                if exists then
+                    Task.fail AlreadyInitialized
+
+                else
+                    Terminal.User.confirm
+                        { stdout = config.stdout
+                        , stdin = config.stdin
+                        , interactive = config.interactive
+                        , question =
+                            PP.verticalBlock
+                                [ PP.block
+                                    [ PP.words "Hello! Gren projects always start with a"
+                                    , PP.text " "
+                                    , PP.color PP.Green (PP.text "gren.json")
+                                    , PP.text " "
+                                    , PP.words "file."
+                                    ]
+                                , PP.words "I can create one for you."
+                                , PP.empty
+                                , PP.words "Would you like me to create a gren.json file now?"
+                                ]
+                        , defaultValue = True
+                        }
+                        |> Task.mapError PromptError
+            )
+        |> Task.andThen
+            (\confirmed ->
+                if confirmed then
+                    init config
+
+                else
+                    Stream.Log.line config.stdout "Ok, I won't do anything."
             )
         |> Task.onError
-            (\_ ->
-                Terminal.User.confirm
-                    { stdout = config.stdout
-                    , stdin = config.stdin
-                    , interactive = config.interactive
-                    , question =
-                        """
-                        Hello! Gren projects always start with a <GREEN>gren.json</> file.
-                        I can create one for you.
-
-                        Would you like me to create a gren.json file now?
-                        """
-                    , defaultValue = True
-                    }
-                    |> Task.andThen
-                        (\confirmed ->
-                            if confirmed then
-                                init config
-
-                            else
-                                Stream.Log.line config.stdout "Ok, I won't do anything."
-                        )
-            )
-        |> Task.onError
-            (\_ ->
-                Stream.Log.line config.stdout "Error happened!"
+            (\err ->
+                Stream.Log.line config.stdout (displayError err)
             )
         |> Task.execute
 
 
-init : Config -> Task x {}
+init : Config -> Task Error {}
 init config =
     let
         deps =
@@ -85,9 +120,9 @@ init config =
         |> Array.map
             (\packageName ->
                 Git.fetchLatestVersion config.cpPermission packageName
-                    |> Task.onError
-                        (\_ ->
-                            Task.fail ("Something went wrong when retrieving version for " ++ PackageName.toString packageName)
+                    |> Task.mapError
+                        (\err ->
+                            CouldNotRetrieveVersions { packageName = packageName, error = err }
                         )
                     |> Task.andThen
                         (\maybeVsn ->
@@ -99,12 +134,11 @@ init config =
                                         }
 
                                 Nothing ->
-                                    Task.fail ("No version found for " ++ PackageName.toString packageName)
+                                    Task.fail (NoVersionFound packageName)
                         )
             )
         |> Task.concurrent
         |> Task.andThen (generateGrenJson config)
-        |> Task.onError (\err -> Stream.Log.line config.stdout err)
 
 
 dependenciesForPlatform : Platform -> Array PackageName
@@ -120,7 +154,7 @@ dependenciesForPlatform platform =
         [ PackageName.core, PackageName.node ]
 
 
-generateGrenJson : Config -> Array { name : PackageName, version : SemanticVersion } -> Task String {}
+generateGrenJson : Config -> Array { name : PackageName, version : SemanticVersion } -> Task Error {}
 generateGrenJson config deps =
     let
         outline =
@@ -173,7 +207,7 @@ generateGrenJson config deps =
         { projectPath = Path.empty
         , outline = outline
         }
-        |> Task.mapError Debug.toString
+        |> Task.mapError (\_ -> InstallError)
         |> Task.andThen
             (\resolution ->
                 let
@@ -207,6 +241,31 @@ generateGrenJson config deps =
                 in
                 Path.fromPosixString "gren.json"
                     |> FileSystem.writeFile config.fsPermission (Bytes.fromString encodedOutline)
-                    |> Task.mapError (\fsErr -> Debug.toString fsErr)
+                    |> Task.mapError FileSystemFailure
                     |> Task.map (\_ -> {})
             )
+
+
+displayError : Error -> String
+displayError err =
+    Terminal.User.prettyPrint <|
+        when err is
+            AlreadyInitialized ->
+                Terminal.User.report
+                    "EXISTING PROJECT"
+                    Nothing
+                    (PP.verticalBlock
+                        [ PP.words "You already have a gren.json file, so there's nothing for me to initialize!"
+                        , PP.empty
+                        , PP.block
+                            [ PP.text "Maybe "
+                            , PP.color PP.Green (Terminal.User.makeLink "init")
+                            , PP.text " "
+                            , PP.words "can help you figure out what to do next?"
+                            ]
+                        ]
+                    )
+
+            _ ->
+                -- TODO
+                PP.text ""

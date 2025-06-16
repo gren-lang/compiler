@@ -1,5 +1,7 @@
 module Git exposing
-    ( clonePackage
+    ( Error(..)
+    , displayError
+    , clonePackage
     , fetchLatestVersion
     , fetchVersions
     , hasLocalTag
@@ -22,6 +24,7 @@ type Error
     | FailedCommand
 
 
+-- TODO
 displayError : Error -> String
 displayError err =
     ""
@@ -89,13 +92,15 @@ clonePackage cpPerm repo name version =
         }
 
 
-fetchLatestVersion : ChildProcess.Permission -> PackageName -> Task ChildProcess.FailedRun (Maybe SemanticVersion)
+fetchLatestVersion : ChildProcess.Permission -> PackageName -> Task Error (Maybe SemanticVersion)
 fetchLatestVersion cpPerm name =
     fetchVersions cpPerm name
         |> Task.map Array.last
+        -- TODO
+        |> Task.mapError (\_ -> FailedCommand)
 
 
-fetchVersions : ChildProcess.Permission -> PackageName -> Task ChildProcess.FailedRun (Array SemanticVersion)
+fetchVersions : ChildProcess.Permission -> PackageName -> Task Error (Array SemanticVersion)
 fetchVersions cpPerm name =
     let
         githubUrl =
@@ -130,6 +135,8 @@ fetchVersions cpPerm name =
                             |> Array.sortWith SemanticVersion.compare
                             |> Task.succeed
             )
+        -- TODO
+        |> Task.mapError (\_ -> FailedCommand)
 
 
 hasLocalTag : ChildProcess.Permission -> SemanticVersion -> Task String {}

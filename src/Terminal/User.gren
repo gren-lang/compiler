@@ -1,20 +1,30 @@
-module Terminal.User exposing (confirm)
+module Terminal.User exposing
+    ( confirm
+    , prettyPrint
+    , report
+    , makeLink
+    )
 
+import CLI.PrettyPrinter as PP
 import Bytes exposing (Bytes)
 import Stream
 import Stream.Log
 import Task exposing (Task)
+import FileSystem.Path as Path exposing (Path)
+import Meta
+import SemanticVersion
 
 
 type alias ConfirmConfig =
     { stdout : Stream.Writable Bytes
     , stdin : Stream.Readable Bytes
     , interactive : Bool
-    , question : String
+    , question : PP.Document
     , defaultValue : Bool
     }
 
 
+-- TODO: respect NO_COLOR
 confirm : ConfirmConfig -> Task Stream.Error Bool
 confirm { stdout, stdin, interactive, question, defaultValue } =
     if not interactive then
@@ -29,7 +39,9 @@ confirm { stdout, stdin, interactive, question, defaultValue } =
                 else
                     " [y|N]: "
         in
-        Stream.Log.string stdout (question ++ legend)
+        PP.block [ question, PP.text legend ]
+            |> prettyPrint
+            |> Stream.Log.string stdout
             |> Task.andThen (\_ -> Stream.readBytesAsString stdin)
             |> Task.map
                 (\answer ->
@@ -43,3 +55,66 @@ confirm { stdout, stdin, interactive, question, defaultValue } =
                         _ ->
                             False
                 )
+
+
+prettyPrint : PP.Document -> String
+prettyPrint doc =
+    PP.toStringWithOptions
+        { maxColumns = 80
+        , indentationSize = 4
+        , newlineSeparator = "\n"
+        }
+        doc
+
+
+report : String -> Maybe Path -> PP.Document -> PP.Document
+report title maybePath message =
+    let
+        makeDashes n =
+            String.repeat (max 1 (80 - n)) "-"
+
+        errorBarEnd =
+            when maybePath is
+                Nothing ->
+                    makeDashes (4 + String.unitLength title)
+
+                Just path ->
+                    -- TODO: platform toString
+                    let
+                        pathStr =
+                            Path.toPosixString path
+                    in
+                    makeDashes (5 + String.unitLength title + String.unitLength pathStr) ++ " " ++ pathStr
+
+        errorBar =
+            PP.block
+                [ PP.text "--"
+                , PP.text title
+                , PP.text errorBarEnd
+                ]
+                |> PP.color PP.Cyan
+    in
+    PP.verticalBlock
+        [ errorBar
+        , PP.empty
+        , message
+        , PP.empty
+        ]
+
+
+makeLink : String -> PP.Document
+makeLink filename =
+    PP.block
+        [ PP.text "<"
+        , makeNakedLink filename
+        , PP.text ">"
+        ]
+
+
+makeNakedLink : String -> PP.Document
+makeNakedLink filename =
+    PP.block
+        [ PP.text "https://github.com/gren-lang/compiler/blob/"
+        , PP.text (SemanticVersion.toString Meta.version)
+        , PP.text ("/hints/" ++ filename ++ ".md")
+        ]

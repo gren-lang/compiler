@@ -9,6 +9,7 @@ module Terminal.PackageInstall exposing
     )
 
 
+import CLI.PrettyPrinter as PP
 import ChildProcess
 import Compiler.PackageName as PackageName exposing (PackageName)
 import Compiler.Paths
@@ -408,9 +409,17 @@ addPackage config { projectPath, outline } requestedPackage =
                                             }
 
                                     plan =
-                                        "The plan is to add the following dependencies:\n\n"
-                                            ++ (Dict.foldl (\k v acc ->  acc ++ "  " ++ k ++ " " ++ SemanticVersion.toString v ++ "\n") "" newPackages)
-                                            ++ "\nDo you want me to update the gren.json file accordingly?"
+                                        PP.verticalBlock
+                                            [ PP.words "The plan is to add the following dependencies:"
+                                            , PP.empty
+                                            , PP.empty
+                                            , Dict.foldl (\k v acc -> Array.pushLast (k ++ " " ++ SemanticVersion.toString v) acc) [] newPackages
+                                                |> Array.map PP.text
+                                                |> PP.verticalBlock
+                                                |> PP.indent
+                                            , PP.empty
+                                            , PP.words "Do you want me to update the gren.json file accordingly?"
+                                            ]
                                 in
                                 User.confirm
                                     { stdout = config.stdout
