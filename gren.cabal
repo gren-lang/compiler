@@ -174,8 +174,8 @@ Library common
         Paths_gren
 
     Build-depends:
-        ansi-terminal >= 0.11 && < 0.12,
-        ansi-wl-pprint >= 0.6.8 && < 0.7,
+        ansi-terminal == 0.11.5,
+        ansi-wl-pprint == 0.6.9,
         base >= 4.19 && <5,
         binary >= 0.8 && < 0.9,
         bytestring >= 0.11 && < 0.12,
