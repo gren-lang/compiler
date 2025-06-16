@@ -120,6 +120,7 @@ run config { projectPath, outline } requestedPackage =
                                 User.confirm
                                     { stdout = config.stdout
                                     , stdin = config.stdin
+                                    , interactive = config.interactive
                                     , question = plan
                                     , defaultValue = True
                                     }

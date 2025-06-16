@@ -9,32 +9,37 @@ import Task exposing (Task)
 type alias ConfirmConfig =
     { stdout : Stream.Writable Bytes
     , stdin : Stream.Readable Bytes
+    , interactive : Bool
     , question : String
     , defaultValue : Bool
     }
 
 
 confirm : ConfirmConfig -> Task Stream.Error Bool
-confirm { stdout, stdin, question, defaultValue } =
-    let
-        legend =
-            if defaultValue then
-                " [Y|n]: "
+confirm { stdout, stdin, interactive, question, defaultValue } =
+    if not interactive then
+        Task.succeed defaultValue
 
-            else
-                " [y|N]: "
-    in
-    Stream.Log.string stdout (question ++ legend)
-        |> Task.andThen (\_ -> Stream.readBytesAsString stdin)
-        |> Task.map
-            (\answer ->
-                when String.trim (String.toLower answer) is
-                    "y" ->
-                        True
+    else
+        let
+            legend =
+                if defaultValue then
+                    " [Y|n]: "
 
-                    "" ->
-                        defaultValue
+                else
+                    " [y|N]: "
+        in
+        Stream.Log.string stdout (question ++ legend)
+            |> Task.andThen (\_ -> Stream.readBytesAsString stdin)
+            |> Task.map
+                (\answer ->
+                    when String.trim (String.toLower answer) is
+                        "y" ->
+                            True
 
-                    _ ->
-                        False
-            )
+                        "" ->
+                            defaultValue
+
+                        _ ->
+                            False
+                )

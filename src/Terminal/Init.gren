@@ -46,10 +46,10 @@ run config =
             )
         |> Task.onError
             (\_ ->
-                -- TODO: Respect interactivity flag
                 Terminal.User.confirm
                     { stdout = config.stdout
                     , stdin = config.stdin
+                    , interactive = config.interactive
                     , question =
                         """
                         Hello! Gren projects always start with a <GREEN>gren.json</> file.
