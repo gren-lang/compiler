@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_GHC -Wall -fno-warn-name-shadowing #-}
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
 
 module Repl
   ( Flags (..),

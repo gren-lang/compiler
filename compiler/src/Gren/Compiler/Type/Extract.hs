@@ -1,7 +1,4 @@
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE Rank2Types #-}
-{-# OPTIONS_GHC -Wall #-}
 
 module Gren.Compiler.Type.Extract
   ( fromAnnotation,

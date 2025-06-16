@@ -1,6 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_GHC -Wall #-}
-
 module Gren.Compiler.Imports
   ( defaults,
   )

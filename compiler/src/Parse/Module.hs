@@ -1,8 +1,7 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wall #-}
 -- Temporary while implementing gren format
-{-# OPTIONS_GHC -Wno-error=unused-do-bind #-}
-{-# OPTIONS_GHC -Wno-error=unused-matches #-}
+{-# OPTIONS_GHC -Wno-unused-do-bind #-}
+{-# OPTIONS_GHC -Wno-unused-matches #-}
 
 module Parse.Module
   ( fromByteString,

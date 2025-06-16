@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-x-partial #-}
+
 module Canonicalize.Expression
   ( canonicalize,
     FreeLocals,

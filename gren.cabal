@@ -37,9 +37,9 @@ Flag dev {
 
 Library common
     if flag(dev)
-        ghc-options: -O0 -Wall
+        ghc-options: -O0 -Wall -Wno-deprecations
     else
-        ghc-options: -O2 -Wall -Werror
+        ghc-options: -O2 -Wall -Werror -Wno-deprecations 
 
     default-language: GHC2021
 
@@ -174,9 +174,10 @@ Library common
         Paths_gren
 
     Build-depends:
-        ansi-terminal == 0.11.5,
-        ansi-wl-pprint == 0.6.9,
-        base >= 4.19 && <5,
+        ansi-wl-pprint >= 1.0.2 && < 2,
+        prettyprinter >= 1.7.1 && < 2,
+        base >= 4.19 && < 5,
+        text >= 2.1.2 && < 3,
         binary >= 0.8 && < 0.9,
         bytestring >= 0.11 && < 0.12,
         containers >= 0.6 && < 0.7,
@@ -196,9 +197,9 @@ Executable gren
     default-language: GHC2021
 
     if flag(dev)
-        ghc-options: -O0 -Wall
+        ghc-options: -O0 -Wall -Wno-deprecations
     else
-        ghc-options: -O2 -Wall -Werror -threaded "-with-rtsopts=-N"
+        ghc-options: -O2 -Wall -Wno-deprecations -Werror -threaded "-with-rtsopts=-N"
 
     hs-source-dirs:
         terminal

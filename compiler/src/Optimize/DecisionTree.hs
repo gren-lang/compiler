@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_GHC -Wall #-}
+{-# OPTIONS_GHC -Wno-x-partial #-}
 
 module Optimize.DecisionTree
   ( DecisionTree (..),

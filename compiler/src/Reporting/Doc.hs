@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_GHC -Wall #-}
 
 module Reporting.Doc
   ( P.Doc,
@@ -65,17 +64,19 @@ where
 
 import Data.Index qualified as Index
 import Data.List qualified as List
+import Data.Text (Text)
+import Data.Text qualified as Text
 import Data.Name qualified as Name
 import Gren.Package qualified as Pkg
 import Gren.Version qualified as V
 import Json.Encode ((==>))
 import Json.Encode qualified as E
 import Json.String qualified as Json
-import System.Console.ANSI.Types qualified as Ansi
 import System.Environment qualified
 import System.IO (Handle)
 import System.Info qualified as Info
 import Text.PrettyPrint.ANSI.Leijen qualified as P
+import Prettyprinter qualified as PP
 import Prelude hiding (cycle)
 
 -- FROM
@@ -280,82 +281,30 @@ data Color
   | White
   | WHITE
 
-toJsonHelp :: Style -> [String] -> P.SimpleDoc -> [E.Value]
+toJsonHelp :: Style -> [Text] -> P.SimpleDoc -> [E.Value]
 toJsonHelp style revChunks simpleDoc =
   case simpleDoc of
-    P.SFail ->
-      error $
+    PP.SFail ->
+      error
         "according to the main implementation, @SFail@ can not\
         \ appear uncaught in a rendered @SimpleDoc@"
-    P.SEmpty ->
+    PP.SEmpty ->
       [encodeChunks style revChunks]
-    P.SChar char rest ->
-      toJsonHelp style ([char] : revChunks) rest
-    P.SText _ string rest ->
+    PP.SChar char rest ->
+      toJsonHelp style (Text.singleton char : revChunks) rest
+    PP.SText _ string rest ->
       toJsonHelp style (string : revChunks) rest
-    P.SLine indent rest ->
-      toJsonHelp style (replicate indent ' ' : "\n" : revChunks) rest
-    P.SSGR sgrs rest ->
-      encodeChunks style revChunks : toJsonHelp (sgrToStyle sgrs style) [] rest
+    PP.SLine indent rest ->
+      toJsonHelp style (Text.replicate indent (Text.singleton ' ') : Text.singleton '\n' : revChunks) rest
+    PP.SAnnPush _ rest ->
+      toJsonHelp style revChunks rest
+    PP.SAnnPop rest ->
+      toJsonHelp style revChunks rest
 
-sgrToStyle :: [Ansi.SGR] -> Style -> Style
-sgrToStyle sgrs style@(Style bold underline color) =
-  case sgrs of
-    [] ->
-      style
-    sgr : rest ->
-      sgrToStyle rest $
-        case sgr of
-          Ansi.Reset -> noStyle
-          Ansi.SetConsoleIntensity i -> Style (isBold i) underline color
-          Ansi.SetItalicized _ -> style
-          Ansi.SetUnderlining u -> Style bold (isUnderline u) color
-          Ansi.SetBlinkSpeed _ -> style
-          Ansi.SetVisible _ -> style
-          Ansi.SetSwapForegroundBackground _ -> style
-          Ansi.SetColor l i c -> Style bold underline (toColor l i c)
-          Ansi.SetRGBColor _ _ -> style
-          Ansi.SetPaletteColor _ _ -> style
-          Ansi.SetDefaultColor _ -> style
 
-isBold :: Ansi.ConsoleIntensity -> Bool
-isBold intensity =
-  case intensity of
-    Ansi.BoldIntensity -> True
-    Ansi.FaintIntensity -> False
-    Ansi.NormalIntensity -> False
-
-isUnderline :: Ansi.Underlining -> Bool
-isUnderline underlining =
-  case underlining of
-    Ansi.SingleUnderline -> True
-    Ansi.DoubleUnderline -> False
-    Ansi.NoUnderline -> False
-
-toColor :: Ansi.ConsoleLayer -> Ansi.ColorIntensity -> Ansi.Color -> Maybe Color
-toColor layer intensity color =
-  case layer of
-    Ansi.Background ->
-      Nothing
-    Ansi.Foreground ->
-      let pick dull vivid =
-            case intensity of
-              Ansi.Dull -> dull
-              Ansi.Vivid -> vivid
-       in Just $
-            case color of
-              Ansi.Red -> pick Red RED
-              Ansi.Magenta -> pick Magenta MAGENTA
-              Ansi.Yellow -> pick Yellow YELLOW
-              Ansi.Green -> pick Green GREEN
-              Ansi.Cyan -> pick Cyan CYAN
-              Ansi.Blue -> pick Blue BLUE
-              Ansi.White -> pick White WHITE
-              Ansi.Black -> pick Black BLACK
-
-encodeChunks :: Style -> [String] -> E.Value
+encodeChunks :: Style -> [Text] -> E.Value
 encodeChunks (Style bold underline color) revChunks =
-  let chars = concat (reverse revChunks)
+  let chars = Text.unpack $ Text.concat (reverse revChunks)
    in case color of
         Nothing
           | not bold && not underline ->

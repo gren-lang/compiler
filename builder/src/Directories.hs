@@ -1,5 +1,3 @@
-{-# OPTIONS_GHC -Wall #-}
-
 module Directories
   ( details,
     interfaces,
