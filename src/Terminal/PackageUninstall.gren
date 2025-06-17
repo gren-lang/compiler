@@ -23,7 +23,7 @@ import SemanticVersionRange exposing (SemanticVersionRange)
 import Json.Encode as Json
 import Json.Decode as Decode exposing (Decoder)
 import Stream.Extra
-import Terminal.User as User
+import Terminal.Help as Help
 import Terminal.PackageInstall
 
 
@@ -124,7 +124,7 @@ run config { projectPath, outline } requestedPackage =
                                             , PP.words "Do you want me to update the gren.json file accordingly?"
                                             ]
                                 in
-                                User.confirm
+                                Help.confirm
                                     { stdout = config.stdout
                                     , stdin = config.stdin
                                     , interactive = config.interactive

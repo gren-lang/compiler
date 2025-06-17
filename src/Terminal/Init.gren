@@ -17,7 +17,7 @@ import Compiler.Platform as Platform exposing (Platform)
 import Compiler.PackageName as PackageName exposing (PackageName)
 import Compiler.Outline as Outline
 import Compiler.License as License
-import Terminal.User
+import Terminal.Help
 import Git
 import SemanticVersion exposing (SemanticVersion)
 import SemanticVersionRange
@@ -74,7 +74,7 @@ run config =
                     Task.fail AlreadyInitialized
 
                 else
-                    Terminal.User.confirm
+                    Terminal.Help.confirm
                         { stdout = config.stdout
                         , stdin = config.stdin
                         , interactive = config.interactive
@@ -248,10 +248,10 @@ generateGrenJson config deps =
 
 displayError : Error -> String
 displayError err =
-    Terminal.User.prettyPrint <|
+    Terminal.Help.prettyPrint <|
         when err is
             AlreadyInitialized ->
-                Terminal.User.report
+                Terminal.Help.report
                     "EXISTING PROJECT"
                     Nothing
                     (PP.verticalBlock
@@ -259,7 +259,7 @@ displayError err =
                         , PP.empty
                         , PP.block
                             [ PP.text "Maybe "
-                            , PP.color PP.Green (Terminal.User.makeLink "init")
+                            , PP.color PP.Green (Terminal.Help.makeLink "init")
                             , PP.text " "
                             , PP.words "can help you figure out what to do next?"
                             ]
@@ -267,7 +267,7 @@ displayError err =
                     )
 
             FileSystemFailure fsErr ->
-                Terminal.User.report
+                Terminal.Help.report
                     "FILESYSTEM ERROR"
                     (Just <| FileSystem.errorPath fsErr)
                     (PP.verticalBlock
@@ -284,7 +284,7 @@ displayError err =
                     )
 
             PromptError streamError ->
-                Terminal.User.report
+                Terminal.Help.report
                     "STREAM ERROR"
                     Nothing
                     (PP.verticalBlock
@@ -301,7 +301,7 @@ displayError err =
                     )
 
             CouldNotRetrieveVersions { packageName, error } ->
-                Terminal.User.report
+                Terminal.Help.report
                     "FAILED TO LOAD DEPENDENCIES"
                     Nothing
                     (PP.verticalBlock
@@ -323,7 +323,7 @@ displayError err =
                     )
 
             NoVersionFound packageName ->
-                Terminal.User.report
+                Terminal.Help.report
                     "FAILED TO LOAD DEPENDENCIES"
                     Nothing
                     (PP.verticalBlock

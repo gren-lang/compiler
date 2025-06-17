@@ -22,7 +22,6 @@ import SemanticVersionRange exposing (SemanticVersionRange)
 import Json.Encode as Json
 import Json.Decode as Decode exposing (Decoder)
 import Stream.Extra
-import Terminal.User as User
 
 
 type alias Config =

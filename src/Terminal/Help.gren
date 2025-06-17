@@ -1,4 +1,4 @@
-module Terminal.User exposing
+module Terminal.Help exposing
     ( confirm
     , prettyPrint
     , report
