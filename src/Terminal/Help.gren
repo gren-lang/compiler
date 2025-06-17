@@ -18,15 +18,15 @@ import SemanticVersion
 type alias ConfirmConfig =
     { stdout : Stream.Writable Bytes
     , stdin : Stream.Readable Bytes
+    , useColor : Bool
     , interactive : Bool
     , question : PP.Document
     , defaultValue : Bool
     }
 
 
--- TODO: respect NO_COLOR
 confirm : ConfirmConfig -> Task Stream.Error Bool
-confirm { stdout, stdin, interactive, question, defaultValue } =
+confirm { stdout, stdin, useColor, interactive, question, defaultValue } =
     if not interactive then
         Task.succeed defaultValue
 
@@ -40,7 +40,7 @@ confirm { stdout, stdin, interactive, question, defaultValue } =
                     " [y|N]: "
         in
         PP.block [ question, PP.text legend ]
-            |> prettyPrint
+            |> prettyPrint { useColor = useColor }
             |> Stream.Log.string stdout
             |> Task.andThen (\_ -> Stream.readBytesAsString stdin)
             |> Task.map
@@ -57,14 +57,19 @@ confirm { stdout, stdin, interactive, question, defaultValue } =
                 )
 
 
-prettyPrint : PP.Document -> String
-prettyPrint doc =
+prettyPrint : { useColor : Bool } -> PP.Document -> String
+prettyPrint { useColor } doc =
     PP.toStringWithOptions
         { maxColumns = 80
         , indentationSize = 4
         , newlineSeparator = "\n"
         }
-        doc
+        (if useColor then
+            doc
+
+        else
+            PP.stripColor doc
+        )
 
 
 report : String -> Maybe Path -> PP.Document -> PP.Document

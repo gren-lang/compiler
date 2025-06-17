@@ -424,6 +424,7 @@ addPackage config { projectPath, outline } requestedPackage =
                                 Help.confirm
                                     { stdout = config.stdout
                                     , stdin = config.stdin
+                                    , useColor = config.useColor
                                     , interactive = config.interactive
                                     , question = plan
                                     , defaultValue = True

@@ -77,6 +77,7 @@ run config =
                     Terminal.Help.confirm
                         { stdout = config.stdout
                         , stdin = config.stdin
+                        , useColor = config.useColor
                         , interactive = config.interactive
                         , question =
                             PP.verticalBlock
@@ -105,7 +106,7 @@ run config =
             )
         |> Task.onError
             (\err ->
-                Stream.Log.line config.stdout (displayError err)
+                Stream.Log.line config.stdout (displayError { useColor = config.useColor } err)
             )
         |> Task.execute
 
@@ -246,9 +247,9 @@ generateGrenJson config deps =
             )
 
 
-displayError : Error -> String
-displayError err =
-    Terminal.Help.prettyPrint <|
+displayError : { useColor : Bool } -> Error -> String
+displayError printOpts err =
+    Terminal.Help.prettyPrint printOpts <|
         when err is
             AlreadyInitialized ->
                 Terminal.Help.report
