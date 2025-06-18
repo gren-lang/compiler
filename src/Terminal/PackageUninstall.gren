@@ -161,10 +161,12 @@ run config { projectPath, outline } requestedPackage =
                             )
 
                 { transitive = Just packageVersion } ->
+                    -- TODO: implement
                     Stream.Log.line config.stdout ("Removing " ++ packageNameStr)
 
         Outline.Pkg pkgOutline ->
             if Dict.member packageNameStr pkgOutline.dependencies then
+                -- TODO: implement
                 Stream.Log.line config.stdout ("Removing " ++ packageNameStr)
 
             else
