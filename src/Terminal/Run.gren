@@ -25,6 +25,7 @@ import Terminal.PackageInstall as PackageInstall
 
 type Error
     = TempPathError FileSystem.Error
+    | ReadProjectOutlineError PackageInstall.ReadProjectOutlineError
     | PackageInstallError PackageInstall.PackageInstallError
     | NotAnApplication
 
@@ -158,7 +159,7 @@ getNullStream =
 getProjectOutline : FileSystem.Permission -> Task Error { projectPath : Path, outline : Outline }
 getProjectOutline fsPermission =
     PackageInstall.readProjectOutline fsPermission
-        |> Task.mapError PackageInstallError
+        |> Task.mapError ReadProjectOutlineError
 
 
 getOutputPath : FileSystem.Permission -> Outline -> Task Error { outputType : (String -> Backend.MakeOutput), outputPath : Path }

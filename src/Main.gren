@@ -448,29 +448,35 @@ parseUserArgs model compilerPath =
                                     , stdin = model.stdin
                                     }
                                     projectOutline
-                            )
-                        |> Task.map
-                            (\resolved ->
-                                Compiler.Backend.run
-                                    model.cpPermission
-                                    { useColor = model.useColor
-                                    , compilerPath = compilerPath
-                                    , pathToString = model.pathToString
-                                    , connection = initWithCommand <|
-                                        Compiler.Backend.Make
-                                            { optimize = flags.optimize
-                                            , sourcemaps = flags.sourcemaps
-                                            , output = flags.output
-                                            , report = flags.report
-                                            , projectPath = resolved.projectPath
-                                            , entryPoints = flags.entryPoints
-                                            , outline = resolved.outline
-                                            , rootSources = resolved.rootSources
-                                            , dependencies = resolved.dependencies
-                                            }
-                                    , onComplete = CompilerRan
-                                    }
-                            )
+                                    |> Task.map
+                                        (\resolved ->
+                                            Compiler.Backend.run
+                                                model.cpPermission
+                                                { useColor = model.useColor
+                                                , compilerPath = compilerPath
+                                                , pathToString = model.pathToString
+                                                , connection = initWithCommand <|
+                                                    Compiler.Backend.Make
+                                                        { optimize = flags.optimize
+                                                        , sourcemaps = flags.sourcemaps
+                                                        , output = flags.output
+                                                        , report = flags.report
+                                                        , projectPath = resolved.projectPath
+                                                        , entryPoints = flags.entryPoints
+                                                        , outline = resolved.outline
+                                                        , rootSources = resolved.rootSources
+                                                        , dependencies = resolved.dependencies
+                                                        }
+                                                , onComplete = CompilerRan
+                                                }
+                                        )
+                                    |> Task.onError
+                                        (\err ->
+                                            Stream.Log.line model.stdout (Debug.toString err)
+                                                |> Task.execute
+                                                |> Task.succeed
+                                        )
+                                )
                         |> Task.onError
                             (\err ->
                                 Stream.Log.line model.stdout (Debug.toString err)
@@ -569,10 +575,14 @@ parseUserArgs model compilerPath =
                                     , stdin = model.stdin
                                     }
                                     projectOutline
-                            )
-                        |> Task.andThen
-                            (\err ->
-                                Stream.Log.line model.stdout "Done"
+                                    |> Task.andThen
+                                        (\err ->
+                                            Stream.Log.line model.stdout "Done"
+                                        )
+                                    |> Task.onError
+                                        (\err ->
+                                            Stream.Log.line model.stdout (Debug.toString err)
+                                        )
                             )
                         |> Task.onError
                             (\err ->
@@ -594,6 +604,10 @@ parseUserArgs model compilerPath =
                                     }
                                     projectOutline
                                     requestedPackage
+                                    |> Task.onError
+                                        (\err ->
+                                            Stream.Log.line model.stdout (Debug.toString err)
+                                        )
                             )
                         |> Task.andThen
                             (\err ->
