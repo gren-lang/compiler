@@ -2,6 +2,8 @@ module Terminal.PackageInstall exposing
     ( PackageInstallError (..)
     , PackageResolution
     , run
+    --
+    , AddPackageError (..)
     , addPackage
     --
     , ReadProjectOutlineError (..)
@@ -58,7 +60,15 @@ type alias PackageResolution =
 
 
 type PackageInstallError
-    = PackageInstallDebug String
+    = PackageInstallFailedToFindProjectSourceFiles FileSystem.Error
+    | PackageInstallFailedToFindSourceFiles { package : PackageName, error : FileSystem.Error }
+    | PackageInstallInvalidOutline { package : PackageName, message : String }
+    | PackageInstallFailedToLoadBundle
+    | PackageInstallInvalidBundle { package : PackageName, message : String }
+    | PackageInstallConflict { name : PackageName, version1 : SemanticVersionRange, version2 : SemanticVersionRange }
+    | PackageInstallGitError { package : PackageName, error : String }
+    | PackageInstallFileSystemError { package : PackageName, error : FileSystem.Error }
+    | PackageInstallCreateBundleError { package : PackageName, error : Stream.Error }
 
 
 run : Config -> Options -> Task PackageInstallError PackageResolution
@@ -127,7 +137,7 @@ run config { projectPath, outline } =
                                 Task.succeed []
 
                             else
-                                Task.fail <| FileSystem.errorToString err
+                                Task.fail <| PackageInstallFailedToFindProjectSourceFiles err
                         )
                     |> Task.map
                         (\sourceFiles ->
@@ -168,7 +178,6 @@ run config { projectPath, outline } =
                             }
                         )
             )
-        |> Task.mapError PackageInstallDebug
         |> Task.andThen (installStep config)
 
 
@@ -240,19 +249,49 @@ installStep config { projectPath, outline, projectSources, rootPackages, loadedP
                             localRepoPath name lowerBound projectPath
                     in
                     FileSystem.remove config.fsPermission { recursive = True } repoPath
-                        |> Task.onError (\_ -> Task.succeed repoPath) -- Probably because directory doesn't exist, that's fine
-                        |> Task.andThen (\_ -> Git.clonePackage config.cpPermission repoPath name lowerBound)
-                        |> Task.mapError (\{ stderr } -> Maybe.withDefault "" <| Bytes.toString stderr)
+                        |> Task.onError (\err ->
+                            if FileSystem.errorIsNoSuchFileOrDirectory err then
+                                Task.succeed repoPath
+
+                            else
+                                Task.fail <| PackageInstallFileSystemError
+                                    { package = name
+                                    , error = err
+                                    }
+                        )
+                        |> Task.andThen
+                            (\_ ->
+                                Git.clonePackage config.cpPermission repoPath name lowerBound
+                                    |> Task.mapError
+                                        (\{ stderr } ->
+                                            PackageInstallGitError
+                                                { package = name
+                                                , error = Maybe.withDefault "" <| Bytes.toString stderr
+                                                }
+                                        )
+                            )
                         |> Task.andThen (\{} ->
                             (Path.append (Path.fromPosixString "gren.json") repoPath)
                                 |> readOutline config.fsPermission
-                                |> Task.mapError FileSystem.errorToString
+                                |> Task.mapError
+                                    (\err ->
+                                        PackageInstallFileSystemError
+                                            { package = name
+                                            , error = err
+                                            }
+                                    )
                                 |> Task.andThen
                                     (\decodeResult ->
                                         when decodeResult is
                                             Ok (Outline.Pkg packageOutline) ->
                                                 Outline.findSourceFiles config.fsPermission (Outline.Pkg packageOutline) repoPath
-                                                    |> Task.mapError FileSystem.errorToString
+                                                    |> Task.mapError
+                                                        (\err ->
+                                                            PackageInstallFailedToFindSourceFiles
+                                                                { package = name
+                                                                , error = err
+                                                                }
+                                                        )
                                                     |> Task.map
                                                         (\files ->
                                                             let
@@ -274,10 +313,16 @@ installStep config { projectPath, outline, projectSources, rootPackages, loadedP
                                                         )
 
                                             Ok (Outline.App _) ->
-                                                Task.fail "Expected package-type outline."
+                                                Task.fail <| PackageInstallInvalidOutline
+                                                    { package = name
+                                                    , message = "Expected package-type outline."
+                                                    }
 
                                             Err err ->
-                                                Task.fail <| Debug.toString err
+                                                Task.fail <| PackageInstallInvalidOutline
+                                                    { package = name
+                                                    , message = Decode.errorToString err
+                                                    }
                                     )
                         )
                         |> Task.andThen
@@ -294,17 +339,35 @@ installStep config { projectPath, outline, projectSources, rootPackages, loadedP
                                                 Task.succeed packagesDir
 
                                             else
-                                                Task.fail err
+                                                Task.fail <| PackageInstallFileSystemError
+                                                    { package = name
+                                                    , error = err
+                                                    }
                                         )
-                                    |> Task.andThen (\_ -> FileSystem.writeFileStream config.fsPermission FileSystem.Replace bundlePath)
-                                    |> Task.mapError FileSystem.errorToString
+                                    |> Task.andThen
+                                        (\_ ->
+                                            FileSystem.writeFileStream config.fsPermission FileSystem.Replace bundlePath
+                                                |> Task.mapError
+                                                    (\err ->
+                                                        PackageInstallFileSystemError
+                                                            { package = name
+                                                            , error = err
+                                                            }
+                                                    )
+                                        )
                                     |> Task.andThen
                                         (\stream ->
                                             Stream.fromArray [ pkg.data ]
                                                 |> Task.andThen (Stream.awaitAndPipeThrough Stream.textEncoder)
                                                 |> Task.andThen (Stream.awaitAndPipeThrough Stream.gzipCompression)
                                                 |> Task.andThen (Stream.pipeTo stream)
-                                                |> Task.mapError Stream.errorToString
+                                                |> Task.mapError
+                                                    (\ err ->
+                                                        PackageInstallCreateBundleError
+                                                            { package = name
+                                                            , error = err
+                                                            }
+                                                    )
                                         )
                                     |> Task.map (\_ -> pkg)
                             )
@@ -323,16 +386,24 @@ installStep config { projectPath, outline, projectSources, rootPackages, loadedP
                                 }
                             )
                         -- TODO: Print progress
-                        |> Task.mapError PackageInstallDebug
                         |> Task.andThen (installStep config)
 
-        Compiler.Dependencies.Conflict _ ->
-            Task.fail (PackageInstallDebug "TODO: CONFLICT")
+        Compiler.Dependencies.Conflict conflict ->
+            Task.fail (PackageInstallConflict conflict)
+
+
+type AddPackageError
+    = AddPackageAlreadyInstalled
+    | AddPackagePromptError Stream.Error
+    | AddPackageUserCancelled
+    | AddPackageFileSystemError FileSystem.Error
+    | AddPackageGitError String
+    | AddPackageNoVersion
+    | AddPackageInstallError PackageInstallError
 
 
 -- TODO: Refactor
--- TODO: Don't read from stdin if not interactive prompt
-addPackage : Config -> Options -> PackageName -> Task PackageInstallError {}
+addPackage : Config -> Options -> PackageName -> Task AddPackageError {}
 addPackage config { projectPath, outline } requestedPackage =
     let
         packageNameStr =
@@ -356,13 +427,13 @@ addPackage config { projectPath, outline } requestedPackage =
                             )
                         |> Task.mapError
                             (\err ->
-                                PackageInstallDebug <| Debug.toString err
+                                AddPackageGitError <| Debug.toString err
                             )
                         |> Task.andThen
                             (\maybeVersion ->
                                 when maybeVersion is
                                     Nothing ->
-                                        Task.fail <| PackageInstallDebug "Could not find version"
+                                        Task.fail AddPackageNoVersion
 
                                     Just packageVersion ->
                                         Task.succeed packageVersion
@@ -380,6 +451,7 @@ addPackage config { projectPath, outline } requestedPackage =
                                         }
                                         |> Outline.App
                                     }
+                                    |> Task.mapError AddPackageInstallError
                                     |> Task.map (\res -> { resolved = res, packageVersion = packageVersion })
                             )
                         |> Task.andThen
@@ -428,7 +500,7 @@ addPackage config { projectPath, outline } requestedPackage =
                                     , question = plan
                                     , defaultValue = True
                                     }
-                                    |> Task.mapError (\_ -> "Stream error")
+                                    |> Task.mapError AddPackagePromptError
                                     |> Task.andThen
                                         (\confirmed ->
                                             if confirmed then
@@ -438,39 +510,36 @@ addPackage config { projectPath, outline } requestedPackage =
                                                     |> Task.succeed
 
                                             else
-                                                Task.fail ""
+                                                Task.fail AddPackageUserCancelled
                                         )
                                     |> Task.andThen
                                         (\newOutline ->
                                             FileSystem.writeFile config.fsPermission (Bytes.fromString newOutline) grenJsonPath
-                                                |> Task.mapError (\fsErr -> Debug.toString fsErr)
+                                                |> Task.mapError AddPackageFileSystemError
                                                 |> Task.map (\_ -> {})
-                                        )
-                                    |> Task.onError
-                                        (\err ->
-                                            Stream.Log.line config.stdout ("Error: " ++ err)
-                                        )
-                                    |> Task.andThen
-                                        (\_ ->
-                                            Stream.Log.line config.stdout "Done"
                                         )
                             )
 
                 { direct = True } ->
-                    Task.fail <| PackageInstallDebug "Already installed"
+                    Task.fail AddPackageAlreadyInstalled
 
                 { transitive = Just packageVersion } ->
-                    Stream.Log.line config.stdout "Move to direct? y/N"
-                        |> Task.andThen (\_ -> Stream.readBytesAsString config.stdin)
-                        |> Task.mapError (\_ -> PackageInstallDebug "Stream error")
+                    Help.confirm
+                        { stdout = config.stdout
+                        , stdin = config.stdin
+                        , useColor = config.useColor
+                        , interactive = config.interactive
+                        , question = PP.words "Move to direct?"
+                        , defaultValue = True
+                        }
+                        |> Task.mapError AddPackagePromptError
                         |> Task.andThen
                             (\answer ->
-                                when String.trim (String.toLower answer) is
-                                    "y" ->
-                                        Task.succeed {}
+                                if answer then
+                                    Task.succeed {}
 
-                                    _ ->
-                                        Task.fail <| PackageInstallDebug ""
+                                else
+                                    Task.fail AddPackageUserCancelled
                             )
                         |> Task.andThen
                             (\{} ->
@@ -488,16 +557,13 @@ addPackage config { projectPath, outline } requestedPackage =
                         |> Task.andThen
                             (\newOutline ->
                                 FileSystem.writeFile config.fsPermission (Bytes.fromString newOutline) grenJsonPath
-                                    |> Task.mapError (\fsErr -> PackageInstallDebug (Debug.toString fsErr))
-                            )
-                        |> Task.andThen
-                            (\_ ->
-                                Task.fail <| PackageInstallDebug "done"
+                                    |> Task.mapError AddPackageFileSystemError
+                                    |> Task.map (\_ -> {})
                             )
 
         Outline.Pkg pkgOutline ->
             if Dict.member packageNameStr pkgOutline.dependencies then
-                Task.fail <| PackageInstallDebug "Already installed"
+                Task.fail AddPackageAlreadyInstalled
 
             else
                 -- TODO: Implement
@@ -596,14 +662,20 @@ type alias LoadedPackage =
 
 
 -- TODO: extract to module
-loadPackageFromPath : FileSystem.Permission -> PackageName -> Path -> Task String (Maybe LoadedPackage)
+loadPackageFromPath : FileSystem.Permission -> PackageName -> Path -> Task PackageInstallError (Maybe LoadedPackage)
 loadPackageFromPath fsPermission name path =
     let
         outlinePath =
             Path.append (Path.fromPosixString "gren.json") path
     in
     FileSystem.readFile fsPermission outlinePath
-        |> Task.mapError FileSystem.errorToString
+        |> Task.mapError
+            (\err ->
+                PackageInstallInvalidOutline
+                    { package = name
+                    , message = FileSystem.errorToString err
+                    }
+            )
         |> Task.andThen
             (\outlineBytes ->
                 when Bytes.toString outlineBytes is
@@ -611,18 +683,30 @@ loadPackageFromPath fsPermission name path =
                         Task.succeed str
 
                     Nothing ->
-                        Task.fail "gren.json not valid utf-8"
+                        Task.fail <| PackageInstallInvalidOutline
+                            { package = name
+                            , message = "gren.json is not a valid utf-8 string"
+                            }
             )
         |> Task.andThen
             (\outlineStr ->
                 when Decode.decodeString Outline.pkgJsonDecoder outlineStr is
                     Ok outline ->
                         Outline.findSourceFiles fsPermission (Outline.Pkg outline) path
-                            |> Task.mapError FileSystem.errorToString
+                            |> Task.mapError
+                                (\err ->
+                                    PackageInstallFailedToFindSourceFiles
+                                        { package = name
+                                        , error = err
+                                        }
+                                )
                             |> Task.andThen
                                 (\sourceFiles ->
                                     if name /= outline.name then
-                                        Task.fail ("Name in outline was expected to be " ++ PackageName.toString name)
+                                        Task.fail <| PackageInstallInvalidOutline
+                                            { package = name
+                                            , message = "Name in gren.json was expected to be " ++ PackageName.toString name
+                                            }
 
                                     else
                                         Task.succeed
@@ -641,30 +725,45 @@ loadPackageFromPath fsPermission name path =
                                 )
 
                     Err jsonErr ->
-                        Task.fail <| Decode.errorToString jsonErr
+                        Task.fail <| PackageInstallInvalidOutline
+                            { package = name
+                            , message = Decode.errorToString jsonErr
+                            }
             )
 
-loadPackageFromBundle : FileSystem.Permission -> PackageName -> SemanticVersion -> Path -> Task String (Maybe LoadedPackage)
+loadPackageFromBundle : FileSystem.Permission -> PackageName -> SemanticVersion -> Path -> Task PackageInstallError (Maybe LoadedPackage)
 loadPackageFromBundle fsPermission name vsn projectPath =
     packageBundlePath name vsn projectPath
         |> FileSystem.readFileStream fsPermission FileSystem.Beginning
-        |> Task.mapError FileSystem.errorToString
+        |> Task.mapError (\_ -> PackageInstallFailedToLoadBundle)
         |> Task.andThen
             (\stream ->
                 stream
                     |> Stream.awaitAndPipeThrough Stream.gzipDecompression
                     |> Task.andThen (Stream.awaitAndPipeThrough Stream.textDecoder)
                     |> Task.andThen Stream.Extra.consumeString
-                    |> Task.mapError Stream.errorToString
+                    |> Task.mapError
+                        (\err ->
+                            PackageInstallInvalidBundle
+                                { package = name
+                                , message = "Failed to read bundle from disk. Error: " ++ Stream.errorToString err
+                                }
+                        )
                     |> Task.andThen
                         (\data ->
                             when Decode.decodeString packageBundleDecoder data is
                                 Ok bundle ->
                                     if name /= bundle.outline.name then
-                                        Task.fail ("Package name mismatch. Expected " ++ PackageName.toString name)
+                                        Task.fail <| PackageInstallInvalidBundle
+                                            { package = name
+                                            , message = "Package name mismatch. Expected " ++ PackageName.toString name 
+                                            }
 
                                     else if vsn /= bundle.outline.version then
-                                        Task.fail ("Package version mismatch. Expected " ++ SemanticVersion.toString vsn)
+                                        Task.fail <| PackageInstallInvalidBundle
+                                            { package = name
+                                            , message = "Package version mismatch. Expected " ++ SemanticVersion.toString vsn
+                                            }
 
                                     else
                                         Task.succeed
@@ -676,7 +775,10 @@ loadPackageFromBundle fsPermission name vsn projectPath =
                                             )
 
                                 Err jsonErr ->
-                                    Task.fail <| Decode.errorToString jsonErr
+                                    Task.fail <| PackageInstallInvalidBundle
+                                        { package = name
+                                        , message = Decode.errorToString jsonErr
+                                        }
                         )
-                    |> Task.onError (\_ -> Task.succeed Nothing)
             )
+
