@@ -158,7 +158,7 @@ type Msg
     | CompilerInstalled (Result FileSystem.Error Path)
     | CompilerInitialized { quiet : Bool, backendStreams : ChildProcess.StreamIO, encodedCommand : Bytes }
     | CompilerRan Int
-    | CompiledForRun { path : String, exitCode : Int }
+    | CompiledForRun { path : Path, exitCode : Int }
     | RunStarted Process.Id
     | RunExited Int
     | RedirectTerminalIO
@@ -270,6 +270,7 @@ update msg model =
                     Terminal.Run.run 
                         { cpPermission = model.cpPermission
                         , fsPermission = model.fsPermission
+                        , pathToString = model.pathToString
                         , path = path
                         , onInit = RunStarted
                         , onExit = RunExited
@@ -277,6 +278,7 @@ update msg model =
                         |> Task.onError
                             (\error ->
                                 -- TODO: Terminal.Run.errorToString
+                                -- TODO: Why am I not seeing the write to stderr?
                                 Stream.Log.line model.stderr (Debug.toString error)
                                     |> Task.map (\_ -> Node.exitWithCode 1)
                             )
@@ -485,14 +487,15 @@ parseUserArgs model compilerPath =
                             )
                         |> Task.executeCmd
 
-                CliParser.Run moduleName ->
+                CliParser.Run opts ->
                     Terminal.Run.make
                         { fsPermission = model.fsPermission
                         , cpPermission = model.cpPermission
                         , useColor = model.useColor
                         , compilerPath = compilerPath
                         , pathToString = model.pathToString
-                        , moduleName = moduleName
+                        , moduleName = opts.moduleName
+                        , package = opts.package
                         , onBackendInitialized = 
                             (\{ backendStreams, encodedCommand } ->
                                 CompilerInitialized
@@ -504,7 +507,7 @@ parseUserArgs model compilerPath =
                         , onCompiled = 
                             (\outputPath exitCode ->
                                 CompiledForRun
-                                    { path = model.pathToString outputPath
+                                    { path = outputPath
                                     , exitCode = exitCode
                                     }
                             )
