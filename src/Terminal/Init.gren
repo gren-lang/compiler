@@ -44,8 +44,7 @@ type Error
     | PromptError Stream.Error
     | CouldNotRetrieveVersions { packageName : PackageName, error : Git.Error }
     | NoVersionFound PackageName
-    -- TODO
-    | InstallError
+    | InstallError PackageInstall.PackageInstallError
 
 
 run : Config -> Cmd a
@@ -208,7 +207,7 @@ generateGrenJson config deps =
         { projectPath = Path.empty
         , outline = outline
         }
-        |> Task.mapError (\_ -> InstallError)
+        |> Task.mapError InstallError
         |> Task.andThen
             (\resolution ->
                 let
@@ -339,5 +338,6 @@ displayError printOpts err =
                         ]
                     )
 
-            InstallError ->
+            InstallError _ ->
+                -- TODO
                 PP.text "Install error"

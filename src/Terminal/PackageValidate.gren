@@ -47,7 +47,19 @@ type alias Options =
 
 
 type Error
-    = ErrorDebug String
+    = IsApplication
+    | NoExposedModules
+    | BadSummary
+    | HasLocalDependencies
+    | FailedToFetchVersions Git.Error
+    | FailedToReadReadme FileSystem.Error
+    | ShortReadme
+    | FailedToReadLicense FileSystem.Error
+    | NoPublishedVersionAndNot1
+    | NoLocalTag
+    | HasLocalChanges
+    | PackageInstallError Terminal.PackageInstall.PackageInstallError
+    | PreviousPackageCorrupted
 
 
 type alias Result =
@@ -67,29 +79,29 @@ type alias Result =
     }
 
 
-run : Config -> Options -> Task String Result
+run : Config -> Options -> Task Error Result
 run config { projectPath, outline } =
     when outline is
         Outline.App _ ->
-            Task.fail "Can only use validate on packages"
+            Task.fail IsApplication
 
         Outline.Pkg pkgOutline ->
             if noExposed pkgOutline.exposedModules then
-                Task.fail "No exposed modules"
+                Task.fail NoExposedModules
 
             else if badSummary pkgOutline.summary then
-                Task.fail "Bad summary"
+                Task.fail BadSummary
 
             else if hasLocalDeps pkgOutline.dependencies then
-                Task.fail "Has local dependencies"
+                Task.fail HasLocalDependencies
 
             else
-                Task.await (Task.mapError Debug.toString <| Git.fetchVersions config.cpPermission pkgOutline.name) <| \knownVersions ->
+                Task.await (Task.mapError FailedToFetchVersions <| Git.fetchVersions config.cpPermission pkgOutline.name) <| \knownVersions ->
                 Task.await (verifyVersion pkgOutline.version knownVersions) <| \{} ->
                 Task.await (verifyReadme config.fsPermission projectPath) <| \{} ->
                 Task.await (verifyLicense config.fsPermission projectPath) <| \{} ->
-                Task.await (Task.mapError Debug.toString <| Git.hasLocalTag config.cpPermission pkgOutline.version) <| \{} ->
-                Task.await (Task.mapError Debug.toString <| Git.hasNoLocalChangesSinceTag config.cpPermission pkgOutline.version) <| \{} ->
+                Task.await (Task.mapError (\_ -> NoLocalTag) <| Git.hasLocalTag config.cpPermission pkgOutline.version) <| \{} ->
+                Task.await (Task.mapError (\_ -> HasLocalChanges) <| Git.hasNoLocalChangesSinceTag config.cpPermission pkgOutline.version) <| \{} ->
                     Terminal.PackageInstall.run
                         { fsPermission = config.fsPermission
                         , cpPermission = config.cpPermission
@@ -99,7 +111,7 @@ run config { projectPath, outline } =
                         , stdin = config.stdin
                         }
                         { projectPath = projectPath, outline = outline }
-                        |> Task.mapError Debug.toString
+                        |> Task.mapError PackageInstallError
                         |> Task.andThen
                             (\currentPackage ->
                                  let
@@ -128,14 +140,23 @@ run config { projectPath, outline } =
                                                 Terminal.PackageInstall.localRepoPath pkgOutline.name packageVersion projectPath
                                         in
                                         FileSystem.remove config.fsPermission { recursive = True } repoPath
-                                            |> Task.onError (\_ -> Task.succeed repoPath) -- Probably because directory doesn't exist, that's fine
-                                            |> Task.andThen (\_ -> Git.clonePackage config.cpPermission repoPath pkgOutline.name packageVersion)
-                                            |> Task.mapError (\{ stderr } -> Maybe.withDefault "" <| Bytes.toString stderr)
+                                            |> Task.onError
+                                                (\err ->
+                                                    if FileSystem.errorIsNoSuchFileOrDirectory err then
+                                                        Task.succeed repoPath
+                                                    else
+                                                        Task.fail PreviousPackageCorrupted
+                                                )
+                                            |> Task.andThen
+                                                (\_ ->
+                                                    Git.clonePackage config.cpPermission repoPath pkgOutline.name packageVersion
+                                                        |> Task.mapError (\_ -> PreviousPackageCorrupted)
+                                                )
                                             |> Task.andThen
                                                 (\_ ->
                                                     Path.append (Path.fromPosixString "gren.json") repoPath
                                                         |> Terminal.PackageInstall.readOutline config.fsPermission
-                                                        |> Task.mapError Debug.toString
+                                                        |> Task.mapError (\_ -> PreviousPackageCorrupted)
                                                         |> Task.andThen
                                                             (\result ->
                                                                 when result is
@@ -143,7 +164,7 @@ run config { projectPath, outline } =
                                                                         Task.succeed decodedOutline
 
                                                                     Err err ->
-                                                                        Task.fail (Debug.toString err)
+                                                                        Task.fail PreviousPackageCorrupted
                                                             )
                                                 )
                                             |> Task.andThen
@@ -157,7 +178,7 @@ run config { projectPath, outline } =
                                                         , stdin = config.stdin
                                                         }
                                                         { projectPath = repoPath, outline = previousOutline }
-                                                        |> Task.mapError Debug.toString
+                                                        |> Task.mapError (\_ -> PreviousPackageCorrupted)
                                                 )
                                             |> Task.map
                                                 (\previousPackage ->
@@ -208,38 +229,38 @@ hasLocalDeps dependencies =
         dependencies
 
 
-verifyVersion : SemanticVersion -> Array SemanticVersion -> Task String {}
+verifyVersion : SemanticVersion -> Array SemanticVersion -> Task Error {}
 verifyVersion vsn publishedVersions =
     if Array.isEmpty publishedVersions then
         if vsn.major == 1 && vsn.minor == 0 && vsn.patch == 0 then
             Task.succeed {}
 
         else
-            Task.fail "No published version and version isn't 1.0.0"
+            Task.fail NoPublishedVersionAndNot1
 
     else
         Task.succeed {}
 
 
-verifyReadme : FileSystem.Permission -> Path -> Task String {}
+verifyReadme : FileSystem.Permission -> Path -> Task Error {}
 verifyReadme permission projectPath =
     let
         readmePath = Path.appendPosixString "README" projectPath
     in
     FileSystem.readFile permission readmePath
-        |> Task.mapError (\_ -> "Couldn't read README")
+        |> Task.mapError FailedToReadReadme
         |> Task.andThen
             (\content ->
                 if Bytes.length content < 300 then
-                    Task.fail "Short readme"
+                    Task.fail ShortReadme
 
                 else
                     Task.succeed {}
             )
 
 
-verifyLicense : FileSystem.Permission -> Path -> Task String {}
+verifyLicense : FileSystem.Permission -> Path -> Task Error {}
 verifyLicense permission projectPath =
     FileSystem.checkAccess permission [] (Path.appendPosixString "LICENSE" projectPath)
-        |> Task.mapError (\_ -> "Couldn't read LICENSE")
+        |> Task.mapError FailedToReadLicense
         |> Task.map (\_ -> {})
