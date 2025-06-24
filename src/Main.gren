@@ -12,6 +12,7 @@ import Terminal.PackageValidate
 import Terminal.Paths
 import Terminal.Init
 import Terminal.Run
+import Terminal.Help
 import Compiler.Backend
 import Compiler.PackageName as PackageName exposing (PackageName)
 import Compiler.Paths
@@ -393,7 +394,7 @@ parseUserArgs model compilerPath =
                     -- TODO: DRY up package installation
                     -- TODO: create repl project when no project outline is found
                     Terminal.PackageInstall.readProjectOutline model.fsPermission
-                        |> Task.mapError Debug.toString
+                        |> Task.mapError Terminal.PackageInstall.prettifyProjectOutlineError
                         |> Task.andThen
                             (\projectOutline ->
                                 Terminal.PackageInstall.run
@@ -405,7 +406,7 @@ parseUserArgs model compilerPath =
                                     , stdin = model.stdin
                                     }
                                     projectOutline
-                                    |> Task.mapError Debug.toString
+                                    |> Task.mapError Terminal.PackageInstall.prettifyError
                             )
                         |> Task.map
                             (\resolved ->
@@ -428,9 +429,9 @@ parseUserArgs model compilerPath =
                             )
                         |> Task.onError
                             (\err ->
-                                Stream.Log.line model.stdout err
-                                    |> Task.execute
-                                    |> Task.succeed
+                                Terminal.Help.prettyPrint { useColor = model.useColor } err
+                                    |> Stream.Log.string model.stdout
+                                    |> Task.map (\_ -> Cmd.none)
                             )
                         |> Task.executeCmd
 
