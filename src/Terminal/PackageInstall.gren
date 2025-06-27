@@ -6,6 +6,7 @@ module Terminal.PackageInstall exposing
     --
     , AddPackageError (..)
     , addPackage
+    , prettifyAddPackageError
     --
     , ReadProjectOutlineError (..)
     , readProjectOutline
@@ -533,7 +534,7 @@ type AddPackageError
     = AddPackageAlreadyInstalled
     | AddPackagePromptError Stream.Error
     | AddPackageUserCancelled
-    | AddPackageFileSystemError FileSystem.Error
+    | AddPackageWriteOutlineError FileSystem.Error
     | AddPackageGitError Git.Error
     | AddPackageInstallError PackageInstallError
 
@@ -639,7 +640,7 @@ addPackage config { projectPath, outline } requestedPackage =
                                     |> Task.andThen
                                         (\newOutline ->
                                             FileSystem.writeFile config.fsPermission (Bytes.fromString newOutline) grenJsonPath
-                                                |> Task.mapError AddPackageFileSystemError
+                                                |> Task.mapError AddPackageWriteOutlineError
                                                 |> Task.map (\_ -> {})
                                         )
                             )
@@ -681,7 +682,7 @@ addPackage config { projectPath, outline } requestedPackage =
                         |> Task.andThen
                             (\newOutline ->
                                 FileSystem.writeFile config.fsPermission (Bytes.fromString newOutline) grenJsonPath
-                                    |> Task.mapError AddPackageFileSystemError
+                                    |> Task.mapError AddPackageWriteOutlineError
                                     |> Task.map (\_ -> {})
                             )
 
@@ -692,6 +693,55 @@ addPackage config { projectPath, outline } requestedPackage =
             else
                 -- TODO: Implement
                 Stream.Log.line config.stdout ("Installing " ++ packageNameStr)
+
+
+prettifyAddPackageError : AddPackageError -> PP.Document
+prettifyAddPackageError error =
+    when error is
+        AddPackageAlreadyInstalled ->
+            PP.empty
+
+        AddPackagePromptError streamErr ->
+            Help.report
+                "FAILED TO COMMUNICATE WITH USER"
+                Nothing
+                (PP.verticalBlock
+                    [ PP.words "I wanted to ask you a question, but something seems to be wrong with the stdin stream."
+                    , PP.empty
+                    , PP.words "The error is:"
+                    , PP.empty
+                    , PP.words (Stream.errorToString streamErr)
+                        |> PP.indent
+                    , PP.empty
+                    , PP.words "This is most definetly a bug. Please report it."
+                    ]
+                )
+
+        AddPackageUserCancelled ->
+            PP.empty
+
+        AddPackageWriteOutlineError fsErr ->
+            Help.report
+                "FAILED TO UPDATE OUTLINE"
+                Nothing
+                (PP.verticalBlock
+                    [ PP.words "An error occured while I updating the gren.json file."
+                    , PP.empty
+                    , PP.words "The error is:"
+                    , PP.empty
+                    , PP.words (FileSystem.errorToString fsErr)
+                        |> PP.indent
+                    ]
+                )
+
+        AddPackageGitError gitErr ->
+            Git.report
+                "FAILED TO ADD PACKAGE"
+                "I was trying to add a new package to the project"
+                gitErr
+
+        AddPackageInstallError installErr ->
+            prettifyError installErr
 
 
 packageBundlePath : PackageName -> SemanticVersion -> Path -> Path

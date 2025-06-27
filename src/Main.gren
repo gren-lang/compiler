@@ -364,6 +364,10 @@ parseUserArgs model compilerPath =
     
         CLI.Parser.Success parsedCommand ->
             let
+                printOpts =
+                    { useColor = model.useColor
+                    }
+
                 initWithCommand backendCommand =
                     ChildProcess.External <| \cpOpts ->
                         CompilerInitialized
@@ -565,6 +569,7 @@ parseUserArgs model compilerPath =
 
                 CliParser.PackageInstall Nothing ->
                     Terminal.PackageInstall.readProjectOutline model.fsPermission
+                        |> Task.mapError Terminal.PackageInstall.prettifyProjectOutlineError
                         |> Task.andThen
                             (\projectOutline ->
                                 Terminal.PackageInstall.run
@@ -576,23 +581,22 @@ parseUserArgs model compilerPath =
                                     , stdin = model.stdin
                                     }
                                     projectOutline
-                                    |> Task.andThen
-                                        (\err ->
-                                            Stream.Log.line model.stdout "Done"
-                                        )
-                                    |> Task.onError
-                                        (\err ->
-                                            Stream.Log.line model.stdout (Debug.toString err)
-                                        )
+                                    |> Task.mapError Terminal.PackageInstall.prettifyError
+                            )
+                        |> Task.andThen
+                            (\err ->
+                                Stream.Log.line model.stdout "Done"
                             )
                         |> Task.onError
                             (\err ->
-                                Stream.Log.line model.stdout (Debug.toString err)
+                                Terminal.Help.prettyPrint printOpts err
+                                    |> Stream.Log.string model.stderr
                             )
                         |> Task.execute
 
                 CliParser.PackageInstall (Just requestedPackage) ->
                     Terminal.PackageInstall.readProjectOutline model.fsPermission
+                        |> Task.mapError Terminal.PackageInstall.prettifyProjectOutlineError
                         |> Task.andThen
                             (\projectOutline ->
                                 Terminal.PackageInstall.addPackage
@@ -605,10 +609,7 @@ parseUserArgs model compilerPath =
                                     }
                                     projectOutline
                                     requestedPackage
-                                    |> Task.onError
-                                        (\err ->
-                                            Stream.Log.line model.stdout (Debug.toString err)
-                                        )
+                                    |> Task.mapError Terminal.PackageInstall.prettifyAddPackageError
                             )
                         |> Task.andThen
                             (\err ->
@@ -616,7 +617,8 @@ parseUserArgs model compilerPath =
                             )
                         |> Task.onError
                             (\err ->
-                                Stream.Log.line model.stdout (Debug.toString err)
+                                Terminal.Help.prettyPrint printOpts err
+                                    |> Stream.Log.string model.stderr
                             )
                         |> Task.execute
 
