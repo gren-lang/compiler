@@ -50,7 +50,6 @@ type Error
     = LocalReadProjectOutlineError Terminal.PackageInstall.ReadProjectOutlineError
     | LocalCannotDiffApplication
     | LocalFetchVersionsFailed Git.Error
-    | LocalNoPublishedVersions
     | LocalInstallError Terminal.PackageInstall.PackageInstallError
     | LocalHiddenProjectError InstallHiddenProjectError
 
@@ -90,19 +89,14 @@ runLocal config maybeVersion =
                                     Nothing ->
                                         Git.fetchVersions config.cpPermission pkgOutline.name
                                             |> Task.mapError LocalFetchVersionsFailed
-                                            |> Task.andThen
+                                            |> Task.map
                                                 (\knownVersions ->
-                                                    if Array.isEmpty knownVersions then
-                                                        Task.fail LocalNoPublishedVersions
-
-                                                    else
-                                                        Array.last knownVersions
-                                                            |> Maybe.withDefault
-                                                                { major = 1
-                                                                , minor = 0
-                                                                , patch = 0
-                                                                }
-                                                            |> Task.succeed
+                                                    Array.last knownVersions
+                                                        |> Maybe.withDefault
+                                                            { major = 1
+                                                            , minor = 0
+                                                            , patch = 0
+                                                            }
                                                 )
                         in
                         versionTask
@@ -159,7 +153,7 @@ runLocal config maybeVersion =
 
 type InstallHiddenProjectError
     = HiddenProjectFileSystemError FileSystem.Error
-    | HiddenProjectGitCloneError ChildProcess.FailedRun
+    | HiddenProjectGitCloneError Git.Error
     | HiddenProjectReadOutlineError FileSystem.Error
     | HiddenProjectOutlineDecodeError Decode.Error
     | HiddenProjectInstallError Terminal.PackageInstall.PackageInstallError

@@ -68,7 +68,7 @@ type PackageInstallError
     | PackageInstallFailedToLoadBundle Path
     | PackageInstallInvalidBundle { package : PackageName, path : Path, message : String }
     | PackageInstallConflict { package : PackageName, version1 : SemanticVersionRange, version2 : SemanticVersionRange }
-    | PackageInstallGitError { package : PackageName, error : String }
+    | PackageInstallGitError { package : PackageName, error : Git.Error }
     | PackageInstallFileSystemError { package : PackageName, error : FileSystem.Error }
     | PackageInstallCreateBundleError { package : PackageName, path : Path, error : Stream.Error }
 
@@ -265,10 +265,10 @@ installStep config { projectPath, outline, projectSources, rootPackages, loadedP
                             (\_ ->
                                 Git.clonePackage config.cpPermission repoPath name lowerBound
                                     |> Task.mapError
-                                        (\{ stderr } ->
+                                        (\err ->
                                             PackageInstallGitError
                                                 { package = name
-                                                , error = Maybe.withDefault "" <| Bytes.toString stderr
+                                                , error = err
                                                 }
                                         )
                             )
@@ -492,20 +492,10 @@ prettifyError error =
                 )
 
         PackageInstallGitError { package, error = gitErr } ->
-            Help.report
-                ("GIT OPERATION FAILED FOR " ++ PackageName.toString package)
-                Nothing
-                (PP.verticalBlock
-                    [ PP.words "An error occured while installing this package."
-                    , PP.empty
-                    , PP.words "The error is:"
-                    , PP.empty
-                    , PP.words gitErr
-                        |> PP.indent
-                    , PP.empty
-                    , PP.words "Note: I use git to clone dependencies from Github."
-                    ]
-                )
+            Git.report
+                "PROBLEM INSTALLING PACKAGE"
+                ("I was trying to install " ++ PackageName.toString package)
+                gitErr
 
         PackageInstallFileSystemError { package, error = fsErr } ->
             Help.report
@@ -544,8 +534,7 @@ type AddPackageError
     | AddPackagePromptError Stream.Error
     | AddPackageUserCancelled
     | AddPackageFileSystemError FileSystem.Error
-    | AddPackageGitError String
-    | AddPackageNoVersion
+    | AddPackageGitError Git.Error
     | AddPackageInstallError PackageInstallError
 
 
@@ -572,19 +561,7 @@ addPackage config { projectPath, outline } requestedPackage =
                             (\_ ->
                                 Git.fetchLatestVersion config.cpPermission requestedPackage
                             )
-                        |> Task.mapError
-                            (\err ->
-                                AddPackageGitError <| Debug.toString err
-                            )
-                        |> Task.andThen
-                            (\maybeVersion ->
-                                when maybeVersion is
-                                    Nothing ->
-                                        Task.fail AddPackageNoVersion
-
-                                    Just packageVersion ->
-                                        Task.succeed packageVersion
-                            )
+                        |> Task.mapError AddPackageGitError
                         |> Task.andThen
                             (\packageVersion ->
                                 run

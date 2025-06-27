@@ -124,17 +124,11 @@ init config =
                         (\err ->
                             CouldNotRetrieveVersions { packageName = packageName, error = err }
                         )
-                    |> Task.andThen
-                        (\maybeVsn ->
-                            when maybeVsn is
-                                Just vsn ->
-                                    Task.succeed
-                                        { name = packageName
-                                        , version = vsn
-                                        }
-
-                                Nothing ->
-                                    Task.fail (NoVersionFound packageName)
+                    |> Task.map
+                        (\vsn ->
+                            { name = packageName
+                            , version = vsn
+                            }
                         )
             )
         |> Task.concurrent
@@ -301,26 +295,10 @@ displayError printOpts err =
                     )
 
             CouldNotRetrieveVersions { packageName, error } ->
-                Terminal.Help.report
+                Git.report
                     "FAILED TO LOAD DEPENDENCIES"
-                    Nothing
-                    (PP.verticalBlock
-                        [ PP.words "I tried to find the latest compatible versions of the"
-                        , PP.text " "
-                        , PP.text (PackageName.toString packageName)
-                            |> PP.color PP.Green
-                        , PP.text " "
-                        , PP.words "but failed due to a problem with Git. I use Git to download external dependencies from Github."
-                        , PP.empty
-                        , PP.words "The error is:"
-                        , PP.empty
-                        , PP.words (Git.errorToString error)
-                            |> PP.color PP.Red
-                            |> PP.indent
-                        , PP.empty
-                        , PP.words "Please check your git configuration. If the problem persist, consider submitting a bug report."
-                        ]
-                    )
+                    ("I tried to find the latest compatible versions of the " ++ PackageName.toString packageName)
+                    error
 
             NoVersionFound packageName ->
                 Terminal.Help.report
@@ -338,6 +316,5 @@ displayError printOpts err =
                         ]
                     )
 
-            InstallError _ ->
-                -- TODO
-                PP.text "Install error"
+            InstallError installError ->
+                PackageInstall.prettifyError installError

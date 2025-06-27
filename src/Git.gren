@@ -1,6 +1,6 @@
 module Git exposing
     ( Error(..)
-    , errorToString
+    , report
     , clonePackage
     , fetchLatestVersion
     , fetchVersions
@@ -15,89 +15,138 @@ import FileSystem.Path as Path exposing (Path)
 import Compiler.PackageName as PackageName exposing (PackageName)
 import SemanticVersion exposing (SemanticVersion)
 import Task exposing (Task)
+import Terminal.Help as Help
+import CLI.PrettyPrinter as PP
+
 
 type Error
-    = MissingGit
-    | NoVersions
+    = NoVersions
     | NoSuchRepo
-    | NoSuchRepoOrVersion
-    | FailedCommand
+    | NoSuchRepoOrVersion SemanticVersion
+    | FailedCommand { args : Array String, message : String }
 
 
--- TODO
-errorToString : Error -> String
-errorToString err =
-    ""
-        -- Git.MissingGit ->
-        --   toGitReport
-        --     (context ++ ", but I couldn't find a git binary.")
-        --     [ D.reflow
-        --         "I use git to clone dependencies from github.\
-        --         \ Make sure that git is installed and present in your PATH."
-        --     ]
-        -- Git.NoVersions ->
-        --   toGitReport
-        --     (context ++ ", but I couldn't find any semver compatible tags in this repo.")
-        --     [ D.reflow
-        --         "Gren packages are just git repositories with tags following the \
-        --         \ semantic versioning scheme. However, it seems that this particular repo \
-        --         \ doesn't have _any_ semantic version tags!"
-        --     ]
-        -- Git.NoSuchRepo ->
-        --   toGitReport
-        --     (context ++ ", but I couldn't find the repo on github.")
-        --     [ D.reflow
-        --         "Gren packages are just git repositories hosted on github, however \
-        --         \ it seems like this repo doesn't exist."
-        --     ]
-        -- Git.NoSuchRepoOrVersion vsn ->
-        --   toGitReport
-        --     (context ++ ", but I couldn't find the correct version of this package on github.")
-        --     [ D.reflow $
-        --         "Gren packages are just git repositories hosted on github with semver \
-        --         \ formatted tags. However, it seems like this package, or version "
-        --           ++ V.toChars vsn
-        --           ++ ", doesn't exist."
-        --     ]
-        -- Git.FailedCommand args errorMsg ->
-        --   toGitReport
-        --     (context ++ ", so I tried to execute:")
-        --     [ D.indent 4 $ D.reflow $ unwords args,
-        --       D.reflow "But it returned the following error message:",
-        --       D.indent 4 $ D.reflow errorMsg
-        --     ]
+report : String -> String -> Error -> PP.Document
+report title context err =
+    when err is
+        NoVersions ->
+          Help.report
+            title
+            Nothing
+            ( PP.verticalBlock
+                [ PP.words (context ++ ", but I couldn't find any semver compatible tags in this repo.")
+                , PP.empty
+                , PP.words
+                    """
+                    Gren packages are just git repositories with tags following the
+                    semantic versioning scheme. However, it seems that this particular repo
+                    doesn't have _any_ semantic version tags!
+                    """
+                ]
+            )
 
-clonePackage : ChildProcess.Permission -> Path -> PackageName -> SemanticVersion -> Task ChildProcess.FailedRun ChildProcess.SuccessfulRun
+        NoSuchRepo ->
+          Help.report
+            title
+            Nothing
+            ( PP.verticalBlock
+                [ PP.words (context ++ ", but I couldn't find the repo on github.")
+                , PP.empty
+                , PP.words
+                    """
+                    Gren packages are just git repositories hosted on github, however
+                    it seems like this repo doesn't exist.
+                    """
+                ]
+            )
+
+        NoSuchRepoOrVersion vsn ->
+          Help.report
+            title
+            Nothing
+            ( PP.verticalBlock
+                [ PP.words <| context ++ ", but I couldn't find the correct version of this package on github."
+                , PP.empty
+                , PP.words <|
+                    "Gren packages are just git repositories hosted on github with semver formatted tags. However, it seems like this package, or version "
+                      ++ SemanticVersion.toString vsn
+                      ++ ", doesn't exist."
+                ]
+            )
+
+        FailedCommand { args, message } ->
+          Help.report
+            title
+            Nothing
+            ( PP.verticalBlock
+                [ PP.words (context ++ ", so I tried to execute:")
+                , PP.empty
+                , PP.words (String.join " " args)
+                    |> PP.indent
+                , PP.empty
+                , PP.words "But it returned the following error message:"
+                , PP.empty
+                , PP.words message
+                    |> PP.indent
+                ]
+            )
+
+clonePackage : ChildProcess.Permission -> Path -> PackageName -> SemanticVersion -> Task Error ChildProcess.SuccessfulRun
 clonePackage cpPerm repo name version =
     let
         githubUrl =
             "https://github.com/" ++ PackageName.toString name ++ ".git"
+
+        args =
+            [ "clone"
+            , "--branch"
+            , SemanticVersion.toString version
+            , "--depth"
+            , "1"
+            , githubUrl
+            , Path.toPosixString repo
+            ]
     in
     ChildProcess.run
         cpPerm
         "git"
-        [ "clone"
-        , "--branch"
-        , SemanticVersion.toString version
-        , "--depth"
-        , "1"
-        , githubUrl
-        , Path.toPosixString repo
-        ]
+        args
         { shell = ChildProcess.NoShell
         , workingDirectory = ChildProcess.InheritWorkingDirectory
         , environmentVariables = ChildProcess.InheritEnvironmentVariables
         , maximumBytesWrittenToStreams = 4096
         , runDuration = ChildProcess.Milliseconds 30000
         }
+        |> Task.mapError
+            (\details ->
+                if details.exitCode == 128 then
+                    NoSuchRepoOrVersion version
+
+                else
+                    constructFailedCommand args details
+            )
 
 
-fetchLatestVersion : ChildProcess.Permission -> PackageName -> Task Error (Maybe SemanticVersion)
+constructFailedCommand : Array String -> ChildProcess.FailedRun -> Error
+constructFailedCommand args details =
+    FailedCommand
+        { args = Array.pushFirst "git" args
+        , message = Maybe.withDefault "" (Bytes.toString details.stderr)
+        }
+
+
+fetchLatestVersion : ChildProcess.Permission -> PackageName -> Task Error SemanticVersion
 fetchLatestVersion cpPerm name =
     fetchVersions cpPerm name
-        |> Task.map Array.last
-        -- TODO
-        |> Task.mapError (\_ -> FailedCommand)
+        |> Task.andThen
+            (\vsns ->
+                when Array.last vsns is
+                    Nothing ->
+                        Task.fail NoVersions
+
+                    Just v ->
+                        Task.succeed v
+            )
 
 
 fetchVersions : ChildProcess.Permission -> PackageName -> Task Error (Array SemanticVersion)
@@ -105,26 +154,35 @@ fetchVersions cpPerm name =
     let
         githubUrl =
             "https://github.com/" ++ PackageName.toString name ++ ".git"
+
+        args =
+            [ "ls-remote"
+            , "--tags"
+            , githubUrl
+            ]
     in
     ChildProcess.run
         cpPerm
         "git"
-        [ "ls-remote"
-        , "--tags"
-        , githubUrl
-        ]
+        args
         { shell = ChildProcess.NoShell
         , workingDirectory = ChildProcess.InheritWorkingDirectory
         , environmentVariables = ChildProcess.InheritEnvironmentVariables
         , maximumBytesWrittenToStreams = 4096
         , runDuration = ChildProcess.Milliseconds 30000
         }
+        |> Task.mapError
+            (\details ->
+                if details.exitCode == 128 then
+                    NoSuchRepo
+                else
+                    constructFailedCommand args details
+            )
         |> Task.andThen
             (\result ->
                 when Bytes.toString result.stdout is
                     Nothing ->
-                        -- TODO: Proper error here
-                        Task.succeed []
+                        Task.fail NoVersions
 
                     Just tagList ->
                         -- format: commit hash \t refs/tags/<tag>
@@ -133,33 +191,45 @@ fetchVersions cpPerm name =
                             |> Array.map (String.split "/" >> Array.last >> Maybe.withDefault "")
                             |> Array.mapAndKeepJust SemanticVersion.fromString
                             |> Array.sortWith SemanticVersion.compare
-                            |> Task.succeed
+                            |> (\vsns ->
+                                if Array.isEmpty vsns then
+                                    Task.fail NoVersions
+
+                                else
+                                    Task.succeed vsns
+                            )
             )
-        -- TODO
-        |> Task.mapError (\_ -> FailedCommand)
 
 
-hasLocalTag : ChildProcess.Permission -> SemanticVersion -> Task String {}
+hasLocalTag : ChildProcess.Permission -> SemanticVersion -> Task Error {}
 hasLocalTag permission vsn =
-    ChildProcess.run permission "git" [ "show", "--name-only", SemanticVersion.toString vsn ]
+    let
+        args =
+            [ "show", "--name-only", SemanticVersion.toString vsn ]
+    in
+    ChildProcess.run permission "git" args
         { shell = ChildProcess.NoShell
         , workingDirectory = ChildProcess.InheritWorkingDirectory
         , environmentVariables = ChildProcess.InheritEnvironmentVariables
         , maximumBytesWrittenToStreams = 4096
         , runDuration = ChildProcess.Milliseconds 5000
         }
-        |> Task.mapError Debug.toString
+        |> Task.mapError (\details -> constructFailedCommand args details)
         |> Task.map (\_ -> {})
 
 
-hasNoLocalChangesSinceTag : ChildProcess.Permission -> SemanticVersion -> Task String {}
+hasNoLocalChangesSinceTag : ChildProcess.Permission -> SemanticVersion -> Task Error {}
 hasNoLocalChangesSinceTag permission vsn =
-    ChildProcess.run permission "git" [ "diff-index", "--quiet", SemanticVersion.toString vsn ]
+    let
+        args =
+            [ "diff-index", "--quiet", SemanticVersion.toString vsn ]
+    in
+    ChildProcess.run permission "git" args
         { shell = ChildProcess.NoShell
         , workingDirectory = ChildProcess.InheritWorkingDirectory
         , environmentVariables = ChildProcess.InheritEnvironmentVariables
         , maximumBytesWrittenToStreams = 4096
         , runDuration = ChildProcess.Milliseconds 5000
         }
-        |> Task.mapError Debug.toString
+        |> Task.mapError (\details -> constructFailedCommand args details)
         |> Task.map (\_ -> {})
