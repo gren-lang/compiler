@@ -42,7 +42,6 @@ type alias Options =
 
 type Error
     = FailedToFetchVersions { package : PackageName, error : Git.Error }
-    | PackageHasNoVersions PackageName
 
 
 run : Config -> Options -> Task Error {}
@@ -90,14 +89,6 @@ run config { projectPath, outline } =
                                         )
                                     |> Task.map (\vs -> Array.keepIf (\v -> SemanticVersion.compare v (SemanticVersionRange.lowerBound versionRange) == GT) vs)
                                     |> Task.map (\vs -> { name = packageName, versions = vs })
-                                    |> Task.andThen
-                                        (\result ->
-                                            if Array.isEmpty result.versions then
-                                                Task.fail <| PackageHasNoVersions packageName
-
-                                            else
-                                                Task.succeed result
-                                        )
                         in
                         Array.pushLast task tasks
             )

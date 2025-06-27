@@ -48,7 +48,6 @@ type alias Options =
 type Error
     = CannotBumpApplications
     | VersionFetchError Git.Error
-    | NoPublishedVersions
     | CurrentVersionUnpublished
     | InstallError Terminal.PackageInstall.PackageInstallError
     | PreviousPackageCorruption
@@ -81,10 +80,7 @@ run config { projectPath, outline } =
                 |> Task.mapError VersionFetchError
                 |> Task.andThen
                     (\knownVersions ->
-                        if Array.isEmpty knownVersions then
-                            Task.fail NoPublishedVersions
-
-                        else if not <| Array.member pkgOutline.version knownVersions then
+                        if not <| Array.member pkgOutline.version knownVersions then
                             Task.fail CurrentVersionUnpublished
 
                         else
