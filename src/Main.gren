@@ -395,7 +395,6 @@ parseUserArgs model compilerPath =
                         }
 
                 CliParser.Repl flags ->
-                    -- TODO: DRY up package installation
                     -- TODO: create repl project when no project outline is found
                     Terminal.PackageInstall.readProjectOutline model.fsPermission
                         |> Task.mapError Terminal.PackageInstall.prettifyProjectOutlineError
@@ -441,43 +440,29 @@ parseUserArgs model compilerPath =
 
                 CliParser.Make flags ->
                     -- TODO: Verify correct gren compiler version
-                    Terminal.PackageInstall.readProjectOutline model.fsPermission
-                        |> Task.mapError Terminal.PackageInstall.prettifyProjectOutlineError
-                        |> Task.andThen
-                            (\projectOutline ->
-                                Terminal.PackageInstall.run
-                                    { fsPermission = model.fsPermission
-                                    , cpPermission = model.cpPermission
-                                    , interactive = model.interactive
-                                    , useColor = model.useColor
-                                    , stdout = model.stdout
-                                    , stdin = model.stdin
+                    resolveProject model
+                        |> Task.map
+                            (\resolved ->
+                                Compiler.Backend.run
+                                    model.cpPermission
+                                    { useColor = model.useColor
+                                    , compilerPath = compilerPath
+                                    , pathToString = model.pathToString
+                                    , connection = initWithCommand <|
+                                        Compiler.Backend.Make
+                                            { optimize = flags.optimize
+                                            , sourcemaps = flags.sourcemaps
+                                            , output = flags.output
+                                            , report = flags.report
+                                            , projectPath = resolved.projectPath
+                                            , entryPoints = flags.entryPoints
+                                            , outline = resolved.outline
+                                            , rootSources = resolved.rootSources
+                                            , dependencies = resolved.dependencies
+                                            }
+                                    , onComplete = CompilerRan
                                     }
-                                    projectOutline
-                                    |> Task.mapError Terminal.PackageInstall.prettifyError
-                                    |> Task.map
-                                        (\resolved ->
-                                            Compiler.Backend.run
-                                                model.cpPermission
-                                                { useColor = model.useColor
-                                                , compilerPath = compilerPath
-                                                , pathToString = model.pathToString
-                                                , connection = initWithCommand <|
-                                                    Compiler.Backend.Make
-                                                        { optimize = flags.optimize
-                                                        , sourcemaps = flags.sourcemaps
-                                                        , output = flags.output
-                                                        , report = flags.report
-                                                        , projectPath = resolved.projectPath
-                                                        , entryPoints = flags.entryPoints
-                                                        , outline = resolved.outline
-                                                        , rootSources = resolved.rootSources
-                                                        , dependencies = resolved.dependencies
-                                                        }
-                                                , onComplete = CompilerRan
-                                                }
-                                        )
-                                )
+                            )
                         |> Task.onError
                             (\err ->
                                 Terminal.Help.prettyPrint printOpts err
@@ -519,22 +504,7 @@ parseUserArgs model compilerPath =
                         |> Task.executeCmd
 
                 CliParser.Docs flags ->
-                    -- TODO: DRY up package installation
-                    Terminal.PackageInstall.readProjectOutline model.fsPermission
-                        |> Task.mapError Terminal.PackageInstall.prettifyProjectOutlineError
-                        |> Task.andThen
-                            (\projectOutline ->
-                                Terminal.PackageInstall.run
-                                    { fsPermission = model.fsPermission
-                                    , cpPermission = model.cpPermission
-                                    , interactive = model.interactive
-                                    , useColor = model.useColor
-                                    , stdout = model.stdout
-                                    , stdin = model.stdin
-                                    }
-                                    projectOutline
-                                    |> Task.mapError Terminal.PackageInstall.prettifyError
-                            )
+                    resolveProject model
                         |> Task.map
                             (\resolved ->
                                 Compiler.Backend.run
@@ -564,22 +534,8 @@ parseUserArgs model compilerPath =
                         |> Task.executeCmd
 
                 CliParser.PackageInstall Nothing ->
-                    Terminal.PackageInstall.readProjectOutline model.fsPermission
-                        |> Task.mapError Terminal.PackageInstall.prettifyProjectOutlineError
-                        |> Task.andThen
-                            (\projectOutline ->
-                                Terminal.PackageInstall.run
-                                    { fsPermission = model.fsPermission
-                                    , cpPermission = model.cpPermission
-                                    , interactive = model.interactive
-                                    , useColor = model.useColor
-                                    , stdout = model.stdout
-                                    , stdin = model.stdin
-                                    }
-                                    projectOutline
-                                    |> Task.mapError Terminal.PackageInstall.prettifyError
-                                    |> Task.map (\_ -> {})
-                            )
+                    resolveProject model
+                        |> Task.map (\_ -> {})
                         |> Task.onError
                             (\err ->
                                 Terminal.Help.prettyPrint printOpts err
@@ -829,3 +785,21 @@ parseUserArgs model compilerPath =
                         }
                         opts
 
+
+resolveProject : Model -> Task PP.Document Terminal.PackageInstall.PackageResolution
+resolveProject model =
+    Terminal.PackageInstall.readProjectOutline model.fsPermission
+        |> Task.mapError Terminal.PackageInstall.prettifyProjectOutlineError
+        |> Task.andThen
+            (\projectOutline ->
+                Terminal.PackageInstall.run
+                    { fsPermission = model.fsPermission
+                    , cpPermission = model.cpPermission
+                    , interactive = model.interactive
+                    , useColor = model.useColor
+                    , stdout = model.stdout
+                    , stdin = model.stdin
+                    }
+                    projectOutline
+                    |> Task.mapError Terminal.PackageInstall.prettifyError
+            )
