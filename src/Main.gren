@@ -570,7 +570,7 @@ parseUserArgs model compilerPath =
 
                 CliParser.PackageUninstall packageName ->
                     Terminal.PackageInstall.readProjectOutline model.fsPermission
-                        |> Task.mapError Debug.toString
+                        |> Task.mapError Terminal.PackageInstall.prettifyProjectOutlineError
                         |> Task.andThen
                             (\projectOutline ->
                                 Terminal.PackageUninstall.run
@@ -583,11 +583,12 @@ parseUserArgs model compilerPath =
                                     }
                                     projectOutline
                                     packageName
-                                    |> Task.mapError Debug.toString
+                                    |> Task.mapError Terminal.PackageUninstall.prettifyError
                             )
                         |> Task.onError
                             (\err ->
-                                Stream.Log.line model.stdout (Debug.toString err)
+                                Terminal.Help.prettyPrint printOpts err
+                                    |> Stream.Log.string model.stderr
                             )
                         |> Task.execute
 

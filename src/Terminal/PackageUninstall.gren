@@ -1,6 +1,7 @@
 module Terminal.PackageUninstall exposing
     ( Error (..)
     , run
+    , prettifyError
     )
 
 
@@ -164,3 +165,55 @@ run config { projectPath, outline } requestedPackage =
 
             else
                Task.fail PackageNotInstalled
+
+
+prettifyError : Error -> PP.Document
+prettifyError error =
+    when error is
+        PackageNotInstalled ->
+            Help.report
+                "PACKAGE NOT INSTALLED"
+                Nothing
+                (PP.verticalBlock
+                    [ PP.words "The package you requested to uninstall doesn't seem to be installed in the first place."
+                    , PP.empty
+                    , PP.words "Maybe there's a typo?"
+                    ]
+                )
+        
+        PackageInstallError installErr ->
+            Terminal.PackageInstall.prettifyError installErr
+        
+        PromptError streamErr ->
+            Help.report
+                "FAILED TO COMMUNICATE WITH USER"
+                Nothing
+                (PP.verticalBlock
+                    [ PP.words "I wanted to ask you a question, but something seems to be wrong with the stdin stream."
+                    , PP.empty
+                    , PP.words "The error is:"
+                    , PP.empty
+                    , PP.words (Stream.errorToString streamErr)
+                        |> PP.indent
+                    , PP.empty
+                    , PP.words "This is most definetly a bug. Please report it."
+                    ]
+                )
+
+        UserCancelled ->
+            PP.empty
+
+        OutlineWriteError fsErr ->
+            Help.report
+                "FAILED TO UPDATE OUTLINE"
+                Nothing
+                (PP.verticalBlock
+                    [ PP.words "An error occured while I updating the gren.json file."
+                    , PP.empty
+                    , PP.words "The error is:"
+                    , PP.empty
+                    , PP.words (FileSystem.errorToString fsErr)
+                        |> PP.indent
+                    ]
+                )
+       
