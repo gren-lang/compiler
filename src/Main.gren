@@ -324,6 +324,7 @@ update msg model =
 parseUserArgs : Model -> Path -> Cmd Msg
 parseUserArgs model compilerPath =
     let
+        -- TODO: Use these instead of Terminal.Help.prettyPrint?
         colorFilter =
             if model.useColor then
                 identity
