@@ -4,6 +4,7 @@ module Terminal.PackageBump exposing
     , Error (..)
     , Result
     , run
+    , prettifyError
     )
 
 
@@ -27,6 +28,8 @@ import Json.Encode as Json
 import Json.Decode as Decode exposing (Decoder)
 import Stream.Extra
 import Terminal.PackageInstall
+import Terminal.Help as Help
+import CLI.PrettyPrinter as PP
 
 
 type alias Config =
@@ -167,3 +170,54 @@ run config { projectPath, outline } =
                     )
 
 
+
+prettifyError : Error -> PP.Document
+prettifyError error =
+    when error is
+        CannotBumpApplications ->
+            Help.report
+                "CANNOT BUMP APPLICATIONS"
+                Nothing
+                ( PP.words
+                    """
+                    This project is defined as an application, so there is no version number to bump.
+                    """
+                )
+
+        CurrentVersionUnpublished ->
+            Help.report
+                "CURRENT VERSION IS NOT PUBLISHED"
+                Nothing
+                ( PP.words
+                    """
+                    The version you're trying to bump from doesn't seem to exist in the remote repository.
+                    """
+                )
+
+        PreviousPackageCorruption ->
+            Help.report
+                "CANNOT BUILD PREVIOUS VERSION"
+                Nothing
+                ( PP.verticalBlock
+                    [ PP.words
+                        """
+                        In order to know what the next version of your package should be, I try to compare your current
+                        code with the previous version of this package.
+                        """
+                    , PP.empty
+                    , PP.words
+                        """
+                        However, I'm unable to build the previous version. Maybe the previous version was built with an
+                        older and incompatible compiler, or the package is corrupt in some way?
+                        """
+                    ]
+                )
+        
+        InstallError installErr ->
+            Terminal.PackageInstall.prettifyError installErr
+        
+        VersionFetchError gitError ->
+            Git.report
+                "FAILED TO FETCH VERSIONS FOR PACKAGE"
+                "I was attempting to fetch available versions for this package"
+                gitError

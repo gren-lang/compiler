@@ -216,4 +216,3 @@ prettifyError error =
                         |> PP.indent
                     ]
                 )
-       

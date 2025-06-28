@@ -434,7 +434,8 @@ parseUserArgs model compilerPath =
                             (\err ->
                                 Terminal.Help.prettyPrint printOpts err
                                     |> Stream.Log.string model.stderr
-                                    |> Task.map (\_ -> Cmd.none)
+                                    |> Task.execute
+                                    |> Task.succeed
                             )
                         |> Task.executeCmd
 
@@ -467,7 +468,8 @@ parseUserArgs model compilerPath =
                             (\err ->
                                 Terminal.Help.prettyPrint printOpts err
                                     |> Stream.Log.string model.stderr
-                                    |> Task.map (\_ -> Cmd.none)
+                                    |> Task.execute
+                                    |> Task.succeed
                             )
                         |> Task.executeCmd
 
@@ -529,7 +531,8 @@ parseUserArgs model compilerPath =
                             (\err ->
                                 Terminal.Help.prettyPrint printOpts err
                                     |> Stream.Log.string model.stderr
-                                    |> Task.map (\_ -> Cmd.none)
+                                    |> Task.execute
+                                    |> Task.succeed
                             )
                         |> Task.executeCmd
 
@@ -654,7 +657,7 @@ parseUserArgs model compilerPath =
 
                 CliParser.PackageBump ->
                     Terminal.PackageInstall.readProjectOutline model.fsPermission
-                        |> Task.mapError Debug.toString
+                        |> Task.mapError Terminal.PackageInstall.prettifyProjectOutlineError
                         |> Task.andThen
                             (\projectOutline ->
                                 Terminal.PackageBump.run
@@ -666,7 +669,7 @@ parseUserArgs model compilerPath =
                                     , stdin = model.stdin
                                     }
                                     projectOutline
-                                    |> Task.mapError Debug.toString
+                                    |> Task.mapError Terminal.PackageBump.prettifyError
                             )
                         |> Task.map
                             (\backendFlags ->
@@ -683,7 +686,8 @@ parseUserArgs model compilerPath =
                             )
                         |> Task.onError
                             (\err ->
-                                Stream.Log.line model.stdout err
+                                Terminal.Help.prettyPrint printOpts err
+                                    |> Stream.Log.string model.stderr
                                     |> Task.execute
                                     |> Task.succeed
                             )

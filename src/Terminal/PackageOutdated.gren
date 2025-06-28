@@ -135,5 +135,5 @@ prettifyError error =
         FailedToFetchVersions { package, error = gitError } ->
             Git.report
                 "FAILED TO FETCH VERSIONS FOR PACKAGE"
-                ("I was attempting the fetch available versions for " ++ PackageName.toString package)
+                ("I was attempting to fetch available versions for " ++ PackageName.toString package)
                 gitError
