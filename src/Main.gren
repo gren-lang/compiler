@@ -308,12 +308,7 @@ update msg model =
             RedirectTerminalIO (Err { error, source, target }) ->
                 when error is
                     Stream.Closed ->
-                        Stream.closeWritable target
-                            |> Task.onError
-                                (\err ->
-                                    Stream.Log.line model.stderr ("Failed to close stream:  " ++ Stream.errorToString error)
-                                )
-                            |> Task.execute
+                        Cmd.none
 
                     _ ->
                         Stream.Log.line model.stderr ("Something went wrong when communicating with compiler backend: " ++ Stream.errorToString error)
