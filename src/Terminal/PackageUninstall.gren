@@ -1,6 +1,7 @@
 module Terminal.PackageUninstall exposing
     ( Error (..)
     , run
+    , prettifyError
     )
 
 
@@ -44,10 +45,11 @@ type alias Options =
 
 
 type Error
-    = PackageInstallNoProject FileSystem.Error
-    | PackageInstallNoGrenJson FileSystem.Error
-    | PackageInstallInvalidGrenJson Decode.Error
-    | PackageInstallDebug String
+    = PackageNotInstalled
+    | PackageInstallError Terminal.PackageInstall.PackageInstallError
+    | PromptError Stream.Error
+    | UserCancelled
+    | OutlineWriteError FileSystem.Error
 
 
 -- TODO: Also remove indirect dependencies which are no longer needed
@@ -70,7 +72,7 @@ run config { projectPath, outline } requestedPackage =
                 }
             is
                 { direct = False, transitive = Nothing } ->
-                    Task.fail <| PackageInstallDebug "Package not installed"
+                    Task.fail PackageNotInstalled
 
                 { direct = True } ->
                     Stream.Log.line config.stdout ("Removing " ++ packageNameStr)
@@ -87,7 +89,7 @@ run config { projectPath, outline } requestedPackage =
                                         }
                                         |> Outline.App
                                     }
-                                    |> Task.mapError (\err -> PackageInstallDebug (Debug.toString err))
+                                    |> Task.mapError PackageInstallError
                             )
                         |> Task.andThen
                             (\resolved ->
@@ -132,7 +134,7 @@ run config { projectPath, outline } requestedPackage =
                                     , question = plan
                                     , defaultValue = True
                                     }
-                                    |> Task.mapError (\_ -> "Stream error")
+                                    |> Task.mapError PromptError
                                     |> Task.andThen
                                         (\confirmed ->
                                             if confirmed then
@@ -142,21 +144,13 @@ run config { projectPath, outline } requestedPackage =
                                                     |> Task.succeed
 
                                             else
-                                                Task.fail ""
+                                                Task.fail UserCancelled
                                         )
                                     |> Task.andThen
                                         (\newOutline ->
                                             FileSystem.writeFile config.fsPermission (Bytes.fromString newOutline) grenJsonPath
-                                                |> Task.mapError (\fsErr -> Debug.toString fsErr)
+                                                |> Task.mapError OutlineWriteError
                                                 |> Task.map (\_ -> {})
-                                        )
-                                    |> Task.onError
-                                        (\err ->
-                                            Stream.Log.line config.stdout ("Error: " ++ err)
-                                        )
-                                    |> Task.andThen
-                                        (\_ ->
-                                            Stream.Log.line config.stdout "Done"
                                         )
                             )
 
@@ -170,4 +164,55 @@ run config { projectPath, outline } requestedPackage =
                 Stream.Log.line config.stdout ("Removing " ++ packageNameStr)
 
             else
-               Task.fail <| PackageInstallDebug "Package not installed"
+               Task.fail PackageNotInstalled
+
+
+prettifyError : Error -> PP.Document
+prettifyError error =
+    when error is
+        PackageNotInstalled ->
+            Help.report
+                "PACKAGE NOT INSTALLED"
+                Nothing
+                (PP.verticalBlock
+                    [ PP.words "The package you requested to uninstall doesn't seem to be installed in the first place."
+                    , PP.empty
+                    , PP.words "Maybe there's a typo?"
+                    ]
+                )
+        
+        PackageInstallError installErr ->
+            Terminal.PackageInstall.prettifyError installErr
+        
+        PromptError streamErr ->
+            Help.report
+                "FAILED TO COMMUNICATE WITH USER"
+                Nothing
+                (PP.verticalBlock
+                    [ PP.words "I wanted to ask you a question, but something seems to be wrong with the stdin stream."
+                    , PP.empty
+                    , PP.words "The error is:"
+                    , PP.empty
+                    , PP.words (Stream.errorToString streamErr)
+                        |> PP.indent
+                    , PP.empty
+                    , PP.words "This is most definetly a bug. Please report it."
+                    ]
+                )
+
+        UserCancelled ->
+            PP.empty
+
+        OutlineWriteError fsErr ->
+            Help.report
+                "FAILED TO UPDATE OUTLINE"
+                Nothing
+                (PP.verticalBlock
+                    [ PP.words "An error occured while I updating the gren.json file."
+                    , PP.empty
+                    , PP.words "The error is:"
+                    , PP.empty
+                    , PP.words (FileSystem.errorToString fsErr)
+                        |> PP.indent
+                    ]
+                )

@@ -1,6 +1,7 @@
 module Terminal.PackageOutdated exposing
     ( Error (..)
     , run
+    , prettifyError
     )
 
 
@@ -22,6 +23,7 @@ import SemanticVersionRange exposing (SemanticVersionRange)
 import Json.Encode as Json
 import Json.Decode as Decode exposing (Decoder)
 import Stream.Extra
+import CLI.PrettyPrinter as PP
 
 
 type alias Config =
@@ -41,10 +43,7 @@ type alias Options =
 
 
 type Error
-    = PackageInstallNoProject FileSystem.Error
-    | PackageInstallNoGrenJson FileSystem.Error
-    | PackageInstallInvalidGrenJson Decode.Error
-    | PackageInstallDebug String
+    = FailedToFetchVersions { package : PackageName, error : Git.Error }
 
 
 run : Config -> Options -> Task Error {}
@@ -83,6 +82,13 @@ run config { projectPath, outline } =
                         let
                             task =
                                 Git.fetchVersions config.cpPermission packageName
+                                    |> Task.mapError
+                                        (\err ->
+                                            FailedToFetchVersions
+                                                { package = packageName
+                                                , error = err
+                                                }
+                                        )
                                     |> Task.map (\vs -> Array.keepIf (\v -> SemanticVersion.compare v (SemanticVersionRange.lowerBound versionRange) == GT) vs)
                                     |> Task.map (\vs -> { name = packageName, versions = vs })
                         in
@@ -90,7 +96,6 @@ run config { projectPath, outline } =
             )
             []
         |> Task.concurrent
-        |> Task.mapError (\_ -> PackageInstallDebug "failed to get versions")
         |> Task.map
             (\vs ->
                 Array.mapAndKeepJust
@@ -115,9 +120,20 @@ run config { projectPath, outline } =
                 else
                     let
                         plan =
-                            "The plan is to update the following dependencies:\n\n"
+                            "There are new versions of the following dependencies:\n\n"
                                 ++ (Array.foldl (\package acc -> acc ++ "  " ++ PackageName.toString package.name ++ " " ++ SemanticVersion.toString package.version ++ "\n") "" vs)
-                                ++ "\nDo you want me to update the gren.json file accordingly? [Y/n]: "
                     in
                     Stream.Log.line config.stdout plan
             )
+            -- TODO: Might want to check if dependencies are compatible
+            -- TODO: Ask user to auto-update dependencies
+
+
+prettifyError : Error -> PP.Document
+prettifyError error =
+    when error is
+        FailedToFetchVersions { package, error = gitError } ->
+            Git.report
+                "FAILED TO FETCH VERSIONS FOR PACKAGE"
+                ("I was attempting to fetch available versions for " ++ PackageName.toString package)
+                gitError

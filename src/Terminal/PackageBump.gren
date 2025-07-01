@@ -4,6 +4,7 @@ module Terminal.PackageBump exposing
     , Error (..)
     , Result
     , run
+    , prettifyError
     )
 
 
@@ -27,6 +28,8 @@ import Json.Encode as Json
 import Json.Decode as Decode exposing (Decoder)
 import Stream.Extra
 import Terminal.PackageInstall
+import Terminal.Help as Help
+import CLI.PrettyPrinter as PP
 
 
 type alias Config =
@@ -46,7 +49,11 @@ type alias Options =
 
 
 type Error
-    = ErrorDebug String
+    = CannotBumpApplications
+    | VersionFetchError Git.Error
+    | CurrentVersionUnpublished
+    | InstallError Terminal.PackageInstall.PackageInstallError
+    | PreviousPackageCorruption
 
 
 type alias Result =
@@ -65,22 +72,19 @@ type alias Result =
     }
 
 
-run : Config -> Options -> Task String Result
+run : Config -> Options -> Task Error Result
 run config { projectPath, outline } =
     when outline is
         Outline.App _ ->
-            Task.fail "Can only use bump on packages"
+            Task.fail CannotBumpApplications
 
         Outline.Pkg pkgOutline ->
             Git.fetchVersions config.cpPermission pkgOutline.name
-                |> Task.mapError Debug.toString
+                |> Task.mapError VersionFetchError
                 |> Task.andThen
                     (\knownVersions ->
-                        if Array.isEmpty knownVersions then
-                            Task.fail "No published versions found, you probably want 1.0.0"
-
-                        else if not <| Array.member pkgOutline.version knownVersions then
-                            Task.fail "The version you're bumping from doesn't exist!"
+                        if not <| Array.member pkgOutline.version knownVersions then
+                            Task.fail CurrentVersionUnpublished
 
                         else
                             Terminal.PackageInstall.run
@@ -92,7 +96,7 @@ run config { projectPath, outline } =
                                 , stdin = config.stdin
                                 }
                                 { projectPath = projectPath, outline = outline }
-                                |> Task.mapError Debug.toString
+                                |> Task.mapError InstallError
                                 |> Task.map
                                     (\resolved ->
                                         { packageName = pkgOutline.name
@@ -111,12 +115,12 @@ run config { projectPath, outline } =
                         FileSystem.remove config.fsPermission { recursive = True } repoPath
                             |> Task.onError (\_ -> Task.succeed repoPath) -- Probably because directory doesn't exist, that's fine
                             |> Task.andThen (\_ -> Git.clonePackage config.cpPermission repoPath packageName packageVersion)
-                            |> Task.mapError (\{ stderr } -> Maybe.withDefault "" <| Bytes.toString stderr)
+                            |> Task.mapError (\_ -> PreviousPackageCorruption)
                             |> Task.andThen
                                 (\_ ->
                                     Path.append (Path.fromPosixString "gren.json") repoPath
                                         |> Terminal.PackageInstall.readOutline config.fsPermission
-                                        |> Task.mapError Debug.toString
+                                        |> Task.mapError (\_ -> PreviousPackageCorruption)
                                         |> Task.andThen
                                             (\result ->
                                                 when result is
@@ -124,7 +128,7 @@ run config { projectPath, outline } =
                                                         Task.succeed decodedOutline
 
                                                     Err err ->
-                                                        Task.fail (Debug.toString err)
+                                                        Task.fail PreviousPackageCorruption
                                             )
                                 )
                             |> Task.andThen
@@ -138,7 +142,7 @@ run config { projectPath, outline } =
                                         , stdin = config.stdin
                                         }
                                         { projectPath = repoPath, outline = publishedOutline }
-                                        |> Task.mapError Debug.toString
+                                        |> Task.mapError (\_ -> PreviousPackageCorruption)
                                         |> Task.map
                                             (\resolved ->
                                                 { currentPackage = currentPackage
@@ -166,3 +170,54 @@ run config { projectPath, outline } =
                     )
 
 
+
+prettifyError : Error -> PP.Document
+prettifyError error =
+    when error is
+        CannotBumpApplications ->
+            Help.report
+                "CANNOT BUMP APPLICATIONS"
+                Nothing
+                ( PP.words
+                    """
+                    This project is defined as an application, so there is no version number to bump.
+                    """
+                )
+
+        CurrentVersionUnpublished ->
+            Help.report
+                "CURRENT VERSION IS NOT PUBLISHED"
+                Nothing
+                ( PP.words
+                    """
+                    The version you're trying to bump from doesn't seem to exist in the remote repository.
+                    """
+                )
+
+        PreviousPackageCorruption ->
+            Help.report
+                "CANNOT BUILD PREVIOUS VERSION"
+                Nothing
+                ( PP.verticalBlock
+                    [ PP.words
+                        """
+                        In order to know what the next version of your package should be, I try to compare your current
+                        code with the previous version of this package.
+                        """
+                    , PP.empty
+                    , PP.words
+                        """
+                        However, I'm unable to build the previous version. Maybe the previous version was built with an
+                        older and incompatible compiler, or the package is corrupt in some way?
+                        """
+                    ]
+                )
+        
+        InstallError installErr ->
+            Terminal.PackageInstall.prettifyError installErr
+        
+        VersionFetchError gitError ->
+            Git.report
+                "FAILED TO FETCH VERSIONS FOR PACKAGE"
+                "I was attempting to fetch available versions for this package"
+                gitError

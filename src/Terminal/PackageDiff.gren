@@ -47,7 +47,11 @@ type alias Options =
 
 
 type Error
-    = ErrorDebug String
+    = LocalReadProjectOutlineError Terminal.PackageInstall.ReadProjectOutlineError
+    | LocalCannotDiffApplication
+    | LocalFetchVersionsFailed Git.Error
+    | LocalInstallError Terminal.PackageInstall.PackageInstallError
+    | LocalHiddenProjectError InstallHiddenProjectError
 
 
 type alias Result =
@@ -65,15 +69,15 @@ type alias Result =
     }
 
 
-runLocal : Config -> Maybe SemanticVersion -> Task String Result
+runLocal : Config -> Maybe SemanticVersion -> Task Error Result
 runLocal config maybeVersion =
     Terminal.PackageInstall.readProjectOutline config.fsPermission
-        |> Task.mapError Debug.toString
+        |> Task.mapError LocalReadProjectOutlineError
         |> Task.andThen
             (\{ projectPath, outline } ->
                 when outline is
                     Outline.App _ ->
-                        Task.fail "Can only use bump on packages"
+                        Task.fail LocalCannotDiffApplication
 
                     Outline.Pkg pkgOutline ->
                         let
@@ -84,20 +88,15 @@ runLocal config maybeVersion =
 
                                     Nothing ->
                                         Git.fetchVersions config.cpPermission pkgOutline.name
-                                            |> Task.mapError Debug.toString
-                                            |> Task.andThen
+                                            |> Task.mapError LocalFetchVersionsFailed
+                                            |> Task.map
                                                 (\knownVersions ->
-                                                    if Array.isEmpty knownVersions then
-                                                        Task.fail "No published versions"
-
-                                                    else
-                                                        Array.last knownVersions
-                                                            |> Maybe.withDefault
-                                                                { major = 1
-                                                                , minor = 0
-                                                                , patch = 0
-                                                                }
-                                                            |> Task.succeed
+                                                    Array.last knownVersions
+                                                        |> Maybe.withDefault
+                                                            { major = 1
+                                                            , minor = 0
+                                                            , patch = 0
+                                                            }
                                                 )
                         in
                         versionTask
@@ -112,7 +111,7 @@ runLocal config maybeVersion =
                                         , stdin = config.stdin
                                         }
                                         { projectPath = projectPath, outline = outline }
-                                        |> Task.mapError Debug.toString
+                                        |> Task.mapError LocalInstallError
                                         |> Task.map
                                             (\resolved ->
                                                 { projectPath = projectPath
@@ -126,6 +125,7 @@ runLocal config maybeVersion =
         |> Task.andThen
             (\{ projectPath, packageName, packageVersion, currentPackage } ->
                 installHiddenProject config projectPath packageName packageVersion
+                    |> Task.mapError LocalHiddenProjectError
                     |> Task.map
                         (\resolved ->
                             { projectPath = projectPath
@@ -151,21 +151,39 @@ runLocal config maybeVersion =
             )
 
 
-installHiddenProject : Config -> Path -> PackageName -> SemanticVersion -> Task String Terminal.PackageInstall.PackageResolution
+type InstallHiddenProjectError
+    = HiddenProjectFileSystemError FileSystem.Error
+    | HiddenProjectGitCloneError Git.Error
+    | HiddenProjectReadOutlineError FileSystem.Error
+    | HiddenProjectOutlineDecodeError Decode.Error
+    | HiddenProjectInstallError Terminal.PackageInstall.PackageInstallError
+
+
+installHiddenProject : Config -> Path -> PackageName -> SemanticVersion -> Task InstallHiddenProjectError Terminal.PackageInstall.PackageResolution
 installHiddenProject config projectPath packageName packageVersion =
      let
         repoPath =
             Terminal.PackageInstall.localRepoPath packageName packageVersion projectPath
     in
     FileSystem.remove config.fsPermission { recursive = True } repoPath
-        |> Task.onError (\_ -> Task.succeed repoPath) -- Probably because directory doesn't exist, that's fine
-        |> Task.andThen (\_ -> Git.clonePackage config.cpPermission repoPath packageName packageVersion)
-        |> Task.mapError (\{ stderr } -> Maybe.withDefault "" <| Bytes.toString stderr)
+        |> Task.onError
+            (\err ->
+                if FileSystem.errorIsNoSuchFileOrDirectory err then
+                    Task.succeed repoPath
+
+                else
+                    Task.fail <| HiddenProjectFileSystemError err
+            )
+        |> Task.andThen
+            (\_ ->
+                Git.clonePackage config.cpPermission repoPath packageName packageVersion
+                    |> Task.mapError HiddenProjectGitCloneError
+            )
         |> Task.andThen
             (\_ ->
                 Path.append (Path.fromPosixString "gren.json") repoPath
                     |> Terminal.PackageInstall.readOutline config.fsPermission
-                    |> Task.mapError Debug.toString
+                    |> Task.mapError HiddenProjectReadOutlineError
                     |> Task.andThen
                         (\result ->
                             when result is
@@ -173,7 +191,7 @@ installHiddenProject config projectPath packageName packageVersion =
                                     Task.succeed decodedOutline
 
                                 Err err ->
-                                    Task.fail (Debug.toString err)
+                                    Task.fail <| HiddenProjectOutlineDecodeError err
                         )
             )
         |> Task.andThen
@@ -187,14 +205,19 @@ installHiddenProject config projectPath packageName packageVersion =
                     , stdin = config.stdin
                     }
                     { projectPath = repoPath, outline = publishedOutline }
-                    |> Task.mapError Debug.toString
+                    |> Task.mapError HiddenProjectInstallError
             )
 
 
-runGlobal : Config -> PackageName -> SemanticVersion -> SemanticVersion -> Task String Result
+type GlobalError
+    = GlobalReadProjectOutlineError Terminal.PackageInstall.ReadProjectOutlineError
+    | GlobalHiddenProjectError InstallHiddenProjectError
+
+
+runGlobal : Config -> PackageName -> SemanticVersion -> SemanticVersion -> Task GlobalError Result
 runGlobal config packageName lowerVersion upperVersion =
     Terminal.PackageInstall.readProjectOutline config.fsPermission
-        |> Task.mapError Debug.toString
+        |> Task.mapError GlobalReadProjectOutlineError
         |> Task.andThen
             (\{ projectPath } ->
                 Task.map2
@@ -214,4 +237,5 @@ runGlobal config packageName lowerVersion upperVersion =
                     )
                     (installHiddenProject config projectPath packageName lowerVersion)
                     (installHiddenProject config projectPath packageName upperVersion)
+                    |> Task.mapError GlobalHiddenProjectError
             )

@@ -13,8 +13,6 @@ module Reporting.Exit
     replToReport,
     Validate (..),
     validateToReport,
-    Install (..),
-    installToReport,
     Uninstall (..),
     uninstallToReport,
     Outdated (..),
@@ -831,117 +829,6 @@ toDocsProblemReport problem context =
             \ problem if, for example, a 3rd party editor plugin is modifing cached files\
             \ for some reason."
         ]
-
--- INSTALL
-
-data Install
-  = InstallNoOutline
-  | InstallBadOutline Outline
-  | InstallNoOnlineAppSolution Pkg.Name
-  | InstallNoOnlinePkgSolution Pkg.Name
-  | InstallHadSolverTrouble Solver
-  | InstallNoSolverSolution
-  | InstallNoCompatiblePkg Pkg.Name
-  | InstallUnknownPackageOnline Pkg.Name [Pkg.Name]
-  | InstallBadDetails Details
-
-installToReport :: Install -> Help.Report
-installToReport exit =
-  case exit of
-    InstallNoOutline ->
-      Help.report
-        "NEW PROJECT?"
-        Nothing
-        "Are you trying to start a new project? Try this command instead:"
-        [ D.indent 4 $ D.green "gren init",
-          D.reflow "It will help you get started!"
-        ]
-    InstallBadOutline outline ->
-      toOutlineReport outline
-    InstallNoOnlineAppSolution pkg ->
-      Help.report
-        "CANNOT FIND COMPATIBLE VERSION"
-        (Just "gren.json")
-        ( "I cannot find a version of "
-            ++ Pkg.toChars pkg
-            ++ " that is compatible\
-               \ with your existing dependencies."
-        )
-        [ D.reflow $
-            "I checked all the semver-formatted tags. When that failed, I tried to find any\
-            \ compatible combination of these packages, even if it meant changing all your\
-            \ existing dependencies! That did not work either!",
-          D.reflow $
-            "This is most likely to happen when a package is not upgraded yet. Maybe a new\
-            \ version of Gren came out recently? Maybe a common package was changed recently?\
-            \ Maybe a better package came along, so there was no need to upgrade this one?\
-            \ Try asking around https://gren-lang.org/community to learn what might be going on\
-            \ with this package.",
-          D.toSimpleNote $
-            "Whatever the case, please be kind to the relevant package authors! Having\
-            \ friendly interactions with users is great motivation, and conversely, getting\
-            \ berated by strangers on the internet sucks your soul dry. Furthermore, package\
-            \ authors are humans with families, friends, jobs, vacations, responsibilities,\
-            \ goals, etc. They face obstacles outside of their technical work you will never\
-            \ know about, so please assume the best and try to be patient and supportive!"
-        ]
-    InstallNoOnlinePkgSolution pkg ->
-      Help.report
-        "CANNOT FIND COMPATIBLE VERSION"
-        (Just "gren.json")
-        ( "I cannot find a version of "
-            ++ Pkg.toChars pkg
-            ++ " that is compatible\
-               \ with your existing constraints."
-        )
-        [ D.reflow $
-            "With applications, I try to broaden the constraints to see if anything works,\
-            \ but messing with package constraints is much more delicate business. E.g. making\
-            \ your constraints stricter may make it harder for applications to find compatible\
-            \ dependencies. So fixing something here may break it for a lot of other people!",
-          D.reflow $
-            "So I recommend making an application with the same dependencies as your package.\
-            \ See if there is a solution at all. From there it may be easier to figure out\
-            \ how to proceed in a way that will disrupt your users as little as possible. And\
-            \ the solution may be to help other package authors to get their packages updated,\
-            \ or to drop a dependency entirely."
-        ]
-    InstallHadSolverTrouble solver ->
-      toSolverReport solver
-    InstallNoSolverSolution ->
-      Help.report
-        "COULD NOT RESOLVE DEPENDENCIES"
-        (Just "gren.json")
-        ( "I could not find a compatible set of dependencies."
-        )
-        []
-    InstallNoCompatiblePkg pkg ->
-      Help.report
-        "CANNOT FIND COMPATIBLE VERSION"
-        (Just "gren.json")
-        ( "I cannot find a version of "
-            ++ Pkg.toChars pkg
-            ++ " that is compatible with your current Gren compiler."
-        )
-        [ D.reflow $
-            "You'll have to wait for the package to release a version with support for your\
-            \ current Gren compiler, or upgrade."
-        ]
-    InstallUnknownPackageOnline pkg suggestions ->
-      Help.docReport
-        "UNKNOWN PACKAGE"
-        Nothing
-        ( D.fillSep
-            ["I", "cannot", "find", "a", "package", "named", D.red (D.fromPackage pkg) <> "."]
-        )
-        [ D.reflow $
-            "I looked through https://package.gren-lang.org for packages with similar names\
-            \ and found these:",
-          D.indent 4 $ D.dullyellow $ D.vcat $ map D.fromPackage suggestions,
-          D.reflow $ "Maybe you want one of these instead?"
-        ]
-    InstallBadDetails details ->
-      toDetailsReport details
 
 -- UNINSTALL
 

@@ -12,6 +12,7 @@ import Terminal.PackageValidate
 import Terminal.Paths
 import Terminal.Init
 import Terminal.Run
+import Terminal.Help
 import Compiler.Backend
 import Compiler.PackageName as PackageName exposing (PackageName)
 import Compiler.Paths
@@ -309,12 +310,7 @@ update msg model =
             RedirectTerminalIO (Err { error, source, target }) ->
                 when error is
                     Stream.Closed ->
-                        Stream.closeWritable target
-                            |> Task.onError
-                                (\err ->
-                                    Stream.Log.line model.stderr ("Failed to close stream:  " ++ Stream.errorToString error)
-                                )
-                            |> Task.execute
+                        Cmd.none
 
                     _ ->
                         Stream.Log.line model.stderr ("Something went wrong when communicating with compiler backend: " ++ Stream.errorToString error)
@@ -325,6 +321,7 @@ update msg model =
 parseUserArgs : Model -> Path -> Cmd Msg
 parseUserArgs model compilerPath =
     let
+        -- TODO: Use these instead of Terminal.Help.prettyPrint?
         colorFilter =
             if model.useColor then
                 identity
@@ -365,6 +362,10 @@ parseUserArgs model compilerPath =
     
         CLI.Parser.Success parsedCommand ->
             let
+                printOpts =
+                    { useColor = model.useColor
+                    }
+
                 initWithCommand backendCommand =
                     ChildProcess.External <| \cpOpts ->
                         CompilerInitialized
@@ -392,10 +393,9 @@ parseUserArgs model compilerPath =
                         }
 
                 CliParser.Repl flags ->
-                    -- TODO: DRY up package installation
                     -- TODO: create repl project when no project outline is found
                     Terminal.PackageInstall.readProjectOutline model.fsPermission
-                        |> Task.mapError Debug.toString
+                        |> Task.mapError Terminal.PackageInstall.prettifyProjectOutlineError
                         |> Task.andThen
                             (\projectOutline ->
                                 Terminal.PackageInstall.run
@@ -407,7 +407,7 @@ parseUserArgs model compilerPath =
                                     , stdin = model.stdin
                                     }
                                     projectOutline
-                                    |> Task.mapError Debug.toString
+                                    |> Task.mapError Terminal.PackageInstall.prettifyError
                             )
                         |> Task.map
                             (\resolved ->
@@ -430,7 +430,8 @@ parseUserArgs model compilerPath =
                             )
                         |> Task.onError
                             (\err ->
-                                Stream.Log.line model.stdout err
+                                Terminal.Help.prettyPrint printOpts err
+                                    |> Stream.Log.string model.stderr
                                     |> Task.execute
                                     |> Task.succeed
                             )
@@ -438,50 +439,33 @@ parseUserArgs model compilerPath =
 
                 CliParser.Make flags ->
                     -- TODO: Verify correct gren compiler version
-                    Terminal.PackageInstall.readProjectOutline model.fsPermission
-                        |> Task.andThen
-                            (\projectOutline ->
-                                Terminal.PackageInstall.run
-                                    { fsPermission = model.fsPermission
-                                    , cpPermission = model.cpPermission
-                                    , interactive = model.interactive
-                                    , useColor = model.useColor
-                                    , stdout = model.stdout
-                                    , stdin = model.stdin
+                    resolveProject model
+                        |> Task.map
+                            (\resolved ->
+                                Compiler.Backend.run
+                                    model.cpPermission
+                                    { useColor = model.useColor
+                                    , compilerPath = compilerPath
+                                    , pathToString = model.pathToString
+                                    , connection = initWithCommand <|
+                                        Compiler.Backend.Make
+                                            { optimize = flags.optimize
+                                            , sourcemaps = flags.sourcemaps
+                                            , output = flags.output
+                                            , report = flags.report
+                                            , projectPath = resolved.projectPath
+                                            , entryPoints = flags.entryPoints
+                                            , outline = resolved.outline
+                                            , rootSources = resolved.rootSources
+                                            , dependencies = resolved.dependencies
+                                            }
+                                    , onComplete = CompilerRan
                                     }
-                                    projectOutline
-                                    |> Task.map
-                                        (\resolved ->
-                                            Compiler.Backend.run
-                                                model.cpPermission
-                                                { useColor = model.useColor
-                                                , compilerPath = compilerPath
-                                                , pathToString = model.pathToString
-                                                , connection = initWithCommand <|
-                                                    Compiler.Backend.Make
-                                                        { optimize = flags.optimize
-                                                        , sourcemaps = flags.sourcemaps
-                                                        , output = flags.output
-                                                        , report = flags.report
-                                                        , projectPath = resolved.projectPath
-                                                        , entryPoints = flags.entryPoints
-                                                        , outline = resolved.outline
-                                                        , rootSources = resolved.rootSources
-                                                        , dependencies = resolved.dependencies
-                                                        }
-                                                , onComplete = CompilerRan
-                                                }
-                                        )
-                                    |> Task.onError
-                                        (\err ->
-                                            Stream.Log.line model.stdout (Debug.toString err)
-                                                |> Task.execute
-                                                |> Task.succeed
-                                        )
-                                )
+                            )
                         |> Task.onError
                             (\err ->
-                                Stream.Log.line model.stdout (Debug.toString err)
+                                Terminal.Help.prettyPrint printOpts err
+                                    |> Stream.Log.string model.stderr
                                     |> Task.execute
                                     |> Task.succeed
                             )
@@ -521,22 +505,7 @@ parseUserArgs model compilerPath =
                         |> Task.executeCmd
 
                 CliParser.Docs flags ->
-                    -- TODO: DRY up package installation
-                    Terminal.PackageInstall.readProjectOutline model.fsPermission
-                        |> Task.mapError Debug.toString
-                        |> Task.andThen
-                            (\projectOutline ->
-                                Terminal.PackageInstall.run
-                                    { fsPermission = model.fsPermission
-                                    , cpPermission = model.cpPermission
-                                    , interactive = model.interactive
-                                    , useColor = model.useColor
-                                    , stdout = model.stdout
-                                    , stdin = model.stdin
-                                    }
-                                    projectOutline
-                                    |> Task.mapError Debug.toString
-                            )
+                    resolveProject model
                         |> Task.map
                             (\resolved ->
                                 Compiler.Backend.run
@@ -559,42 +528,26 @@ parseUserArgs model compilerPath =
                             )
                         |> Task.onError
                             (\err ->
-                                Stream.Log.line model.stdout err
+                                Terminal.Help.prettyPrint printOpts err
+                                    |> Stream.Log.string model.stderr
                                     |> Task.execute
                                     |> Task.succeed
                             )
                         |> Task.executeCmd
 
                 CliParser.PackageInstall Nothing ->
-                    Terminal.PackageInstall.readProjectOutline model.fsPermission
-                        |> Task.andThen
-                            (\projectOutline ->
-                                Terminal.PackageInstall.run
-                                    { fsPermission = model.fsPermission
-                                    , cpPermission = model.cpPermission
-                                    , interactive = model.interactive
-                                    , useColor = model.useColor
-                                    , stdout = model.stdout
-                                    , stdin = model.stdin
-                                    }
-                                    projectOutline
-                                    |> Task.andThen
-                                        (\err ->
-                                            Stream.Log.line model.stdout "Done"
-                                        )
-                                    |> Task.onError
-                                        (\err ->
-                                            Stream.Log.line model.stdout (Debug.toString err)
-                                        )
-                            )
+                    resolveProject model
+                        |> Task.map (\_ -> {})
                         |> Task.onError
                             (\err ->
-                                Stream.Log.line model.stdout (Debug.toString err)
+                                Terminal.Help.prettyPrint printOpts err
+                                    |> Stream.Log.string model.stderr
                             )
                         |> Task.execute
 
                 CliParser.PackageInstall (Just requestedPackage) ->
                     Terminal.PackageInstall.readProjectOutline model.fsPermission
+                        |> Task.mapError Terminal.PackageInstall.prettifyProjectOutlineError
                         |> Task.andThen
                             (\projectOutline ->
                                 Terminal.PackageInstall.addPackage
@@ -607,24 +560,19 @@ parseUserArgs model compilerPath =
                                     }
                                     projectOutline
                                     requestedPackage
-                                    |> Task.onError
-                                        (\err ->
-                                            Stream.Log.line model.stdout (Debug.toString err)
-                                        )
-                            )
-                        |> Task.andThen
-                            (\err ->
-                                Stream.Log.line model.stdout "Done"
+                                    |> Task.mapError Terminal.PackageInstall.prettifyAddPackageError
+                                    |> Task.map (\_ -> {})
                             )
                         |> Task.onError
                             (\err ->
-                                Stream.Log.line model.stdout (Debug.toString err)
+                                Terminal.Help.prettyPrint printOpts err
+                                    |> Stream.Log.string model.stderr
                             )
                         |> Task.execute
 
                 CliParser.PackageUninstall packageName ->
                     Terminal.PackageInstall.readProjectOutline model.fsPermission
-                        |> Task.mapError Debug.toString
+                        |> Task.mapError Terminal.PackageInstall.prettifyProjectOutlineError
                         |> Task.andThen
                             (\projectOutline ->
                                 Terminal.PackageUninstall.run
@@ -637,21 +585,18 @@ parseUserArgs model compilerPath =
                                     }
                                     projectOutline
                                     packageName
-                                    |> Task.mapError Debug.toString
-                            )
-                        |> Task.andThen
-                            (\err ->
-                                Stream.Log.line model.stdout "Done"
+                                    |> Task.mapError Terminal.PackageUninstall.prettifyError
                             )
                         |> Task.onError
                             (\err ->
-                                Stream.Log.line model.stdout (Debug.toString err)
+                                Terminal.Help.prettyPrint printOpts err
+                                    |> Stream.Log.string model.stderr
                             )
                         |> Task.execute
 
                 CliParser.PackageOutdated ->
                     Terminal.PackageInstall.readProjectOutline model.fsPermission
-                        |> Task.mapError Debug.toString
+                        |> Task.mapError Terminal.PackageInstall.prettifyProjectOutlineError
                         |> Task.andThen
                             (\projectOutline ->
                                 Terminal.PackageOutdated.run
@@ -663,15 +608,12 @@ parseUserArgs model compilerPath =
                                     , stdin = model.stdin
                                     }
                                     projectOutline
-                                    |> Task.mapError Debug.toString
-                            )
-                        |> Task.andThen
-                            (\err ->
-                                Stream.Log.line model.stdout "Done"
+                                    |> Task.mapError Terminal.PackageOutdated.prettifyError
                             )
                         |> Task.onError
                             (\err ->
-                                Stream.Log.line model.stdout (Debug.toString err)
+                                Terminal.Help.prettyPrint printOpts err
+                                    |> Stream.Log.string model.stderr
                             )
                         |> Task.execute
 
@@ -689,8 +631,8 @@ parseUserArgs model compilerPath =
                                     , stdin = model.stdin
                                     }
                                     projectOutline
+                                    |> Task.mapError Debug.toString
                             )
-                        |> Task.mapError Debug.toString
                         |> Task.map
                             (\backendFlags ->
                                 Compiler.Backend.run
@@ -714,7 +656,7 @@ parseUserArgs model compilerPath =
 
                 CliParser.PackageBump ->
                     Terminal.PackageInstall.readProjectOutline model.fsPermission
-                        |> Task.mapError Debug.toString
+                        |> Task.mapError Terminal.PackageInstall.prettifyProjectOutlineError
                         |> Task.andThen
                             (\projectOutline ->
                                 Terminal.PackageBump.run
@@ -726,8 +668,8 @@ parseUserArgs model compilerPath =
                                     , stdin = model.stdin
                                     }
                                     projectOutline
+                                    |> Task.mapError Terminal.PackageBump.prettifyError
                             )
-                        |> Task.mapError Debug.toString
                         |> Task.map
                             (\backendFlags ->
                                 Compiler.Backend.run
@@ -743,7 +685,8 @@ parseUserArgs model compilerPath =
                             )
                         |> Task.onError
                             (\err ->
-                                Stream.Log.line model.stdout err
+                                Terminal.Help.prettyPrint printOpts err
+                                    |> Stream.Log.string model.stderr
                                     |> Task.execute
                                     |> Task.succeed
                             )
@@ -763,6 +706,7 @@ parseUserArgs model compilerPath =
                                         , stdin = model.stdin
                                         }
                                         Nothing
+                                        |> Task.mapError Debug.toString
 
                                 CliParser.DiffVersion version ->
                                     Terminal.PackageDiff.runLocal
@@ -774,6 +718,7 @@ parseUserArgs model compilerPath =
                                         , stdin = model.stdin
                                         }
                                         (Just version)
+                                        |> Task.mapError Debug.toString
 
                                 CliParser.DiffRange { lower, upper } ->
                                     Terminal.PackageInstall.readProjectOutline model.fsPermission
@@ -797,6 +742,7 @@ parseUserArgs model compilerPath =
                                                             pkgOutline.name
                                                             lower
                                                             upper
+                                                            |> Task.mapError Debug.toString
                                             )
 
                                 CliParser.DiffGlobal { package, lower, upper } ->
@@ -811,9 +757,9 @@ parseUserArgs model compilerPath =
                                         package
                                         lower
                                         upper
+                                        |> Task.mapError Debug.toString
                     in
                     diffTask
-                        |> Task.mapError Debug.toString
                         |> Task.map
                             (\backendFlags ->
                                 Compiler.Backend.run
@@ -844,3 +790,21 @@ parseUserArgs model compilerPath =
                         }
                         opts
 
+
+resolveProject : Model -> Task PP.Document Terminal.PackageInstall.PackageResolution
+resolveProject model =
+    Terminal.PackageInstall.readProjectOutline model.fsPermission
+        |> Task.mapError Terminal.PackageInstall.prettifyProjectOutlineError
+        |> Task.andThen
+            (\projectOutline ->
+                Terminal.PackageInstall.run
+                    { fsPermission = model.fsPermission
+                    , cpPermission = model.cpPermission
+                    , interactive = model.interactive
+                    , useColor = model.useColor
+                    , stdout = model.stdout
+                    , stdin = model.stdin
+                    }
+                    projectOutline
+                    |> Task.mapError Terminal.PackageInstall.prettifyError
+            )

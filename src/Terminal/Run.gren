@@ -18,6 +18,7 @@ import FileSystem
 import FileSystem.Path as Path exposing (Path)
 import Compiler.ModuleName as ModuleName exposing (ModuleName)
 import Git
+import Json.Decode as Decode
 import Node
 import Process
 import Stream
@@ -28,8 +29,10 @@ import Terminal.PackageInstall as PackageInstall exposing (PackageResolution)
 type Error
     = TempPathError FileSystem.Error
     | ReadProjectOutlineError PackageInstall.ReadProjectOutlineError
+    | ReadOutlineError FileSystem.Error
+    | InvalidProjectOutline Decode.Error
     | PackageInstallError PackageInstall.PackageInstallError
-    | PackageFetchError ChildProcess.FailedRun
+    | PackageFetchError Git.Error
     | GitError Git.Error
     | NoPackageVersions
     | NotAnApplication
@@ -156,14 +159,6 @@ clonePackage config packageName =
         getVersion =
             Git.fetchLatestVersion config.cpPermission packageName
                 |> Task.mapError GitError
-                |> Task.andThen
-                    (\maybeVersion ->
-                        when maybeVersion is
-                            Just version ->
-                                Task.succeed version
-                            Nothing ->
-                                Task.fail NoPackageVersions
-                    )
 
         clone tempDir version =
             Git.clonePackage config.cpPermission tempDir packageName version
@@ -235,8 +230,7 @@ getProjectOutline fsPermission path =
     path
         |> Path.append (Path.fromPosixString "gren.json")
         |> PackageInstall.readOutline fsPermission
-        |> Task.mapError PackageInstall.ReadProjectOutlineNoGrenJson
-        |> Task.mapError ReadProjectOutlineError
+        |> Task.mapError ReadOutlineError
         |> Task.andThen
             (\decodeResult ->
                 when decodeResult is
@@ -244,8 +238,7 @@ getProjectOutline fsPermission path =
                         Task.succeed outline
                     Err err ->
                         err
-                            |> PackageInstall.ReadProjectOutlineInvalidGrenJson
-                            |> ReadProjectOutlineError
+                            |> InvalidProjectOutline
                             |> Task.fail
             )
 

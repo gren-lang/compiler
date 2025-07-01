@@ -2,12 +2,15 @@ module Terminal.PackageInstall exposing
     ( PackageInstallError (..)
     , PackageResolution
     , run
+    , prettifyError
     --
     , AddPackageError (..)
     , addPackage
+    , prettifyAddPackageError
     --
     , ReadProjectOutlineError (..)
     , readProjectOutline
+    , prettifyProjectOutlineError
     , readOutline
     , localRepoPath
     )
@@ -63,12 +66,12 @@ type PackageInstallError
     = PackageInstallFailedToFindProjectSourceFiles FileSystem.Error
     | PackageInstallFailedToFindSourceFiles { package : PackageName, error : FileSystem.Error }
     | PackageInstallInvalidOutline { package : PackageName, message : String }
-    | PackageInstallFailedToLoadBundle
-    | PackageInstallInvalidBundle { package : PackageName, message : String }
-    | PackageInstallConflict { name : PackageName, version1 : SemanticVersionRange, version2 : SemanticVersionRange }
-    | PackageInstallGitError { package : PackageName, error : String }
+    | PackageInstallFailedToLoadBundle Path
+    | PackageInstallInvalidBundle { package : PackageName, path : Path, message : String }
+    | PackageInstallConflict { package : PackageName, version1 : SemanticVersionRange, version2 : SemanticVersionRange }
+    | PackageInstallGitError { package : PackageName, error : Git.Error }
     | PackageInstallFileSystemError { package : PackageName, error : FileSystem.Error }
-    | PackageInstallCreateBundleError { package : PackageName, error : Stream.Error }
+    | PackageInstallCreateBundleError { package : PackageName, path : Path, error : Stream.Error }
 
 
 run : Config -> Options -> Task PackageInstallError PackageResolution
@@ -263,10 +266,10 @@ installStep config { projectPath, outline, projectSources, rootPackages, loadedP
                             (\_ ->
                                 Git.clonePackage config.cpPermission repoPath name lowerBound
                                     |> Task.mapError
-                                        (\{ stderr } ->
+                                        (\err ->
                                             PackageInstallGitError
                                                 { package = name
-                                                , error = Maybe.withDefault "" <| Bytes.toString stderr
+                                                , error = err
                                                 }
                                         )
                             )
@@ -365,6 +368,7 @@ installStep config { projectPath, outline, projectSources, rootPackages, loadedP
                                                     (\ err ->
                                                         PackageInstallCreateBundleError
                                                             { package = name
+                                                            , path = bundlePath
                                                             , error = err
                                                             }
                                                     )
@@ -389,16 +393,149 @@ installStep config { projectPath, outline, projectSources, rootPackages, loadedP
                         |> Task.andThen (installStep config)
 
         Compiler.Dependencies.Conflict conflict ->
-            Task.fail (PackageInstallConflict conflict)
+            Task.fail <| PackageInstallConflict
+                { package = conflict.name
+                , version1 = conflict.version1
+                , version2 = conflict.version2
+                }
+
+
+prettifyError : PackageInstallError -> PP.Document
+prettifyError error =
+    when error is
+        PackageInstallFailedToFindProjectSourceFiles fsErr ->
+            Help.report
+                "FAILED TO FIND PROJECT SOURCES"
+                Nothing
+                (PP.verticalBlock
+                    [ PP.words "An error occured while I was searching for this project's source code."
+                    , PP.empty
+                    , PP.words "The error is:"
+                    , PP.empty
+                    , PP.words (FileSystem.errorToString fsErr)
+                        |> PP.indent
+                    ]
+                )
+
+        PackageInstallFailedToFindSourceFiles { package, error = fsErr} ->
+            Help.report
+                ("FAILED TO FIND SOURCES FOR PACKAGE " ++ PackageName.toString package)
+                Nothing
+                (PP.verticalBlock
+                    [ PP.words "An error occured while I was searching for the package's source code."
+                    , PP.empty
+                    , PP.words "The error is:"
+                    , PP.empty
+                    , PP.words (FileSystem.errorToString fsErr)
+                        |> PP.indent
+                    ]
+                )
+        
+        PackageInstallInvalidOutline { package, message } ->
+            Help.report
+                ("INVALID gren.json IN " ++ PackageName.toString package)
+                Nothing
+                (PP.verticalBlock
+                    [ PP.words "An error occured while I was reading the gren.json file for this package."
+                    , PP.empty
+                    , PP.words "The error is:"
+                    , PP.empty
+                    , PP.words message
+                        |> PP.indent
+                    ]
+                )
+
+        PackageInstallFailedToLoadBundle path ->
+            Help.report
+                "FAILED TO LOAD PACKAGE"
+                (Just path)
+                (PP.verticalBlock
+                    [ PP.words "An error occured while I was loading the bundle for this package."
+                    , PP.empty
+                    , PP.words "Try to delete it and re-run this command to re-generate the bundle."
+                    ]
+                )
+
+        PackageInstallInvalidBundle { package, path, message } ->
+            Help.report
+                ("FAILED TO LOAD PACKAGE " ++ PackageName.toString package)
+                (Just path)
+                (PP.verticalBlock
+                    [ PP.words "An error occured while I was loading the bundle for this package."
+                    , PP.empty
+                    , PP.words "The error is:"
+                    , PP.empty
+                    , PP.words message
+                        |> PP.indent
+                    , PP.empty
+                    , PP.words "This is likely due to an error in how the package was published. Consider letting the package author know."
+                    ]
+                )
+
+        PackageInstallConflict { package, version1, version2 } ->
+            Help.report
+                "CANNOT FIND COMPATIBLE VERSION"
+                Nothing
+                (PP.verticalBlock
+                    [ PP.words "I cannot find a version of"
+                    , PP.text (" " ++ PackageName.toString package ++ " ")
+                        |> PP.color PP.Green
+                    , PP.words "that is compatible with your existing dependencies."
+                    , PP.empty
+                    , PP.words "These are the confliction versions:"
+                    , PP.empty
+                    , PP.verticalBlock
+                        [ PP.text (SemanticVersionRange.toString version1)
+                        , PP.text (SemanticVersionRange.toString version2)
+                        ]
+                        |> PP.indent
+                    ]
+                )
+
+        PackageInstallGitError { package, error = gitErr } ->
+            Git.report
+                "PROBLEM INSTALLING PACKAGE"
+                ("I was trying to install " ++ PackageName.toString package)
+                gitErr
+
+        PackageInstallFileSystemError { package, error = fsErr } ->
+            Help.report
+                ("FAILED TO LOAD " ++ PackageName.toString package)
+                Nothing
+                (PP.verticalBlock
+                    [ PP.words "An error occured while installing this package."
+                    , PP.empty
+                    , PP.words "The error is:"
+                    , PP.empty
+                    , PP.words (FileSystem.errorToString fsErr)
+                        |> PP.indent
+                    ]
+                )
+
+        PackageInstallCreateBundleError { package, path, error = streamErr } ->
+            Help.report
+                ("FAILED TO CREATE BUNDLE FOR " ++ PackageName.toString package)
+                (Just path)
+                (PP.verticalBlock
+                    [ PP.words "An error occured while I was creating the bundle for this package."
+                    , PP.empty
+                    , PP.words "The error is:"
+                    , PP.empty
+                    , PP.words (Stream.errorToString streamErr)
+                        |> PP.indent
+                    ]
+                )
+
+
+-- ADD PACKAGE
 
 
 type AddPackageError
     = AddPackageAlreadyInstalled
     | AddPackagePromptError Stream.Error
     | AddPackageUserCancelled
-    | AddPackageFileSystemError FileSystem.Error
-    | AddPackageGitError String
-    | AddPackageNoVersion
+    | AddPackageWriteOutlineError FileSystem.Error
+    | AddPackageGitError Git.Error
     | AddPackageInstallError PackageInstallError
 
 
@@ -425,19 +562,7 @@ addPackage config { projectPath, outline } requestedPackage =
                             (\_ ->
                                 Git.fetchLatestVersion config.cpPermission requestedPackage
                             )
-                        |> Task.mapError
-                            (\err ->
-                                AddPackageGitError <| Debug.toString err
-                            )
-                        |> Task.andThen
-                            (\maybeVersion ->
-                                when maybeVersion is
-                                    Nothing ->
-                                        Task.fail AddPackageNoVersion
-
-                                    Just packageVersion ->
-                                        Task.succeed packageVersion
-                            )
+                        |> Task.mapError AddPackageGitError
                         |> Task.andThen
                             (\packageVersion ->
                                 run
@@ -515,7 +640,7 @@ addPackage config { projectPath, outline } requestedPackage =
                                     |> Task.andThen
                                         (\newOutline ->
                                             FileSystem.writeFile config.fsPermission (Bytes.fromString newOutline) grenJsonPath
-                                                |> Task.mapError AddPackageFileSystemError
+                                                |> Task.mapError AddPackageWriteOutlineError
                                                 |> Task.map (\_ -> {})
                                         )
                             )
@@ -557,7 +682,7 @@ addPackage config { projectPath, outline } requestedPackage =
                         |> Task.andThen
                             (\newOutline ->
                                 FileSystem.writeFile config.fsPermission (Bytes.fromString newOutline) grenJsonPath
-                                    |> Task.mapError AddPackageFileSystemError
+                                    |> Task.mapError AddPackageWriteOutlineError
                                     |> Task.map (\_ -> {})
                             )
 
@@ -568,6 +693,55 @@ addPackage config { projectPath, outline } requestedPackage =
             else
                 -- TODO: Implement
                 Stream.Log.line config.stdout ("Installing " ++ packageNameStr)
+
+
+prettifyAddPackageError : AddPackageError -> PP.Document
+prettifyAddPackageError error =
+    when error is
+        AddPackageAlreadyInstalled ->
+            PP.empty
+
+        AddPackagePromptError streamErr ->
+            Help.report
+                "FAILED TO COMMUNICATE WITH USER"
+                Nothing
+                (PP.verticalBlock
+                    [ PP.words "I wanted to ask you a question, but something seems to be wrong with the stdin stream."
+                    , PP.empty
+                    , PP.words "The error is:"
+                    , PP.empty
+                    , PP.words (Stream.errorToString streamErr)
+                        |> PP.indent
+                    , PP.empty
+                    , PP.words "This is most definetly a bug. Please report it."
+                    ]
+                )
+
+        AddPackageUserCancelled ->
+            PP.empty
+
+        AddPackageWriteOutlineError fsErr ->
+            Help.report
+                "FAILED TO UPDATE OUTLINE"
+                Nothing
+                (PP.verticalBlock
+                    [ PP.words "An error occured while I updating the gren.json file."
+                    , PP.empty
+                    , PP.words "The error is:"
+                    , PP.empty
+                    , PP.words (FileSystem.errorToString fsErr)
+                        |> PP.indent
+                    ]
+                )
+
+        AddPackageGitError gitErr ->
+            Git.report
+                "FAILED TO ADD PACKAGE"
+                "I was trying to add a new package to the project"
+                gitErr
+
+        AddPackageInstallError installErr ->
+            prettifyError installErr
 
 
 packageBundlePath : PackageName -> SemanticVersion -> Path -> Path
@@ -605,7 +779,6 @@ localRepoPath name version projectPath =
 
 type ReadProjectOutlineError
     = ReadProjectOutlineNoProject FileSystem.Error
-    | ReadProjectOutlineNoGrenJson FileSystem.Error
     | ReadProjectOutlineInvalidGrenJson Decode.Error
 
 
@@ -616,7 +789,7 @@ readProjectOutline fsPermission =
         |> Task.andThen
             (\projectPath ->
                 readOutline fsPermission (Path.append (Path.fromPosixString "gren.json") projectPath)
-                    |> Task.mapError ReadProjectOutlineNoGrenJson
+                    |> Task.mapError ReadProjectOutlineNoProject
                     |> Task.andThen
                         (\decodeResult ->
                             when decodeResult is
@@ -630,6 +803,38 @@ readProjectOutline fsPermission =
                                     Task.fail (ReadProjectOutlineInvalidGrenJson err)
                         )
             )
+
+prettifyProjectOutlineError : ReadProjectOutlineError -> PP.Document
+prettifyProjectOutlineError error =
+    when error is
+        ReadProjectOutlineNoProject _ ->
+            Help.report
+                "COULDN'T FIND PROJECT"
+                (Just (Path.fromPosixString "gren.json"))
+                (PP.verticalBlock
+                    [ PP.words "I couldn't find a Gren project."
+                    , PP.empty
+                    , PP.words "You can create new projects using"
+                    , PP.empty
+                    , PP.text "gren init"
+                        |> PP.indent
+                        |> PP.color PP.Green
+                    ]
+                )
+
+        ReadProjectOutlineInvalidGrenJson jsonErr ->
+            Help.report
+                "FAILED TO READ OUTLINE"
+                (Just (Path.fromPosixString "gren.json"))
+                (PP.verticalBlock
+                    [ PP.words "Something seems to be wrong with the gren.json file."
+                    , PP.empty
+                    , PP.words "The error I'm having is:"
+                    , PP.empty
+                    , PP.text (Decode.errorToString jsonErr)
+                        |> PP.indent
+                    ]
+                )
 
 
 readOutline : FileSystem.Permission -> Path -> Task FileSystem.Error (Result Decode.Error Outline)
@@ -733,9 +938,13 @@ loadPackageFromPath fsPermission name path =
 
 loadPackageFromBundle : FileSystem.Permission -> PackageName -> SemanticVersion -> Path -> Task PackageInstallError (Maybe LoadedPackage)
 loadPackageFromBundle fsPermission name vsn projectPath =
-    packageBundlePath name vsn projectPath
+    let
+        bundlePath =
+            packageBundlePath name vsn projectPath
+    in
+    bundlePath
         |> FileSystem.readFileStream fsPermission FileSystem.Beginning
-        |> Task.mapError (\_ -> PackageInstallFailedToLoadBundle)
+        |> Task.mapError (\_ -> PackageInstallFailedToLoadBundle bundlePath)
         |> Task.andThen
             (\stream ->
                 stream
@@ -746,6 +955,7 @@ loadPackageFromBundle fsPermission name vsn projectPath =
                         (\err ->
                             PackageInstallInvalidBundle
                                 { package = name
+                                , path = bundlePath
                                 , message = "Failed to read bundle from disk. Error: " ++ Stream.errorToString err
                                 }
                         )
@@ -756,12 +966,14 @@ loadPackageFromBundle fsPermission name vsn projectPath =
                                     if name /= bundle.outline.name then
                                         Task.fail <| PackageInstallInvalidBundle
                                             { package = name
+                                            , path = bundlePath
                                             , message = "Package name mismatch. Expected " ++ PackageName.toString name 
                                             }
 
                                     else if vsn /= bundle.outline.version then
                                         Task.fail <| PackageInstallInvalidBundle
                                             { package = name
+                                            , path = bundlePath
                                             , message = "Package version mismatch. Expected " ++ SemanticVersion.toString vsn
                                             }
 
@@ -777,6 +989,7 @@ loadPackageFromBundle fsPermission name vsn projectPath =
                                 Err jsonErr ->
                                     Task.fail <| PackageInstallInvalidBundle
                                         { package = name
+                                        , path = bundlePath
                                         , message = Decode.errorToString jsonErr
                                         }
                         )
