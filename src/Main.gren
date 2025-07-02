@@ -319,19 +319,9 @@ update msg model =
 parseUserArgs : Model -> Path -> Cmd Msg
 parseUserArgs model compilerPath =
     let
-        -- TODO: Use these instead of Terminal.Help.prettyPrint?
-        colorFilter =
-            if model.useColor then
-                identity
-
-            else
-                PP.stripColor
-
-        prettyTextToTerminal doc =
-            doc
-                |> colorFilter
-                |> PP.toStringWithOptions
-                    { PP.defaultOptions | maxColumns = 80 }
+        printOpts =
+            { useColor = model.useColor
+            }
     in
     when CLI.Parser.run model.args CliParser.parser is
         CLI.Parser.UnknownCommand commandName ->
@@ -341,29 +331,25 @@ parseUserArgs model compilerPath =
         CLI.Parser.BadFlags err ->
             err
                 |> CLI.Parser.flagErrorPrettified
-                |> prettyTextToTerminal
+                |> Terminal.Help.prettyPrint printOpts
                 |> Stream.Log.line model.stderr
                 |> Task.execute
     
         CLI.Parser.BadArguments err ->
             err
                 |> CLI.Parser.argumentErrorPrettified
-                |> prettyTextToTerminal
+                |> Terminal.Help.prettyPrint printOpts
                 |> Stream.Log.line model.stderr
                 |> Task.execute
     
         CLI.Parser.HelpText prettifiedText ->
             prettifiedText
-                |> prettyTextToTerminal
+                |> Terminal.Help.prettyPrint printOpts
                 |> Stream.Log.line model.stdout
                 |> Task.execute
     
         CLI.Parser.Success parsedCommand ->
             let
-                printOpts =
-                    { useColor = model.useColor
-                    }
-
                 initWithCommand backendCommand =
                     ChildProcess.External <| \cpOpts ->
                         CompilerInitialized
