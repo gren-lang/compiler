@@ -13,14 +13,6 @@ module Reporting.Exit
     replToReport,
     Validate (..),
     validateToReport,
-    Uninstall (..),
-    uninstallToReport,
-    Outdated (..),
-    outdatedToReport,
-    Format (..),
-    FormattingFailure (..),
-    ValidateFailure (..),
-    formatToReport,
     newPackageOverview,
     --
     Solver (..),
@@ -44,7 +36,6 @@ import Data.ByteString qualified as BS
 import Data.ByteString.UTF8 qualified as BS_UTF8
 import Data.List qualified as List
 import Data.Map qualified as Map
-import Data.Maybe (mapMaybe)
 import Data.Name qualified as N
 import Data.NonEmptyList qualified as NE
 import File qualified
@@ -63,7 +54,6 @@ import Reporting.Doc qualified as D
 import Reporting.Error qualified as Error
 import Reporting.Error.Import qualified as Import
 import Reporting.Error.Json qualified as Json
-import Reporting.Error.Syntax qualified as Error.Syntax
 import Reporting.Exit.Help qualified as Help
 import Reporting.Render.Code qualified as Code
 import System.FilePath ((<.>), (</>))
@@ -830,63 +820,6 @@ toDocsProblemReport problem context =
             \ for some reason."
         ]
 
--- UNINSTALL
-
-data Uninstall
-  = UninstallNoOutline
-  | UninstallBadOutline Outline
-  | UninstallHadSolverTrouble Solver
-  | UninstallNoSolverSolution
-  | UninstallBadDetails Details
-
-uninstallToReport :: Uninstall -> Help.Report
-uninstallToReport exit =
-  case exit of
-    UninstallNoOutline ->
-      Help.report
-        "COULD NOT FIND PROJECT"
-        Nothing
-        "I could not locate the gren.json file of your project."
-        []
-    UninstallBadOutline outline ->
-      toOutlineReport outline
-    UninstallHadSolverTrouble solver ->
-      toSolverReport solver
-    UninstallNoSolverSolution ->
-      Help.report
-        "COULD NOT RESOLVE DEPENDENCIES"
-        (Just "gren.json")
-        ( "After removing the package I was unable to resolve your project's dependencies.\
-          \ I'm not sure how this can happen. It might be a good idea to reach out to the Gren\
-          \ core team."
-        )
-        []
-    UninstallBadDetails details ->
-      toDetailsReport details
-
--- OUTDATED
-
-data Outdated
-  = OutdatedNoOutline
-  | OutdatedBadOutline Outline
-  | OutdatedGitTrouble ()
-
-outdatedToReport :: Outdated -> Help.Report
-outdatedToReport exit =
-  case exit of
-    OutdatedNoOutline ->
-      Help.report
-        "COULD NOT FIND PROJECT"
-        Nothing
-        "I could not locate the gren.json file of your project."
-        []
-    OutdatedBadOutline outline ->
-      toOutlineReport outline
-    OutdatedGitTrouble gitError ->
-      toGitErrorReport
-        "PROBLEM FINDING OUTDATED PACKAGE VERSIONS"
-        gitError
-        "I tried to find newer versions of the dependencies specified in your gren.json file."
 
 -- SOLVER
 
@@ -2516,78 +2449,3 @@ replToReport problem =
       corruptCacheReport
     ReplBlocked ->
       corruptCacheReport
-
--- FORMAT
-
-data Format
-  = FormatPathUnknown FilePath
-  | FormatStdinWithFiles
-  | FormatNoOutline
-  | FormatBadOutline Outline
-  | FormatValidateErrors (NE.List ValidateFailure)
-  | FormatErrors (NE.List FormattingFailure)
-
-data FormattingFailure
-  = FormattingFailureParseError (Maybe FilePath) BS.ByteString Error.Syntax.Error
-
-data ValidateFailure
-  = VaildateFormattingFailure FormattingFailure
-  | ValidateNotCorrectlyFormatted
-
-formatToReport :: Format -> Help.Report
-formatToReport problem =
-  case problem of
-    FormatPathUnknown path ->
-      Help.report
-        "FILE NOT FOUND"
-        Nothing
-        "I cannot find this file:"
-        [ D.indent 4 $ D.red $ D.fromChars path,
-          D.reflow $ "Is there a typo?",
-          D.toSimpleNote $
-            "If you are just getting started, try working through the examples in the\
-            \ official guide https://gren-lang.org/learn to get an idea of the kinds of things\
-            \ that typically go in a src/Main.gren file."
-        ]
-    FormatStdinWithFiles ->
-      Help.report
-        "INCOMPATIBLE FLAGS"
-        Nothing
-        "Files and stdin cannot be formatted at the same time."
-        [ D.reflow "You'll need to run `gren format` two separate times if you want to do both."
-        ]
-    FormatNoOutline ->
-      Help.report
-        "FORMAT WHAT?"
-        Nothing
-        "I cannot find a gren.json so I am not sure what you want me to format.\
-        \ Normally you run `gren format` from within a project!"
-        [ D.reflow $ "If you need to format gren files outside of a project, tell me which files or directories to format:",
-          D.indent 4 $ D.green $ "gren format Example.gren"
-        ]
-    FormatBadOutline outline ->
-      toOutlineReport outline
-    FormatValidateErrors errors ->
-      Help.report
-        "FILES NOT PROPERLY FORMATTED"
-        Nothing
-        "The input files were not correctly formatted according to Gren's preferred style."
-        (mapMaybe validateErrorToDoc $ NE.toList errors)
-    FormatErrors errors ->
-      Help.report
-        (show (length errors) <> " FILES CONTAINED ERRORS")
-        Nothing
-        "Some files contained errors and could not be formatted:"
-        (formattingErrorToDoc <$> NE.toList errors)
-
-formattingErrorToDoc :: FormattingFailure -> D.Doc
-formattingErrorToDoc formattingError =
-  case formattingError of
-    FormattingFailureParseError path source err ->
-      Help.syntaxErrorToDoc (Code.toSource source) path err
-
-validateErrorToDoc :: ValidateFailure -> Maybe D.Doc
-validateErrorToDoc validateError =
-  case validateError of
-    VaildateFormattingFailure formattingFailure -> Just $ formattingErrorToDoc formattingFailure
-    ValidateNotCorrectlyFormatted -> Nothing

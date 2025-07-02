@@ -4,6 +4,7 @@ module Terminal.PackageValidate exposing
     , Error (..)
     , Result
     , run
+    , prettifyError
     )
 
 
@@ -28,6 +29,8 @@ import Json.Encode as Json
 import Json.Decode as Decode exposing (Decoder)
 import Stream.Extra
 import Terminal.PackageInstall
+import Terminal.Help as Help
+import CLI.PrettyPrinter as PP
 
 
 type alias Config =
@@ -264,3 +267,187 @@ verifyLicense permission projectPath =
     FileSystem.checkAccess permission [] (Path.appendPosixString "LICENSE" projectPath)
         |> Task.mapError FailedToReadLicense
         |> Task.map (\_ -> {})
+
+
+prettifyError : Error -> PP.Document
+prettifyError error =
+    when error is
+        IsApplication ->
+            Help.report
+                "NOT A PACKAGE"
+                Nothing
+                (PP.words "I cannot validate applications, only packages!")
+
+        NoExposedModules ->
+            Help.report
+                "NO EXPOSED MODULES"
+                (Just (Path.fromPosixString "gren.json"))
+                (PP.verticalBlock
+                    [ PP.block
+                        [ PP.text "The "
+                        , PP.color PP.Yellow (PP.text "\"exposed-modules\" ")
+                        , PP.words "field of your gren.json must list at least one module."
+                        ]
+                    , PP.empty
+                    , PP.words
+                        """
+                        Which modules do you want users of the package to have access to? Add their
+                        names to the \"exposed-modules\" list.
+                        """
+                    ]
+                )
+
+        BadSummary ->
+            Help.report
+                "BAD SUMMARY"
+                (Just (Path.fromPosixString "gren.json"))
+                (PP.verticalBlock
+                    [ PP.block
+                        [ PP.words "Every package should have a"
+                        , PP.color PP.Yellow (PP.text " \"summary\" ")
+                        , PP.words "field in the gren.json file that gives a consice overview of the project."
+                        ]
+                    , PP.empty
+                    , PP.words
+                        """
+                        The summary must be less than 80 characters. It should describe
+                        the concrete use of your package as clearly and as plainly as possible.
+                        """
+                    ]
+                )
+
+
+        HasLocalDependencies ->
+            Help.report
+                "FOUND LOCAL DEPENDENCIES"
+                (Just (Path.fromPosixString "gren.json"))
+                ( PP.verticalBlock
+                    [ PP.words
+                        """
+                        When installing a package, all of the package's dependencies are also installed.
+                        Local (on-disk) dependencies cannot be installed over the network, so when you
+                        rely on such a package, no one else can install your package either.
+                        """
+                    , PP.empty
+                    , PP.words
+                        """
+                        Remove all local dependencies (those prefixed with local:) from your gren.json file.
+                        """
+                    ]
+                )
+
+        FailedToFetchVersions gitError ->
+            Git.report
+                "FAILED TO FETCH VERSIONS FOR PACKAGE"
+                "I was attempting to fetch available versions for this package"
+                gitError
+
+        FailedToReadReadme _ ->
+            Help.report
+                "NO README"
+                (Just (Path.fromPosixString "README.md"))
+                (PP.words
+                    """
+                    Every package should have a helpful README.md file, but I do not
+                    see one in your project.
+                    """
+                )
+
+        ShortReadme ->
+            Help.report
+                "SHORT README"
+                (Just (Path.fromPosixString "README.md"))
+                (PP.words
+                    """
+                    This README.md is too short. Having more details will help
+                    people assess your package quickly and fairly.
+                    """
+                )
+
+        FailedToReadLicense _ ->
+            Help.report
+                "NO LICENSE FILE"
+                (Just (Path.fromPosixString "LICENSE"))
+                ( PP.verticalBlock
+                    [ PP.words
+                        """
+                        By making a package available you are inviting the Gren community to build
+                        upon your work. But without knowing your license, we have no idea if that
+                        is legal!                    
+                        """
+                    , PP.empty
+                    , PP.words
+                        """
+                        Once you pick an OSI approved license from <https://spdx.org/licenses/>,
+                        you must share that choice in two places. First, the license identifier
+                        must appear in your gren.json file. Second, the full
+                        license text must appear in the root of your project in a file
+                        named LICENSE. Add that file and you will be all set!
+                        """
+                    ]
+                )
+
+        NoPublishedVersionAndNot1 ->
+            Help.report
+                "BAD VERSION"
+                (Just (Path.fromPosixString "gren.json"))
+                ( PP.words
+                    """
+                    I cannot find a previous published version of this package, but the
+                    version you've set in your gren.json file is not 1.0.0.
+                    """
+                )
+
+        NoLocalTag ->
+            Help.report
+                "NO TAG"
+                Nothing
+                ( PP.verticalBlock
+                    [ PP.words
+                        """
+                        Packages must be tagged in git, but I cannot find a tag for the version
+                        specified in gren.json.
+                        """
+                    , PP.empty
+                    , PP.words
+                        """
+                        Semver formatted tags is how we find a specific package version on GitHub.
+                        """
+                    ]
+                )
+
+        HasLocalChanges ->
+            Help.report
+                "LOCAL CHANGES"
+                Nothing
+                ( PP.words
+                    """
+                    The code in the tagged commit does not match the code in your working
+                    directory. This means you have commits or local changes that are not
+                    going to be available when downloaded!
+                    """
+                )
+
+        PackageInstallError installError ->
+            Terminal.PackageInstall.prettifyError installError
+
+        PreviousPackageCorrupted ->
+            Help.report
+                "CANNOT INSTALL PREVIOUS VERSION OF THIS PACKAGE"
+                Nothing
+                ( PP.verticalBlock
+                    [ PP.words
+                        """
+                        I'm trying to install a previous version of this package in order to
+                        determine if the version bump makes sense, but I'm unable to do so for
+                        some reason.
+                        """
+                    , PP.empty
+                    , PP.words
+                        """
+                        If the previous version of this package was built with an incompatible
+                        version of the Gren compiler, then this isn't really a problem. Simply
+                        bump the version to a new major version number and push the tag.
+                        """
+                    ]
+                )

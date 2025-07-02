@@ -602,7 +602,7 @@ parseUserArgs model compilerPath =
 
                 CliParser.PackageValidate ->
                     Terminal.PackageInstall.readProjectOutline model.fsPermission
-                        |> Task.mapError Debug.toString
+                        |> Task.mapError Terminal.PackageInstall.prettifyProjectOutlineError
                         |> Task.andThen
                             (\projectOutline ->
                                 Terminal.PackageValidate.run
@@ -614,7 +614,7 @@ parseUserArgs model compilerPath =
                                     , stdin = model.stdin
                                     }
                                     projectOutline
-                                    |> Task.mapError Debug.toString
+                                    |> Task.mapError Terminal.PackageValidate.prettifyError
                             )
                         |> Task.map
                             (\backendFlags ->
@@ -631,7 +631,8 @@ parseUserArgs model compilerPath =
                             )
                         |> Task.onError
                             (\err ->
-                                Stream.Log.line model.stdout err
+                                Terminal.Help.prettyPrint printOpts err
+                                    |> Stream.Log.string model.stderr
                                     |> Task.execute
                                     |> Task.succeed
                             )
