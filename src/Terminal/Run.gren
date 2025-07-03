@@ -2,11 +2,13 @@ module Terminal.Run exposing
     ( Error
     , make
     , run
+    , prettifyError
     )
 
 {-| Support the `gren run ModuleName` command.
 -}
 
+import CLI.PrettyPrinter as PP
 import Compiler.PackageName as PackageName exposing (PackageName)
 import Compiler.Backend as Backend
 import Bytes exposing (Bytes)
@@ -24,17 +26,13 @@ import Process
 import Stream
 import Task exposing (Task)
 import Terminal.PackageInstall as PackageInstall exposing (PackageResolution)
+import Terminal.Help as Help
 
 
 type Error
     = TempPathError FileSystem.Error
     | ReadProjectOutlineError PackageInstall.ReadProjectOutlineError
-    | ReadOutlineError FileSystem.Error
-    | InvalidProjectOutline Decode.Error
     | PackageInstallError PackageInstall.PackageInstallError
-    | PackageFetchError Git.Error
-    | GitError Git.Error
-    | NoPackageVersions
     | NotAnApplication
 
 
@@ -156,17 +154,27 @@ clonePackage config packageName =
             FileSystem.makeTempDirectory config.fsPermission "gren-run"
                 |> Task.mapError TempPathError
 
-        getVersion =
+        clone tempDir =
             Git.fetchLatestVersion config.cpPermission packageName
-                |> Task.mapError GitError
-
-        clone tempDir version =
-            Git.clonePackage config.cpPermission tempDir packageName version
-                |> Task.mapError PackageFetchError
+                |> Task.andThen 
+                    (\version ->
+                        Git.clonePackage 
+                            config.cpPermission 
+                            tempDir 
+                            packageName 
+                            version
+                    )
+                |> Task.mapError 
+                    (\e ->
+                        PackageInstallError <|
+                            PackageInstall.PackageInstallGitError <|
+                                { package = packageName
+                                , error = e
+                                }
+                    )
     in
     Task.await getTempDir <| \tempDir ->
-    Task.await getVersion <| \version ->
-    Task.await (clone tempDir version) <| \_ ->
+    Task.await (clone tempDir) <| \_ ->
     Task.await (getProjectOutline config.fsPermission tempDir) <| \outline ->
         Task.succeed
             { projectPath = tempDir
@@ -230,7 +238,7 @@ getProjectOutline fsPermission path =
     path
         |> Path.append (Path.fromPosixString "gren.json")
         |> PackageInstall.readOutline fsPermission
-        |> Task.mapError ReadOutlineError
+        |> Task.mapError (PackageInstall.ReadProjectOutlineNoProject >> ReadProjectOutlineError)
         |> Task.andThen
             (\decodeResult ->
                 when decodeResult is
@@ -238,7 +246,8 @@ getProjectOutline fsPermission path =
                         Task.succeed outline
                     Err err ->
                         err
-                            |> InvalidProjectOutline
+                            |> PackageInstall.ReadProjectOutlineInvalidGrenJson
+                            |> ReadProjectOutlineError
                             |> Task.fail
             )
 
@@ -268,3 +277,37 @@ getOutputPath projectOutline =
             Just (getPath Backend.Html "app.html")
         Platform.Common ->
             Nothing
+
+
+prettifyError : Error -> PP.Document
+prettifyError error =
+    when error is
+        TempPathError err ->
+            Help.report
+                "FILESYSTEM ERROR"
+                Nothing
+                (PP.verticalBlock
+                    [ PP.words "Failed to access temporary file path."
+                    , PP.empty
+                    , PP.words "The error provided by the operating system is:"
+                    , PP.empty
+                    , PP.words (FileSystem.errorToString err)
+                        |> PP.color PP.Red
+                        |> PP.indent
+                    ]
+                )
+
+        NotAnApplication ->
+            Help.report
+                "NOT AN APPLICATION"
+                Nothing
+                ( PP.words 
+                    "The module you are trying to run is not an application."
+                )
+
+        ReadProjectOutlineError err ->
+            PackageInstall.prettifyProjectOutlineError err
+
+        PackageInstallError err ->
+            PackageInstall.prettifyError err
+
