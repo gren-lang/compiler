@@ -725,7 +725,7 @@ prettifyAddPackageError error =
                 "FAILED TO UPDATE OUTLINE"
                 Nothing
                 (PP.verticalBlock
-                    [ PP.words "An error occured while I updating the gren.json file."
+                    [ PP.words "An error occured while I was updating the gren.json file."
                     , PP.empty
                     , PP.words "The error is:"
                     , PP.empty

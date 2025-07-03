@@ -690,7 +690,7 @@ parseUserArgs model compilerPath =
                                         , stdin = model.stdin
                                         }
                                         Nothing
-                                        |> Task.mapError Debug.toString
+                                        |> Task.mapError Terminal.PackageDiff.prettifyLocalError
 
                                 CliParser.DiffVersion version ->
                                     Terminal.PackageDiff.runLocal
@@ -702,17 +702,19 @@ parseUserArgs model compilerPath =
                                         , stdin = model.stdin
                                         }
                                         (Just version)
-                                        |> Task.mapError Debug.toString
+                                        |> Task.mapError Terminal.PackageDiff.prettifyLocalError
 
                                 CliParser.DiffRange { lower, upper } ->
                                     Terminal.PackageInstall.readProjectOutline model.fsPermission
-                                        |> Task.mapError Debug.toString
+                                        |> Task.mapError Terminal.PackageInstall.prettifyProjectOutlineError
                                         |> Task.andThen
                                             (\{ outline } ->
                                                 when outline is
                                                     Outline.App _ ->
                                                         -- TODO
-                                                        Task.fail "Only supported on packages"
+                                                        Terminal.PackageDiff.LocalCannotDiffApplication
+                                                            |> Terminal.PackageDiff.prettifyLocalError 
+                                                            |> Task.fail
 
                                                     Outline.Pkg pkgOutline ->
                                                         Terminal.PackageDiff.runGlobal
@@ -726,7 +728,7 @@ parseUserArgs model compilerPath =
                                                             pkgOutline.name
                                                             lower
                                                             upper
-                                                            |> Task.mapError Debug.toString
+                                                            |> Task.mapError Terminal.PackageDiff.prettifyGlobalError
                                             )
 
                                 CliParser.DiffGlobal { package, lower, upper } ->
@@ -741,7 +743,7 @@ parseUserArgs model compilerPath =
                                         package
                                         lower
                                         upper
-                                        |> Task.mapError Debug.toString
+                                        |> Task.mapError Terminal.PackageDiff.prettifyGlobalError
                     in
                     diffTask
                         |> Task.map
@@ -759,7 +761,8 @@ parseUserArgs model compilerPath =
                             )
                         |> Task.onError
                             (\err ->
-                                Stream.Log.line model.stdout err
+                                Terminal.Help.prettyPrint printOpts err
+                                    |> Stream.Log.string model.stderr
                                     |> Task.execute
                                     |> Task.succeed
                             )

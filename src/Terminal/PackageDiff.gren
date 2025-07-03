@@ -1,10 +1,13 @@
 module Terminal.PackageDiff exposing
     ( Config
     , Options
-    , Error (..)
+    , LocalError (..)
     , Result
     , runLocal
+    , prettifyLocalError
+    , GlobalError (..)
     , runGlobal
+    , prettifyGlobalError
     )
 
 
@@ -28,6 +31,8 @@ import Json.Encode as Json
 import Json.Decode as Decode exposing (Decoder)
 import Stream.Extra
 import Terminal.PackageInstall
+import Terminal.Help as Help
+import CLI.PrettyPrinter as PP
 
 
 type alias Config =
@@ -46,7 +51,7 @@ type alias Options =
     }
 
 
-type Error
+type LocalError
     = LocalReadProjectOutlineError Terminal.PackageInstall.ReadProjectOutlineError
     | LocalCannotDiffApplication
     | LocalFetchVersionsFailed Git.Error
@@ -69,7 +74,7 @@ type alias Result =
     }
 
 
-runLocal : Config -> Maybe SemanticVersion -> Task Error Result
+runLocal : Config -> Maybe SemanticVersion -> Task LocalError Result
 runLocal config maybeVersion =
     Terminal.PackageInstall.readProjectOutline config.fsPermission
         |> Task.mapError LocalReadProjectOutlineError
@@ -151,6 +156,32 @@ runLocal config maybeVersion =
             )
 
 
+prettifyLocalError : LocalError -> PP.Document
+prettifyLocalError error =
+    when error is
+        LocalReadProjectOutlineError outlineError ->
+            Terminal.PackageInstall.prettifyProjectOutlineError outlineError
+    
+        LocalCannotDiffApplication ->
+            Help.report
+                "CANNOT DIFF APPLICATIONS"
+                Nothing
+                ( PP.words "This project is an application, but I can only diff packages!" )
+    
+        LocalFetchVersionsFailed gitError ->
+            Git.report
+                "FAILED TO FETCH PACKAGE VERSIONS"
+                "I was attempting to fetch the versions for a package"
+                gitError
+    
+        LocalInstallError installError ->
+            Terminal.PackageInstall.prettifyError installError
+    
+        LocalHiddenProjectError hiddenError ->
+            prettifyHiddenProjectError hiddenError
+    
+
+
 type InstallHiddenProjectError
     = HiddenProjectFileSystemError FileSystem.Error
     | HiddenProjectGitCloneError Git.Error
@@ -209,6 +240,62 @@ installHiddenProject config projectPath packageName packageVersion =
             )
 
 
+prettifyHiddenProjectError : InstallHiddenProjectError -> PP.Document
+prettifyHiddenProjectError error =
+    when error is
+        HiddenProjectFileSystemError fsErr ->
+            Help.report
+                "FAILED TO INSTALL PACKAGE"
+                Nothing
+                (PP.verticalBlock
+                    [ PP.words "An error occured while I was installing the requested package."
+                    , PP.empty
+                    , PP.words "The error is:"
+                    , PP.empty
+                    , PP.words (FileSystem.errorToString fsErr)
+                        |> PP.indent
+                    ]
+                )
+        
+        HiddenProjectGitCloneError gitError ->
+            Git.report
+                "FAILED TO FETCH PACKAGE"
+                "I was attempting to fetch a package from GitHub"
+                gitError
+
+        HiddenProjectReadOutlineError fsErr ->
+            Help.report
+                "FAILED TO READ OUTLINE"
+                Nothing
+                (PP.verticalBlock
+                    [ PP.words "An error occured when I attempted to read the gren.json of the requested package."
+                    , PP.empty
+                    , PP.words "The error is:"
+                    , PP.empty
+                    , PP.words (FileSystem.errorToString fsErr)
+                        |> PP.indent
+                    ]
+                )
+
+        HiddenProjectOutlineDecodeError jsonError ->
+            Help.report
+                "FAILED TO READ OUTLINE"
+                Nothing
+                (PP.verticalBlock
+                    [ PP.words "An error occured when I attempted to read the gren.json of the requested package."
+                    , PP.empty
+                    , PP.words "The error is:"
+                    , PP.empty
+                    , PP.words (Decode.errorToString jsonError)
+                        |> PP.indent
+                    ]
+                )
+        
+        HiddenProjectInstallError installError ->
+            Terminal.PackageInstall.prettifyError installError
+        
+
+
 type GlobalError
     = GlobalReadProjectOutlineError Terminal.PackageInstall.ReadProjectOutlineError
     | GlobalHiddenProjectError InstallHiddenProjectError
@@ -216,6 +303,8 @@ type GlobalError
 
 runGlobal : Config -> PackageName -> SemanticVersion -> SemanticVersion -> Task GlobalError Result
 runGlobal config packageName lowerVersion upperVersion =
+    -- TODO: Store in global cache
+    -- TODO: Perform application check here when packageName isn't specified
     Terminal.PackageInstall.readProjectOutline config.fsPermission
         |> Task.mapError GlobalReadProjectOutlineError
         |> Task.andThen
@@ -239,3 +328,13 @@ runGlobal config packageName lowerVersion upperVersion =
                     (installHiddenProject config projectPath packageName upperVersion)
                     |> Task.mapError GlobalHiddenProjectError
             )
+
+
+prettifyGlobalError : GlobalError -> PP.Document
+prettifyGlobalError error =
+    when error is
+        GlobalReadProjectOutlineError outlineError ->
+            Terminal.PackageInstall.prettifyProjectOutlineError outlineError
+
+        GlobalHiddenProjectError hiddenError ->
+            prettifyHiddenProjectError hiddenError
