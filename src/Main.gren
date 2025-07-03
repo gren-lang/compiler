@@ -159,7 +159,7 @@ type Msg
     | CompilerInstalled (Result FileSystem.Error Path)
     | CompilerInitialized { quiet : Bool, backendStreams : ChildProcess.StreamIO, encodedCommand : Bytes }
     | CompilerRan Int
-    | CompiledForRun { path : String, exitCode : Int }
+    | CompiledForRun { path : Path, exitCode : Int }
     | RunStarted Process.Id
     | RunExited Int
     | RedirectTerminalIO
@@ -271,14 +271,16 @@ update msg model =
                     Terminal.Run.run 
                         { cpPermission = model.cpPermission
                         , fsPermission = model.fsPermission
+                        , pathToString = model.pathToString
                         , path = path
                         , onInit = RunStarted
                         , onExit = RunExited
                         }
                         |> Task.onError
                             (\error ->
-                                -- TODO: Terminal.Run.errorToString
-                                Stream.Log.line model.stderr (Debug.toString error)
+                                Terminal.Run.prettifyError error
+                                    |> Terminal.Help.prettyPrint { useColor = model.useColor }
+                                    |> Stream.Log.line model.stderr
                                     |> Task.map (\_ -> Node.exitWithCode 1)
                             )
                         |> Task.executeCmd
@@ -455,14 +457,15 @@ parseUserArgs model compilerPath =
                             )
                         |> Task.executeCmd
 
-                CliParser.Run moduleName ->
+                CliParser.Run opts ->
                     Terminal.Run.make
                         { fsPermission = model.fsPermission
                         , cpPermission = model.cpPermission
                         , useColor = model.useColor
                         , compilerPath = compilerPath
                         , pathToString = model.pathToString
-                        , moduleName = moduleName
+                        , moduleName = opts.moduleName
+                        , package = opts.package
                         , onBackendInitialized = 
                             (\{ backendStreams, encodedCommand } ->
                                 CompilerInitialized
@@ -474,16 +477,17 @@ parseUserArgs model compilerPath =
                         , onCompiled = 
                             (\outputPath exitCode ->
                                 CompiledForRun
-                                    { path = model.pathToString outputPath
+                                    { path = outputPath
                                     , exitCode = exitCode
                                     }
                             )
                         }
                         |> Task.onError
-                            (\err ->
-                                Stream.Log.line model.stdout (Debug.toString err)
-                                    |> Task.execute
-                                    |> Task.succeed
+                            (\error ->
+                                Terminal.Run.prettifyError error
+                                    |> Terminal.Help.prettyPrint { useColor = model.useColor }
+                                    |> Stream.Log.line model.stderr
+                                    |> Task.map (\_ -> Node.exitWithCode 1)
                             )
                         |> Task.executeCmd
 

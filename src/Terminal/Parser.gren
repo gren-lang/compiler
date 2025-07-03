@@ -30,7 +30,7 @@ type Command
     | PackageBump
     | PackageDiff DiffArgs
     | Paths Paths.Options
-    | Run ModuleName
+    | Run RunOptions
 
 
 type alias InitFlags =
@@ -56,6 +56,12 @@ type alias MakeFlags =
 type alias DocsFlags =
     { output : Maybe Compiler.Backend.DocsOutput
     , report : Maybe {}
+    }
+
+
+type alias RunOptions =
+    { moduleName : ModuleName
+    , package : Maybe PackageName
     }
 
 
@@ -243,7 +249,13 @@ parser =
                 , arguments =
                     CLI.Parser.oneArg moduleNameParser
                 , flags =
-                    CLI.Parser.noFlags
+                    CLI.Parser.initFlags 
+                        (\package ->
+                            { package = package
+                            }
+                        )
+                        -- TODO: --package name (without equals) does not work. Is that expected?
+                        |> CLI.Parser.flag "package" PackageName.cliParser "Run a module in a particular package."
                 , commonDescription =
                     Nothing
                 , summary =
@@ -259,11 +271,16 @@ parser =
                         , PP.words
                             """
                             This tries to compile a Gren file named src/Main.gren.
-                            The file must have a `main` function that returns a Node program.
+                            The file must have a `main` function that returns a Node or Browser program.
                             """
                         ]
                 , builder =
-                    \arg _flags -> Run arg
+                    (\arg flags ->
+                        Run
+                            { moduleName = arg
+                            , package = flags.package
+                            }
+                    )
                 }
             |> CLI.Parser.withCommand
                 { word = "docs"
