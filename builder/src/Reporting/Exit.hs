@@ -820,7 +820,6 @@ toDocsProblemReport problem context =
             \ for some reason."
         ]
 
-
 -- SOLVER
 
 data Solver
