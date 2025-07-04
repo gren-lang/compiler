@@ -8,7 +8,6 @@ where
 
 import Build qualified
 import Command qualified
-import Control.Monad (void)
 import Data.ByteString.Internal (ByteString)
 import Data.List qualified as List
 import Data.Map (Map)
@@ -76,7 +75,7 @@ buildProject root pkgOutline@(Outline.PkgOutline _ _ _ _ _ _ _ _) sources soluti
   do
     details@(Details.Details _ outline _ _ _ _) <-
       Task.eio Exit.ValidateBadDetails $
-        Details.load Reporting.silent (Outline.Pkg pkgOutline) solution
+        Details.load (Outline.Pkg pkgOutline) solution
 
     exposed <-
       case outline of
@@ -115,39 +114,7 @@ verifyBump vsn newDocs oldDocs knownVersions =
                     Left $
                       Exit.ValidateBadBump old new magnitude realNew (Diff.toMagnitude changes)
 
--- REPORTING
-
-reportValidateStart :: Pkg.Name -> V.Version -> Maybe (V.Version, [V.Version]) -> Task.Task x ()
-reportValidateStart pkg vsn maybeKnownVersions =
-  Task.io $
-    case maybeKnownVersions of
-      Nothing ->
-        putStrLn $ Exit.newPackageOverview ++ "\nI will now verify that everything is in order...\n"
-      Just _ ->
-        putStrLn $ "Verifying " ++ Pkg.toChars pkg ++ " " ++ V.toChars vsn ++ " ...\n"
-
 -- REPORTING PHASES
-
-reportReadmeCheck :: IO (Either x a) -> Task.Task x a
-reportReadmeCheck =
-  reportCheck
-    "Looking for README.md"
-    "Found README.md"
-    "Problem with your README.md"
-
-reportLicenseCheck :: IO (Either x a) -> Task.Task x a
-reportLicenseCheck =
-  reportCheck
-    "Looking for LICENSE"
-    "Found LICENSE"
-    "Problem with your LICENSE"
-
-reportLocalDepsCheck :: IO (Either x a) -> Task.Task x a
-reportLocalDepsCheck =
-  reportCheck
-    "Making sure there are no local dependencies"
-    "Found no local dependencies"
-    "Problem with dependencies"
 
 reportBuildCheck :: IO (Either x a) -> Task.Task x a
 reportBuildCheck =
@@ -155,40 +122,6 @@ reportBuildCheck =
     "Verifying documentation..."
     "Verified documentation"
     "Problem with documentation"
-
-reportSemverCheck :: V.Version -> IO (Either x GoodVersion) -> Task.Task x ()
-reportSemverCheck version work =
-  let vsn = V.toChars version
-
-      waiting = "Checking semantic versioning rules. Is " ++ vsn ++ " correct?"
-      failure = "Version " ++ vsn ++ " is not correct!"
-      success result =
-        case result of
-          GoodBump oldVersion magnitude ->
-            "Version number "
-              ++ vsn
-              ++ " verified ("
-              ++ M.toChars magnitude
-              ++ " change, "
-              ++ V.toChars oldVersion
-              ++ " => "
-              ++ vsn
-              ++ ")"
-   in void $ reportCustomCheck waiting success failure work
-
-reportTagCheck :: V.Version -> IO (Either x a) -> Task.Task x a
-reportTagCheck vsn =
-  reportCheck
-    ("Is version " ++ V.toChars vsn ++ " tagged?")
-    ("Version " ++ V.toChars vsn ++ " is tagged")
-    ("Version " ++ V.toChars vsn ++ " is not tagged!")
-
-reportLocalChangesCheck :: IO (Either x a) -> Task.Task x a
-reportLocalChangesCheck =
-  reportCheck
-    "Checking for uncommitted changes..."
-    "No uncommitted changes in local code"
-    "Your local code is different than the code tagged in your git repo"
 
 reportCheck :: String -> String -> String -> IO (Either x a) -> Task.Task x a
 reportCheck waiting success failure work =

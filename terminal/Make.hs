@@ -66,7 +66,6 @@ run flags@(Flags _ _ maybeOutput report _ _ _ _ _) =
   do
     style <- getStyle maybeOutput report
     -- TODO: File locking in frontend
-    -- TODO: Show error for Exit.MakeNoOutline in frontend
     Reporting.attemptWithStyle style Exit.makeToReport $
       runHelp style flags
 
@@ -75,7 +74,7 @@ runHelp style flags@(Flags optimize withSourceMaps maybeOutput _ modules root ou
   Task.run $
     do
       desiredMode <- getMode optimize
-      details <- Task.eio Exit.MakeBadDetails (Details.load style outline deps)
+      details <- Task.eio Exit.MakeBadDetails (Details.load outline deps)
       let platform = getPlatform details
       case modules of
         [] ->

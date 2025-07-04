@@ -46,7 +46,6 @@ import Gren.Package qualified as Pkg
 import Gren.Platform qualified as P
 import Gren.Version qualified as V
 import Parse.Module qualified as Parse
-import Reporting qualified
 import Reporting.Annotation qualified as A
 import Reporting.Exit qualified as Exit
 import Reporting.Task qualified as Task
@@ -122,24 +121,17 @@ loadInterfaces root (Details _ _ _ _ _ extras) =
 
 -- LOAD -- used by Make, Docs, Repl
 
-load :: Reporting.Style -> Outline.Outline -> Map.Map Pkg.Name Dependency -> IO (Either Exit.Details Details)
-load style outline solution =
-  Reporting.trackDetails style $ \key ->
-    generate key outline solution
-
--- GENERATE
-
-generate :: Reporting.DKey -> Outline.Outline -> Map.Map Pkg.Name Dependency -> IO (Either Exit.Details Details)
-generate key outline solution =
+load :: Outline.Outline -> Map.Map Pkg.Name Dependency -> IO (Either Exit.Details Details)
+load outline solution =
   case outline of
     Outline.Pkg (Outline.PkgOutline pkg _ _ _ exposed direct _ rootPlatform) ->
       Task.run $
         do
           let exposedList = Outline.flattenExposed exposed
-          verifyDependencies key (ValidPkg rootPlatform pkg exposedList) solution direct
+          verifyDependencies (ValidPkg rootPlatform pkg exposedList) solution direct
     Outline.App (Outline.AppOutline _ rootPlatform srcDirs direct _) ->
       Task.run $
-        verifyDependencies key (ValidApp rootPlatform srcDirs) solution direct
+        verifyDependencies (ValidApp rootPlatform srcDirs) solution direct
 
 type Task a = Task.Task Exit.Details a
 
@@ -154,12 +146,12 @@ fork work =
 
 -- VERIFY DEPENDENCIES
 
-verifyDependencies :: Reporting.DKey -> ValidOutline -> Map.Map Pkg.Name Dependency -> Map.Map Pkg.Name a -> Task Details
-verifyDependencies key outline solution directDeps =
+verifyDependencies :: ValidOutline -> Map.Map Pkg.Name Dependency -> Map.Map Pkg.Name a -> Task Details
+verifyDependencies outline solution directDeps =
   Task.eio id $
     do
       mvar <- newEmptyMVar
-      mvars <- Map.traverseWithKey (\k v -> fork (build key mvar k v)) solution
+      mvars <- Map.traverseWithKey (\k v -> fork (build mvar k v)) solution
       putMVar mvar mvars
       deps <- traverse readMVar mvars
       case sequence deps of
@@ -221,12 +213,11 @@ type Fingerprint =
 
 -- BUILD
 
-build :: Reporting.DKey -> MVar (Map.Map Pkg.Name (MVar Dep)) -> Pkg.Name -> Dependency -> IO Dep
-build key depsMVar pkg (Dependency outline sources) =
+build :: MVar (Map.Map Pkg.Name (MVar Dep)) -> Pkg.Name -> Dependency -> IO Dep
+build depsMVar pkg (Dependency outline sources) =
   case outline of
     (Outline.App _) ->
       do
-        Reporting.report key Reporting.DBroken
         return $ Left $ Just $ Exit.BD_BadBuild pkg V.one Map.empty
     (Outline.Pkg (Outline.PkgOutline _ _ _ _ exposed deps _ platform)) ->
       do
@@ -235,7 +226,6 @@ build key depsMVar pkg (Dependency outline sources) =
         case sequence directDeps of
           Left _ ->
             do
-              Reporting.report key Reporting.DBroken
               return $ Left Nothing
           Right directArtifacts ->
             do
@@ -251,11 +241,9 @@ build key depsMVar pkg (Dependency outline sources) =
               case sequence maybeStatuses of
                 Left CrawlCorruption ->
                   do
-                    Reporting.report key Reporting.DBroken
                     return $ Left $ Just $ Exit.BD_BadBuild pkg V.one Map.empty
                 Left CrawlUnsignedKernelCode ->
                   do
-                    Reporting.report key Reporting.DBroken
                     return $ Left $ Just $ Exit.BD_UnsignedBuild pkg V.one
                 Right statuses ->
                   do
@@ -266,14 +254,12 @@ build key depsMVar pkg (Dependency outline sources) =
                     case sequence maybeResults of
                       Nothing ->
                         do
-                          Reporting.report key Reporting.DBroken
                           return $ Left $ Just $ Exit.BD_BadBuild pkg V.one Map.empty
                       Just results ->
                         let ifaces = gatherInterfaces exposedDict results
                             objects = gatherObjects results
                             artifacts = Artifacts ifaces objects
                          in do
-                              Reporting.report key Reporting.DBuilt
                               return (Right artifacts)
 
 -- GATHER

@@ -49,7 +49,6 @@ import Parse.Primitives qualified as P
 import Parse.Space qualified as PS
 import Parse.Type qualified as PT
 import Parse.Variable qualified as PV
-import Reporting qualified
 import Reporting.Annotation qualified as A
 import Reporting.Doc ((<+>))
 import Reporting.Doc qualified as D
@@ -401,7 +400,7 @@ attemptEval (Flags _ root outline sources deps) (Env interpreter ansi) oldState 
         do
           details <-
             Task.eio Exit.ReplBadDetails $
-              Details.load Reporting.silent outline deps
+              Details.load outline deps
 
           artifacts <-
             Task.eio id $

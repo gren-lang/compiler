@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -Wno-x-partial #-}
 
 module Package.Bump
   ( run,
@@ -51,7 +52,7 @@ run flags@(Flags _ _ _ currentVersion publishedVersion) =
 -- BUMP
 
 bump :: Flags -> Outline.PkgOutline -> Outline.PkgOutline -> Task.Task Exit.Bump ()
-bump flags@(Flags _ root knownVersions _ _) currentOutline@(Outline.PkgOutline _ _ _ vsn _ _ _ _) publishedOutline =
+bump flags@(Flags _ _ knownVersions _ _) currentOutline@(Outline.PkgOutline _ _ _ vsn _ _ _ _) publishedOutline =
   Task.eio id $
     case reverse knownVersions of
       (v : vs) ->
@@ -66,21 +67,6 @@ bump flags@(Flags _ root knownVersions _ _) currentOutline@(Outline.PkgOutline _
                       map head (List.group (List.sort bumpableVersions))
       [] ->
         error "known versions was empty"
-
--- CHECK NEW PACKAGE
-
-checkNewPackage :: Flags -> FilePath -> Outline.PkgOutline -> IO ()
-checkNewPackage flags root outline@(Outline.PkgOutline _ _ _ version _ _ _ _) =
-  do
-    putStrLn Exit.newPackageOverview
-    if version == V.one
-      then putStrLn "The version number in gren.json is correct so you are all set!"
-      else
-        changeVersion flags root outline V.one $
-          "It looks like the version in gren.json has been changed though!\n\
-          \Would you like me to change it back to "
-            <> D.fromVersion V.one
-            <> "? [Y/n] "
 
 -- SUGGEST VERSION
 
@@ -116,7 +102,7 @@ generateDocs root outline@(Outline.PkgOutline _ _ _ _ exposed _ _ _) sources sol
   do
     details <-
       Task.eio Exit.BumpBadDetails $
-        Details.load Reporting.silent (Outline.Pkg outline) solution
+        Details.load (Outline.Pkg outline) solution
 
     case Outline.flattenExposed exposed of
       [] ->

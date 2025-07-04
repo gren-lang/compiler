@@ -15,10 +15,6 @@ module Reporting
     ignorer,
     ask,
     --
-    DKey,
-    DMsg (..),
-    trackDetails,
-    --
     BKey,
     BMsg (..),
     trackBuild,
@@ -31,14 +27,10 @@ where
 
 import Control.Concurrent
 import Control.Exception (AsyncException (UserInterrupt), SomeException, catch, fromException, throw)
-import Control.Monad (when)
 import Data.ByteString.Builder qualified as B
 import Data.NonEmptyList qualified as NE
 import Gren.ModuleName qualified as ModuleName
-import Gren.Package qualified as Pkg
-import Gren.Version qualified as V
 import Json.Encode qualified as Encode
-import Reporting.Doc ((<+>))
 import Reporting.Doc qualified as D
 import Reporting.Exit qualified as Exit
 import Reporting.Exit.Help qualified as Help
@@ -102,14 +94,6 @@ attemptWithStyle style toReport work =
 
 -- MARKS
 
-goodMark :: D.Doc
-goodMark =
-  D.green $ if isWindows then "+" else "●"
-
-badMark :: D.Doc
-badMark =
-  D.red $ if isWindows then "X" else "✗"
-
 isWindows :: Bool
 isWindows =
   Info.os == "mingw32"
@@ -150,122 +134,6 @@ askHelp =
         do
           putStr "Must type 'y' for yes or 'n' for no: "
           askHelp
-
--- DETAILS
-
-type DKey = Key DMsg
-
-trackDetails :: Style -> (DKey -> IO a) -> IO a
-trackDetails style callback =
-  case style of
-    Silent ->
-      callback (Key (\_ -> return ()))
-    Json ->
-      callback (Key (\_ -> return ()))
-    Terminal mvar ->
-      do
-        chan <- newChan
-
-        _ <- forkIO $
-          do
-            takeMVar mvar
-            detailsLoop chan (DState 0 0 0 0 0 0 0)
-            putMVar mvar ()
-
-        answer <- callback (Key (writeChan chan . Just))
-        writeChan chan Nothing
-        return answer
-
-detailsLoop :: Chan (Maybe DMsg) -> DState -> IO ()
-detailsLoop chan state@(DState total _ _ _ _ built _) =
-  do
-    msg <- readChan chan
-    case msg of
-      Just dmsg ->
-        detailsLoop chan =<< detailsStep dmsg state
-      Nothing ->
-        putStrLn $
-          clear (toBuildProgress total total) $
-            if built == total
-              then "Dependencies ready!"
-              else "Dependency problem!"
-
-data DState = DState
-  { _total :: !Int,
-    _cached :: !Int,
-    _requested :: !Int,
-    _received :: !Int,
-    _failed :: !Int,
-    _built :: !Int,
-    _broken :: !Int
-  }
-
-data DMsg
-  = DStart Int
-  | DCached
-  | DRequested
-  | DReceived Pkg.Name V.Version
-  | DFailed Pkg.Name V.Version
-  | DBuilt
-  | DBroken
-
-detailsStep :: DMsg -> DState -> IO DState
-detailsStep msg (DState total cached rqst rcvd failed built broken) =
-  case msg of
-    DStart numDependencies ->
-      return (DState numDependencies 0 0 0 0 0 0)
-    DCached ->
-      putTransition (DState total (cached + 1) rqst rcvd failed built broken)
-    DRequested ->
-      do
-        when (rqst == 0) (putStrLn "Starting downloads...\n")
-        return (DState total cached (rqst + 1) rcvd failed built broken)
-    DReceived pkg vsn ->
-      do
-        putDownload goodMark pkg vsn
-        putTransition (DState total cached rqst (rcvd + 1) failed built broken)
-    DFailed pkg vsn ->
-      do
-        putDownload badMark pkg vsn
-        putTransition (DState total cached rqst rcvd (failed + 1) built broken)
-    DBuilt ->
-      putBuilt (DState total cached rqst rcvd failed (built + 1) broken)
-    DBroken ->
-      putBuilt (DState total cached rqst rcvd failed built (broken + 1))
-
-putDownload :: D.Doc -> Pkg.Name -> V.Version -> IO ()
-putDownload mark pkg vsn =
-  Help.toStdout $
-    D.indent 2 $
-      mark
-        <+> D.fromPackage pkg
-        <+> D.fromVersion vsn
-        <> "\n"
-
-putTransition :: DState -> IO DState
-putTransition state@(DState total cached _ rcvd failed built broken) =
-  if cached + rcvd + failed < total
-    then return state
-    else do
-      let char = if rcvd + failed == 0 then '\r' else '\n'
-      putStrFlush (char : toBuildProgress (built + broken + failed) total)
-      return state
-
-putBuilt :: DState -> IO DState
-putBuilt state@(DState total cached _ rcvd failed built broken) =
-  do
-    when (total == cached + rcvd + failed) $
-      putStrFlush $
-        '\r' : toBuildProgress (built + broken + failed) total
-    return state
-
-toBuildProgress :: Int -> Int -> [Char]
-toBuildProgress built total =
-  "Verifying dependencies (" ++ show built ++ "/" ++ show total ++ ")"
-
-clear :: [Char] -> [Char] -> [Char]
-clear before after =
-  '\r' : replicate (length before) ' ' ++ '\r' : after
 
 -- BUILD
 

@@ -70,7 +70,7 @@ generateDocs root outline@(Outline.PkgOutline _ _ _ _ exposed _ _ _) sources sol
   do
     details <-
       Task.eio Exit.DiffBadDetails $
-        Details.load Reporting.silent (Outline.Pkg outline) solution
+        Details.load (Outline.Pkg outline) solution
 
     case Outline.flattenExposed exposed of
       [] ->
