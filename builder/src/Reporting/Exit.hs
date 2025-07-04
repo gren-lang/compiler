@@ -38,7 +38,6 @@ import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Name qualified as N
 import Data.NonEmptyList qualified as NE
-import File qualified
 import Gren.Constraint qualified as C
 import Gren.Magnitude qualified as M
 import Gren.ModuleName qualified as ModuleName
@@ -2437,7 +2436,7 @@ replToReport problem =
     ReplBadDetails details ->
       toDetailsReport details
     ReplBadInput source err ->
-      Help.compilerReport "/" (Error.Module N.replModule "REPL" File.zeroTime source err) []
+      Help.compilerReport "/" (Error.Module N.replModule "REPL" source err) []
     ReplBadLocalDeps root e es ->
       Help.compilerReport root e es
     ReplProjectProblem projectProblem ->

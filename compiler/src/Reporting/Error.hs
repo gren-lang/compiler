@@ -11,7 +11,6 @@ where
 import Data.ByteString qualified as B
 import Data.NonEmptyList qualified as NE
 import Data.OneOrMore qualified as OneOrMore
-import File qualified
 import Gren.ModuleName qualified as ModuleName
 import Json.Encode ((==>))
 import Json.Encode qualified as E
@@ -34,7 +33,6 @@ import System.FilePath qualified as FP
 data Module = Module
   { _name :: ModuleName.Raw,
     _absolutePath :: FilePath,
-    _modificationTime :: File.Time,
     _source :: B.ByteString,
     _error :: Error
   }
@@ -74,7 +72,7 @@ toReports source err =
 
 toDoc :: FilePath -> Module -> [Module] -> D.Doc
 toDoc root err errs =
-  let (NE.List m ms) = NE.sortBy _modificationTime (NE.List err errs)
+  let (NE.List m ms) = NE.sortBy _name (NE.List err errs)
    in D.vcat (toDocHelp root m ms)
 
 toDocHelp :: FilePath -> Module -> [Module] -> [D.Doc]
@@ -94,7 +92,7 @@ toSeparator beforeModule afterModule =
   let before = ModuleName.toChars (_name beforeModule) ++ "  ↑    "
       after = "    ↓  " ++ ModuleName.toChars (_name afterModule)
    in D.dullred $
-        D.vcat $
+        D.vcat
           [ D.indent (80 - length before) (D.fromChars before),
             "====o======================================================================o====",
             D.fromChars after,
@@ -105,7 +103,7 @@ toSeparator beforeModule afterModule =
 -- MODULE TO DOC
 
 moduleToDoc :: FilePath -> Module -> D.Doc
-moduleToDoc root (Module _ absolutePath _ source err) =
+moduleToDoc root (Module _ absolutePath source err) =
   let reports =
         toReports (Code.toSource source) err
 
@@ -138,7 +136,7 @@ toMessageBar title filePath =
 -- TO JSON
 
 toJson :: Module -> E.Value
-toJson (Module name path _ source err) =
+toJson (Module name path source err) =
   let reports =
         toReports (Code.toSource source) err
    in E.object

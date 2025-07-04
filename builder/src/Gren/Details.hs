@@ -88,11 +88,8 @@ data Dependency = Dependency
 --
 data Local = Local
   { _path :: FilePath,
-    _time :: File.Time,
     _deps :: [ModuleName.Raw],
-    _main :: Bool,
-    _lastChange :: BuildID,
-    _lastCompile :: BuildID
+    _main :: Bool
   }
 
 data Foreign
@@ -476,16 +473,13 @@ instance Binary ValidOutline where
         _ -> fail "binary encoding of ValidOutline was corrupted"
 
 instance Binary Local where
-  put (Local a b c d e f) = put a >> put b >> put c >> put d >> put e >> put f
+  put (Local a b c) = put a >> put b >> put c
   get =
     do
       a <- get
       b <- get
       c <- get
-      d <- get
-      e <- get
-      f <- get
-      return (Local a b c d e f)
+      return (Local a b c)
 
 instance Binary Foreign where
   get = liftM2 Foreign get get
