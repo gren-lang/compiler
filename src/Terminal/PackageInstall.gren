@@ -59,6 +59,7 @@ type alias PackageResolution =
     , outline : Outline
     , rootSources : Dict String String
     , dependencies : Dict String { outline : Outline.PkgOutline, sources : Dict String String }
+    , didDownload : Bool
     }
 
 
@@ -168,6 +169,7 @@ run config { projectPath, outline } =
                                     (\{ moduleName, source } dict -> Dict.set moduleName source dict)
                                     Dict.empty
                                     sourceFiles
+                            , startedDownload = False
                             , rootPackages =
                                 Dict.foldl
                                     (\key value acc ->
@@ -199,12 +201,22 @@ run config { projectPath, outline } =
                         )
             )
         |> Task.andThen (installStep config)
+        |> Task.andThen
+            (\resolution ->
+                if resolution.didDownload then
+                    Stream.Log.line config.stdout ""
+                        |> Task.map (\_ -> resolution)
+
+                else
+                    Task.succeed resolution
+            )
 
 
 type alias StepOptions =
     { projectPath : Path
     , outline : Outline
     , projectSources : Dict String String
+    , startedDownload : Bool
     , rootPackages : Array { name : PackageName, version : SemanticVersionRange }
     , loadedPackages : Dict String { outline : Outline.PkgOutline, sources : Dict String String }
     , solvedPackages : Dict String Compiler.Dependencies.SimplifiedOutline
@@ -212,14 +224,15 @@ type alias StepOptions =
 
 
 installStep : Config -> StepOptions -> Task PackageInstallError PackageResolution
-installStep config { projectPath, outline, projectSources, rootPackages, loadedPackages, solvedPackages } =
-    when Compiler.Dependencies.solve rootPackages solvedPackages is
+installStep config opts =
+    when Compiler.Dependencies.solve opts.rootPackages opts.solvedPackages is
         Compiler.Dependencies.Complete ->
             Task.succeed
-                { projectPath = projectPath
-                , outline = outline
-                , rootSources = projectSources
-                , dependencies = loadedPackages
+                { projectPath = opts.projectPath
+                , outline = opts.outline
+                , rootSources = opts.projectSources
+                , dependencies = opts.loadedPackages
+                , didDownload = opts.startedDownload
                 }
 
         Compiler.Dependencies.Missing { name, version } ->
@@ -228,33 +241,29 @@ installStep config { projectPath, outline, projectSources, rootPackages, loadedP
                     PackageName.toString name
             in
             -- TODO: Check that the package is defined in the outline
-            when Dict.get packageNameString loadedPackages is
+            when Dict.get packageNameString opts.loadedPackages is
                 Just loadedPackage ->
                     installStep config
-                        { projectPath = projectPath
-                        , outline = outline
-                        , projectSources = projectSources
-                        , rootPackages = rootPackages
-                        , loadedPackages = loadedPackages
-                        , solvedPackages =
-                            Dict.set
-                                packageNameString
-                                { name = name
-                                , version = version
-                                , dependencies =
-                                    Dict.mapAndKeepJust
-                                        (\_ constraint ->
-                                            when constraint is
-                                                -- TODO: Error
-                                                Outline.Version vsn ->
-                                                    Just vsn
+                        { opts
+                            | solvedPackages =
+                                Dict.set
+                                    packageNameString
+                                    { name = name
+                                    , version = version
+                                    , dependencies =
+                                        Dict.mapAndKeepJust
+                                            (\_ constraint ->
+                                                when constraint is
+                                                    -- TODO: Error
+                                                    Outline.Version vsn ->
+                                                        Just vsn
 
-                                                Outline.LocalPath _ ->
-                                                    Nothing
-                                        )
-                                        loadedPackage.outline.dependencies
-                                }
-                                solvedPackages
+                                                    Outline.LocalPath _ ->
+                                                        Nothing
+                                            )
+                                            loadedPackage.outline.dependencies
+                                    }
+                                    opts.solvedPackages
                         }
                 
                 Nothing ->
@@ -263,12 +272,27 @@ installStep config { projectPath, outline, projectSources, rootPackages, loadedP
                             SemanticVersionRange.lowerBound version
 
                         bundlePath =
-                            packageBundlePath name lowerBound projectPath
+                            packageBundlePath name lowerBound opts.projectPath
 
                         repoPath =
-                            localRepoPath name lowerBound projectPath
+                            localRepoPath name lowerBound opts.projectPath
+
+                        packageReportTask =
+                            Stream.Log.string config.stdout ("    " ++ PackageName.toString name ++ " ")
+
+                        reportTask =
+                            if opts.startedDownload then
+                                packageReportTask
+
+                            else
+                                Stream.Log.line config.stdout "Starting downloads...\n"
+                                    |> Task.andThen (\_ -> packageReportTask)
                     in
-                    FileSystem.remove config.fsPermission { recursive = True } repoPath
+                    reportTask
+                        |> Task.andThen
+                            (\_ ->
+                                FileSystem.remove config.fsPermission { recursive = True } repoPath
+                            )
                         |> Task.onError (\err ->
                             if FileSystem.errorIsNoSuchFileOrDirectory err then
                                 Task.succeed repoPath
@@ -349,7 +373,7 @@ installStep config { projectPath, outline, projectSources, rootPackages, loadedP
                             (\pkg ->
                                 let
                                     packagesDir =
-                                        Path.append (Path.fromPosixString "gren_packages") projectPath
+                                        Path.append (Path.fromPosixString "gren_packages") opts.projectPath
                                 in
                                 packagesDir
                                     |> FileSystem.makeDirectory config.fsPermission { recursive = False }
@@ -390,23 +414,26 @@ installStep config { projectPath, outline, projectSources, rootPackages, loadedP
                                                             }
                                                     )
                                         )
+                                    |> Task.andThen
+                                        (\_ ->
+                                            PP.text "✔"
+                                                |> PP.color PP.Green
+                                                |> PP.toString
+                                                |> Stream.Log.line config.stdout 
+                                        )
                                     |> Task.map (\_ -> pkg)
                             )
                         |> Task.map
                             (\pkg ->
-                                { projectPath = projectPath
-                                , outline = outline
-                                , projectSources = projectSources
-                                , rootPackages = rootPackages
-                                , loadedPackages =
-                                    Dict.set
-                                        (PackageName.toString name)
-                                        { outline = pkg.outline, sources = pkg.sources }
-                                        loadedPackages
-                                , solvedPackages = solvedPackages
+                                { opts
+                                    | startedDownload = True
+                                    , loadedPackages =
+                                        Dict.set
+                                            (PackageName.toString name)
+                                            { outline = pkg.outline, sources = pkg.sources }
+                                            opts.loadedPackages
                                 }
                             )
-                        -- TODO: Print progress
                         |> Task.andThen (installStep config)
 
         Compiler.Dependencies.Conflict conflict ->
@@ -579,11 +606,7 @@ addPackage config { projectPath, outline } requestedPackage =
                 }
             is
                 { direct = False, transitive = Nothing } ->
-                    Stream.Log.line config.stdout ("Installing " ++ packageNameStr)
-                        |> Task.andThen
-                            (\_ ->
-                                Git.fetchLatestVersion config.cpPermission requestedPackage
-                            )
+                    Git.fetchLatestVersion config.cpPermission requestedPackage
                         |> Task.mapError AddPackageGitError
                         |> Task.andThen
                             (\packageVersion ->
