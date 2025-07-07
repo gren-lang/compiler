@@ -74,6 +74,7 @@ type PackageInstallError
     | PackageInstallFileSystemError { package : PackageName, error : FileSystem.Error }
     | PackageInstallCreateBundleError { package : PackageName, path : Path, error : Stream.Error }
     | PackageInstallMissingIndirectDependency { package : PackageName, version : SemanticVersionRange }
+    | PackageInstallBadLocalDependency { package : PackageName, dependency : PackageName }
 
 
 run : Config -> Options -> Task PackageInstallError PackageResolution
@@ -139,18 +140,25 @@ run config { projectPath, outline } =
         |> Task.andThen
             (\pkgs ->
                 let
-                    loadedPackages =
+                    pkgsDict =
                         Array.foldl
                             (\pkg dict ->
                                 Dict.set
                                     (PackageName.toString pkg.name)
-                                    { outline = pkg.outline
-                                    , sources = pkg.sources
-                                    }
+                                    pkg
                                     dict
                             )
                             Dict.empty
                             pkgs
+
+                    loadedPackages =
+                        Dict.map
+                            (\_name pkg ->
+                                { outline = pkg.outline
+                                , sources = pkg.sources
+                                }
+                            )
+                            pkgsDict
                 in
                 Outline.findSourceFiles config.fsPermission outline projectPath
                     |> Task.onError
@@ -203,6 +211,22 @@ run config { projectPath, outline } =
                                     )
                                     []
                                     rootDeps
+                            , rootPackageConstraints =
+                                Dict.map
+                                    (\key value ->
+                                        when value is
+                                            Outline.Version _ ->
+                                                value
+
+                                            Outline.LocalPath _ ->
+                                                when Dict.get key pkgsDict is
+                                                    Just { path } ->
+                                                        Outline.LocalPath path
+
+                                                    Nothing ->
+                                                        value
+                                    )
+                                    rootDeps
                             , loadedPackages = loadedPackages
                             , solvedPackages = Dict.empty
                             }
@@ -227,6 +251,7 @@ type alias StepOptions =
     , strictResolution : Bool
     , startedDownload : Bool
     , rootPackages : Array { name : PackageName, version : SemanticVersionRange }
+    , rootPackageConstraints : Dict String (Outline.VersionConstraint SemanticVersionRange)
     , loadedPackages : Dict String { outline : Outline.PkgOutline, sources : Dict String String }
     , solvedPackages : Dict String Compiler.Dependencies.SimplifiedOutline
     }
@@ -257,28 +282,79 @@ installStep config opts =
 
             else when Dict.get packageNameString opts.loadedPackages is
                 Just loadedPackage ->
-                    installStep config
-                        { opts
-                            | solvedPackages =
-                                Dict.set
-                                    packageNameString
-                                    { name = name
-                                    , version = version
-                                    , dependencies =
-                                        Dict.mapAndKeepJust
-                                            (\_ constraint ->
-                                                when constraint is
-                                                    -- TODO: Error
-                                                    Outline.Version vsn ->
-                                                        Just vsn
+                    let
+                        localDependenciesCheck =
+                            loadedPackage.outline.dependencies
+                                |> Dict.foldl
+                                    (\package constraint acc ->
+                                        when constraint is
+                                            Outline.Version _ ->
+                                                acc
 
-                                                    Outline.LocalPath _ ->
-                                                        Nothing
-                                            )
-                                            loadedPackage.outline.dependencies
+                                            Outline.LocalPath path ->
+                                                when  Dict.get package opts.rootPackageConstraints is
+                                                    Nothing ->
+                                                        Task.fail <| PackageInstallBadLocalDependency
+                                                            { package = loadedPackage.outline.name
+                                                            , dependency =
+                                                                PackageName.fromString package
+                                                                    |> Maybe.withDefault PackageName.example
+                                                            }
+
+                                                    Just rootConstraint ->
+                                                        acc
+                                                            |> Task.andThen
+                                                                (\_ ->
+                                                                    FileSystem.realPath config.fsPermission path
+                                                                        |> Task.mapError
+                                                                            (\err ->
+                                                                                PackageInstallFileSystemError
+                                                                                    { package = loadedPackage.outline.name
+                                                                                    , error = err
+                                                                                    }
+                                                                            )
+                                                                )
+                                                            |> Task.andThen
+                                                                (\realPath ->
+                                                                    if rootConstraint == Outline.LocalPath realPath then
+                                                                        Task.succeed {}
+
+                                                                    else
+                                                                        Task.fail <| PackageInstallBadLocalDependency
+                                                                            { package = loadedPackage.outline.name
+                                                                            , dependency =
+                                                                                PackageName.fromString package
+                                                                                    |> Maybe.withDefault PackageName.example
+                                                                            }
+                                                                )
+                                    )
+                                    (Task.succeed {})
+                    in
+                    localDependenciesCheck
+                        |> Task.andThen
+                            (\_ ->
+                                installStep config
+                                    { opts
+                                        | solvedPackages =
+                                            Dict.set
+                                                packageNameString
+                                                { name = name
+                                                , version = version
+                                                , dependencies =
+                                                    Dict.mapAndKeepJust
+                                                        (\_ constraint ->
+                                                            when constraint is
+                                                                Outline.Version vsn ->
+                                                                    Just vsn
+
+                                                                Outline.LocalPath _ ->
+                                                                    Nothing
+                                                        )
+                                                        loadedPackage.outline.dependencies
+                                                }
+                                                opts.solvedPackages
                                     }
-                                    opts.solvedPackages
-                        }
+                            )
                 
                 Nothing ->
                     let
@@ -601,6 +677,26 @@ prettifyError error =
                         |> PP.color PP.Green
                     , PP.empty
                     , PP.words "Try adding them to your gren.json file in the \"indirect\" dependencies object then try this operaton again."
+                    ]
+                )
+
+        PackageInstallBadLocalDependency { package, dependency } ->
+            Help.report
+                "INDIRECT LOCAL DEPENDENCY"
+                Nothing
+                (PP.verticalBlock
+                    [ PP.words
+                        ( PackageName.toString package
+                            ++ " has defined a local dependency on "
+                            ++ PackageName.toString dependency
+                            ++ " with an incompatible source."
+                        )
+                    , PP.empty
+                    , PP.words
+                        """
+                        Dependencies are normally not allowed to define local dependencies themselves unless
+                        they happen to point to the same local dependency as the root project.
+                        """
                     ]
                 )
 
@@ -935,6 +1031,7 @@ packageBundleDecoder =
 
 type alias LoadedPackage =
     { name : PackageName
+    , path : Path
     , outline : Outline.PkgOutline
     , sources : Dict String String
     }
@@ -943,11 +1040,7 @@ type alias LoadedPackage =
 -- TODO: extract to module
 loadPackageFromPath : FileSystem.Permission -> PackageName -> Path -> Task PackageInstallError LoadedPackage
 loadPackageFromPath fsPermission name path =
-    let
-        outlinePath =
-            Path.append (Path.fromPosixString "gren.json") path
-    in
-    FileSystem.readFile fsPermission outlinePath
+    FileSystem.realPath fsPermission path
         |> Task.mapError
             (\err ->
                 PackageInstallInvalidOutline
@@ -956,57 +1049,74 @@ loadPackageFromPath fsPermission name path =
                     }
             )
         |> Task.andThen
-            (\outlineBytes ->
-                when Bytes.toString outlineBytes is
-                    Just str ->
-                        Task.succeed str
+            (\realPath ->
+                let
+                    outlinePath =
+                        Path.append (Path.fromPosixString "gren.json") realPath
+                in
+                FileSystem.readFile fsPermission outlinePath
+                    |> Task.mapError
+                        (\err ->
+                            PackageInstallInvalidOutline
+                                { package = name
+                                , message = FileSystem.errorToString err
+                                }
+                        )
+                    |> Task.andThen
+                        (\outlineBytes ->
+                            when Bytes.toString outlineBytes is
+                                Just str ->
+                                    Task.succeed str
 
-                    Nothing ->
-                        Task.fail <| PackageInstallInvalidOutline
-                            { package = name
-                            , message = "gren.json is not a valid utf-8 string"
-                            }
-            )
-        |> Task.andThen
-            (\outlineStr ->
-                when Decode.decodeString Outline.pkgJsonDecoder outlineStr is
-                    Ok outline ->
-                        Outline.findSourceFiles fsPermission (Outline.Pkg outline) path
-                            |> Task.mapError
-                                (\err ->
-                                    PackageInstallFailedToFindSourceFiles
+                                Nothing ->
+                                    Task.fail <| PackageInstallInvalidOutline
                                         { package = name
-                                        , error = err
+                                        , message = "gren.json is not a valid utf-8 string"
                                         }
-                                )
-                            |> Task.andThen
-                                (\sourceFiles ->
-                                    if name /= outline.name then
-                                        Task.fail <| PackageInstallInvalidOutline
-                                            { package = name
-                                            , message = "Name in gren.json was expected to be " ++ PackageName.toString name
-                                            }
+                        )
+                    |> Task.andThen
+                        (\outlineStr ->
+                            when Decode.decodeString Outline.pkgJsonDecoder outlineStr is
+                                Ok outline ->
+                                    Outline.findSourceFiles fsPermission (Outline.Pkg outline) realPath
+                                        |> Task.mapError
+                                            (\err ->
+                                                PackageInstallFailedToFindSourceFiles
+                                                    { package = name
+                                                    , error = err
+                                                    }
+                                            )
+                                        |> Task.andThen
+                                            (\sourceFiles ->
+                                                if name /= outline.name then
+                                                    Task.fail <| PackageInstallInvalidOutline
+                                                        { package = name
+                                                        , message = "Name in gren.json was expected to be " ++ PackageName.toString name
+                                                        }
 
-                                    else
-                                        Task.succeed
-                                            { name = name
-                                            , outline = outline
-                                            , sources =
-                                                Array.foldl
-                                                    (\{ moduleName, source } acc ->
-                                                        Dict.set moduleName source acc
-                                                    )
-                                                    Dict.empty
-                                                    sourceFiles
-                                            }
-                                )
+                                                else
+                                                    Task.succeed
+                                                        { name = name
+                                                        , path = realPath
+                                                        , outline = outline
+                                                        , sources =
+                                                            Array.foldl
+                                                                (\{ moduleName, source } acc ->
+                                                                    Dict.set moduleName source acc
+                                                                )
+                                                                Dict.empty
+                                                                sourceFiles
+                                                        }
+                                            )
 
-                    Err jsonErr ->
-                        Task.fail <| PackageInstallInvalidOutline
-                            { package = name
-                            , message = Decode.errorToString jsonErr
-                            }
+                                Err jsonErr ->
+                                    Task.fail <| PackageInstallInvalidOutline
+                                        { package = name
+                                        , message = Decode.errorToString jsonErr
+                                        }
+                        )
             )
+
 
 
 loadPackageFromBundle : FileSystem.Permission -> PackageName -> SemanticVersion -> Path -> Task PackageInstallError LoadedPackage
@@ -1060,6 +1170,7 @@ loadPackageFromBundle fsPermission name vsn projectPath =
                                     else
                                         Task.succeed
                                             { name = name
+                                            , path = bundlePath
                                             , outline = bundle.outline
                                             , sources = bundle.sources
                                             }
