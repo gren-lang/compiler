@@ -73,6 +73,7 @@ type PackageInstallError
     | PackageInstallGitError { package : PackageName, error : Git.Error }
     | PackageInstallFileSystemError { package : PackageName, error : FileSystem.Error }
     | PackageInstallCreateBundleError { package : PackageName, path : Path, error : Stream.Error }
+    | PackageInstallMissingIndirectDependency { package : PackageName, version : SemanticVersionRange }
 
 
 run : Config -> Options -> Task PackageInstallError PackageResolution
@@ -170,6 +171,13 @@ run config { projectPath, outline } =
                                     Dict.empty
                                     sourceFiles
                             , startedDownload = False
+                            , strictResolution =
+                                when outline is
+                                    Outline.App _ ->
+                                        True
+
+                                    Outline.Pkg _ ->
+                                        False
                             , rootPackages =
                                 Dict.foldl
                                     (\key value acc ->
@@ -216,6 +224,7 @@ type alias StepOptions =
     { projectPath : Path
     , outline : Outline
     , projectSources : Dict String String
+    , strictResolution : Bool
     , startedDownload : Bool
     , rootPackages : Array { name : PackageName, version : SemanticVersionRange }
     , loadedPackages : Dict String { outline : Outline.PkgOutline, sources : Dict String String }
@@ -240,8 +249,13 @@ installStep config opts =
                 packageNameString =
                     PackageName.toString name
             in
-            -- TODO: Check that the package is defined in the outline
-            when Dict.get packageNameString opts.loadedPackages is
+            if opts.strictResolution && not (Array.any (\dep -> dep.name == name) opts.rootPackages) then
+                Task.fail <| PackageInstallMissingIndirectDependency
+                    { package = name
+                    , version = version
+                    }
+
+            else when Dict.get packageNameString opts.loadedPackages is
                 Just loadedPackage ->
                     installStep config
                         { opts
@@ -572,6 +586,21 @@ prettifyError error =
                     , PP.empty
                     , PP.words (Stream.errorToString streamErr)
                         |> PP.indent
+                    ]
+                )
+
+        PackageInstallMissingIndirectDependency { package, version } ->
+            Help.report
+                "MISSING INDIRECT DEPENDENCIES"
+                (Just (Path.fromPosixString "gren.json"))
+                (PP.verticalBlock
+                    [ PP.words "I expected to find the following package as an indirect dependency in your gren.json file:"
+                    , PP.empty
+                    , PP.text (PackageName.toString package ++ " " ++ SemanticVersion.toString (SemanticVersionRange.lowerBound version))
+                        |> PP.indent
+                        |> PP.color PP.Green
+                    , PP.empty
+                    , PP.words "Try adding them to your gren.json file in the \"indirect\" dependencies object then try this operaton again."
                     ]
                 )
 
