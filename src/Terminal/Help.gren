@@ -104,6 +104,7 @@ report title maybePath message =
         , PP.empty
         , message
         , PP.empty
+        , PP.empty
         ]
 
 

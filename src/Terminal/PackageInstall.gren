@@ -66,7 +66,7 @@ type PackageInstallError
     = PackageInstallFailedToFindProjectSourceFiles FileSystem.Error
     | PackageInstallFailedToFindSourceFiles { package : PackageName, error : FileSystem.Error }
     | PackageInstallInvalidOutline { package : PackageName, message : String }
-    | PackageInstallFailedToLoadBundle Path
+    | PackageInstallFailedToLoadBundle { package : PackageName, path : Path, message : String }
     | PackageInstallInvalidBundle { package : PackageName, path : Path, message : String }
     | PackageInstallConflict { package : PackageName, version1 : SemanticVersionRange, version2 : SemanticVersionRange }
     | PackageInstallGitError { package : PackageName, error : Git.Error }
@@ -111,9 +111,26 @@ run config { projectPath, outline } =
                 when constraint is
                     Outline.Version vsn ->
                         loadPackageFromBundle config.fsPermission name (SemanticVersionRange.lowerBound vsn) projectPath
+                            |> Task.map Just
+                            |> Task.onError
+                                (\err ->
+                                    when err is
+                                        PackageInstallFailedToLoadBundle { message } ->
+                                            -- Ignore packages that doesn't exist, they
+                                            -- will be created in `installStep`
+                                            if String.contains "ENOENT" message then
+                                                Task.succeed Nothing
+
+                                            else
+                                                Task.fail err
+
+                                        _ ->
+                                            Task.fail err
+                                )
 
                     Outline.LocalPath path ->
                         loadPackageFromPath config.fsPermission name path
+                            |> Task.map Just
             )
         |> Task.concurrent
         |> Task.map (Array.mapAndKeepJust identity)
@@ -445,12 +462,17 @@ prettifyError error =
                     ]
                 )
 
-        PackageInstallFailedToLoadBundle path ->
+        PackageInstallFailedToLoadBundle { package, path, message } ->
             Help.report
-                "FAILED TO LOAD PACKAGE"
+                "FAILED TO LOAD PACKAGE BUNDLE"
                 (Just path)
                 (PP.verticalBlock
-                    [ PP.words "An error occured while I was loading the bundle for this package."
+                    [ PP.words ("An error occured while I was loading the bundle for " ++ PackageName.toString package ++ ".")
+                    , PP.empty
+                    , PP.words "The error is:"
+                    , PP.empty
+                    , PP.words message
+                        |> PP.indent
                     , PP.empty
                     , PP.words "Try to delete it and re-run this command to re-generate the bundle."
                     ]
@@ -458,10 +480,10 @@ prettifyError error =
 
         PackageInstallInvalidBundle { package, path, message } ->
             Help.report
-                ("FAILED TO LOAD PACKAGE " ++ PackageName.toString package)
+                "FAILED TO LOAD PACKAGE BUNDLE"
                 (Just path)
                 (PP.verticalBlock
-                    [ PP.words "An error occured while I was loading the bundle for this package."
+                    [ PP.words ("An error occured while I was loading the bundle for " ++ PackageName.toString package ++ ".")
                     , PP.empty
                     , PP.words "The error is:"
                     , PP.empty
@@ -867,7 +889,7 @@ type alias LoadedPackage =
 
 
 -- TODO: extract to module
-loadPackageFromPath : FileSystem.Permission -> PackageName -> Path -> Task PackageInstallError (Maybe LoadedPackage)
+loadPackageFromPath : FileSystem.Permission -> PackageName -> Path -> Task PackageInstallError LoadedPackage
 loadPackageFromPath fsPermission name path =
     let
         outlinePath =
@@ -915,18 +937,16 @@ loadPackageFromPath fsPermission name path =
 
                                     else
                                         Task.succeed
-                                            (Just
-                                                { name = name
-                                                , outline = outline
-                                                , sources =
-                                                    Array.foldl
-                                                        (\{ moduleName, source } acc ->
-                                                            Dict.set moduleName source acc
-                                                        )
-                                                        Dict.empty
-                                                        sourceFiles
-                                                }
-                                            )
+                                            { name = name
+                                            , outline = outline
+                                            , sources =
+                                                Array.foldl
+                                                    (\{ moduleName, source } acc ->
+                                                        Dict.set moduleName source acc
+                                                    )
+                                                    Dict.empty
+                                                    sourceFiles
+                                            }
                                 )
 
                     Err jsonErr ->
@@ -936,7 +956,8 @@ loadPackageFromPath fsPermission name path =
                             }
             )
 
-loadPackageFromBundle : FileSystem.Permission -> PackageName -> SemanticVersion -> Path -> Task PackageInstallError (Maybe LoadedPackage)
+
+loadPackageFromBundle : FileSystem.Permission -> PackageName -> SemanticVersion -> Path -> Task PackageInstallError LoadedPackage
 loadPackageFromBundle fsPermission name vsn projectPath =
     let
         bundlePath =
@@ -944,7 +965,14 @@ loadPackageFromBundle fsPermission name vsn projectPath =
     in
     bundlePath
         |> FileSystem.readFileStream fsPermission FileSystem.Beginning
-        |> Task.mapError (\_ -> PackageInstallFailedToLoadBundle bundlePath)
+        |> Task.mapError
+            (\fsErr ->
+                PackageInstallFailedToLoadBundle
+                    { package = name
+                    , path = bundlePath
+                    , message = FileSystem.errorToString fsErr
+                    }
+            )
         |> Task.andThen
             (\stream ->
                 stream
@@ -953,10 +981,10 @@ loadPackageFromBundle fsPermission name vsn projectPath =
                     |> Task.andThen Stream.Extra.consumeString
                     |> Task.mapError
                         (\err ->
-                            PackageInstallInvalidBundle
+                            PackageInstallFailedToLoadBundle
                                 { package = name
                                 , path = bundlePath
-                                , message = "Failed to read bundle from disk. Error: " ++ Stream.errorToString err
+                                , message = Stream.errorToString err
                                 }
                         )
                     |> Task.andThen
@@ -979,12 +1007,10 @@ loadPackageFromBundle fsPermission name vsn projectPath =
 
                                     else
                                         Task.succeed
-                                            (Just
-                                                { name = name
-                                                , outline = bundle.outline
-                                                , sources = bundle.sources
-                                                }
-                                            )
+                                            { name = name
+                                            , outline = bundle.outline
+                                            , sources = bundle.sources
+                                            }
 
                                 Err jsonErr ->
                                     Task.fail <| PackageInstallInvalidBundle
