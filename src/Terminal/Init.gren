@@ -1,6 +1,8 @@
 module Terminal.Init exposing
     ( Config
+    , Error (..)
     , run
+    , prettifyError
     )
 
 import CLI.PrettyPrinter as PP
@@ -47,7 +49,7 @@ type Error
     | InstallError PackageInstall.PackageInstallError
 
 
-run : Config -> Cmd a
+run : Config -> Task Error {}
 run config =
     let
         grenJsonExists =
@@ -103,11 +105,6 @@ run config =
                 else
                     Stream.Log.line config.stdout "Ok, I won't do anything."
             )
-        |> Task.onError
-            (\err ->
-                Stream.Log.line config.stdout (displayError { useColor = config.useColor } err)
-            )
-        |> Task.execute
 
 
 init : Config -> Task Error {}
@@ -240,81 +237,80 @@ generateGrenJson config deps =
             )
 
 
-displayError : { useColor : Bool } -> Error -> String
-displayError printOpts err =
-    Terminal.Help.prettyPrint printOpts <|
-        when err is
-            AlreadyInitialized ->
-                Terminal.Help.report
-                    "EXISTING PROJECT"
-                    Nothing
-                    (PP.verticalBlock
-                        [ PP.words "You already have a gren.json file, so there's nothing for me to initialize!"
-                        , PP.empty
-                        , PP.block
-                            [ PP.text "Maybe "
-                            , PP.color PP.Green (Terminal.Help.makeLink "init")
-                            , PP.text " "
-                            , PP.words "can help you figure out what to do next?"
-                            ]
-                        ]
-                    )
-
-            FileSystemFailure fsErr ->
-                Terminal.Help.report
-                    "FILESYSTEM ERROR"
-                    (Just <| FileSystem.errorPath fsErr)
-                    (PP.verticalBlock
-                        [ PP.words "An unexpected error occured when accessing the filesystem."
-                        , PP.empty
-                        , PP.words "The error provided by the operating system is:"
-                        , PP.empty
-                        , PP.words (FileSystem.errorToString fsErr)
-                            |> PP.color PP.Red
-                            |> PP.indent
-                        , PP.empty
-                        , PP.words "Verify that you have access to this path. If the error persist, consider submitting a bug report."
-                        ]
-                    )
-
-            PromptError streamError ->
-                Terminal.Help.report
-                    "STREAM ERROR"
-                    Nothing
-                    (PP.verticalBlock
-                        [ PP.words "An unexpected error occured with either the standard output or standard input streams."
-                        , PP.empty
-                        , PP.words "The error is:"
-                        , PP.empty
-                        , PP.words (Stream.errorToString streamError)
-                            |> PP.color PP.Red
-                            |> PP.indent
-                        , PP.empty
-                        , PP.words "This is most likely a bug. Consider submitting a bug report."
-                        ]
-                    )
-
-            CouldNotRetrieveVersions { packageName, error } ->
-                Git.report
-                    "FAILED TO LOAD DEPENDENCIES"
-                    ("I tried to find the latest compatible versions of the " ++ PackageName.toString packageName)
-                    error
-
-            NoVersionFound packageName ->
-                Terminal.Help.report
-                    "FAILED TO LOAD DEPENDENCIES"
-                    Nothing
-                    (PP.verticalBlock
-                        [ PP.words "I tried to find the latest compatible versions of the"
+prettifyError : Error -> PP.Document
+prettifyError err =
+    when err is
+        AlreadyInitialized ->
+            Terminal.Help.report
+                "EXISTING PROJECT"
+                Nothing
+                (PP.verticalBlock
+                    [ PP.words "You already have a gren.json file, so there's nothing for me to initialize!"
+                    , PP.empty
+                    , PP.block
+                        [ PP.text "Maybe "
+                        , PP.color PP.Green (Terminal.Help.makeLink "init")
                         , PP.text " "
-                        , PP.text (PackageName.toString packageName)
-                            |> PP.color PP.Green
-                        , PP.text " "
-                        , PP.words "but failed to find any versions for that package!"
-                        , PP.empty
-                        , PP.words "This is most likely a bug. Consider submitting a bug report."
+                        , PP.words "can help you figure out what to do next?"
                         ]
-                    )
+                    ]
+                )
 
-            InstallError installError ->
-                PackageInstall.prettifyError installError
+        FileSystemFailure fsErr ->
+            Terminal.Help.report
+                "FILESYSTEM ERROR"
+                (Just <| FileSystem.errorPath fsErr)
+                (PP.verticalBlock
+                    [ PP.words "An unexpected error occured when accessing the filesystem."
+                    , PP.empty
+                    , PP.words "The error provided by the operating system is:"
+                    , PP.empty
+                    , PP.words (FileSystem.errorToString fsErr)
+                        |> PP.color PP.Red
+                        |> PP.indent
+                    , PP.empty
+                    , PP.words "Verify that you have access to this path. If the error persist, consider submitting a bug report."
+                    ]
+                )
+
+        PromptError streamError ->
+            Terminal.Help.report
+                "STREAM ERROR"
+                Nothing
+                (PP.verticalBlock
+                    [ PP.words "An unexpected error occured with either the standard output or standard input streams."
+                    , PP.empty
+                    , PP.words "The error is:"
+                    , PP.empty
+                    , PP.words (Stream.errorToString streamError)
+                        |> PP.color PP.Red
+                        |> PP.indent
+                    , PP.empty
+                    , PP.words "This is most likely a bug. Consider submitting a bug report."
+                    ]
+                )
+
+        CouldNotRetrieveVersions { packageName, error } ->
+            Git.report
+                "FAILED TO LOAD DEPENDENCIES"
+                ("I tried to find the latest compatible versions of the " ++ PackageName.toString packageName)
+                error
+
+        NoVersionFound packageName ->
+            Terminal.Help.report
+                "FAILED TO LOAD DEPENDENCIES"
+                Nothing
+                (PP.verticalBlock
+                    [ PP.words "I tried to find the latest compatible versions of the"
+                    , PP.text " "
+                    , PP.text (PackageName.toString packageName)
+                        |> PP.color PP.Green
+                    , PP.text " "
+                    , PP.words "but failed to find any versions for that package!"
+                    , PP.empty
+                    , PP.words "This is most likely a bug. Consider submitting a bug report."
+                    ]
+                )
+
+        InstallError installError ->
+            PackageInstall.prettifyError installError

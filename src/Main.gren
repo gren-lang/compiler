@@ -381,6 +381,10 @@ parseUserArgs model compilerPath =
                         , package = flags.package
                         , platform = flags.platform
                         }
+                        |> Task.map (\_ -> Cmd.none)
+                        |> Task.mapError Terminal.Init.prettifyError
+                        |> Task.onError endWithError
+                        |> Task.executeCmd
 
                 CliParser.Repl flags ->
                     -- TODO: create repl project when no project outline is found
