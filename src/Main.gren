@@ -325,26 +325,28 @@ parseUserArgs model compilerPath =
             { useColor = model.useColor
             }
 
-        -- TODO: Exit with error code when printing errors
+        endWithError prettyErr=
+            Terminal.Help.prettyPrint printOpts prettyErr
+                |> Stream.Log.string model.stderr
+                |> Task.map (\_ -> Node.exitWithCode 1)
     in
     when CLI.Parser.run model.args CliParser.parser is
         CLI.Parser.UnknownCommand commandName ->
             Stream.Log.line model.stderr ("I don't recognize this command: " ++ commandName)
-                |> Task.execute
+                |> Task.map (\_ -> Node.exitWithCode 1)
+                |> Task.executeCmd
     
         CLI.Parser.BadFlags err ->
             err
                 |> CLI.Parser.flagErrorPrettified
-                |> Terminal.Help.prettyPrint printOpts
-                |> Stream.Log.line model.stderr
-                |> Task.execute
+                |> endWithError
+                |> Task.executeCmd
     
         CLI.Parser.BadArguments err ->
             err
                 |> CLI.Parser.argumentErrorPrettified
-                |> Terminal.Help.prettyPrint printOpts
-                |> Stream.Log.line model.stderr
-                |> Task.execute
+                |> endWithError
+                |> Task.executeCmd
     
         CLI.Parser.HelpText prettifiedText ->
             prettifiedText
@@ -416,13 +418,7 @@ parseUserArgs model compilerPath =
                                     , onComplete = CompilerRan
                                     }
                             )
-                        |> Task.onError
-                            (\err ->
-                                Terminal.Help.prettyPrint printOpts err
-                                    |> Stream.Log.string model.stderr
-                                    |> Task.execute
-                                    |> Task.succeed
-                            )
+                        |> Task.onError endWithError
                         |> Task.executeCmd
 
                 CliParser.Make flags ->
@@ -450,13 +446,7 @@ parseUserArgs model compilerPath =
                                     , onComplete = CompilerRan
                                     }
                             )
-                        |> Task.onError
-                            (\err ->
-                                Terminal.Help.prettyPrint printOpts err
-                                    |> Stream.Log.string model.stderr
-                                    |> Task.execute
-                                    |> Task.succeed
-                            )
+                        |> Task.onError endWithError
                         |> Task.executeCmd
 
                 CliParser.Run opts ->
@@ -484,13 +474,8 @@ parseUserArgs model compilerPath =
                                     }
                             )
                         }
-                        |> Task.onError
-                            (\error ->
-                                Terminal.Run.prettifyError error
-                                    |> Terminal.Help.prettyPrint { useColor = model.useColor }
-                                    |> Stream.Log.line model.stderr
-                                    |> Task.map (\_ -> Node.exitWithCode 1)
-                            )
+                        |> Task.mapError Terminal.Run.prettifyError
+                        |> Task.onError endWithError
                         |> Task.executeCmd
 
                 CliParser.Docs flags ->
@@ -515,24 +500,14 @@ parseUserArgs model compilerPath =
                                     , onComplete = CompilerRan
                                     }
                             )
-                        |> Task.onError
-                            (\err ->
-                                Terminal.Help.prettyPrint printOpts err
-                                    |> Stream.Log.string model.stderr
-                                    |> Task.execute
-                                    |> Task.succeed
-                            )
+                        |> Task.onError endWithError
                         |> Task.executeCmd
 
                 CliParser.PackageInstall Nothing ->
                     resolveProject model
-                        |> Task.map (\_ -> {})
-                        |> Task.onError
-                            (\err ->
-                                Terminal.Help.prettyPrint printOpts err
-                                    |> Stream.Log.string model.stderr
-                            )
-                        |> Task.execute
+                        |> Task.map (\_ -> Cmd.none)
+                        |> Task.onError endWithError
+                        |> Task.executeCmd
 
                 CliParser.PackageInstall (Just requestedPackage) ->
                     Terminal.PackageInstall.readProjectOutline model.fsPermission
@@ -550,14 +525,10 @@ parseUserArgs model compilerPath =
                                     projectOutline
                                     requestedPackage
                                     |> Task.mapError Terminal.PackageInstall.prettifyAddPackageError
-                                    |> Task.map (\_ -> {})
                             )
-                        |> Task.onError
-                            (\err ->
-                                Terminal.Help.prettyPrint printOpts err
-                                    |> Stream.Log.string model.stderr
-                            )
-                        |> Task.execute
+                        |> Task.map (\_ -> Cmd.none)
+                        |> Task.onError endWithError
+                        |> Task.executeCmd
 
                 CliParser.PackageUninstall packageName ->
                     Terminal.PackageInstall.readProjectOutline model.fsPermission
@@ -576,12 +547,9 @@ parseUserArgs model compilerPath =
                                     packageName
                                     |> Task.mapError Terminal.PackageUninstall.prettifyError
                             )
-                        |> Task.onError
-                            (\err ->
-                                Terminal.Help.prettyPrint printOpts err
-                                    |> Stream.Log.string model.stderr
-                            )
-                        |> Task.execute
+                        |> Task.map (\_ -> Cmd.none)
+                        |> Task.onError endWithError
+                        |> Task.executeCmd
 
                 CliParser.PackageOutdated ->
                     Terminal.PackageInstall.readProjectOutline model.fsPermission
@@ -599,12 +567,9 @@ parseUserArgs model compilerPath =
                                     projectOutline
                                     |> Task.mapError Terminal.PackageOutdated.prettifyError
                             )
-                        |> Task.onError
-                            (\err ->
-                                Terminal.Help.prettyPrint printOpts err
-                                    |> Stream.Log.string model.stderr
-                            )
-                        |> Task.execute
+                        |> Task.map (\_ -> Cmd.none)
+                        |> Task.onError endWithError
+                        |> Task.executeCmd
 
                 CliParser.PackageValidate ->
                     Terminal.PackageInstall.readProjectOutline model.fsPermission
@@ -635,13 +600,7 @@ parseUserArgs model compilerPath =
                                     , onComplete = CompilerRan
                                     }
                             )
-                        |> Task.onError
-                            (\err ->
-                                Terminal.Help.prettyPrint printOpts err
-                                    |> Stream.Log.string model.stderr
-                                    |> Task.execute
-                                    |> Task.succeed
-                            )
+                        |> Task.onError endWithError
                         |> Task.executeCmd
 
                 CliParser.PackageBump ->
@@ -673,13 +632,7 @@ parseUserArgs model compilerPath =
                                     , onComplete = CompilerRan
                                     }
                             )
-                        |> Task.onError
-                            (\err ->
-                                Terminal.Help.prettyPrint printOpts err
-                                    |> Stream.Log.string model.stderr
-                                    |> Task.execute
-                                    |> Task.succeed
-                            )
+                        |> Task.onError endWithError
                         |> Task.executeCmd
 
                 CliParser.PackageDiff args ->
@@ -765,13 +718,7 @@ parseUserArgs model compilerPath =
                                     , onComplete = CompilerRan
                                     }
                             )
-                        |> Task.onError
-                            (\err ->
-                                Terminal.Help.prettyPrint printOpts err
-                                    |> Stream.Log.string model.stderr
-                                    |> Task.execute
-                                    |> Task.succeed
-                            )
+                        |> Task.onError endWithError
                         |> Task.executeCmd
 
                 CliParser.Paths opts ->
