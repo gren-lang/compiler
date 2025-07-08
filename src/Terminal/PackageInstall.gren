@@ -713,7 +713,6 @@ type AddPackageError
     | AddPackageInstallError PackageInstallError
 
 
--- TODO: Refactor
 addPackage : Config -> Options -> PackageName -> Task AddPackageError {}
 addPackage config { projectPath, outline } requestedPackage =
     let
@@ -773,46 +772,8 @@ addPackage config { projectPath, outline } requestedPackage =
                                                                 (newPackages |> Dict.remove packageNameStr |> Dict.map (\_ v -> Outline.Version v))
                                                     }
                                             }
-
-                                    plan =
-                                        PP.verticalBlock
-                                            [ PP.words "The plan is to add the following dependencies:"
-                                            , PP.empty
-                                            , PP.empty
-                                            , Dict.foldl (\k v acc -> Array.pushLast (k ++ " " ++ SemanticVersion.toString v) acc) [] newPackages
-                                                |> Array.map PP.text
-                                                |> PP.verticalBlock
-                                                |> PP.indent
-                                            , PP.empty
-                                            , PP.words "Do you want me to update the gren.json file accordingly?"
-                                            ]
                                 in
-                                Help.confirm
-                                    { stdout = config.stdout
-                                    , stdin = config.stdin
-                                    , useColor = config.useColor
-                                    , interactive = config.interactive
-                                    , question = plan
-                                    , defaultValue = True
-                                    }
-                                    |> Task.mapError AddPackagePromptError
-                                    |> Task.andThen
-                                        (\confirmed ->
-                                            if confirmed then
-                                                finalOutline
-                                                    |> Outline.toJson
-                                                    |> Json.encode 4
-                                                    |> Task.succeed
-
-                                            else
-                                                Task.fail AddPackageUserCancelled
-                                        )
-                                    |> Task.andThen
-                                        (\newOutline ->
-                                            FileSystem.writeFile config.fsPermission (Bytes.fromString newOutline) grenJsonPath
-                                                |> Task.mapError AddPackageWriteOutlineError
-                                                |> Task.map (\_ -> {})
-                                        )
+                                promptUpdateOutline config grenJsonPath newPackages finalOutline
                             )
 
                 { direct = True } ->
@@ -861,9 +822,79 @@ addPackage config { projectPath, outline } requestedPackage =
                 Task.fail AddPackageAlreadyInstalled
 
             else
-                -- TODO: Implement
-                Stream.Log.line config.stdout ("Installing " ++ packageNameStr)
+                Git.fetchLatestVersion config.cpPermission requestedPackage
+                    |> Task.mapError AddPackageGitError
+                    |> Task.andThen
+                        (\packageVersion ->
+                            let
+                                finalOutline =
+                                    Outline.Pkg
+                                        { pkgOutline
+                                            | dependencies =
+                                                Dict.set
+                                                    packageNameStr
+                                                    (Outline.Version <| SemanticVersionRange.compatibleWith packageVersion)
+                                                    pkgOutline.dependencies
+                                        }
+                            in
+                            run
+                                config
+                                { projectPath = projectPath
+                                , outline = finalOutline
+                                }
+                                |> Task.mapError AddPackageInstallError
+                                |> Task.andThen
+                                    (\_resolved ->
+                                        let
+                                            newPackages =
+                                                Dict.singleton packageNameStr packageVersion
+                                        in
+                                        promptUpdateOutline config grenJsonPath newPackages finalOutline
+                                    )
+                        )
 
+
+promptUpdateOutline : Config -> Path -> Dict String SemanticVersion -> Outline -> Task AddPackageError {}
+promptUpdateOutline config grenJsonPath newPackages finalOutline =
+    let
+        plan =
+            PP.verticalBlock
+                [ PP.words "The plan is to add the following dependencies:"
+                , PP.empty
+                , Dict.foldl (\k v acc -> Array.pushLast (k ++ " " ++ SemanticVersion.toString v) acc) [] newPackages
+                    |> Array.map PP.text
+                    |> PP.verticalBlock
+                    |> PP.indent
+                , PP.empty
+                , PP.words "Do you want me to update the gren.json file accordingly?"
+                ]
+    in
+    Help.confirm
+        { stdout = config.stdout
+        , stdin = config.stdin
+        , useColor = config.useColor
+        , interactive = config.interactive
+        , question = plan
+        , defaultValue = True
+        }
+        |> Task.mapError AddPackagePromptError
+        |> Task.andThen
+            (\confirmed ->
+                if confirmed then
+                    finalOutline
+                        |> Outline.toJson
+                        |> Json.encode 4
+                        |> Task.succeed
+
+                else
+                    Task.fail AddPackageUserCancelled
+            )
+        |> Task.andThen
+            (\newOutline ->
+                FileSystem.writeFile config.fsPermission (Bytes.fromString newOutline) grenJsonPath
+                    |> Task.mapError AddPackageWriteOutlineError
+                    |> Task.map (\_ -> {})
+            )
 
 prettifyAddPackageError : AddPackageError -> PP.Document
 prettifyAddPackageError error =
