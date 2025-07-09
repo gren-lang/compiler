@@ -135,7 +135,7 @@ run config { projectPath, outline } =
                         loadPackageFromPath config.fsPermission name path
                             |> Task.map Just
             )
-        |> Task.concurrent
+        |> Task.sequence -- TODO: use concurrent
         |> Task.map (Array.mapAndKeepJust identity)
         |> Task.andThen
             (\pkgs ->
@@ -381,7 +381,7 @@ installStep config opts =
                     reportTask
                         |> Task.andThen
                             (\_ ->
-                                FileSystem.remove config.fsPermission { recursive = True } repoPath
+                                FileSystem.remove config.fsPermission { recursive = True, ignoreErrors = False } repoPath
                             )
                         |> Task.onError (\err ->
                             if FileSystem.errorIsNoSuchFileOrDirectory err then
@@ -480,7 +480,7 @@ installStep config opts =
                                         )
                                     |> Task.andThen
                                         (\_ ->
-                                            FileSystem.writeFileStream config.fsPermission FileSystem.Replace bundlePath
+                                            FileSystem.writeFileStream config.fsPermission bundlePath
                                                 |> Task.mapError
                                                     (\err ->
                                                         PackageInstallFileSystemError
@@ -1157,7 +1157,7 @@ loadPackageFromBundle fsPermission name vsn projectPath =
             packageBundlePath name vsn projectPath
     in
     bundlePath
-        |> FileSystem.readFileStream fsPermission FileSystem.Beginning
+        |> FileSystem.readFileStream fsPermission
         |> Task.mapError
             (\fsErr ->
                 PackageInstallFailedToLoadBundle

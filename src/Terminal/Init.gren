@@ -128,7 +128,7 @@ init config =
                             }
                         )
             )
-        |> Task.concurrent
+        |> Task.sequence -- TODO: use concurrent
         |> Task.andThen (generateGrenJson config)
 
 
@@ -259,7 +259,8 @@ prettifyError err =
         FileSystemFailure fsErr ->
             Terminal.Help.report
                 "FILESYSTEM ERROR"
-                (Just <| FileSystem.errorPath fsErr)
+                -- TODO: (Just <| FileSystem.errorPath fsErr)
+                Nothing
                 (PP.verticalBlock
                     [ PP.words "An unexpected error occured when accessing the filesystem."
                     , PP.empty

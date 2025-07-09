@@ -142,7 +142,7 @@ run config { projectPath, outline } =
                                             repoPath =
                                                 Terminal.PackageInstall.localRepoPath pkgOutline.name packageVersion projectPath
                                         in
-                                        FileSystem.remove config.fsPermission { recursive = True } repoPath
+                                        FileSystem.remove config.fsPermission { recursive = True, ignoreErrors = False } repoPath
                                             |> Task.onError
                                                 (\err ->
                                                     if FileSystem.errorIsNoSuchFileOrDirectory err then
@@ -248,7 +248,7 @@ verifyVersion vsn publishedVersions =
 verifyReadme : FileSystem.Permission -> Path -> Task Error {}
 verifyReadme permission projectPath =
     let
-        readmePath = Path.appendPosixString "README" projectPath
+        readmePath = Path.append (Path.fromPosixString "README") projectPath
     in
     FileSystem.readFile permission readmePath
         |> Task.mapError FailedToReadReadme
@@ -264,7 +264,7 @@ verifyReadme permission projectPath =
 
 verifyLicense : FileSystem.Permission -> Path -> Task Error {}
 verifyLicense permission projectPath =
-    FileSystem.checkAccess permission [] (Path.appendPosixString "LICENSE" projectPath)
+    FileSystem.checkAccess permission [] (Path.append (Path.fromPosixString "LICENSE") projectPath)
         |> Task.mapError FailedToReadLicense
         |> Task.map (\_ -> {})
 

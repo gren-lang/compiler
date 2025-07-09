@@ -44,7 +44,7 @@ type alias MakeConfig msg =
     , pathToString : Path -> String
     , moduleName : ModuleName
     , package : Maybe PackageName
-    , onBackendInitialized : { backendStreams : ChildProcess.StreamIO, encodedCommand : Bytes } -> msg
+    , onBackendInitialized : { backendStreams : Maybe ChildProcess.StreamIO, encodedCommand : Bytes } -> msg
     , onCompiled : Path -> Int -> msg
     }
 
@@ -54,7 +54,7 @@ type alias RunConfig msg =
     , fsPermission : FileSystem.Permission
     , pathToString : Path -> String
     , path : Path
-    , onInit : Process.Id -> msg
+    , onInit : { processId : Process.Id, streams : Maybe ChildProcess.StreamIO } -> msg
     , onExit : Int -> msg
     }
 
@@ -130,14 +130,13 @@ makeProject config projectOutline =
                         { useColor = config.useColor
                         , compilerPath = config.compilerPath
                         , pathToString = config.pathToString
-                        , connection = 
-                            ChildProcess.External
-                                (\cpOpts ->
-                                    config.onBackendInitialized
-                                        { backendStreams = cpOpts.streams
-                                        , encodedCommand = encodedCommand
-                                        }
-                                )
+                        , onInit = 
+                            (\cpOpts ->
+                                config.onBackendInitialized
+                                    { backendStreams = cpOpts.streams
+                                    , encodedCommand = encodedCommand
+                                    }
+                            )
                         , onComplete = config.onCompiled outputPath
                         }
             in
@@ -205,7 +204,7 @@ run config =
                 config.pathToString config.path
             
             runWith command =
-                ChildProcess.defaultSpawnOptions (ChildProcess.Integrated config.onInit) config.onExit
+                ChildProcess.defaultSpawnOptions config.onInit config.onExit
                     |> ChildProcess.spawn config.cpPermission command [ path ]
                     |> Task.succeed
         in
@@ -230,7 +229,9 @@ run config =
 
 getNullStream : Task x (Stream.Transformation Bytes Bytes)
 getNullStream =
-    Stream.nullTransformation (Bytes.fromString "")
+    Stream.customTransformation
+        (\state _ -> Stream.UpdateState state)
+        Bytes.empty
 
 
 getProjectOutline : FileSystem.Permission -> Path -> Task Error Outline

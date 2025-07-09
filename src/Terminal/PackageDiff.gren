@@ -196,7 +196,7 @@ installHiddenProject config projectPath packageName packageVersion =
         repoPath =
             Terminal.PackageInstall.localRepoPath packageName packageVersion projectPath
     in
-    FileSystem.remove config.fsPermission { recursive = True } repoPath
+    FileSystem.remove config.fsPermission { recursive = True, ignoreErrors = False } repoPath
         |> Task.onError
             (\err ->
                 if FileSystem.errorIsNoSuchFileOrDirectory err then

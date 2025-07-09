@@ -154,7 +154,7 @@ type Msg
         }
     | CompilerDownloaded 
         { localPath : Path
-        , downloadResult : Result HttpClient.Error (HttpClient.Response Bytes)
+        , downloadResult : Result (HttpClient.Error Bytes) (HttpClient.Response Bytes)
         }
     | CompilerInstalled (Result FileSystem.Error Path)
     | CompilerInitialized { quiet : Bool, backendStreams : ChildProcess.StreamIO, encodedCommand : Bytes }
@@ -172,6 +172,7 @@ type Msg
             , target : Stream.Writable Bytes
             }
         )
+    | RunCmd (Cmd Msg) -- TODO: remove
 
 
 update : Msg -> Model -> { model : Model, command : Cmd Msg }
@@ -264,7 +265,7 @@ update msg model =
                     ]
 
             CompilerRan exitCode ->
-                Node.exitWithCode exitCode
+                Task.execute <| Node.exitWithCode exitCode
             
             CompiledForRun { path, exitCode } ->
                 if exitCode == 0 then
@@ -273,7 +274,7 @@ update msg model =
                         , fsPermission = model.fsPermission
                         , pathToString = model.pathToString
                         , path = path
-                        , onInit = RunStarted
+                        , onInit = \{ processId } -> RunStarted processId
                         , onExit = RunExited
                         }
                         |> Task.onError
@@ -281,18 +282,18 @@ update msg model =
                                 Terminal.Run.prettifyError error
                                     |> Terminal.Help.prettyPrint { useColor = model.useColor }
                                     |> Stream.Log.line model.stderr
-                                    |> Task.map (\_ -> Node.exitWithCode 1)
+                                    |> Task.map (\_ -> Task.execute <| Node.exitWithCode 1)
                             )
-                        |> Task.executeCmd
+                        |> Task.perform RunCmd
 
                 else
-                    Node.exitWithCode exitCode
+                    Task.execute <| Node.exitWithCode exitCode
 
             RunStarted _ ->
                 Cmd.none
 
             RunExited exitCode ->
-                Node.exitWithCode exitCode
+                Task.execute <| Node.exitWithCode exitCode
 
             RedirectTerminalIO (Ok streams) ->
                 Stream.read streams.source
@@ -314,7 +315,11 @@ update msg model =
 
                     _ ->
                         Stream.Log.line model.stderr ("Something went wrong when communicating with compiler backend: " ++ Stream.errorToString error)
-                            |> Task.execute
+                            |> Task.map (\_ -> Task.execute <| Node.exitWithCode 1)
+                            |> Task.perform RunCmd
+
+            RunCmd cmd ->
+                cmd
         }
 
 
@@ -328,25 +333,25 @@ parseUserArgs model compilerPath =
         endWithError prettyErr=
             Terminal.Help.prettyPrint printOpts prettyErr
                 |> Stream.Log.string model.stderr
-                |> Task.map (\_ -> Node.exitWithCode 1)
+                |> Task.map (\_ -> Task.execute <| Node.exitWithCode 1)
     in
     when CLI.Parser.run model.args CliParser.parser is
         CLI.Parser.UnknownCommand commandName ->
             Stream.Log.line model.stderr ("I don't recognize this command: " ++ commandName)
-                |> Task.map (\_ -> Node.exitWithCode 1)
-                |> Task.executeCmd
+                |> Task.andThen (\_ -> Node.exitWithCode 1)
+                |> Task.execute
     
         CLI.Parser.BadFlags err ->
             err
                 |> CLI.Parser.flagErrorPrettified
                 |> endWithError
-                |> Task.executeCmd
+                |> Task.perform RunCmd
     
         CLI.Parser.BadArguments err ->
             err
                 |> CLI.Parser.argumentErrorPrettified
                 |> endWithError
-                |> Task.executeCmd
+                |> Task.perform RunCmd
     
         CLI.Parser.HelpText prettifiedText ->
             prettifiedText
@@ -357,17 +362,22 @@ parseUserArgs model compilerPath =
         CLI.Parser.Success parsedCommand ->
             let
                 initWithCommand backendCommand =
-                    ChildProcess.External <| \cpOpts ->
-                        CompilerInitialized
-                            { backendStreams = cpOpts.streams
-                            , quiet = False
-                            , encodedCommand =
-                                Compiler.Backend.encodeCommand
-                                    { interactiveSession = model.interactive
-                                    , pathToString = model.pathToString
+                    \cpOpts ->
+                        when cpOpts.streams is
+                            Nothing ->
+                                RunCmd Cmd.none
+
+                            Just streams ->
+                                CompilerInitialized
+                                    { backendStreams = streams
+                                    , quiet = False
+                                    , encodedCommand =
+                                        Compiler.Backend.encodeCommand
+                                            { interactiveSession = model.interactive
+                                            , pathToString = model.pathToString
+                                            }
+                                            backendCommand
                                     }
-                                    backendCommand
-                            }
             in
             when parsedCommand is
                 CliParser.Init flags ->
@@ -384,7 +394,7 @@ parseUserArgs model compilerPath =
                         |> Task.map (\_ -> Cmd.none)
                         |> Task.mapError Terminal.Init.prettifyError
                         |> Task.onError endWithError
-                        |> Task.executeCmd
+                        |> Task.perform RunCmd
 
                 CliParser.Repl flags ->
                     -- TODO: create repl project when no project outline is found
@@ -410,7 +420,7 @@ parseUserArgs model compilerPath =
                                     { useColor = model.useColor
                                     , compilerPath = compilerPath
                                     , pathToString = model.pathToString
-                                    , connection =
+                                    , onInit =
                                         initWithCommand <|
                                             Compiler.Backend.Repl
                                                 { interpreter = flags.interpreter
@@ -423,7 +433,7 @@ parseUserArgs model compilerPath =
                                     }
                             )
                         |> Task.onError endWithError
-                        |> Task.executeCmd
+                        |> Task.perform RunCmd
 
                 CliParser.Make flags ->
                     -- TODO: Verify correct gren compiler version
@@ -435,7 +445,7 @@ parseUserArgs model compilerPath =
                                     { useColor = model.useColor
                                     , compilerPath = compilerPath
                                     , pathToString = model.pathToString
-                                    , connection = initWithCommand <|
+                                    , onInit = initWithCommand <|
                                         Compiler.Backend.Make
                                             { optimize = flags.optimize
                                             , sourcemaps = flags.sourcemaps
@@ -451,7 +461,7 @@ parseUserArgs model compilerPath =
                                     }
                             )
                         |> Task.onError endWithError
-                        |> Task.executeCmd
+                        |> Task.perform RunCmd
 
                 CliParser.Run opts ->
                     Terminal.Run.make
@@ -464,11 +474,16 @@ parseUserArgs model compilerPath =
                         , package = opts.package
                         , onBackendInitialized = 
                             (\{ backendStreams, encodedCommand } ->
-                                CompilerInitialized
-                                    { backendStreams = backendStreams
-                                    , encodedCommand = encodedCommand
-                                    , quiet = True
-                                    }
+                                when backendStreams is
+                                    Nothing ->
+                                        RunCmd Cmd.none
+
+                                    Just streams ->
+                                        CompilerInitialized
+                                            { backendStreams = streams
+                                            , encodedCommand = encodedCommand
+                                            , quiet = True
+                                            }
                             )
                         , onCompiled = 
                             (\outputPath exitCode ->
@@ -480,7 +495,7 @@ parseUserArgs model compilerPath =
                         }
                         |> Task.mapError Terminal.Run.prettifyError
                         |> Task.onError endWithError
-                        |> Task.executeCmd
+                        |> Task.perform RunCmd
 
                 CliParser.Docs flags ->
                     resolveProject model
@@ -491,7 +506,7 @@ parseUserArgs model compilerPath =
                                     { useColor = model.useColor
                                     , compilerPath = compilerPath
                                     , pathToString = model.pathToString
-                                    , connection =
+                                    , onInit =
                                         initWithCommand <|
                                             Compiler.Backend.Docs
                                                 { output = flags.output
@@ -505,13 +520,13 @@ parseUserArgs model compilerPath =
                                     }
                             )
                         |> Task.onError endWithError
-                        |> Task.executeCmd
+                        |> Task.perform RunCmd
 
                 CliParser.PackageInstall Nothing ->
                     resolveProject model
                         |> Task.map (\_ -> Cmd.none)
                         |> Task.onError endWithError
-                        |> Task.executeCmd
+                        |> Task.perform RunCmd
 
                 CliParser.PackageInstall (Just requestedPackage) ->
                     Terminal.PackageInstall.readProjectOutline model.fsPermission
@@ -532,7 +547,7 @@ parseUserArgs model compilerPath =
                             )
                         |> Task.map (\_ -> Cmd.none)
                         |> Task.onError endWithError
-                        |> Task.executeCmd
+                        |> Task.perform RunCmd
 
                 CliParser.PackageUninstall packageName ->
                     Terminal.PackageInstall.readProjectOutline model.fsPermission
@@ -553,7 +568,7 @@ parseUserArgs model compilerPath =
                             )
                         |> Task.map (\_ -> Cmd.none)
                         |> Task.onError endWithError
-                        |> Task.executeCmd
+                        |> Task.perform RunCmd
 
                 CliParser.PackageOutdated ->
                     Terminal.PackageInstall.readProjectOutline model.fsPermission
@@ -573,7 +588,7 @@ parseUserArgs model compilerPath =
                             )
                         |> Task.map (\_ -> Cmd.none)
                         |> Task.onError endWithError
-                        |> Task.executeCmd
+                        |> Task.perform RunCmd
 
                 CliParser.PackageValidate ->
                     Terminal.PackageInstall.readProjectOutline model.fsPermission
@@ -595,7 +610,7 @@ parseUserArgs model compilerPath =
                             (\backendFlags ->
                                 Compiler.Backend.run
                                     model.cpPermission
-                                    { connection =
+                                    { onInit =
                                         initWithCommand <|
                                             Compiler.Backend.PackageValidate backendFlags
                                     , useColor = model.useColor
@@ -605,7 +620,7 @@ parseUserArgs model compilerPath =
                                     }
                             )
                         |> Task.onError endWithError
-                        |> Task.executeCmd
+                        |> Task.perform RunCmd
 
                 CliParser.PackageBump ->
                     Terminal.PackageInstall.readProjectOutline model.fsPermission
@@ -627,7 +642,7 @@ parseUserArgs model compilerPath =
                             (\backendFlags ->
                                 Compiler.Backend.run
                                     model.cpPermission
-                                    { connection =
+                                    { onInit =
                                         initWithCommand <|
                                             Compiler.Backend.PackageBump backendFlags
                                     , useColor = model.useColor
@@ -637,7 +652,7 @@ parseUserArgs model compilerPath =
                                     }
                             )
                         |> Task.onError endWithError
-                        |> Task.executeCmd
+                        |> Task.perform RunCmd
 
                 CliParser.PackageDiff args ->
                     let
@@ -713,7 +728,7 @@ parseUserArgs model compilerPath =
                             (\backendFlags ->
                                 Compiler.Backend.run
                                     model.cpPermission
-                                    { connection =
+                                    { onInit =
                                         initWithCommand <|
                                             Compiler.Backend.PackageDiff backendFlags
                                     , useColor = model.useColor
@@ -723,7 +738,7 @@ parseUserArgs model compilerPath =
                                     }
                             )
                         |> Task.onError endWithError
-                        |> Task.executeCmd
+                        |> Task.perform RunCmd
 
                 CliParser.Paths opts ->
                     Terminal.Paths.run

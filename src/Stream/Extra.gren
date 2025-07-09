@@ -7,4 +7,35 @@ import Task exposing (Task)
 
 consumeString : Stream.Readable String -> Task Stream.Error String
 consumeString stream =
-    Stream.readUntilClosed (\chunk result -> Ok (result ++ chunk)) "" stream
+    readUntilClosed (\chunk result -> Ok (result ++ chunk)) "" stream
+
+
+{- Below is copied from gren-lang/core -}
+
+readUntilClosed : (a -> b -> Result String b) -> b -> Stream.Readable a -> Task Stream.Error b
+readUntilClosed stepFn init stream =
+    readUntilClosedHelper stepFn init stream
+
+
+readUntilClosedHelper : (a -> b -> Result String b) -> b -> Stream.Readable a -> Task Stream.Error b
+readUntilClosedHelper stepFn oldAcc stream =
+    Stream.read stream
+        |> Task.andThen
+            (\newPart ->
+                when stepFn newPart oldAcc is
+                    Ok newAcc ->
+                        readUntilClosedHelper stepFn newAcc stream
+
+                    Err reason ->
+                        Stream.cancelReadable reason stream
+                            |> Task.andThen (\_ -> Task.fail (Stream.Cancelled reason))
+            )
+        |> Task.onError
+            (\err ->
+                when err is
+                    Stream.Closed ->
+                        Task.succeed oldAcc
+
+                    _ ->
+                        Task.fail err
+            )
