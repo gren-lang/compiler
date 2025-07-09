@@ -71,12 +71,12 @@ type alias Result =
     , previousVersion :
         Maybe
             { outline : Outline
-            , rootSources : Dict String String
+            , rootSources : Dict String Compiler.Backend.SourceFile
             , dependencies : Dict String { outline : Outline.PkgOutline, sources : Dict String String }
             }
     , currentVersion :
         { outline : Outline
-        , rootSources : Dict String String
+        , rootSources : Dict String Compiler.Backend.SourceFile
         , dependencies : Dict String { outline : Outline.PkgOutline, sources : Dict String String }
         }
     }

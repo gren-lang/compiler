@@ -8,7 +8,6 @@ where
 
 import Build qualified
 import Command qualified
-import Data.ByteString.Internal (ByteString)
 import Data.List qualified as List
 import Data.Map (Map)
 import Data.Map qualified as Map
@@ -21,7 +20,6 @@ import Gren.Compiler.Type qualified as Type
 import Gren.Details qualified as Details
 import Gren.Docs qualified as Docs
 import Gren.Magnitude qualified as M
-import Gren.ModuleName qualified as ModuleName
 import Gren.Outline qualified as Outline
 import Gren.Package qualified as Pkg
 import Reporting qualified
@@ -65,7 +63,7 @@ diff (Flags _ root (Command.ProjectInfo _ firstSources firstSolution) (Command.P
 
 -- GENERATE DOCS
 
-generateDocs :: FilePath -> Outline.PkgOutline -> Map ModuleName.Raw ByteString -> Map Pkg.Name Details.Dependency -> Task.Task Exit.Diff Docs.Documentation
+generateDocs :: FilePath -> Outline.PkgOutline -> Build.Sources -> Map Pkg.Name Details.Dependency -> Task.Task Exit.Diff Docs.Documentation
 generateDocs root outline@(Outline.PkgOutline _ _ _ _ exposed _ _ _) sources solution =
   do
     details <-

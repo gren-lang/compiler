@@ -63,12 +63,12 @@ type alias Result =
     { projectPath : Path
     , firstPackage :
         { outline : Outline
-        , rootSources : Dict String String
+        , rootSources : Dict String Compiler.Backend.SourceFile
         , dependencies : Dict String { outline : Outline.PkgOutline, sources : Dict String String }
         }
     , secondPackage :
         { outline : Outline
-        , rootSources : Dict String String
+        , rootSources : Dict String Compiler.Backend.SourceFile
         , dependencies : Dict String { outline : Outline.PkgOutline, sources : Dict String String }
         }
     }

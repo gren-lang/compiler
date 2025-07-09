@@ -22,6 +22,7 @@ import Compiler.PackageName as PackageName exposing (PackageName)
 import Compiler.Paths
 import Compiler.Outline as Outline exposing (Outline)
 import Compiler.Dependencies
+import Compiler.Backend
 import Git
 import Stream
 import Stream.Log
@@ -57,7 +58,7 @@ type alias Options =
 type alias PackageResolution =
     { projectPath : Path
     , outline : Outline
-    , rootSources : Dict String String
+    , rootSources : Dict String Compiler.Backend.SourceFile
     , dependencies : Dict String { outline : Outline.PkgOutline, sources : Dict String String }
     , didDownload : Bool
     }
@@ -117,6 +118,11 @@ run config { projectPath, outline } =
                             |> Task.map Just
                             |> Task.onError
                                 (\err ->
+                                    {- Due to a bug in gren-lang/core, we aren't able to
+                                    detech why installing the package failed. Will simply
+                                    assume that loading the package failed due to it being
+                                    missing until a new version of gren-lang/core is released.
+                                    TODO:
                                     when err is
                                         PackageInstallFailedToLoadBundle { message } ->
                                             -- Ignore packages that doesn't exist, they
@@ -129,6 +135,8 @@ run config { projectPath, outline } =
 
                                         _ ->
                                             Task.fail err
+                                    -}
+                                    Task.succeed Nothing
                                 )
 
                     Outline.LocalPath path ->
@@ -175,7 +183,7 @@ run config { projectPath, outline } =
                             , outline = outline
                             , projectSources =
                                 Array.foldl
-                                    (\{ moduleName, source } dict -> Dict.set moduleName source dict)
+                                    (\{ path, moduleName, source } dict -> Dict.set moduleName { path = path, data = source } dict)
                                     Dict.empty
                                     sourceFiles
                             , startedDownload = False
@@ -247,7 +255,7 @@ run config { projectPath, outline } =
 type alias StepOptions =
     { projectPath : Path
     , outline : Outline
-    , projectSources : Dict String String
+    , projectSources : Dict String Compiler.Backend.SourceFile
     , strictResolution : Bool
     , startedDownload : Bool
     , rootPackages : Array { name : PackageName, version : SemanticVersionRange }

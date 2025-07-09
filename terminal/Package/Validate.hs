@@ -8,7 +8,6 @@ where
 
 import Build qualified
 import Command qualified
-import Data.ByteString.Internal (ByteString)
 import Data.List qualified as List
 import Data.Map (Map)
 import Data.NonEmptyList qualified as NE
@@ -17,7 +16,6 @@ import Deps.Package qualified as Pkg
 import Gren.Details qualified as Details
 import Gren.Docs qualified as Docs
 import Gren.Magnitude qualified as M
-import Gren.ModuleName qualified as ModuleName
 import Gren.Outline qualified as Outline
 import Gren.Package qualified as Pkg
 import Gren.Version qualified as V
@@ -64,13 +62,13 @@ validate (Flags root knownVersions (Command.ProjectInfo currentOutline currentSo
 
         Task.io $ putStrLn "Everything looks good!"
 
-verifyBuild :: FilePath -> Outline.PkgOutline -> Map ModuleName.Raw ByteString -> Map Pkg.Name Details.Dependency -> Task.Task Exit.Validate Docs.Documentation
+verifyBuild :: FilePath -> Outline.PkgOutline -> Build.Sources -> Map Pkg.Name Details.Dependency -> Task.Task Exit.Validate Docs.Documentation
 verifyBuild root outline sources solution =
   reportBuildCheck $
     Task.run $
       buildProject root outline sources solution
 
-buildProject :: FilePath -> Outline.PkgOutline -> Map ModuleName.Raw ByteString -> Map Pkg.Name Details.Dependency -> Task.Task Exit.Validate Docs.Documentation
+buildProject :: FilePath -> Outline.PkgOutline -> Build.Sources -> Map Pkg.Name Details.Dependency -> Task.Task Exit.Validate Docs.Documentation
 buildProject root pkgOutline@(Outline.PkgOutline _ _ _ _ _ _ _ _) sources solution =
   do
     details@(Details.Details _ outline _ _ _ _) <-

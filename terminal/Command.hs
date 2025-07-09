@@ -11,7 +11,6 @@ module Command
   )
 where
 
-import Data.ByteString (ByteString)
 import Data.ByteString.Char8 qualified as BS
 import Data.Map (Map)
 import Data.Utf8 qualified as Utf8
@@ -23,7 +22,8 @@ import Gren.Outline qualified as Outline
 import Gren.Package qualified as Package
 import Gren.Version qualified as Version
 import Json.Decode qualified as Json
-import Make qualified as Make
+import Make qualified
+import Build qualified
 
 data Command
   = Repl ReplFlags
@@ -38,7 +38,7 @@ data ReplFlags = ReplFlags
   { _repl_interpreter :: Maybe String,
     _repl_project_path :: FilePath,
     _repl_outline :: Outline,
-    _repl_root_sources :: Map ModuleName.Raw ByteString,
+    _repl_root_sources :: Build.Sources,
     _repl_dependencies :: Map Package.Name Details.Dependency
   }
   deriving (Show)
@@ -51,7 +51,7 @@ data MakeFlags = MakeFlags
     _make_paths :: [ModuleName.Raw],
     _make_project_path :: String,
     _make_outline :: Outline,
-    _make_root_sources :: Map ModuleName.Raw ByteString,
+    _make_root_sources :: Build.Sources,
     _make_dependencies :: Map Package.Name Details.Dependency
   }
   deriving (Show)
@@ -61,7 +61,7 @@ data DocsFlags = DocsFlags
     _docs_report_json :: Bool,
     _docs_project_path :: String,
     _docs_outline :: Outline,
-    _docs_root_sources :: Map ModuleName.Raw ByteString,
+    _docs_root_sources :: Build.Sources,
     _docs_dependencies :: Map Package.Name Details.Dependency
   }
   deriving (Show)
@@ -85,7 +85,7 @@ data ValidateFlags = ValidateFlags
 
 data ProjectInfo = ProjectInfo
   { _project_outline :: Outline,
-    _project_root_sources :: Map ModuleName.Raw ByteString,
+    _project_root_sources :: Build.Sources,
     _project_dependencies :: Map Package.Name Details.Dependency
   }
   deriving (Show)
@@ -127,7 +127,7 @@ replDecoder =
     <$> Json.field (BS.pack "interpreter") (maybeDecoder (fmap Utf8.toChars Json.string))
     <*> Json.field (BS.pack "project-path") (fmap Utf8.toChars Json.string)
     <*> Json.field (BS.pack "project-outline") (Json.mapError (const InvalidInput) Outline.decoder)
-    <*> Json.field (BS.pack "sources") (Json.dict (ModuleName.keyDecoder (\_ _ -> InvalidInput)) (fmap Utf8.toByteString Json.stringUnescaped))
+    <*> Json.field (BS.pack "sources") (Json.dict (ModuleName.keyDecoder (\_ _ -> InvalidInput)) sourceFileDecoder)
     <*> Json.field (BS.pack "dependencies") (Json.dict (Package.keyDecoder (\_ _ -> InvalidInput)) makeDependencyDecoder)
 
 makeDecoder :: Json.Decoder CommandDecoderError MakeFlags
@@ -140,7 +140,7 @@ makeDecoder =
     <*> Json.field (BS.pack "entry-points") (Json.list (Json.mapError (const InvalidInput) ModuleName.decoder))
     <*> Json.field (BS.pack "project-path") (fmap Utf8.toChars Json.string)
     <*> Json.field (BS.pack "project-outline") (Json.mapError (const InvalidInput) Outline.decoder)
-    <*> Json.field (BS.pack "sources") (Json.dict (ModuleName.keyDecoder (\_ _ -> InvalidInput)) (fmap Utf8.toByteString Json.stringUnescaped))
+    <*> Json.field (BS.pack "sources") (Json.dict (ModuleName.keyDecoder (\_ _ -> InvalidInput)) sourceFileDecoder)
     <*> Json.field (BS.pack "dependencies") (Json.dict (Package.keyDecoder (\_ _ -> InvalidInput)) makeDependencyDecoder)
 
 makeOutputDecoder :: Json.Decoder CommandDecoderError Make.Output
@@ -169,7 +169,7 @@ docsDecoder =
     <*> Json.field (BS.pack "report-json") Json.bool
     <*> Json.field (BS.pack "project-path") (fmap Utf8.toChars Json.string)
     <*> Json.field (BS.pack "project-outline") (Json.mapError (const InvalidInput) Outline.decoder)
-    <*> Json.field (BS.pack "sources") (Json.dict (ModuleName.keyDecoder (\_ _ -> InvalidInput)) (fmap Utf8.toByteString Json.stringUnescaped))
+    <*> Json.field (BS.pack "sources") (Json.dict (ModuleName.keyDecoder (\_ _ -> InvalidInput)) sourceFileDecoder)
     <*> Json.field (BS.pack "dependencies") (Json.dict (Package.keyDecoder (\_ _ -> InvalidInput)) makeDependencyDecoder)
 
 docsOutputDecoder :: Json.Decoder CommandDecoderError Docs.Output
@@ -204,8 +204,14 @@ projectInfoDecoder :: Json.Decoder CommandDecoderError ProjectInfo
 projectInfoDecoder =
   ProjectInfo
     <$> Json.field (BS.pack "project-outline") (Json.mapError (const InvalidInput) Outline.decoder)
-    <*> Json.field (BS.pack "sources") (Json.dict (ModuleName.keyDecoder (\_ _ -> InvalidInput)) (fmap Utf8.toByteString Json.stringUnescaped))
+    <*> Json.field (BS.pack "sources") (Json.dict (ModuleName.keyDecoder (\_ _ -> InvalidInput)) sourceFileDecoder)
     <*> Json.field (BS.pack "dependencies") (Json.dict (Package.keyDecoder (\_ _ -> InvalidInput)) makeDependencyDecoder)
+
+sourceFileDecoder :: Json.Decoder CommandDecoderError Build.Source
+sourceFileDecoder =
+  Build.Source
+    <$> Json.field (BS.pack "path") (Json.mapError (const InvalidInput) (fmap Utf8.toChars Json.string))
+    <*> Json.field (BS.pack "data") (fmap Utf8.toByteString Json.stringUnescaped)
 
 diffDecoder :: Json.Decoder CommandDecoderError DiffFlags
 diffDecoder =

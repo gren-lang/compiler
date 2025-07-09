@@ -9,7 +9,6 @@ where
 
 import Build qualified
 import Data.ByteString.Builder qualified as B
-import Data.ByteString.Internal (ByteString)
 import Data.Map (Map)
 import Data.NonEmptyList qualified as NE
 import Gren.Details qualified as Details
@@ -30,7 +29,7 @@ data Flags = Flags
     _report :: Bool,
     _project_root :: FilePath,
     _outline :: Outline,
-    _root_sources :: Map ModuleName.Raw ByteString,
+    _root_sources :: Build.Sources,
     _dependencies :: Map Package.Name Details.Dependency
   }
 
@@ -90,7 +89,7 @@ getExposed (Details.Details _ validOutline _ _ _ _) =
 
 -- BUILD PROJECTS
 
-buildExposed :: Reporting.Style -> FilePath -> Details.Details -> Map ModuleName.Raw ByteString -> Build.DocsGoal a -> NE.List ModuleName.Raw -> Task a
+buildExposed :: Reporting.Style -> FilePath -> Details.Details -> Build.Sources -> Build.DocsGoal a -> NE.List ModuleName.Raw -> Task a
 buildExposed style root details sources docsGoal exposed =
   Task.eio Exit.DocsBadBuild $
     Build.fromExposed style root details sources docsGoal exposed

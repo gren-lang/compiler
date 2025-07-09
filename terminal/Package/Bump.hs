@@ -9,7 +9,6 @@ where
 
 import Build qualified
 import Command qualified
-import Data.ByteString.Internal (ByteString)
 import Data.List qualified as List
 import Data.Map (Map)
 import Data.NonEmptyList qualified as NE
@@ -18,7 +17,6 @@ import Deps.Package qualified as Package
 import Gren.Details qualified as Details
 import Gren.Docs qualified as Docs
 import Gren.Magnitude qualified as M
-import Gren.ModuleName qualified as ModuleName
 import Gren.Outline qualified as Outline
 import Gren.Package qualified as Pkg
 import Gren.Version qualified as V
@@ -97,7 +95,7 @@ suggestVersion flags@(Flags _ root _ (Command.ProjectInfo _ currentSources curre
               <> new
               <> ") in gren.json? [Y/n] "
 
-generateDocs :: FilePath -> Outline.PkgOutline -> Map ModuleName.Raw ByteString -> Map Pkg.Name Details.Dependency -> Task.Task Exit.Bump Docs.Documentation
+generateDocs :: FilePath -> Outline.PkgOutline -> Build.Sources -> Map Pkg.Name Details.Dependency -> Task.Task Exit.Bump Docs.Documentation
 generateDocs root outline@(Outline.PkgOutline _ _ _ _ exposed _ _ _) sources solution =
   do
     details <-

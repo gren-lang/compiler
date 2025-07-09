@@ -9,7 +9,6 @@ import AST.Optimized qualified as Opt
 import Build qualified
 import Data.ByteString.Builder qualified as B
 import Data.ByteString.Char8 qualified as ByteString8
-import Data.ByteString.Internal (ByteString)
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Maybe qualified as Maybe
@@ -44,7 +43,7 @@ data Flags = Flags
     _paths :: [ModuleName.Raw],
     _project_path :: String,
     _outline :: Outline,
-    _root_sources :: Map ModuleName.Raw ByteString,
+    _root_sources :: Build.Sources,
     _dependencies :: Map Package.Name Details.Dependency
   }
   deriving (Show)
@@ -176,12 +175,12 @@ getPlatform (Details.Details _ validOutline _ _ _ _) = do
 
 -- BUILD PROJECTS
 
-buildExposed :: Reporting.Style -> FilePath -> Details.Details -> Map ModuleName.Raw ByteString -> NE.List ModuleName.Raw -> Task ()
+buildExposed :: Reporting.Style -> FilePath -> Details.Details -> Build.Sources -> NE.List ModuleName.Raw -> Task ()
 buildExposed style root details sources exposed =
   Task.eio Exit.MakeCannotBuild $
     Build.fromExposed style root details sources Build.IgnoreDocs exposed
 
-buildPaths :: Reporting.Style -> FilePath -> Details.Details -> Map ModuleName.Raw ByteString -> NE.List ModuleName.Raw -> Task Build.Artifacts
+buildPaths :: Reporting.Style -> FilePath -> Details.Details -> Build.Sources -> NE.List ModuleName.Raw -> Task Build.Artifacts
 buildPaths style root details sources modules =
   Task.eio Exit.MakeCannotBuild $
     Build.fromMainModules style root details sources modules
@@ -253,9 +252,9 @@ gatherSources (Flags _ _ _ _ _ _ outline sources deps) =
   let mappedSources =
         case outline of
           Outline.App _ ->
-            Map.mapKeys (ModuleName.Canonical Package.dummyName) sources
+            Map.map Build._source_data (Map.mapKeys (ModuleName.Canonical Package.dummyName) sources)
           Outline.Pkg pkgOutline ->
-            Map.mapKeys (ModuleName.Canonical (Outline._pkg_name pkgOutline)) sources
+            Map.map Build._source_data (Map.mapKeys (ModuleName.Canonical (Outline._pkg_name pkgOutline)) sources)
 
       mappedModules =
         Map.foldrWithKey

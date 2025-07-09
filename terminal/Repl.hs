@@ -25,7 +25,6 @@ import Control.Monad.Trans (lift, liftIO)
 import Data.ByteString qualified as BS
 import Data.ByteString.Builder qualified as B
 import Data.ByteString.Char8 qualified as BSC
-import Data.ByteString.Internal (ByteString)
 import Data.ByteString.Lazy qualified as LBS
 import Data.ByteString.UTF8 qualified as BS_UTF8
 import Data.Char qualified as Char
@@ -72,7 +71,7 @@ data Flags = Flags
   { _maybeInterpreter :: Maybe FilePath,
     _root :: FilePath,
     _outline :: Outline,
-    _root_sources :: Map ModuleName.Raw ByteString,
+    _root_sources :: Build.Sources,
     _dependencies :: Map Pkg.Name Details.Dependency
   }
 
