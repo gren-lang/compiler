@@ -140,25 +140,16 @@ run config { projectPath, outline } =
                                             }
 
                                     Just packageVersion ->
-                                        let
-                                            repoPath =
-                                                Terminal.PackageInstall.localRepoPath pkgOutline.name packageVersion projectPath
-                                        in
-                                        FileSystem.remove config.fsPermission { recursive = True, ignoreErrors = False } repoPath
-                                            |> Task.onError
-                                                (\err ->
-                                                    if FileSystem.errorIsNoSuchFileOrDirectory err then
-                                                        Task.succeed repoPath
-                                                    else
-                                                        Task.fail PreviousPackageCorrupted
-                                                )
+                                        Git.clonePackageCached
+                                            { childProcessPermission = config.cpPermission
+                                            , fileSystemPermission = config.fsPermission
+                                            , cacheRoot = config.cacheRoot
+                                            , packageName = pkgOutline.name
+                                            , version = packageVersion
+                                            }
+                                            |> Task.mapError (\_ -> PreviousPackageCorrupted)
                                             |> Task.andThen
-                                                (\_ ->
-                                                    Git.clonePackage config.cpPermission repoPath pkgOutline.name packageVersion
-                                                        |> Task.mapError (\_ -> PreviousPackageCorrupted)
-                                                )
-                                            |> Task.andThen
-                                                (\_ ->
+                                                (\repoPath ->
                                                     Path.append (Path.fromPosixString "gren.json") repoPath
                                                         |> Terminal.PackageInstall.readOutline config.fsPermission
                                                         |> Task.mapError (\_ -> PreviousPackageCorrupted)
@@ -171,20 +162,20 @@ run config { projectPath, outline } =
                                                                     Err err ->
                                                                         Task.fail PreviousPackageCorrupted
                                                             )
-                                                )
-                                            |> Task.andThen
-                                                (\previousOutline ->
-                                                    Terminal.PackageInstall.run
-                                                        { fsPermission = config.fsPermission
-                                                        , cpPermission = config.cpPermission
-                                                        , cacheRoot = config.cacheRoot
-                                                        , interactive = config.interactive
-                                                        , useColor = config.useColor
-                                                        , stdout = config.stdout
-                                                        , stdin = config.stdin
-                                                        }
-                                                        { projectPath = repoPath, outline = previousOutline }
-                                                        |> Task.mapError (\_ -> PreviousPackageCorrupted)
+                                                        |> Task.andThen
+                                                            (\previousOutline ->
+                                                                Terminal.PackageInstall.run
+                                                                    { fsPermission = config.fsPermission
+                                                                    , cpPermission = config.cpPermission
+                                                                    , cacheRoot = config.cacheRoot
+                                                                    , interactive = config.interactive
+                                                                    , useColor = config.useColor
+                                                                    , stdout = config.stdout
+                                                                    , stdin = config.stdin
+                                                                    }
+                                                                    { projectPath = repoPath, outline = previousOutline }
+                                                                    |> Task.mapError (\_ -> PreviousPackageCorrupted)
+                                                            )
                                                 )
                                             |> Task.map
                                                 (\previousPackage ->

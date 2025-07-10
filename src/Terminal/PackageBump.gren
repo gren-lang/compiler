@@ -110,16 +110,16 @@ run config { projectPath, outline } =
                     )
                 |> Task.andThen
                     (\{ packageName, packageVersion, knownVersions, currentPackage } ->
-                         let
-                            repoPath =
-                                Terminal.PackageInstall.localRepoPath packageName packageVersion projectPath
-                        in
-                        FileSystem.remove config.fsPermission { recursive = True, ignoreErrors = False } repoPath
-                            |> Task.onError (\_ -> Task.succeed repoPath) -- Probably because directory doesn't exist, that's fine
-                            |> Task.andThen (\_ -> Git.clonePackage config.cpPermission repoPath packageName packageVersion)
+                        Git.clonePackageCached
+                            { childProcessPermission = config.cpPermission
+                            , fileSystemPermission = config.fsPermission
+                            , cacheRoot = config.cacheRoot
+                            , packageName = packageName
+                            , version = packageVersion
+                            }
                             |> Task.mapError (\_ -> PreviousPackageCorruption)
                             |> Task.andThen
-                                (\_ ->
+                                (\repoPath ->
                                     Path.append (Path.fromPosixString "gren.json") repoPath
                                         |> Terminal.PackageInstall.readOutline config.fsPermission
                                         |> Task.mapError (\_ -> PreviousPackageCorruption)
@@ -132,26 +132,26 @@ run config { projectPath, outline } =
                                                     Err err ->
                                                         Task.fail PreviousPackageCorruption
                                             )
-                                )
-                            |> Task.andThen
-                                (\publishedOutline ->
-                                    Terminal.PackageInstall.run
-                                        { fsPermission = config.fsPermission
-                                        , cpPermission = config.cpPermission
-                                        , cacheRoot = config.cacheRoot
-                                        , interactive = config.interactive
-                                        , useColor = config.useColor
-                                        , stdout = config.stdout
-                                        , stdin = config.stdin
-                                        }
-                                        { projectPath = repoPath, outline = publishedOutline }
-                                        |> Task.mapError (\_ -> PreviousPackageCorruption)
-                                        |> Task.map
-                                            (\resolved ->
-                                                { currentPackage = currentPackage
-                                                , publishedPackage = resolved
-                                                , knownVersions = knownVersions
-                                                }
+                                        |> Task.andThen
+                                            (\publishedOutline ->
+                                                Terminal.PackageInstall.run
+                                                    { fsPermission = config.fsPermission
+                                                    , cpPermission = config.cpPermission
+                                                    , cacheRoot = config.cacheRoot
+                                                    , interactive = config.interactive
+                                                    , useColor = config.useColor
+                                                    , stdout = config.stdout
+                                                    , stdin = config.stdin
+                                                    }
+                                                    { projectPath = repoPath, outline = publishedOutline }
+                                                    |> Task.mapError (\_ -> PreviousPackageCorruption)
+                                                    |> Task.map
+                                                        (\resolved ->
+                                                            { currentPackage = currentPackage
+                                                            , publishedPackage = resolved
+                                                            , knownVersions = knownVersions
+                                                            }
+                                                        )
                                             )
                                 )
                     )

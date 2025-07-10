@@ -31,8 +31,7 @@ import Terminal.Help as Help
 
 
 type Error
-    = TempPathError FileSystem.Error
-    | ReadProjectOutlineError PackageInstall.ReadProjectOutlineError
+    = ReadProjectOutlineError PackageInstall.ReadProjectOutlineError
     | PackageInstallError PackageInstall.PackageInstallError
     | NotAnApplication
 
@@ -152,19 +151,17 @@ makeProject config projectOutline =
 clonePackage : MakeConfig msg -> PackageName -> Task Error ProjectOutline
 clonePackage config packageName =
     let
-        getTempDir =
-            FileSystem.makeTempDirectory config.fsPermission "gren-run"
-                |> Task.mapError TempPathError
-
-        clone tempDir =
+        clone =
             Git.fetchLatestVersion config.cpPermission packageName
                 |> Task.andThen 
                     (\version ->
-                        Git.clonePackage 
-                            config.cpPermission 
-                            tempDir 
-                            packageName 
-                            version
+                        Git.clonePackageCached
+                            { childProcessPermission = config.cpPermission
+                            , fileSystemPermission = config.fsPermission
+                            , cacheRoot = config.cacheRoot
+                            , packageName = packageName
+                            , version = version
+                            }
                     )
                 |> Task.mapError 
                     (\e ->
@@ -175,11 +172,10 @@ clonePackage config packageName =
                                 }
                     )
     in
-    Task.await getTempDir <| \tempDir ->
-    Task.await (clone tempDir) <| \_ ->
-    Task.await (getProjectOutline config.fsPermission tempDir) <| \outline ->
+    Task.await clone <| \repoDir ->
+    Task.await (getProjectOutline config.fsPermission repoDir) <| \outline ->
         Task.succeed
-            { projectPath = tempDir
+            { projectPath = repoDir
             , outline = outline
             }
 
@@ -286,21 +282,6 @@ getOutputPath projectOutline =
 prettifyError : Error -> PP.Document
 prettifyError error =
     when error is
-        TempPathError err ->
-            Help.report
-                "FILESYSTEM ERROR"
-                Nothing
-                (PP.verticalBlock
-                    [ PP.words "Failed to access temporary file path."
-                    , PP.empty
-                    , PP.words "The error provided by the operating system is:"
-                    , PP.empty
-                    , PP.words (FileSystem.errorToString err)
-                        |> PP.color PP.Red
-                        |> PP.indent
-                    ]
-                )
-
         NotAnApplication ->
             Help.report
                 "NOT AN APPLICATION"

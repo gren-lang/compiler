@@ -185,8 +185,7 @@ prettifyLocalError error =
 
 
 type InstallHiddenProjectError
-    = HiddenProjectFileSystemError FileSystem.Error
-    | HiddenProjectGitCloneError Git.Error
+    = HiddenProjectGitCloneError Git.Error
     | HiddenProjectReadOutlineError FileSystem.Error
     | HiddenProjectOutlineDecodeError Decode.Error
     | HiddenProjectInstallError Terminal.PackageInstall.PackageInstallError
@@ -194,26 +193,16 @@ type InstallHiddenProjectError
 
 installHiddenProject : Config -> Path -> PackageName -> SemanticVersion -> Task InstallHiddenProjectError Terminal.PackageInstall.PackageResolution
 installHiddenProject config projectPath packageName packageVersion =
-     let
-        repoPath =
-            Terminal.PackageInstall.localRepoPath packageName packageVersion projectPath
-    in
-    FileSystem.remove config.fsPermission { recursive = True, ignoreErrors = False } repoPath
-        |> Task.onError
-            (\err ->
-                if FileSystem.errorIsNoSuchFileOrDirectory err then
-                    Task.succeed repoPath
-
-                else
-                    Task.fail <| HiddenProjectFileSystemError err
-            )
+    Git.clonePackageCached
+        { childProcessPermission = config.cpPermission
+        , fileSystemPermission = config.fsPermission
+        , cacheRoot = config.cacheRoot
+        , packageName = packageName
+        , version = packageVersion
+        }
+        |> Task.mapError HiddenProjectGitCloneError
         |> Task.andThen
-            (\_ ->
-                Git.clonePackage config.cpPermission repoPath packageName packageVersion
-                    |> Task.mapError HiddenProjectGitCloneError
-            )
-        |> Task.andThen
-            (\_ ->
+            (\repoPath ->
                 Path.append (Path.fromPosixString "gren.json") repoPath
                     |> Terminal.PackageInstall.readOutline config.fsPermission
                     |> Task.mapError HiddenProjectReadOutlineError
@@ -226,40 +215,26 @@ installHiddenProject config projectPath packageName packageVersion =
                                 Err err ->
                                     Task.fail <| HiddenProjectOutlineDecodeError err
                         )
-            )
-        |> Task.andThen
-            (\publishedOutline ->
-                Terminal.PackageInstall.run
-                    { fsPermission = config.fsPermission
-                    , cpPermission = config.cpPermission
-                    , cacheRoot = config.cacheRoot
-                    , interactive = config.interactive
-                    , useColor = config.useColor
-                    , stdout = config.stdout
-                    , stdin = config.stdin
-                    }
-                    { projectPath = repoPath, outline = publishedOutline }
-                    |> Task.mapError HiddenProjectInstallError
+                    |> Task.andThen
+                        (\publishedOutline ->
+                            Terminal.PackageInstall.run
+                                { fsPermission = config.fsPermission
+                                , cpPermission = config.cpPermission
+                                , cacheRoot = config.cacheRoot
+                                , interactive = config.interactive
+                                , useColor = config.useColor
+                                , stdout = config.stdout
+                                , stdin = config.stdin
+                                }
+                                { projectPath = repoPath, outline = publishedOutline }
+                                |> Task.mapError HiddenProjectInstallError
+                        )
             )
 
 
 prettifyHiddenProjectError : InstallHiddenProjectError -> PP.Document
 prettifyHiddenProjectError error =
     when error is
-        HiddenProjectFileSystemError fsErr ->
-            Help.report
-                "FAILED TO INSTALL PACKAGE"
-                Nothing
-                (PP.verticalBlock
-                    [ PP.words "An error occured while I was installing the requested package."
-                    , PP.empty
-                    , PP.words "The error is:"
-                    , PP.empty
-                    , PP.words (FileSystem.errorToString fsErr)
-                        |> PP.indent
-                    ]
-                )
-        
         HiddenProjectGitCloneError gitError ->
             Git.report
                 "FAILED TO FETCH PACKAGE"
@@ -306,7 +281,6 @@ type GlobalError
 
 runGlobal : Config -> PackageName -> SemanticVersion -> SemanticVersion -> Task GlobalError Result
 runGlobal config packageName lowerVersion upperVersion =
-    -- TODO: Store in global cache
     -- TODO: Perform application check here when packageName isn't specified
     Terminal.PackageInstall.readProjectOutline config.fsPermission
         |> Task.mapError GlobalReadProjectOutlineError
