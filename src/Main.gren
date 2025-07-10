@@ -388,6 +388,7 @@ parseUserArgs model compilerPath =
                     Terminal.Init.run
                         { fsPermission = model.fsPermission
                         , cpPermission = model.cpPermission
+                        , cacheRoot = model.cacheRoot
                         , stdout = model.stdout
                         , stdin = model.stdin
                         , interactive = model.interactive
@@ -409,6 +410,7 @@ parseUserArgs model compilerPath =
                                 Terminal.PackageInstall.run
                                     { fsPermission = model.fsPermission
                                     , cpPermission = model.cpPermission
+                                    , cacheRoot = model.cacheRoot
                                     , interactive = model.interactive
                                     , useColor = model.useColor
                                     , stdout = model.stdout
@@ -471,6 +473,7 @@ parseUserArgs model compilerPath =
                     Terminal.Run.make
                         { fsPermission = model.fsPermission
                         , cpPermission = model.cpPermission
+                        , cacheRoot = model.cacheRoot
                         , useColor = model.useColor
                         , compilerPath = compilerPath
                         , pathToString = model.pathToString
@@ -540,6 +543,7 @@ parseUserArgs model compilerPath =
                                 Terminal.PackageInstall.addPackage
                                     { fsPermission = model.fsPermission
                                     , cpPermission = model.cpPermission
+                                    , cacheRoot = model.cacheRoot
                                     , interactive = model.interactive
                                     , useColor = model.useColor
                                     , stdout = model.stdout
@@ -561,6 +565,7 @@ parseUserArgs model compilerPath =
                                 Terminal.PackageUninstall.run
                                     { fsPermission = model.fsPermission
                                     , cpPermission = model.cpPermission
+                                    , cacheRoot = model.cacheRoot
                                     , interactive = model.interactive
                                     , useColor = model.useColor
                                     , stdout = model.stdout
@@ -602,6 +607,7 @@ parseUserArgs model compilerPath =
                                 Terminal.PackageValidate.run
                                     { fsPermission = model.fsPermission
                                     , cpPermission = model.cpPermission
+                                    , cacheRoot = model.cacheRoot
                                     , interactive = model.interactive
                                     , useColor = model.useColor
                                     , stdout = model.stdout
@@ -634,6 +640,7 @@ parseUserArgs model compilerPath =
                                 Terminal.PackageBump.run
                                     { fsPermission = model.fsPermission
                                     , cpPermission = model.cpPermission
+                                    , cacheRoot = model.cacheRoot
                                     , interactive = model.interactive
                                     , useColor = model.useColor
                                     , stdout = model.stdout
@@ -666,6 +673,7 @@ parseUserArgs model compilerPath =
                                     Terminal.PackageDiff.runLocal
                                         { fsPermission = model.fsPermission
                                         , cpPermission = model.cpPermission
+                                        , cacheRoot = model.cacheRoot
                                         , interactive = model.interactive
                                         , useColor = model.useColor
                                         , stdout = model.stdout
@@ -678,6 +686,7 @@ parseUserArgs model compilerPath =
                                     Terminal.PackageDiff.runLocal
                                         { fsPermission = model.fsPermission
                                         , cpPermission = model.cpPermission
+                                        , cacheRoot = model.cacheRoot
                                         , interactive = model.interactive
                                         , useColor = model.useColor
                                         , stdout = model.stdout
@@ -702,6 +711,7 @@ parseUserArgs model compilerPath =
                                                         Terminal.PackageDiff.runGlobal
                                                             { fsPermission = model.fsPermission
                                                             , cpPermission = model.cpPermission
+                                                            , cacheRoot = model.cacheRoot
                                                             , interactive = model.interactive
                                                             , useColor = model.useColor
                                                             , stdout = model.stdout
@@ -717,6 +727,7 @@ parseUserArgs model compilerPath =
                                     Terminal.PackageDiff.runGlobal
                                         { fsPermission = model.fsPermission
                                         , cpPermission = model.cpPermission
+                                        , cacheRoot = model.cacheRoot
                                         , interactive = model.interactive
                                         , useColor = model.useColor
                                         , stdout = model.stdout
@@ -764,6 +775,7 @@ resolveProject model =
                 Terminal.PackageInstall.run
                     { fsPermission = model.fsPermission
                     , cpPermission = model.cpPermission
+                    , cacheRoot = model.cacheRoot
                     , interactive = model.interactive
                     , useColor = model.useColor
                     , stdout = model.stdout

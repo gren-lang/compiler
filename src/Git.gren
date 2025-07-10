@@ -2,6 +2,7 @@ module Git exposing
     ( Error(..)
     , report
     , clonePackage
+    , clonePackageCached
     , fetchLatestVersion
     , fetchVersions
     , hasLocalTag
@@ -11,12 +12,14 @@ module Git exposing
 
 import Bytes
 import ChildProcess
+import FileSystem
 import FileSystem.Path as Path exposing (Path)
 import Compiler.PackageName as PackageName exposing (PackageName)
 import SemanticVersion exposing (SemanticVersion)
 import Task exposing (Task)
 import Terminal.Help as Help
 import CLI.PrettyPrinter as PP
+import Compiler.Paths
 
 
 type Error
@@ -124,6 +127,37 @@ clonePackage cpPerm repo name version =
 
                 else
                     constructFailedCommand args details
+            )
+
+
+clonePackageCached :
+    { childProcessPermission : ChildProcess.Permission
+    , fileSystemPermission : FileSystem.Permission
+    , cacheRoot : Compiler.Paths.CacheRoot
+    , packageName : PackageName
+    , version : SemanticVersion
+    }
+    -> Task Error Path
+clonePackageCached { childProcessPermission, fileSystemPermission, cacheRoot, packageName, version } =
+    let
+        packageDir =
+            PackageName.toString packageName ++ "__" ++ SemanticVersion.toString version
+                |> String.replace "/" "_"
+                |> String.replace "." "_"
+                |> Path.fromPosixString
+
+        packageSourcesDir =
+            Compiler.Paths.packageSources cacheRoot
+
+        repoDir =
+            Path.prepend packageSourcesDir packageDir
+    in
+    FileSystem.checkAccess fileSystemPermission [] repoDir
+        |> Task.map (\_ -> repoDir)
+        |> Task.onError
+            (\_ ->
+                clonePackage childProcessPermission repoDir packageName version
+                    |> Task.map (\_ -> repoDir)
             )
 
 

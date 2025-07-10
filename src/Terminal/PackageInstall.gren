@@ -42,6 +42,7 @@ import Terminal.Help as Help
 type alias Config =
     { fsPermission : FileSystem.Permission
     , cpPermission : ChildProcess.Permission
+    , cacheRoot : Compiler.Paths.CacheRoot
     , interactive : Bool
     , useColor : Bool
     , stdout : Stream.Writable Bytes
@@ -372,9 +373,6 @@ installStep config opts =
                         bundlePath =
                             packageBundlePath name lowerBound opts.projectPath
 
-                        repoPath =
-                            localRepoPath name lowerBound opts.projectPath
-
                         packageReportTask =
                             Stream.Log.string config.stdout ("    " ++ PackageName.toString name ++ " ")
 
@@ -389,21 +387,13 @@ installStep config opts =
                     reportTask
                         |> Task.andThen
                             (\_ ->
-                                FileSystem.remove config.fsPermission { recursive = True, ignoreErrors = False } repoPath
-                            )
-                        |> Task.onError (\err ->
-                            if FileSystem.errorIsNoSuchFileOrDirectory err then
-                                Task.succeed repoPath
-
-                            else
-                                Task.fail <| PackageInstallFileSystemError
-                                    { package = name
-                                    , error = err
+                                Git.clonePackageCached
+                                    { childProcessPermission = config.cpPermission
+                                    , fileSystemPermission = config.fsPermission
+                                    , cacheRoot = config.cacheRoot
+                                    , packageName = name
+                                    , version = lowerBound
                                     }
-                        )
-                        |> Task.andThen
-                            (\_ ->
-                                Git.clonePackage config.cpPermission repoPath name lowerBound
                                     |> Task.mapError
                                         (\err ->
                                             PackageInstallGitError
@@ -412,7 +402,7 @@ installStep config opts =
                                                 }
                                         )
                             )
-                        |> Task.andThen (\{} ->
+                        |> Task.andThen (\repoPath ->
                             (Path.append (Path.fromPosixString "gren.json") repoPath)
                                 |> readOutline config.fsPermission
                                 |> Task.mapError

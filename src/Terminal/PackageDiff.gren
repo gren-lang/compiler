@@ -38,6 +38,7 @@ import CLI.PrettyPrinter as PP
 type alias Config =
     { fsPermission : FileSystem.Permission
     , cpPermission : ChildProcess.Permission
+    , cacheRoot : Compiler.Paths.CacheRoot
     , interactive : Bool
     , useColor : Bool
     , stdout : Stream.Writable Bytes
@@ -110,6 +111,7 @@ runLocal config maybeVersion =
                                     Terminal.PackageInstall.run
                                         { fsPermission = config.fsPermission
                                         , cpPermission = config.cpPermission
+                                        , cacheRoot = config.cacheRoot
                                         , interactive = config.interactive
                                         , useColor = config.useColor
                                         , stdout = config.stdout
@@ -230,6 +232,7 @@ installHiddenProject config projectPath packageName packageVersion =
                 Terminal.PackageInstall.run
                     { fsPermission = config.fsPermission
                     , cpPermission = config.cpPermission
+                    , cacheRoot = config.cacheRoot
                     , interactive = config.interactive
                     , useColor = config.useColor
                     , stdout = config.stdout

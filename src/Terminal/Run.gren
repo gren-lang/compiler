@@ -11,6 +11,7 @@ module Terminal.Run exposing
 import CLI.PrettyPrinter as PP
 import Compiler.PackageName as PackageName exposing (PackageName)
 import Compiler.Backend as Backend
+import Compiler.Paths
 import Bytes exposing (Bytes)
 import ChildProcess
 import Compiler.Backend
@@ -38,6 +39,7 @@ type Error
 
 type alias MakeConfig msg =
     { fsPermission : FileSystem.Permission
+    , cacheRoot : Compiler.Paths.CacheRoot
     , cpPermission : ChildProcess.Permission
     , useColor : Bool
     , compilerPath : Path
@@ -96,6 +98,7 @@ makeProject config projectOutline =
                     PackageInstall.run
                         { fsPermission = config.fsPermission
                         , cpPermission = config.cpPermission
+                        , cacheRoot = config.cacheRoot
                         , useColor = config.useColor
                         , interactive = False
                         , stdout = nullStream |> Stream.writable

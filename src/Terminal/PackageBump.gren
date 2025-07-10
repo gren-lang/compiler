@@ -35,6 +35,7 @@ import CLI.PrettyPrinter as PP
 type alias Config =
     { fsPermission : FileSystem.Permission
     , cpPermission : ChildProcess.Permission
+    , cacheRoot : Compiler.Paths.CacheRoot
     , interactive : Bool
     , useColor : Bool
     , stdout : Stream.Writable Bytes
@@ -90,6 +91,7 @@ run config { projectPath, outline } =
                             Terminal.PackageInstall.run
                                 { fsPermission = config.fsPermission
                                 , cpPermission = config.cpPermission
+                                , cacheRoot = config.cacheRoot
                                 , interactive = config.interactive
                                 , useColor = config.useColor
                                 , stdout = config.stdout
@@ -136,6 +138,7 @@ run config { projectPath, outline } =
                                     Terminal.PackageInstall.run
                                         { fsPermission = config.fsPermission
                                         , cpPermission = config.cpPermission
+                                        , cacheRoot = config.cacheRoot
                                         , interactive = config.interactive
                                         , useColor = config.useColor
                                         , stdout = config.stdout
