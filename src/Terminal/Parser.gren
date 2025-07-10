@@ -168,15 +168,15 @@ parser =
                     CLI.Parser.noArgs
                 , flags =
                     CLI.Parser.initFlags
-                        (\project packageCache backend json ->
+                        (\project cache backend json ->
                             { project = project
-                            , packageCache = packageCache
+                            , cache = cache
                             , backend = backend
                             , json = json
                             }
                         )
                         |> CLI.Parser.toggle "project" "Only output the path to the project"
-                        |> CLI.Parser.toggle "package-cache" "Only output the path to the package cache"
+                        |> CLI.Parser.toggle "cache" "Only output the path to the compiler cache"
                         |> CLI.Parser.toggle "backend" "Only output the path to the compiler backend"
                         |> CLI.Parser.toggle "json" "Output in JSON format"
                 , commonDescription = Nothing

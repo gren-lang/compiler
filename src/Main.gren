@@ -1,5 +1,6 @@
 module Main exposing (main)
 
+import Meta
 import Node
 import ChildProcess
 import Terminal.Parser as CliParser
@@ -52,6 +53,7 @@ type alias Model =
     , stdin : Stream.Readable Bytes
     , useColor : Bool
     , interactive : Bool
+    , cacheRoot : Compiler.Paths.CacheRoot
     , backendPath : Path
     , fsPermission : FileSystem.Permission
     , cpPermission : ChildProcess.Permission
@@ -78,6 +80,12 @@ init env =
             useColor =
                 interactiveTerminal && not (Dict.member "NO_COLOR" envVars)
 
+            cacheRoot =
+                Compiler.Paths.cacheRoot env.platform envVars homeDir Meta.version
+
+            backendBinary =
+                Compiler.Paths.backendBinary env.platform cacheRoot                
+
             maybePaths =
                 when { platform = env.platform, override = Dict.get "GREN_BIN" envVars } is
                     { override = Just overridePath, platform = Node.Win32 } ->
@@ -97,7 +105,7 @@ init env =
                             |> Result.map 
                                 (\url ->
                                     { remotePath = Just url
-                                    , localPath = Compiler.Backend.cachePath env.platform envVars homeDir
+                                    , localPath = backendBinary
                                     }
                                 )
                             |> Result.toMaybe
@@ -111,13 +119,8 @@ init env =
                 , stdin = env.stdin
                 , interactive = interactiveTerminal
                 , useColor = useColor
-                , backendPath =
-                    when maybePaths is
-                        Nothing ->
-                            Compiler.Backend.cachePath env.platform envVars homeDir
-
-                        Just paths ->
-                            paths.localPath
+                , cacheRoot = cacheRoot
+                , backendPath = backendBinary
                 , fsPermission = fsPermission
                 , cpPermission = cpPermission
                 , httpPermission = httpPermission
@@ -141,6 +144,7 @@ init env =
                                 )
 
                     Nothing ->
+                        -- TODO: set error code every time stderr is used
                         Stream.Log.line env.stderr "We currently don't support this platform/arch."
                             |> Task.execute
             }
@@ -745,6 +749,7 @@ parseUserArgs model compilerPath =
                         { fsPermission = model.fsPermission
                         , stdout = model.stdout
                         , pathToString = model.pathToString
+                        , cacheRoot = model.cacheRoot
                         , backendPath = model.backendPath
                         }
                         opts
