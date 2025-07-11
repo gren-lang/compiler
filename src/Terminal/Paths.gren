@@ -1,7 +1,9 @@
 module Terminal.Paths exposing
     ( Config
     , Options
+    , Error (..)
     , run
+    , errorToString
     )
 
 import Stream
@@ -31,7 +33,12 @@ type alias Options =
     }
 
 
-run : Config -> Options -> Cmd a
+type Error
+    = NoProject
+    | InvalidOptions
+
+
+run : Config -> Options -> Task Error {}
 run config opts =
     when opts is
         { project = False, cache = False, backend = False, json = False } ->
@@ -45,9 +52,7 @@ run config opts =
                             |> String.join "\n"
                             |> Stream.Log.line config.stdout
                     )
-                -- TODO: print on stderr with error code
-                |> Task.onError (\_ -> Stream.Log.line config.stdout "Couldn't find project!")
-                |> Task.execute
+                |> Task.mapError (\_ -> NoProject)
 
         { project = False, cache = False, backend = False, json = True } ->
             Compiler.Paths.projectRoot config.fsPermission
@@ -61,8 +66,7 @@ run config opts =
                             |> Json.encode 4
                             |> Stream.Log.line config.stdout
                     )
-                |> Task.onError (\_ -> Stream.Log.line config.stdout "Couldn't find project!")
-                |> Task.execute
+                |> Task.mapError (\_ -> NoProject)
 
         { project = True, cache = False, backend = False, json = False } ->
             Compiler.Paths.projectRoot config.fsPermission
@@ -70,8 +74,7 @@ run config opts =
                     (\project ->
                         Stream.Log.line config.stdout (config.pathToString project)
                     )
-                |> Task.onError (\_ -> Stream.Log.line config.stdout "Couldn't find project!")
-                |> Task.execute
+                |> Task.mapError (\_ -> NoProject)
 
         { project = True, cache = False, backend = False, json = True } ->
             Compiler.Paths.projectRoot config.fsPermission
@@ -83,8 +86,7 @@ run config opts =
                             |> Json.encode 4
                             |> Stream.Log.line config.stdout
                     )
-                |> Task.onError (\_ -> Stream.Log.line config.stdout "Couldn't find project!")
-                |> Task.execute
+                |> Task.mapError (\_ -> NoProject)
 
         { project = False, cache = True, backend = False, json = False } ->
             Compiler.Paths.projectRoot config.fsPermission
@@ -93,8 +95,7 @@ run config opts =
                          config.pathToString (Compiler.Paths.cacheRootToPath config.cacheRoot)
                             |> Stream.Log.line config.stdout
                     )
-                |> Task.onError (\_ -> Stream.Log.line config.stdout "Couldn't find project!")
-                |> Task.execute
+                |> Task.mapError (\_ -> NoProject)
 
         { project = False, cache = True, backend = False, json = True } ->
             Compiler.Paths.projectRoot config.fsPermission
@@ -106,12 +107,10 @@ run config opts =
                             |> Json.encode 4
                             |> Stream.Log.line config.stdout
                     )
-                |> Task.onError (\_ -> Stream.Log.line config.stdout "Couldn't find project!")
-                |> Task.execute
+                |> Task.mapError (\_ -> NoProject)
 
         { project = False, cache = False, backend = True, json = False } ->
             Stream.Log.line config.stdout (config.pathToString config.backendPath)
-                |> Task.execute
 
         { project = False, cache = False, backend = True, json = True } ->
             Json.object
@@ -119,9 +118,16 @@ run config opts =
                 ]
                 |> Json.encode 4
                 |> Stream.Log.line config.stdout
-                |> Task.execute
 
         _ ->
-            Stream.Log.line config.stdout "You can only use one of --project, --package-cache and --backend!"
-                |> Task.execute
+            Task.fail InvalidOptions
 
+
+errorToString : Error -> String
+errorToString error =
+    when error is
+        NoProject ->
+            "Could not find a Gren project, so cannot output it's path. Alternatively, try using the --cache or --backend options."
+
+        InvalidOptions ->
+            "You can only use one of --project, --package or --backend!"

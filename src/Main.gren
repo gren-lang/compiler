@@ -144,8 +144,8 @@ init env =
                                 )
 
                     Nothing ->
-                        -- TODO: set error code every time stderr is used
                         Stream.Log.line env.stderr "We currently don't support this platform/arch."
+                            |> Task.andThen (\_ -> Node.exitWithCode 1)
                             |> Task.execute
             }
 
@@ -181,6 +181,12 @@ type Msg
 
 update : Msg -> Model -> { model : Model, command : Cmd Msg }
 update msg model =
+    let
+        endWithError errorStr =
+            Stream.Log.line model.stderr errorStr
+                |> Task.andThen (\_ -> Node.exitWithCode 1)
+                |> Task.execute
+    in
     { model = model
     , command =
         when msg is
@@ -192,8 +198,7 @@ update msg model =
                             |> Task.attempt (\result -> CompilerDownloaded { localPath = localPath, downloadResult = result })
             
                     Nothing ->
-                        Stream.Log.line model.stderr ("Compiler not found at " ++ model.pathToString localPath)
-                            |> Task.execute
+                        endWithError ("Compiler not found at " ++ model.pathToString localPath)
 
             ExistanceChecked { existanceResult = Ok compilerPath } ->
                 parseUserArgs model compilerPath
@@ -206,16 +211,13 @@ update msg model =
                                 |> Task.attempt (\result -> CompilerDownloaded { localPath = localPath, downloadResult = result })
 
                         _ ->
-                            Stream.Log.line model.stderr "Missing, or vague, 'location' header in 302 response from server."
-                                |> Task.execute
+                            endWithError "Missing, or vague, 'location' header in 302 response from server."
 
                 else
-                    Stream.Log.line model.stderr (HttpClient.errorToString err)
-                        |> Task.execute
+                    endWithError (HttpClient.errorToString err)
         
             CompilerDownloaded { downloadResult = Err err } ->
-                Stream.Log.line model.stderr (HttpClient.errorToString err)
-                    |> Task.execute
+                endWithError (HttpClient.errorToString err)
         
             CompilerDownloaded { localPath, downloadResult = Ok res } ->
                 let
@@ -241,8 +243,7 @@ update msg model =
                     |> Task.attempt CompilerInstalled
         
             CompilerInstalled (Err fsErr) ->
-                Stream.Log.line model.stderr ("Failed to install binary after download, due to error: " ++ FileSystem.errorToString fsErr)
-                    |> Task.execute
+                endWithError ("Failed to install binary after download, due to error: " ++ FileSystem.errorToString fsErr)
         
             CompilerInstalled (Ok compilerPath) ->
                 parseUserArgs model compilerPath
@@ -319,8 +320,8 @@ update msg model =
 
                     _ ->
                         Stream.Log.line model.stderr ("Something went wrong when communicating with compiler backend: " ++ Stream.errorToString error)
-                            |> Task.map (\_ -> Task.execute <| Node.exitWithCode 1)
-                            |> Task.perform RunCmd
+                            |> Task.andThen (\_ -> Node.exitWithCode 1)
+                            |> Task.execute
 
             RunCmd cmd ->
                 cmd
@@ -334,16 +335,19 @@ parseUserArgs model compilerPath =
             { useColor = model.useColor
             }
 
-        endWithError prettyErr=
+        endWithError prettyErr =
             Terminal.Help.prettyPrint printOpts prettyErr
                 |> Stream.Log.string model.stderr
+                |> Task.map (\_ -> Task.execute <| Node.exitWithCode 1)
+
+        endWithErrorString stringErr =
+            Stream.Log.string model.stderr stringErr
                 |> Task.map (\_ -> Task.execute <| Node.exitWithCode 1)
     in
     when CLI.Parser.run model.args CliParser.parser is
         CLI.Parser.UnknownCommand commandName ->
-            Stream.Log.line model.stderr ("I don't recognize this command: " ++ commandName)
-                |> Task.andThen (\_ -> Node.exitWithCode 1)
-                |> Task.execute
+            endWithErrorString ("I don't recognize this command: " ++ commandName)
+                |> Task.perform RunCmd
     
         CLI.Parser.BadFlags err ->
             err
@@ -764,6 +768,10 @@ parseUserArgs model compilerPath =
                         , backendPath = model.backendPath
                         }
                         opts
+                        |> Task.map (\_ -> Cmd.none)
+                        |> Task.mapError Terminal.Paths.errorToString
+                        |> Task.onError endWithErrorString
+                        |> Task.perform RunCmd
 
 
 resolveProject : Model -> Task PP.Document Terminal.PackageInstall.PackageResolution
