@@ -47,6 +47,7 @@ type alias Config =
     , useColor : Bool
     , stdout : Stream.Writable Bytes
     , stdin : Stream.Readable Bytes
+    , strictAppResolution : Bool
     }
 
 
@@ -191,7 +192,7 @@ run config { projectPath, outline } =
                             , strictResolution =
                                 when outline is
                                     Outline.App _ ->
-                                        True
+                                        config.strictAppResolution
 
                                     Outline.Pkg _ ->
                                         False

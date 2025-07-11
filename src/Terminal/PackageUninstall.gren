@@ -96,7 +96,15 @@ run config ({ projectPath, outline } as opts) requestedPackage =
                     |> Task.andThen
                         (\packageVersion ->
                             Terminal.PackageInstall.run
-                                config
+                                { fsPermission = config.fsPermission
+                                , cpPermission = config.cpPermission
+                                , cacheRoot = config.cacheRoot
+                                , interactive = config.interactive
+                                , useColor = config.useColor
+                                , stdout = config.stdout
+                                , stdin = config.stdin
+                                , strictAppResolution = True
+                                }
                                 { projectPath = projectPath
                                 , outline = finalOutline
                                 }
@@ -114,7 +122,15 @@ removeAppPackage config projectPath grenJsonPath appOutline packageNameStr isDir
         |> Task.andThen
             (\packageVersion ->
                 Terminal.PackageInstall.run
-                    config
+                    { fsPermission = config.fsPermission
+                    , cpPermission = config.cpPermission
+                    , cacheRoot = config.cacheRoot
+                    , interactive = config.interactive
+                    , useColor = config.useColor
+                    , stdout = config.stdout
+                    , stdin = config.stdin
+                    , strictAppResolution = True
+                    }
                     { projectPath = projectPath
                     , outline =
                         { appOutline

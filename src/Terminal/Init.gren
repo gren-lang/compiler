@@ -2,6 +2,7 @@ module Terminal.Init exposing
     ( Config
     , Error (..)
     , run
+    , runNonInteractive
     , prettifyError
     )
 
@@ -17,7 +18,7 @@ import Json.Encode as Json
 import Compiler.Backend
 import Compiler.Platform as Platform exposing (Platform)
 import Compiler.PackageName as PackageName exposing (PackageName)
-import Compiler.Outline as Outline
+import Compiler.Outline as Outline exposing (Outline)
 import Compiler.License as License
 import Compiler.Paths
 import Terminal.Help
@@ -102,15 +103,16 @@ run config =
         |> Task.andThen
             (\confirmed ->
                 if confirmed then
-                    init config
+                    runNonInteractive config Path.empty
+                        |> Task.map (\_ -> {})
 
                 else
                     Stream.Log.line config.stdout "Ok, I won't do anything."
             )
 
 
-init : Config -> Task Error {}
-init config =
+runNonInteractive : Config -> Path -> Task Error Outline
+runNonInteractive config projectPath =
     let
         deps =
             dependenciesForPlatform config.platform
@@ -131,7 +133,7 @@ init config =
                         )
             )
         |> Task.sequence -- TODO: use concurrent
-        |> Task.andThen (generateGrenJson config)
+        |> Task.andThen (generateGrenJson config projectPath)
 
 
 dependenciesForPlatform : Platform -> Array PackageName
@@ -147,8 +149,8 @@ dependenciesForPlatform platform =
         [ PackageName.core, PackageName.node ]
 
 
-generateGrenJson : Config -> Array { name : PackageName, version : SemanticVersion } -> Task Error {}
-generateGrenJson config deps =
+generateGrenJson : Config -> Path -> Array { name : PackageName, version : SemanticVersion } -> Task Error Outline
+generateGrenJson config projectPath deps =
     let
         outline =
             if config.package then
@@ -197,8 +199,9 @@ generateGrenJson config deps =
         , cacheRoot = config.cacheRoot
         , interactive = config.interactive
         , useColor = config.useColor
+        , strictAppResolution = False
         }
-        { projectPath = Path.empty
+        { projectPath = projectPath
         , outline = outline
         }
         |> Task.mapError InstallError
@@ -233,10 +236,10 @@ generateGrenJson config deps =
                             |> Outline.toJson
                             |> Json.encode 4
                 in
-                Path.fromPosixString "gren.json"
+                Path.append (Path.fromPosixString "gren.json") projectPath
                     |> FileSystem.writeFile config.fsPermission (Bytes.fromString encodedOutline)
                     |> Task.mapError FileSystemFailure
-                    |> Task.map (\_ -> {})
+                    |> Task.map (\_ -> newOutline)
             )
 
 

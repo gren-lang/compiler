@@ -1,0 +1,144 @@
+module Terminal.Repl exposing
+    ( Config
+    , Error (..)
+    , setupGlobalReplProject
+    , prettifyError
+    )
+
+import CLI.PrettyPrinter as PP
+import ChildProcess
+import Stream
+import Stream.Log
+import Task exposing (Task)
+import FileSystem
+import FileSystem.Path as Path exposing (Path)
+import Bytes exposing (Bytes)
+import Json.Encode as Json
+import Compiler.Backend
+import Compiler.Platform as Platform exposing (Platform)
+import Compiler.PackageName as PackageName exposing (PackageName)
+import Compiler.Outline as Outline exposing (Outline)
+import Compiler.License as License
+import Compiler.Paths
+import Terminal.Help
+import Git
+import SemanticVersion exposing (SemanticVersion)
+import SemanticVersionRange
+import Dict
+import Meta
+import Terminal.PackageInstall as PackageInstall
+import Terminal.Init
+
+
+type alias Config =
+    { stdout : Stream.Writable Bytes
+    , stdin : Stream.Readable Bytes
+    , fsPermission : FileSystem.Permission
+    , cpPermission : ChildProcess.Permission
+    , cacheRoot : Compiler.Paths.CacheRoot
+    , useColor : Bool
+    }
+
+
+type Error
+    = FileSystemError { replOutlinePath : Path, error : FileSystem.Error }
+    | InvalidOutline Path
+    | InitFailure Path
+
+
+setupGlobalReplProject : Config -> Task Error { outline : Outline, projectPath : Path }
+setupGlobalReplProject config =
+    let
+        replProjectPath =
+            Compiler.Paths.repl config.cacheRoot
+
+        replOutlinePath =
+            Path.append (Path.fromPosixString "gren.json") replProjectPath
+    in
+    PackageInstall.readOutline config.fsPermission replOutlinePath
+        |> Task.onError
+            (\err ->
+                if FileSystem.errorIsNoSuchFileOrDirectory err then
+                    FileSystem.makeDirectory config.fsPermission { recursive = True } replProjectPath
+                        |> Task.mapError (\_ -> InitFailure replProjectPath)
+                        |> Task.andThen
+                            (\_ ->
+                                Terminal.Init.runNonInteractive
+                                    { stdout = config.stdout
+                                    , stdin = config.stdin
+                                    , cpPermission = config.cpPermission
+                                    , fsPermission = config.fsPermission
+                                    , cacheRoot = config.cacheRoot
+                                    , interactive = False
+                                    , useColor = config.useColor
+                                    , package = False
+                                    , platform = Platform.Node
+                                    }
+                                    replProjectPath
+                                    |> Task.map Ok
+                                    |> Task.mapError (\e ->
+                                        let
+                                            _ = Debug.log "error" e
+                                        in
+                                        InitFailure replProjectPath
+                                    )
+                            )
+
+                else
+                    Task.fail <| FileSystemError
+                        { replOutlinePath = replOutlinePath
+                        , error = err
+                        }
+            )
+        |> Task.andThen
+            (\decodeResult ->
+                when decodeResult is
+                    Ok outline ->
+                        Task.succeed
+                            { outline = outline
+                            , projectPath = replProjectPath
+                            }
+
+                    Err err ->
+                        Task.fail (InvalidOutline replProjectPath)
+            )
+
+
+prettifyError : Error -> PP.Document
+prettifyError error =
+    when error is
+        FileSystemError data ->
+            Terminal.Help.report
+                "CANNOT ACCESS REPL PROJECT"
+                (Just data.replOutlinePath)
+                (PP.verticalBlock
+                    [ PP.words "I tried to use a default project to run the repl in, but got this error:"
+                    , PP.empty
+                    , PP.words (FileSystem.errorToString data.error)
+                        |> PP.indent
+                    ]
+                )
+
+        InvalidOutline replOutlinePath ->
+            Terminal.Help.report
+                "CANNOT READ REPL OUTLINE"
+                (Just replOutlinePath)
+                (PP.verticalBlock
+                    [ PP.words "I tried to use a default project to run the repl in, but something is not right about the gren.json file there."
+                    , PP.empty
+                    , PP.words "You can try to fix this issue by deleting the repl project directory, then re-run this command."
+                    ]
+                )
+
+        InitFailure path ->
+            Terminal.Help.report
+                "CANNOT INITIALIZE REPL PROJECT"
+                (Just path)
+                (PP.verticalBlock
+                    [ PP.words "I tried to create a default project to run the repl in, but something went wrong during initialization."
+                    , PP.empty
+                    , PP.words "You can try to fix this issue by deleting the repl project directory, then re-run this command."
+                    , PP.empty
+                    , PP.words "If this error is consistent, you should consider filing a bug."
+                    ]
+                )

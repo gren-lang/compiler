@@ -14,6 +14,7 @@ import Terminal.Paths
 import Terminal.Init
 import Terminal.Run
 import Terminal.Help
+import Terminal.Repl
 import Compiler.Backend
 import Compiler.PackageName as PackageName exposing (PackageName)
 import Compiler.Paths
@@ -406,9 +407,25 @@ parseUserArgs model compilerPath =
                         |> Task.perform RunCmd
 
                 CliParser.Repl flags ->
-                    -- TODO: create repl project when no project outline is found
                     Terminal.PackageInstall.readProjectOutline model.fsPermission
-                        |> Task.mapError Terminal.PackageInstall.prettifyProjectOutlineError
+                        |> Task.onError
+                            (\err ->
+                                when err is
+                                    Terminal.PackageInstall.ReadProjectOutlineNoProject _ ->
+                                        Terminal.Repl.setupGlobalReplProject
+                                            { stdout = model.stdout
+                                            , stdin = model.stdin
+                                            , fsPermission = model.fsPermission
+                                            , cpPermission = model.cpPermission
+                                            , cacheRoot = model.cacheRoot
+                                            , useColor = model.useColor
+                                            }
+                                            |> Task.mapError Terminal.Repl.prettifyError
+
+                                    _ ->
+                                        Task.fail err
+                                            |> Task.mapError Terminal.PackageInstall.prettifyProjectOutlineError
+                            )
                         |> Task.andThen
                             (\projectOutline ->
                                 Terminal.PackageInstall.run
@@ -419,6 +436,7 @@ parseUserArgs model compilerPath =
                                     , useColor = model.useColor
                                     , stdout = model.stdout
                                     , stdin = model.stdin
+                                    , strictAppResolution = True
                                     }
                                     projectOutline
                                     |> Task.mapError Terminal.PackageInstall.prettifyError
@@ -552,6 +570,7 @@ parseUserArgs model compilerPath =
                                     , useColor = model.useColor
                                     , stdout = model.stdout
                                     , stdin = model.stdin
+                                    , strictAppResolution = True
                                     }
                                     projectOutline
                                     requestedPackage
@@ -788,6 +807,7 @@ resolveProject model =
                     , useColor = model.useColor
                     , stdout = model.stdout
                     , stdin = model.stdin
+                    , strictAppResolution = True
                     }
                     projectOutline
                     |> Task.mapError Terminal.PackageInstall.prettifyError

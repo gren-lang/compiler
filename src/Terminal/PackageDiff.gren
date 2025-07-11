@@ -116,6 +116,7 @@ runLocal config maybeVersion =
                                         , useColor = config.useColor
                                         , stdout = config.stdout
                                         , stdin = config.stdin
+                                        , strictAppResolution = True
                                         }
                                         { projectPath = projectPath, outline = outline }
                                         |> Task.mapError LocalInstallError
@@ -225,6 +226,7 @@ installHiddenProject config projectPath packageName packageVersion =
                                 , useColor = config.useColor
                                 , stdout = config.stdout
                                 , stdin = config.stdin
+                                , strictAppResolution = True
                                 }
                                 { projectPath = repoPath, outline = publishedOutline }
                                 |> Task.mapError HiddenProjectInstallError

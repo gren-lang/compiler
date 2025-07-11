@@ -102,6 +102,7 @@ makeProject config projectOutline =
                         , interactive = False
                         , stdout = nullStream |> Stream.writable
                         , stdin = nullStream |> Stream.readable
+                        , strictAppResolution = True
                         }
                         projectOutline
                             |> Task.mapError PackageInstallError

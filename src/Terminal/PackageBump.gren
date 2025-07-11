@@ -96,6 +96,7 @@ run config { projectPath, outline } =
                                 , useColor = config.useColor
                                 , stdout = config.stdout
                                 , stdin = config.stdin
+                                , strictAppResolution = True
                                 }
                                 { projectPath = projectPath, outline = outline }
                                 |> Task.mapError InstallError
@@ -142,6 +143,7 @@ run config { projectPath, outline } =
                                                     , useColor = config.useColor
                                                     , stdout = config.stdout
                                                     , stdin = config.stdin
+                                                    , strictAppResolution = True
                                                     }
                                                     { projectPath = repoPath, outline = publishedOutline }
                                                     |> Task.mapError (\_ -> PreviousPackageCorruption)
