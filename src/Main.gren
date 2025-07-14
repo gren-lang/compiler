@@ -553,6 +553,11 @@ parseUserArgs model compilerPath =
 
                 CliParser.PackageInstall Nothing ->
                     resolveProject model
+                        |> Task.andThen
+                            (\res ->
+                                Terminal.PackageInstall.cleanPackageDirectory model.fsPermission res
+                                    |> Task.mapError (\_ -> PP.empty)
+                            )
                         |> Task.map (\_ -> Cmd.none)
                         |> Task.onError endWithError
                         |> Task.perform RunCmd
@@ -597,6 +602,11 @@ parseUserArgs model compilerPath =
                                     projectOutline
                                     packageName
                                     |> Task.mapError Terminal.PackageUninstall.prettifyError
+                                    |> Task.andThen
+                                        (\res ->
+                                            Terminal.PackageInstall.cleanPackageDirectory model.fsPermission res
+                                                |> Task.mapError (\_ -> PP.empty)
+                                        )
                             )
                         |> Task.map (\_ -> Cmd.none)
                         |> Task.onError endWithError

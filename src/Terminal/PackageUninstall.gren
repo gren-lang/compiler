@@ -53,8 +53,7 @@ type Error
     | OutlineWriteError FileSystem.Error
 
 
--- TODO: Make sure to clean gren_packages folder
-run : Config -> Options -> PackageName -> Task Error {}
+run : Config -> Options -> PackageName -> Task Error Terminal.PackageInstall.PackageResolution
 run config ({ projectPath, outline } as opts) requestedPackage =
     let
         packageNameStr =
@@ -111,12 +110,13 @@ run config ({ projectPath, outline } as opts) requestedPackage =
                                 |> Task.mapError PackageInstallError
                         )
                     |> Task.andThen
-                        (\_resolved ->
+                        (\resolved ->
                             promptUpdateOutline config grenJsonPath finalOutline [ packageNameStr ]
+                                |> Task.map (\{} -> resolved)
                         )
 
 
-removeAppPackage : Config -> Path -> Path -> Outline.AppOutline -> String -> Bool -> Task Error {}
+removeAppPackage : Config -> Path -> Path -> Outline.AppOutline -> String -> Bool -> Task Error Terminal.PackageInstall.PackageResolution
 removeAppPackage config projectPath grenJsonPath appOutline packageNameStr isDirect =
     Stream.Log.line config.stdout ("Removing " ++ packageNameStr)
         |> Task.andThen
@@ -171,6 +171,7 @@ removeAppPackage config projectPath grenJsonPath appOutline packageNameStr isDir
                             |> Dict.keys
                 in
                 promptUpdateOutline config grenJsonPath finalOutline removedPackages
+                    |> Task.map (\{} -> resolved)
             )
 
 promptUpdateOutline : Config -> Path -> Outline -> Array String -> Task Error {}

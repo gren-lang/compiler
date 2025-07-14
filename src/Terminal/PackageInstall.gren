@@ -4,6 +4,8 @@ module Terminal.PackageInstall exposing
     , run
     , prettifyError
     --
+    , cleanPackageDirectory
+    --
     , AddPackageError (..)
     , addPackage
     , prettifyAddPackageError
@@ -699,6 +701,41 @@ prettifyError error =
                     ]
                 )
 
+-- CLEAN
+
+
+cleanPackageDirectory : FileSystem.Permission -> PackageResolution -> Task FileSystem.Error {}
+cleanPackageDirectory fsPermission resolution =
+    let
+        bundlesToKeep =
+            Dict.map
+                (\_ package ->
+                    { name = package.outline.name, version = package.outline.version }
+                )
+                resolution.dependencies
+                |> Dict.values
+                |> Array.map
+                    (\{ name, version } ->
+                        packageBundlePath name version resolution.projectPath
+                    )
+
+        packagesFolder =
+            Path.append (Path.fromPosixString "gren_packages") resolution.projectPath
+    in
+    FileSystem.listDirectory fsPermission packagesFolder
+        |> Task.andThen
+            (\files ->
+                Array.map .path files
+                    |> Array.map (Path.prepend packagesFolder)
+                    |> Array.keepIf
+                        (\bundlePath ->
+                            not (Array.member bundlePath bundlesToKeep)
+                        )
+                    |> Array.map (FileSystem.remove fsPermission { recursive = False, ignoreErrors = False })
+                    |> Task.sequence
+            )
+        |> Task.map (\_ -> {})
+
 
 -- ADD PACKAGE
 
@@ -773,6 +810,25 @@ addPackage config { projectPath, outline } requestedPackage =
                                             }
                                 in
                                 promptUpdateOutline config grenJsonPath newPackages finalOutline
+                                    |> Task.onError
+                                        (\err ->
+                                            when err is
+                                                AddPackageUserCancelled ->
+                                                    { resolved |
+                                                        dependencies =
+                                                            Dict.keepIf
+                                                                (\depNameStr _ ->
+                                                                    Array.member depNameStr originalPackages
+                                                                )
+                                                                resolved.dependencies
+                                                    }
+                                                        |> cleanPackageDirectory config.fsPermission
+                                                        |> Task.mapError (\_ -> err)
+                                                        |> Task.andThen (\_ -> Task.fail err)
+
+                                                _ ->
+                                                    Task.fail err
+                                        )
                             )
 
                 { direct = True } ->
@@ -843,12 +899,27 @@ addPackage config { projectPath, outline } requestedPackage =
                                 }
                                 |> Task.mapError AddPackageInstallError
                                 |> Task.andThen
-                                    (\_resolved ->
+                                    (\resolved ->
                                         let
                                             newPackages =
                                                 Dict.singleton packageNameStr packageVersion
                                         in
                                         promptUpdateOutline config grenJsonPath newPackages finalOutline
+                                            |> Task.onError
+                                                (\err ->
+                                                    when err is
+                                                        AddPackageUserCancelled ->
+                                                            { resolved |
+                                                                dependencies =
+                                                                    Dict.remove packageNameStr resolved.dependencies
+                                                            }
+                                                                |> cleanPackageDirectory config.fsPermission
+                                                                |> Task.mapError (\_ -> err)
+                                                                |> Task.andThen (\_ -> Task.fail err)
+
+                                                        _ ->
+                                                            Task.fail err
+                                                )
                                     )
                         )
 
