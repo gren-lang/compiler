@@ -117,7 +117,6 @@ canonicalizePort env (Src.Port (A.At region portName) tipe) =
                       [input] ->
                         case checkPayload input of
                           Right () ->
-                            -- TODO:
                             Result.ok (portName, Can.Task freeVars (Just input) incomingType ctipe)
                           Left (badType, err) ->
                             Result.throw (Error.PortPayloadInvalid region portName badType err)
