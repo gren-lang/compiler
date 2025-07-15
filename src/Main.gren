@@ -19,6 +19,7 @@ import Compiler.Backend
 import Compiler.PackageName as PackageName exposing (PackageName)
 import Compiler.Paths
 import Compiler.Outline as Outline exposing (Outline)
+import Compiler.ModuleName as ModuleName exposing (ModuleName)
 import Git
 import Init
 import Stream
@@ -465,6 +466,7 @@ parseUserArgs model compilerPath =
 
                 CliParser.Make flags ->
                     resolveProject model
+                        |> Task.andThen (verifyMakeFlags model.fsPermission flags.entryPoints flags.output)
                         |> Task.map
                             (\resolved ->
                                 Compiler.Backend.run
@@ -820,4 +822,104 @@ resolveProject model =
                     }
                     projectOutline
                     |> Task.mapError Terminal.PackageInstall.prettifyError
+            )
+
+
+verifyMakeFlags : FileSystem.Permission -> Array ModuleName  -> Maybe Compiler.Backend.MakeOutput -> Terminal.PackageInstall.PackageResolution -> Task PP.Document Terminal.PackageInstall.PackageResolution
+verifyMakeFlags fsPermission entryPoints maybeOutput resolution =
+    let
+        maybeOutputPath =
+            when maybeOutput is
+                Nothing ->
+                    Nothing
+
+                Just Compiler.Backend.StdOut ->
+                    Nothing
+                    
+                Just Compiler.Backend.DevNull ->
+                    Nothing
+
+                Just (Compiler.Backend.Html strPath) ->
+                    Just strPath
+
+                Just (Compiler.Backend.Js strPath) ->
+                    Just strPath
+
+                Just (Compiler.Backend.Exe strPath) ->
+                    Just strPath
+
+        compatibleOutputCheck =
+            when maybeOutputPath is
+                Nothing ->
+                    Task.succeed {}
+
+                Just strPath ->
+                    Node.getPlatform
+                        |> Task.map
+                            (\platform ->
+                                when platform is
+                                    Node.Win32 ->
+                                        Path.fromWin32String strPath
+
+                                    _ ->
+                                        Path.fromPosixString strPath
+                            )
+                        |> Task.andThen
+                            (\path ->
+                                FileSystem.metadata fsPermission { resolveLink = False } path
+                                    |> Task.mapError
+                                        (\fsError ->
+                                            Terminal.Help.report
+                                                "CANNOT ACCESS OUTPUT PATH"
+                                                (Just path)
+                                                (PP.verticalBlock
+                                                    [ PP.words
+                                                        ( "You have told me to compile this project to "
+                                                            ++ Path.toPosixString path
+                                                            ++ ", but I cannot access this path for some reason!"
+                                                        )
+                                                    ]
+                                                )
+                                        )
+                                    |> Task.andThen
+                                        (\metadata ->
+                                            if metadata.entityType == FileSystem.Directory then
+                                                Task.fail <|
+                                                    Terminal.Help.report
+                                                        "OUTPUT PATH IS A DIRECTORY"
+                                                        (Just path)
+                                                        (PP.verticalBlock
+                                                            [ PP.words
+                                                                ( "You have told me to compile this project to "
+                                                                    ++ Path.toPosixString path
+                                                                    ++ ", but this is a directory!"
+                                                                )
+                                                            ]
+                                                        )
+
+                                            else
+                                                Task.succeed {}
+                                        )
+                                )
+    in
+    compatibleOutputCheck
+        |> Task.andThen
+            (\{} ->
+                when Array.findFirst (\moduleName -> not <| Dict.member (ModuleName.toString moduleName) resolution.rootSources) entryPoints is
+                    Nothing ->
+                        Task.succeed resolution
+
+                    Just { value = moduleName } ->
+                        Task.fail <|
+                            Terminal.Help.report
+                                "MODULE DOES NOT EXIST"
+                                Nothing
+                                (PP.verticalBlock
+                                    [ PP.words
+                                        ( "You have told me to compile "
+                                            ++ ModuleName.toString moduleName
+                                            ++ ", but this module isn't defined in this project!"
+                                        )
+                                    ]
+                                )
             )
