@@ -464,7 +464,6 @@ parseUserArgs model compilerPath =
                         |> Task.perform RunCmd
 
                 CliParser.Make flags ->
-                    -- TODO: Verify correct gren compiler version
                     resolveProject model
                         |> Task.map
                             (\resolved ->

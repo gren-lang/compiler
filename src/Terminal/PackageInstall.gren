@@ -20,11 +20,13 @@ module Terminal.PackageInstall exposing
 
 import CLI.PrettyPrinter as PP
 import ChildProcess
+import Meta
 import Compiler.PackageName as PackageName exposing (PackageName)
 import Compiler.Paths
 import Compiler.Outline as Outline exposing (Outline)
 import Compiler.Dependencies
 import Compiler.Backend
+import Compiler.Platform as Platform exposing (Platform)
 import Git
 import Stream
 import Stream.Log
@@ -80,6 +82,9 @@ type PackageInstallError
     | PackageInstallCreateBundleError { package : PackageName, path : Path, error : Stream.Error }
     | PackageInstallMissingIndirectDependency { package : PackageName, version : SemanticVersionRange }
     | PackageInstallBadLocalDependency { package : PackageName, dependency : PackageName }
+    | PackageInstallRootIncompatibleCompiler SemanticVersionRange
+    | PackageInstallIncompatibleCompiler { package : PackageName, rootCompiler : SemanticVersionRange, packageCompiler : SemanticVersionRange }
+    | PackageInstallIncompatiblePlatform { package : PackageName, rootPlatform : Platform, packagePlatform : Platform }
 
 
 run : Config -> Options -> Task PackageInstallError PackageResolution
@@ -273,13 +278,60 @@ installStep : Config -> StepOptions -> Task PackageInstallError PackageResolutio
 installStep config opts =
     when Compiler.Dependencies.solve opts.rootPackages opts.solvedPackages is
         Compiler.Dependencies.Complete ->
-            Task.succeed
-                { projectPath = opts.projectPath
-                , outline = opts.outline
-                , rootSources = opts.projectSources
-                , dependencies = opts.loadedPackages
-                , didDownload = opts.startedDownload
-                }
+            let
+                { rootPlatform, rootCompiler } =
+                    when opts.outline is
+                        Outline.App appOutline ->
+                            { rootPlatform = appOutline.platform
+                            , rootCompiler = SemanticVersionRange.fromExact appOutline.grenVersion
+                            }
+
+                        Outline.Pkg pkgOutline ->
+                            { rootPlatform = pkgOutline.platform
+                            , rootCompiler = pkgOutline.grenVersion
+                            }
+
+                incompatiblePackages =
+                    opts.loadedPackages
+                        |> Dict.mapAndKeepJust
+                            (\_ package ->
+                                when SemanticVersionRange.intersect package.outline.grenVersion rootCompiler is
+                                    Nothing ->
+                                        Just <| PackageInstallIncompatibleCompiler
+                                            { package = package.outline.name
+                                            , rootCompiler = rootCompiler
+                                            , packageCompiler = package.outline.grenVersion
+                                            }
+
+                                    Just _ ->
+                                        if Platform.isCompatible rootPlatform package.outline.platform then
+                                            Nothing
+
+                                        else
+                                            Just <| PackageInstallIncompatiblePlatform
+                                                { package = package.outline.name
+                                                , rootPlatform = rootPlatform
+                                                , packagePlatform = package.outline.platform
+                                                }
+                            )
+            in
+            when SemanticVersionRange.intersect (SemanticVersionRange.fromExact Meta.version) rootCompiler is
+                Nothing ->
+                    Task.fail <| PackageInstallRootIncompatibleCompiler rootCompiler
+
+                Just _ ->
+                    when Dict.first incompatiblePackages is
+                        Just { value = incompatibility } ->
+                            Task.fail incompatibility
+
+                        Nothing ->
+                            Task.succeed
+                                { projectPath = opts.projectPath
+                                , outline = opts.outline
+                                , rootSources = opts.projectSources
+                                , dependencies = opts.loadedPackages
+                                , didDownload = opts.startedDownload
+                                }
 
         Compiler.Dependencies.Missing { name, version } ->
             let
@@ -698,6 +750,65 @@ prettifyError error =
                         Dependencies are normally not allowed to define local dependencies themselves unless
                         they happen to point to the same local dependency as the root project.
                         """
+                    ]
+                )
+
+        PackageInstallRootIncompatibleCompiler rootCompiler ->
+            Help.report
+                "INCOMPATIBLE COMPILER"
+                Nothing
+                (PP.verticalBlock
+                    [ PP.words
+                        ( "The gren.json file says this project is compatible with a Gren compiler in the "
+                            ++ SemanticVersionRange.toString rootCompiler
+                            ++ " version range."
+                        )
+                    , PP.empty
+                    , PP.words
+                        ( "However, you're currently using a Gren compiler with version "
+                            ++ SemanticVersion.toString Meta.version
+                            ++ ", which is not compatible."
+                        )
+                    ]
+                )
+
+        PackageInstallIncompatibleCompiler { package, rootCompiler, packageCompiler } ->
+            Help.report
+                "INCOMPATIBLE PACKAGE"
+                Nothing
+                (PP.verticalBlock
+                    [ PP.words
+                        ( PackageName.toString package
+                            ++ " requires a Gren compiler in the "
+                            ++ SemanticVersionRange.toString packageCompiler
+                            ++ " version range."
+                        )
+                    , PP.empty
+                    , PP.words
+                        ( "However, the current project requires a compiler in the "
+                            ++ SemanticVersionRange.toString rootCompiler
+                            ++ ", which is not compatible."
+                        )
+                    ]
+                )
+
+        PackageInstallIncompatiblePlatform { package, rootPlatform, packagePlatform } ->
+            Help.report
+                "INCOMPATIBLE PACKAGE"
+                Nothing
+                (PP.verticalBlock
+                    [ PP.words
+                        ( PackageName.toString package
+                            ++ " targets the "
+                            ++ Platform.toString packagePlatform
+                            ++ " platform."
+                        )
+                    , PP.empty
+                    , PP.words
+                        ( "However, the current project targets the "
+                            ++ Platform.toString rootPlatform
+                            ++ ", which is not compatible."
+                        )
                     ]
                 )
 
