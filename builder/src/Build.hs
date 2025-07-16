@@ -16,7 +16,7 @@ module Build
     DocsGoal (..),
     getRootNames,
     Source (..),
-    Sources
+    Sources,
   )
 where
 
@@ -110,10 +110,10 @@ forkWithKey func dict =
 -- FROM EXPOSED
 
 data Source = Source
-    { _source_path :: FilePath
-    , _source_data :: ByteString
-    }
-    deriving (Show)
+  { _source_path :: FilePath,
+    _source_data :: ByteString
+  }
+  deriving (Show)
 
 type Sources = Map ModuleName.Raw Source
 
@@ -264,32 +264,32 @@ crawlDeps env mvar sources deps blockedValue =
 
 crawlModule :: Env -> MVar StatusDict -> Sources -> DocsNeed -> ModuleName.Raw -> IO Status
 crawlModule env@(Env _ _ projectType _ _ locals foreigns) mvar sources docsNeed name =
-     case Map.lookup name sources of
-        Just source ->
-          case Map.lookup name foreigns of
-            Just (Details.Foreign dep deps) ->
-              return $ SBadImport $ Import.Ambiguous (_source_path source) [] dep deps
-            Nothing ->
-              if Name.isKernel name
-                then
-                  if Parse.isKernel projectType
-                    then return SKernel
-                    else return $ SBadImport Import.NotFound
-                else case Map.lookup name locals of
-                  Nothing ->
-                    crawlFile env mvar sources docsNeed name source
-                  Just local@(Details.Local _ deps _) ->
-                    crawlDeps env mvar sources deps (SCached local)
+  case Map.lookup name sources of
+    Just source ->
+      case Map.lookup name foreigns of
+        Just (Details.Foreign dep deps) ->
+          return $ SBadImport $ Import.Ambiguous (_source_path source) [] dep deps
         Nothing ->
-          case Map.lookup name foreigns of
-            Just (Details.Foreign dep deps) ->
-              case deps of
-                [] ->
-                  return $ SForeign dep
-                d : ds ->
-                  return $ SBadImport $ Import.AmbiguousForeign dep d ds
-            Nothing ->
-              return $ SBadImport Import.NotFound
+          if Name.isKernel name
+            then
+              if Parse.isKernel projectType
+                then return SKernel
+                else return $ SBadImport Import.NotFound
+            else case Map.lookup name locals of
+              Nothing ->
+                crawlFile env mvar sources docsNeed name source
+              Just local@(Details.Local _ deps _) ->
+                crawlDeps env mvar sources deps (SCached local)
+    Nothing ->
+      case Map.lookup name foreigns of
+        Just (Details.Foreign dep deps) ->
+          case deps of
+            [] ->
+              return $ SForeign dep
+            d : ds ->
+              return $ SBadImport $ Import.AmbiguousForeign dep d ds
+        Nothing ->
+          return $ SBadImport Import.NotFound
 
 crawlFile :: Env -> MVar StatusDict -> Sources -> DocsNeed -> ModuleName.Raw -> Source -> IO Status
 crawlFile env@(Env _ _ projectType _ _ _ _) mvar sources docsNeed expectedName (Source path source) =

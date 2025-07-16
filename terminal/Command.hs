@@ -11,6 +11,7 @@ module Command
   )
 where
 
+import Build qualified
 import Data.ByteString.Char8 qualified as BS
 import Data.Map (Map)
 import Data.Utf8 qualified as Utf8
@@ -23,7 +24,6 @@ import Gren.Package qualified as Package
 import Gren.Version qualified as Version
 import Json.Decode qualified as Json
 import Make qualified
-import Build qualified
 
 data Command
   = Repl ReplFlags
