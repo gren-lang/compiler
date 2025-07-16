@@ -825,6 +825,7 @@ resolveProject model =
             )
 
 
+-- TODO: Move to gren-lang/compiler-node
 verifyMakeFlags : FileSystem.Permission -> Array ModuleName  -> Maybe Compiler.Backend.MakeOutput -> Terminal.PackageInstall.PackageResolution -> Task PP.Document Terminal.PackageInstall.PackageResolution
 verifyMakeFlags fsPermission entryPoints maybeOutput resolution =
     let
