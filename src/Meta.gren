@@ -9,6 +9,6 @@ import SemanticVersion exposing (SemanticVersion)
 version : SemanticVersion
 version =
     { major = 0
-    , minor = 5
-    , patch = 5
+    , minor = 6
+    , patch = 0
     }

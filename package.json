@@ -1,6 +1,6 @@
 {
   "name": "gren-lang",
-  "version": "0.5.5",
+  "version": "0.6.0",
   "description": "Compiler for the Gren programming language",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
