@@ -19,7 +19,7 @@
     "app"
   ],
   "bin": {
-    "gren": "app"
+    "gren": "bin/compiler"
   },
   "keywords": [
     "gren",
