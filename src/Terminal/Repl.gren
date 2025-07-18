@@ -77,9 +77,6 @@ setupGlobalReplProject config =
                                     replProjectPath
                                     |> Task.map Ok
                                     |> Task.mapError (\e ->
-                                        let
-                                            _ = Debug.log "error" e
-                                        in
                                         InitFailure replProjectPath
                                     )
                             )

@@ -4,7 +4,7 @@
   "description": "Compiler for the Gren programming language",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "prepublishOnly": "npx --package=gren-lang@0.5 gren make src/Main.gren --optimize --output=app && terser app -c -m -o app",
+    "prepublishOnly": "scripts/prod_build.sh",
     "build": "npx --package=gren-lang@0.5 gren make src/Main.gren --output=app",
     "build:sourcemaps": "npx --package=gren-lang@0.5 gren make src/Main.gren --output=app --sourcemaps",
     "prettier": "prettier -w \"!**/*.json\" .",
@@ -24,7 +24,10 @@
   "keywords": [
     "gren",
     "lang",
-    "language"
+    "language",
+    "compiler",
+    "functional",
+    "programming"
   ],
   "author": "Robin Heggelund Hansen",
   "license": "BSD-3-Clause",
