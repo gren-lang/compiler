@@ -7,8 +7,8 @@
     "prepublishOnly": "scripts/prod_build.sh",
     "build": "npx --package=gren-lang@0.5 gren make src/Main.gren --output=app",
     "build:sourcemaps": "npx --package=gren-lang@0.5 gren make src/Main.gren --output=app --sourcemaps",
-    "prettier": "prettier -w \"!**/*.json\" .",
-    "prettier:check": "prettier -c \"!**/*.json\" ."
+    "prettier": "prettier -w index.js",
+    "prettier:check": "prettier -c index.js"
   },
   "repository": {
     "type": "git",
