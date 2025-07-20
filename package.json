@@ -16,7 +16,7 @@
   },
   "files": [
     "index.js",
-    "app"
+    "bin/compiler"
   ],
   "bin": {
     "gren": "bin/compiler"
