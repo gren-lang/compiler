@@ -14,6 +14,7 @@
     "type": "git",
     "url": "git+https://github.com/gren-lang/compiler.git"
   },
+  "funding": "https://ko-fi.com/gren",
   "files": [
     "index.js",
     "bin/compiler"
