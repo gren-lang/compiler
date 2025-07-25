@@ -244,7 +244,7 @@ verifyVersion vsn publishedVersions =
 verifyReadme : FileSystem.Permission -> Path -> Task Error {}
 verifyReadme permission projectPath =
     let
-        readmePath = Path.append (Path.fromPosixString "README") projectPath
+        readmePath = Path.append (Path.fromPosixString "README.md") projectPath
     in
     FileSystem.readFile permission readmePath
         |> Task.mapError FailedToReadReadme
