@@ -122,7 +122,13 @@ init env =
                 , interactive = interactiveTerminal
                 , useColor = useColor
                 , cacheRoot = cacheRoot
-                , backendPath = backendBinary
+                , backendPath =
+                    when maybePaths is
+                        Just paths ->
+                            paths.localPath
+
+                        Nothing ->
+                            backendBinary
                 , fsPermission = fsPermission
                 , cpPermission = cpPermission
                 , httpPermission = httpPermission

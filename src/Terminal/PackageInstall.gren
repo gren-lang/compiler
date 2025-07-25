@@ -643,7 +643,7 @@ prettifyError error =
                 (Just path)
                 (PP.verticalBlock
                     [ PP.block
-                        [ PP.words ("An error occured while I was loading the bundle for "
+                        [ PP.words "An error occured while I was loading the bundle for "
                         , PP.text (" " ++ PackageName.toString package)
                             |> PP.color PP.Green
                         , PP.text "."
