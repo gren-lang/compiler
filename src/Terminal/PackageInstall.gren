@@ -259,6 +259,11 @@ run config { projectPath, outline } =
                 else
                     Task.succeed resolution
             )
+        |> Task.onError
+            (\err ->
+                Stream.Log.line config.stdout ""
+                    |> Task.andThen (\_ -> Task.fail err)
+            )
 
 
 type alias StepOptions =
@@ -637,7 +642,12 @@ prettifyError error =
                 "FAILED TO LOAD PACKAGE BUNDLE"
                 (Just path)
                 (PP.verticalBlock
-                    [ PP.words ("An error occured while I was loading the bundle for " ++ PackageName.toString package ++ ".")
+                    [ PP.block
+                        [ PP.words ("An error occured while I was loading the bundle for "
+                        , PP.text (" " ++ PackageName.toString package)
+                            |> PP.color PP.Green
+                        , PP.text "."
+                        ]
                     , PP.empty
                     , PP.words "The error is:"
                     , PP.empty
@@ -653,7 +663,12 @@ prettifyError error =
                 "FAILED TO LOAD PACKAGE BUNDLE"
                 (Just path)
                 (PP.verticalBlock
-                    [ PP.words ("An error occured while I was loading the bundle for " ++ PackageName.toString package ++ ".")
+                    [ PP.block
+                        [ PP.words "An error occured while I was loading the bundle for"
+                        , PP.text (" " ++ PackageName.toString package)
+                            |> PP.color PP.Green
+                        , PP.text "."
+                        ]
                     , PP.empty
                     , PP.words "The error is:"
                     , PP.empty
@@ -669,10 +684,12 @@ prettifyError error =
                 "CANNOT FIND COMPATIBLE VERSION"
                 Nothing
                 (PP.verticalBlock
-                    [ PP.words "I cannot find a version of"
-                    , PP.text (" " ++ PackageName.toString package ++ " ")
-                        |> PP.color PP.Green
-                    , PP.words "that is compatible with your existing dependencies."
+                    [ PP.block
+                        [ PP.words "I cannot find a version of"
+                        , PP.text (" " ++ PackageName.toString package ++ " ")
+                            |> PP.color PP.Green
+                        , PP.words "that is compatible with your existing dependencies."
+                        ]
                     , PP.empty
                     , PP.words "These are the confliction versions:"
                     , PP.empty
@@ -692,10 +709,15 @@ prettifyError error =
 
         PackageInstallFileSystemError { package, error = fsErr } ->
             Help.report
-                ("FAILED TO LOAD " ++ PackageName.toString package)
+                "FAILED TO LOAD PACKAGE"
                 Nothing
                 (PP.verticalBlock
-                    [ PP.words "An error occured while installing this package."
+                    [ PP.block
+                        [ PP.words "An error occured while installing"
+                        , PP.text (" " ++ PackageName.toString package)
+                            |> PP.color PP.Green
+                        , PP.text "."
+                        ]
                     , PP.empty
                     , PP.words "The error is:"
                     , PP.empty
@@ -706,10 +728,15 @@ prettifyError error =
 
         PackageInstallCreateBundleError { package, path, error = streamErr } ->
             Help.report
-                ("FAILED TO CREATE BUNDLE FOR " ++ PackageName.toString package)
+                "FAILED TO CREATE PACKAGE BUNDLE"
                 (Just path)
                 (PP.verticalBlock
-                    [ PP.words "An error occured while I was creating the bundle for this package."
+                    [ PP.block
+                        [ PP.words "An error occured while I was creating the bundle for"
+                        , PP.text (" " ++ PackageName.toString package)
+                            |> PP.color PP.Green
+                        , PP.text "."
+                        ]
                     , PP.empty
                     , PP.words "The error is:"
                     , PP.empty
@@ -738,12 +765,14 @@ prettifyError error =
                 "INDIRECT LOCAL DEPENDENCY"
                 Nothing
                 (PP.verticalBlock
-                    [ PP.words
-                        ( PackageName.toString package
-                            ++ " has defined a local dependency on "
-                            ++ PackageName.toString dependency
-                            ++ " with an incompatible source."
-                        )
+                    [ PP.block
+                        [ PP.text (PackageName.toString package ++ " ")
+                            |> PP.color PP.Green
+                        , PP.words "has defined a local dependency on"
+                        , PP.text (" " ++ PackageName.toString dependency ++ " ")
+                            |> PP.color PP.Green
+                        , PP.words "with an incompatible source."
+                        ]
                     , PP.empty
                     , PP.words
                         """
