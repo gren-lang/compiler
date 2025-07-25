@@ -1952,8 +1952,8 @@ makeToReport make =
         Nothing
         "What should I make though? I need specific files like:"
         [ D.vcat
-            [ D.indent 4 $ D.green "gren make src/Main.gren",
-              D.indent 4 $ D.green "gren make src/This.gren src/That.gren"
+            [ D.indent 4 $ D.green "gren make Main",
+              D.indent 4 $ D.green "gren make This That"
             ],
           D.reflow $
             "I recommend reading through https://gren-lang.org/learn for guidance on what to\
@@ -1965,8 +1965,8 @@ makeToReport make =
         Nothing
         "What should I make though? I need specific files like:"
         [ D.vcat
-            [ D.indent 4 $ D.green "gren make src/Main.gren",
-              D.indent 4 $ D.green "gren make src/This.gren src/That.gren"
+            [ D.indent 4 $ D.green "gren make Main",
+              D.indent 4 $ D.green "gren make This That"
             ],
           D.reflow $
             "You can also entries to the \"exposed-modules\" list in your gren.json file, and\
