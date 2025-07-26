@@ -279,6 +279,7 @@ type alias StepOptions =
     }
 
 
+-- TODO: Refactor into smaller functions
 installStep : Config -> StepOptions -> Task PackageInstallError PackageResolution
 installStep config opts =
     when Compiler.Dependencies.solve opts.rootPackages opts.solvedPackages is
@@ -429,160 +430,178 @@ installStep config opts =
                     let
                         lowerBound =
                             SemanticVersionRange.lowerBound version
-
-                        bundlePath =
-                            packageBundlePath name lowerBound opts.projectPath
-
-                        packageReportTask =
-                            Stream.Log.string config.stdout ("    " ++ PackageName.toString name ++ " ")
-
-                        reportTask =
-                            if opts.startedDownload then
-                                packageReportTask
-
-                            else
-                                Stream.Log.line config.stdout "Starting downloads...\n"
-                                    |> Task.andThen (\_ -> packageReportTask)
                     in
-                    reportTask
-                        |> Task.andThen
-                            (\_ ->
-                                Git.clonePackageCached
-                                    { childProcessPermission = config.cpPermission
-                                    , fileSystemPermission = config.fsPermission
-                                    , cacheRoot = config.cacheRoot
-                                    , packageName = name
-                                    , version = lowerBound
-                                    }
-                                    |> Task.mapError
-                                        (\err ->
-                                            PackageInstallGitError
-                                                { package = name
-                                                , error = err
-                                                }
-                                        )
-                            )
-                        |> Task.andThen (\repoPath ->
-                            (Path.append (Path.fromPosixString "gren.json") repoPath)
-                                |> readOutline config.fsPermission
-                                |> Task.mapError
-                                    (\err ->
-                                        PackageInstallFileSystemError
-                                            { package = name
-                                            , error = err
-                                            }
-                                    )
-                                |> Task.andThen
-                                    (\decodeResult ->
-                                        when decodeResult is
-                                            Ok (Outline.Pkg packageOutline) ->
-                                                Outline.findSourceFiles config.fsPermission (Outline.Pkg packageOutline) repoPath
-                                                    |> Task.mapError
-                                                        (\err ->
-                                                            PackageInstallFailedToFindSourceFiles
-                                                                { package = name
-                                                                , error = err
-                                                                }
-                                                        )
-                                                    |> Task.map
-                                                        (\files ->
-                                                            let
-                                                                sources =
-                                                                    Array.foldl
-                                                                        (\{ moduleName, source } dict ->
-                                                                            Dict.set moduleName source dict
-                                                                        )
-                                                                        Dict.empty
-                                                                        files
-                                                            in
-                                                            { name = name
-                                                            , outline = packageOutline
-                                                            , sources = sources
-                                                            , data =
-                                                                packageBundleEncoder packageOutline sources
-                                                                    |> Json.encode 0
-                                                            }
-                                                        )
-
-                                            Ok (Outline.App _) ->
-                                                Task.fail <| PackageInstallInvalidOutline
-                                                    { package = name
-                                                    , message = "Expected package-type outline."
-                                                    }
-
-                                            Err err ->
-                                                Task.fail <| PackageInstallInvalidOutline
-                                                    { package = name
-                                                    , message = Decode.errorToString err
-                                                    }
-                                    )
-                        )
-                        |> Task.andThen
-                            (\pkg ->
-                                let
-                                    packagesDir =
-                                        Path.append (Path.fromPosixString "gren_packages") opts.projectPath
-                                in
-                                packagesDir
-                                    |> FileSystem.makeDirectory config.fsPermission { recursive = False }
-                                    |> Task.onError
-                                        (\err ->
-                                            if FileSystem.errorIsFileExists err then
-                                                Task.succeed packagesDir
-
-                                            else
-                                                Task.fail <| PackageInstallFileSystemError
-                                                    { package = name
-                                                    , error = err
-                                                    }
-                                        )
-                                    |> Task.andThen
-                                        (\_ ->
-                                            FileSystem.writeFileStream config.fsPermission bundlePath
-                                                |> Task.mapError
-                                                    (\err ->
-                                                        PackageInstallFileSystemError
-                                                            { package = name
-                                                            , error = err
-                                                            }
-                                                    )
-                                        )
-                                    |> Task.andThen
-                                        (\stream ->
-                                            Stream.fromArray [ pkg.data ]
-                                                |> Task.andThen (Stream.awaitAndPipeThrough Stream.textEncoder)
-                                                |> Task.andThen (Stream.awaitAndPipeThrough Stream.gzipCompression)
-                                                |> Task.andThen (Stream.pipeTo stream)
-                                                |> Task.mapError
-                                                    (\ err ->
-                                                        PackageInstallCreateBundleError
-                                                            { package = name
-                                                            , path = bundlePath
-                                                            , error = err
-                                                            }
-                                                    )
-                                        )
-                                    |> Task.andThen
-                                        (\_ ->
-                                            PP.text "✔"
-                                                |> PP.color PP.Green
-                                                |> PP.toString
-                                                |> Stream.Log.line config.stdout 
-                                        )
-                                    |> Task.map (\_ -> pkg)
-                            )
+                    loadPackageFromBundle config.fsPermission name lowerBound opts.projectPath
                         |> Task.map
                             (\pkg ->
                                 { opts
-                                    | startedDownload = True
-                                    , loadedPackages =
+                                    | loadedPackages =
                                         Dict.set
                                             (PackageName.toString name)
                                             { outline = pkg.outline, sources = pkg.sources }
                                             opts.loadedPackages
                                 }
                             )
+                        |> Task.onError
+                            (\_loadError ->
+                                {- TODO: Assuming bundle doesn't exist, creating...
+                                -}
+                                let
+                                    bundlePath =
+                                        packageBundlePath name lowerBound opts.projectPath
+
+                                    packageReportTask =
+                                        Stream.Log.string config.stdout ("    " ++ PackageName.toString name ++ " ")
+
+                                    reportTask =
+                                        if opts.startedDownload then
+                                            packageReportTask
+
+                                        else
+                                            Stream.Log.line config.stdout "Starting downloads...\n"
+                                                |> Task.andThen (\_ -> packageReportTask)
+                                in
+                                reportTask
+                                    |> Task.andThen
+                                        (\_ ->
+                                            Git.clonePackageCached
+                                                { childProcessPermission = config.cpPermission
+                                                , fileSystemPermission = config.fsPermission
+                                                , cacheRoot = config.cacheRoot
+                                                , packageName = name
+                                                , version = lowerBound
+                                                }
+                                                |> Task.mapError
+                                                    (\err ->
+                                                        PackageInstallGitError
+                                                            { package = name
+                                                            , error = err
+                                                            }
+                                                    )
+                                        )
+                                    |> Task.andThen (\repoPath ->
+                                        (Path.append (Path.fromPosixString "gren.json") repoPath)
+                                            |> readOutline config.fsPermission
+                                            |> Task.mapError
+                                                (\err ->
+                                                    PackageInstallFileSystemError
+                                                        { package = name
+                                                        , error = err
+                                                        }
+                                                )
+                                            |> Task.andThen
+                                                (\decodeResult ->
+                                                    when decodeResult is
+                                                        Ok (Outline.Pkg packageOutline) ->
+                                                            Outline.findSourceFiles config.fsPermission (Outline.Pkg packageOutline) repoPath
+                                                                |> Task.mapError
+                                                                    (\err ->
+                                                                        PackageInstallFailedToFindSourceFiles
+                                                                            { package = name
+                                                                            , error = err
+                                                                            }
+                                                                    )
+                                                                |> Task.map
+                                                                    (\files ->
+                                                                        let
+                                                                            sources =
+                                                                                Array.foldl
+                                                                                    (\{ moduleName, source } dict ->
+                                                                                        Dict.set moduleName source dict
+                                                                                    )
+                                                                                    Dict.empty
+                                                                                    files
+                                                                        in
+                                                                        { name = name
+                                                                        , outline = packageOutline
+                                                                        , sources = sources
+                                                                        , data =
+                                                                            packageBundleEncoder packageOutline sources
+                                                                                |> Json.encode 0
+                                                                        }
+                                                                    )
+
+                                                        Ok (Outline.App _) ->
+                                                            Task.fail <| PackageInstallInvalidOutline
+                                                                { package = name
+                                                                , message = "Expected package-type outline."
+                                                                }
+
+                                                        Err err ->
+                                                            Task.fail <| PackageInstallInvalidOutline
+                                                                { package = name
+                                                                , message = Decode.errorToString err
+                                                                }
+                                                )
+                                    )
+                                    |> Task.andThen
+                                        (\pkg ->
+                                            let
+                                                packagesDir =
+                                                    Path.append (Path.fromPosixString "gren_packages") opts.projectPath
+                                            in
+                                            packagesDir
+                                                |> FileSystem.makeDirectory config.fsPermission { recursive = False }
+                                                |> Task.onError
+                                                    (\err ->
+                                                        if FileSystem.errorIsFileExists err then
+                                                            Task.succeed packagesDir
+
+                                                        else
+                                                            Task.fail <| PackageInstallFileSystemError
+                                                                { package = name
+                                                                , error = err
+                                                                }
+                                                    )
+                                                |> Task.andThen
+                                                    (\_ ->
+                                                        FileSystem.writeFileStream config.fsPermission bundlePath
+                                                            |> Task.mapError
+                                                                (\err ->
+                                                                    PackageInstallFileSystemError
+                                                                        { package = name
+                                                                        , error = err
+                                                                        }
+                                                                )
+                                                    )
+                                                |> Task.andThen
+                                                    (\stream ->
+                                                        Stream.fromArray [ pkg.data ]
+                                                            |> Task.andThen (Stream.awaitAndPipeThrough Stream.textEncoder)
+                                                            |> Task.andThen (Stream.awaitAndPipeThrough Stream.gzipCompression)
+                                                            |> Task.andThen (Stream.pipeTo stream)
+                                                            |> Task.mapError
+                                                                (\ err ->
+                                                                    PackageInstallCreateBundleError
+                                                                        { package = name
+                                                                        , path = bundlePath
+                                                                        , error = err
+                                                                        }
+                                                                )
+                                                    )
+                                                |> Task.andThen
+                                                    (\_ ->
+                                                        PP.text "✔"
+                                                            |> PP.color PP.Green
+                                                            |> PP.toString
+                                                            |> Stream.Log.line config.stdout 
+                                                    )
+                                                |> Task.map (\_ -> pkg)
+                                        )
+                                    |> Task.map
+                                        (\pkg ->
+                                            { opts
+                                                | startedDownload = True
+                                                , loadedPackages =
+                                                    Dict.set
+                                                        (PackageName.toString name)
+                                                        { outline = pkg.outline, sources = pkg.sources }
+                                                        opts.loadedPackages
+                                            }
+                                        )
+                            )
                         |> Task.andThen (installStep config)
+                    
 
         Compiler.Dependencies.Conflict conflict ->
             Task.fail <| PackageInstallConflict
