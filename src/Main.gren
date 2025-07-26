@@ -874,38 +874,49 @@ verifyMakeFlags fsPermission entryPoints maybeOutput resolution =
                         |> Task.andThen
                             (\path ->
                                 FileSystem.metadata fsPermission { resolveLink = False } path
-                                    |> Task.mapError
+                                    |> Task.map Just
+                                    |> Task.onError
                                         (\fsError ->
-                                            Terminal.Help.report
-                                                "CANNOT ACCESS OUTPUT PATH"
-                                                (Just path)
-                                                (PP.verticalBlock
-                                                    [ PP.words
-                                                        ( "You have told me to compile this project to "
-                                                            ++ Path.toPosixString path
-                                                            ++ ", but I cannot access this path for some reason!"
-                                                        )
-                                                    ]
-                                                )
-                                        )
-                                    |> Task.andThen
-                                        (\metadata ->
-                                            if metadata.entityType == FileSystem.Directory then
+                                            if FileSystem.errorIsNoSuchFileOrDirectory fsError then
+                                                Task.succeed Nothing
+
+                                            else
                                                 Task.fail <|
                                                     Terminal.Help.report
-                                                        "OUTPUT PATH IS A DIRECTORY"
+                                                        "CANNOT ACCESS OUTPUT PATH"
                                                         (Just path)
                                                         (PP.verticalBlock
                                                             [ PP.words
                                                                 ( "You have told me to compile this project to "
                                                                     ++ Path.toPosixString path
-                                                                    ++ ", but this is a directory!"
+                                                                    ++ ", but I cannot access this path for some reason!"
                                                                 )
                                                             ]
                                                         )
+                                        )
+                                    |> Task.andThen
+                                        (\maybeMeta ->
+                                            when maybeMeta is
+                                                Nothing ->
+                                                    Task.succeed {}
 
-                                            else
-                                                Task.succeed {}
+                                                Just metadata ->
+                                                    if metadata.entityType == FileSystem.Directory then
+                                                        Terminal.Help.report
+                                                            "OUTPUT PATH IS A DIRECTORY"
+                                                            (Just path)
+                                                            (PP.verticalBlock
+                                                                [ PP.words
+                                                                    ( "You have told me to compile this project to "
+                                                                        ++ Path.toPosixString path
+                                                                        ++ ", but this is a directory!"
+                                                                    )
+                                                                ]
+                                                            )
+                                                            |> Task.fail
+
+                                                    else
+                                                        Task.succeed {}
                                         )
                                 )
     in
