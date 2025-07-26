@@ -33,6 +33,9 @@ jobs:
       - name: Validate formatting
         run: devbox run format:check
 
+      - name: Compile frontend
+        run: devbox run -- npm run build
+
   linux:
     runs-on: ubuntu-latest
     container: alpine:3.17
