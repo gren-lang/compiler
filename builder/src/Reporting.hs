@@ -77,7 +77,15 @@ attemptWithStyle style toReport work =
     result <- work `catch` reportExceptionsNicely
     case result of
       Right a ->
-        return a
+        case style of
+          Silent ->
+            return a
+          Json ->
+            return a
+          Terminal mvar ->
+            do
+              readMVar mvar
+              return a
       Left x ->
         case style of
           Silent ->
