@@ -471,7 +471,20 @@ parseUserArgs model compilerPath =
                         |> Task.perform RunCmd
 
                 CliParser.Make flags ->
-                    resolveProject model
+                    let
+                        determineOutputStreamForResolve =
+                            when flags.output is
+                                Just Compiler.Backend.StdOut ->
+                                    -- We only want to print the actual generated JS
+                                    -- in this case, ignoring everything else
+                                    Terminal.Help.getNullStream
+                                        |> Task.map Stream.writable
+
+                                _ ->
+                                    Task.succeed model.stdout
+                    in
+                    determineOutputStreamForResolve
+                        |> Task.andThen (\output -> resolveProject { model | stdout = output })
                         |> Task.andThen (verifyMakeFlags model.fsPermission flags.entryPoints flags.output)
                         |> Task.map
                             (\resolved ->
@@ -534,7 +547,20 @@ parseUserArgs model compilerPath =
                         |> Task.perform RunCmd
 
                 CliParser.Docs flags ->
-                    resolveProject model
+                    let
+                        determineOutputStreamForResolve =
+                            when flags.output is
+                                Just Compiler.Backend.DocsStdOut ->
+                                    -- We only want to print the actual generated JS
+                                    -- in this case, ignoring everything else
+                                    Terminal.Help.getNullStream
+                                        |> Task.map Stream.writable
+
+                                _ ->
+                                    Task.succeed model.stdout
+                    in
+                    determineOutputStreamForResolve
+                        |> Task.andThen (\output -> resolveProject { model | stdout = output })
                         |> Task.map
                             (\resolved ->
                                 Compiler.Backend.run

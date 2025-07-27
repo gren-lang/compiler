@@ -3,6 +3,7 @@ module Terminal.Help exposing
     , prettyPrint
     , report
     , makeLink
+    , getNullStream
     )
 
 import CLI.PrettyPrinter as PP
@@ -124,3 +125,10 @@ makeNakedLink filename =
         , PP.text (SemanticVersion.toString Meta.version)
         , PP.text ("/hints/" ++ filename ++ ".md")
         ]
+
+
+getNullStream : Task x (Stream.Transformation Bytes Bytes)
+getNullStream =
+    Stream.customTransformation
+        (\state _ -> Stream.UpdateState state)
+        Bytes.empty
