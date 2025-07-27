@@ -20,13 +20,8 @@ import Gren.Outline qualified as Outline
 import Gren.Package qualified as Pkg
 import Gren.Version qualified as V
 import Reporting qualified
-import Reporting.Doc ((<+>))
-import Reporting.Doc qualified as D
 import Reporting.Exit qualified as Exit
-import Reporting.Exit.Help qualified as Help
 import Reporting.Task qualified as Task
-import System.IO qualified as IO
-import System.Info qualified as Info
 
 data Flags = Flags
   { _project_path :: String,
@@ -64,9 +59,7 @@ validate (Flags root knownVersions (Command.ProjectInfo currentOutline currentSo
 
 verifyBuild :: FilePath -> Outline.PkgOutline -> Build.Sources -> Map Pkg.Name Details.Dependency -> Task.Task Exit.Validate Docs.Documentation
 verifyBuild root outline sources solution =
-  reportBuildCheck $
-    Task.run $
-      buildProject root outline sources solution
+  buildProject root outline sources solution
 
 buildProject :: FilePath -> Outline.PkgOutline -> Build.Sources -> Map Pkg.Name Details.Dependency -> Task.Task Exit.Validate Docs.Documentation
 buildProject root pkgOutline@(Outline.PkgOutline _ _ _ _ _ _ _ _) sources solution =
@@ -111,52 +104,3 @@ verifyBump vsn newDocs oldDocs knownVersions =
                   return $
                     Left $
                       Exit.ValidateBadBump old new magnitude realNew (Diff.toMagnitude changes)
-
--- REPORTING PHASES
-
-reportBuildCheck :: IO (Either x a) -> Task.Task x a
-reportBuildCheck =
-  reportCheck
-    "Verifying documentation..."
-    "Verified documentation"
-    "Problem with documentation"
-
-reportCheck :: String -> String -> String -> IO (Either x a) -> Task.Task x a
-reportCheck waiting success failure work =
-  reportCustomCheck waiting (\_ -> success) failure work
-
-reportCustomCheck :: String -> (a -> String) -> String -> IO (Either x a) -> Task.Task x a
-reportCustomCheck waiting success failure work =
-  let putFlush doc =
-        Help.toStdout doc >> IO.hFlush IO.stdout
-
-      padded message =
-        message ++ replicate (length waiting - length message) ' '
-   in Task.eio id $
-        do
-          putFlush $ "  " <> waitingMark <+> D.fromChars waiting
-          result <- work
-          putFlush $
-            case result of
-              Right a -> "\r  " <> goodMark <+> D.fromChars (padded (success a) ++ "\n")
-              Left _ -> "\r  " <> badMark <+> D.fromChars (padded failure ++ "\n\n")
-
-          return result
-
--- MARKS
-
-goodMark :: D.Doc
-goodMark =
-  D.green $ if isWindows then "+" else "●"
-
-badMark :: D.Doc
-badMark =
-  D.red $ if isWindows then "X" else "✗"
-
-waitingMark :: D.Doc
-waitingMark =
-  D.dullyellow $ if isWindows then "-" else "→"
-
-isWindows :: Bool
-isWindows =
-  Info.os == "mingw32"
