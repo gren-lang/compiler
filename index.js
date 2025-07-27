@@ -52,19 +52,28 @@ async function installDependencies(path, options) {
  * If you're compiling an application, pass the relative path of the entrypoint as the `target` in the options object.
  *
  * `path` should be set to the project directory where you wish to execute this command.
- * `options` allow you to set environment variables and a timeout. See `execute` for more information.
+ * `options` allow you to set environment variables and a timeout. `options` can contain all fields taken by `execute`, as well as:
  *
- * If `options` contains a sourcemaps property that is true, sourcemaps will be generated and inlined into the output.
+ * * `target`: the module name (or names, if given an array) to compile
+ * * `sourcemaps`: if sourcemaps should be included in the generated code
+ * * `optimize`: if code should be generated in optimized mode
  */
 async function compileProject(path, options) {
-  let args = ["make", "--output=/dev/stdout", "--report=json"];
+  let args = ["make"];
+  if (Array.isArray(options.target)) {
+    args = args.concat(options.target);
+  } else {
+    args.push(options.target);
+  }
+
+  args.push("--output=/dev/stdout", "--report=json");
 
   if (options.sourcemaps) {
     args.push("--sourcemaps");
   }
 
-  if (options.target) {
-    args.push(options.target);
+  if (options.optimize) {
+    args.push("--optimize");
   }
 
   return handleFailableExecution(path, args, options);
