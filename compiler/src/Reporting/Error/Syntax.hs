@@ -634,7 +634,7 @@ noteForPortsInPackage =
   D.stack
     [ D.toSimpleNote $
         "One of the major goals of the package ecosystem is to be completely written\
-        \ in Gren. This means when you install an Gren package, you can be sure you are safe\
+        \ in Gren. This means when you install a Gren package, you can be sure you are safe\
         \ from security issues on install and that you are not going to get any runtime\
         \ exceptions coming from your new dependency. This design also sets the ecosystem\
         \ up to target other platforms more easily (like mobile phones, WebAssembly, etc.)\
@@ -792,7 +792,7 @@ toParseErrorReport source modul =
                       "I got stuck here:",
                     D.stack
                       [ D.reflow $
-                          "I am not sure what is going on, but I recommend starting an Gren\
+                          "I am not sure what is going on, but I recommend starting a Gren\
                           \ file with the following lines:",
                         D.indent 4 $
                           D.vcat $
@@ -803,7 +803,7 @@ toParseErrorReport source modul =
                             ],
                         D.reflow $
                           "You should be able to copy those lines directly into your file. Check out the\
-                          \ examples at <https://gren-lang.org/examples> for more help getting started!",
+                          \ examples at <https://github.com/gren-lang/example-projects> for more help getting started!",
                         D.toSimpleNote $
                           "This can also happen when something is indented too much!"
                       ]

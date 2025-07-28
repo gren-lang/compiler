@@ -133,7 +133,7 @@ diffToReport diff =
         [ D.indent 4 $ D.red $ D.fromChars $ Pkg.toChars pkg,
           "Maybe you want one of these instead?",
           D.indent 4 $ D.dullyellow $ D.vcat $ map (D.fromChars . Pkg.toChars) suggestions,
-          "But check <https://package.gren-lang.org> to see all possibilities!"
+          "But check <https://packages.gren-lang.org> to see all possibilities!"
         ]
     DiffUnknownVersion _pkg vsn realVersions ->
       Help.docReport
@@ -226,7 +226,7 @@ bumpToReport bump =
               "that",
               "version",
               "on",
-              "<https://package.gren-lang.org>.",
+              "<https://packages.gren-lang.org>.",
               "That",
               "means",
               "there",
@@ -2107,7 +2107,7 @@ makeToReport make =
                   D.indent 2 $ D.fillSep [D.cyan "Html" <> ".text", D.dullyellow "\"Hello!\""]
                 ],
               D.reflow $
-                "Or use https://package.gren-lang.org/packages/gren/core/latest/Platform#worker to\
+                "Or use https://packages.gren-lang.org/package/gren-lang/core/latest/module/Platform#worker to\
                 \ make a `main` with no user interface."
             ]
         _ : _ ->
@@ -2134,7 +2134,7 @@ makeToReport make =
                   D.indent 2 $ D.fillSep [D.cyan "Html" <> ".text", D.dullyellow "\"Hello!\""]
                 ],
               D.reflow $
-                "Or use https://package.gren-lang.org/packages/gren/core/latest/Platform#worker to\
+                "Or use https://packages.gren-lang.org/package/gren-lang/core/latest/module/Platform#worker to\
                 \ make a `main` with no user interface."
             ]
     MakeCannotBuild buildProblem ->
