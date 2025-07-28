@@ -28,6 +28,7 @@ import SemanticVersionRange
 import Dict
 import Meta
 import Terminal.PackageInstall as PackageInstall
+import Terminal.Report as Report exposing (Report)
 
 
 type alias Config =
@@ -243,11 +244,11 @@ generateGrenJson config projectPath deps =
             )
 
 
-prettifyError : Error -> PP.Document
+prettifyError : Error -> Report
 prettifyError err =
     when err is
         AlreadyInitialized ->
-            Terminal.Help.report
+            Report.create
                 "EXISTING PROJECT"
                 Nothing
                 (PP.verticalBlock
@@ -263,7 +264,7 @@ prettifyError err =
                 )
 
         FileSystemFailure fsErr ->
-            Terminal.Help.report
+            Report.create
                 "FILESYSTEM ERROR"
                 -- TODO: (Just <| FileSystem.errorPath fsErr)
                 Nothing
@@ -281,7 +282,7 @@ prettifyError err =
                 )
 
         PromptError streamError ->
-            Terminal.Help.report
+            Report.create
                 "STREAM ERROR"
                 Nothing
                 (PP.verticalBlock
@@ -304,7 +305,7 @@ prettifyError err =
                 error
 
         NoVersionFound packageName ->
-            Terminal.Help.report
+            Report.create
                 "FAILED TO LOAD DEPENDENCIES"
                 Nothing
                 (PP.verticalBlock

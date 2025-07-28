@@ -1,0 +1,112 @@
+module Terminal.Report exposing
+    ( Report
+    --
+    , empty
+    , create
+    --
+    , OutputType (..)
+    , toString
+    )
+
+
+import FileSystem.Path as Path exposing (Path)
+import CLI.PrettyPrinter as PP
+import Terminal.Help
+import Json.Encode as Encode
+
+
+type Report
+    = Empty
+    | Report
+        { title : String
+        , maybePath : Maybe Path
+        , message : PP.Document
+        }
+
+
+empty : Report
+empty =
+    Empty
+
+
+create : String -> Maybe Path -> PP.Document -> Report
+create title maybePath message =
+    Report
+        { title = title
+        , maybePath = maybePath
+        , message = message
+        }
+
+
+type OutputType
+    = Terminal { useColor : Bool }
+    | Json
+
+
+toString : OutputType -> Report -> String
+toString outputType report =
+    when outputType is
+        Json ->
+            when report is
+                Empty ->
+                    Encode.encode 0 (Encode.object [])
+
+                Report { title, maybePath, message } ->
+                    Encode.encode 4 <|
+                        Encode.object
+                            [ { key = "type", value = Encode.string "error" }
+                            , { key = "title", value = Encode.string title }
+                            , { key = "path"
+                              , value =
+                                  maybePath
+                                    |> Maybe.map Path.toPosixString
+                                    |> Maybe.withDefault ""
+                                    |> Encode.string
+                              }
+                            , { key = "message"
+                              , value =
+                                   message
+                                      |> Terminal.Help.prettyPrint { useColor = False }
+                                      |> Encode.string
+                              }
+                            ]
+
+        Terminal printOpts ->
+            Terminal.Help.prettyPrint printOpts <|
+                when report is
+                    Empty ->
+                        PP.empty
+
+                    Report { title, maybePath, message } ->
+                        let
+                            makeDashes n =
+                                String.repeat (max 1 (80 - n)) "-"
+
+                            errorBarEnd =
+                                when maybePath is
+                                    Nothing ->
+                                        makeDashes (4 + String.unitLength title)
+
+                                    Just path ->
+                                        -- TODO: platform toString
+                                        let
+                                            pathStr =
+                                                Path.toPosixString path
+                                        in
+                                        makeDashes (5 + String.unitLength title + String.unitLength pathStr) ++ " " ++ pathStr
+
+                            errorBar =
+                                PP.block
+                                    [ PP.text "--"
+                                    , PP.text title
+                                    , PP.text errorBarEnd
+                                    ]
+                                    |> PP.color PP.Cyan
+                        in
+                        PP.verticalBlock
+                            [ errorBar
+                            , PP.empty
+                            , message
+                            , PP.empty
+                            , PP.empty
+                            ]

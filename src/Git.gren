@@ -20,6 +20,7 @@ import Task exposing (Task)
 import Terminal.Help as Help
 import CLI.PrettyPrinter as PP
 import Compiler.Paths
+import Terminal.Report as Report exposing (Report)
 
 
 type Error
@@ -29,11 +30,11 @@ type Error
     | FailedCommand { args : Array String, message : String }
 
 
-report : String -> String -> Error -> PP.Document
+report : String -> String -> Error -> Report
 report title context err =
     when err is
         NoVersions ->
-          Help.report
+          Report.create
             title
             Nothing
             ( PP.verticalBlock
@@ -49,7 +50,7 @@ report title context err =
             )
 
         NoSuchRepo ->
-          Help.report
+          Report.create
             title
             Nothing
             ( PP.verticalBlock
@@ -64,7 +65,7 @@ report title context err =
             )
 
         NoSuchRepoOrVersion vsn ->
-          Help.report
+          Report.create
             title
             Nothing
             ( PP.verticalBlock
@@ -78,7 +79,7 @@ report title context err =
             )
 
         FailedCommand { args, message } ->
-          Help.report
+          Report.create
             title
             Nothing
             ( PP.verticalBlock

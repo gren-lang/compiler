@@ -33,6 +33,7 @@ import Stream.Extra
 import Terminal.PackageInstall
 import Terminal.Help as Help
 import CLI.PrettyPrinter as PP
+import Terminal.Report as Report exposing (Report)
 
 
 type alias Config =
@@ -159,14 +160,14 @@ runLocal config maybeVersion =
             )
 
 
-prettifyLocalError : LocalError -> PP.Document
+prettifyLocalError : LocalError -> Report
 prettifyLocalError error =
     when error is
         LocalReadProjectOutlineError outlineError ->
             Terminal.PackageInstall.prettifyProjectOutlineError outlineError
     
         LocalCannotDiffApplication ->
-            Help.report
+            Report.create
                 "CANNOT DIFF APPLICATIONS"
                 Nothing
                 ( PP.words "This project is an application, but I can only diff packages!" )
@@ -234,7 +235,7 @@ installHiddenProject config projectPath packageName packageVersion =
             )
 
 
-prettifyHiddenProjectError : InstallHiddenProjectError -> PP.Document
+prettifyHiddenProjectError : InstallHiddenProjectError -> Report
 prettifyHiddenProjectError error =
     when error is
         HiddenProjectGitCloneError gitError ->
@@ -244,7 +245,7 @@ prettifyHiddenProjectError error =
                 gitError
 
         HiddenProjectReadOutlineError fsErr ->
-            Help.report
+            Report.create
                 "FAILED TO READ OUTLINE"
                 Nothing
                 (PP.verticalBlock
@@ -258,7 +259,7 @@ prettifyHiddenProjectError error =
                 )
 
         HiddenProjectOutlineDecodeError jsonError ->
-            Help.report
+            Report.create
                 "FAILED TO READ OUTLINE"
                 Nothing
                 (PP.verticalBlock
@@ -309,7 +310,7 @@ runGlobal config packageName lowerVersion upperVersion =
             )
 
 
-prettifyGlobalError : GlobalError -> PP.Document
+prettifyGlobalError : GlobalError -> Report
 prettifyGlobalError error =
     when error is
         GlobalReadProjectOutlineError outlineError ->

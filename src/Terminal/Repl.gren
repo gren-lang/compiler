@@ -28,6 +28,7 @@ import Dict
 import Meta
 import Terminal.PackageInstall as PackageInstall
 import Terminal.Init
+import Terminal.Report as Report exposing (Report)
 
 
 type alias Config =
@@ -101,11 +102,11 @@ setupGlobalReplProject config =
             )
 
 
-prettifyError : Error -> PP.Document
+prettifyError : Error -> Report
 prettifyError error =
     when error is
         FileSystemError data ->
-            Terminal.Help.report
+            Report.create
                 "CANNOT ACCESS REPL PROJECT"
                 (Just data.replOutlinePath)
                 (PP.verticalBlock
@@ -117,7 +118,7 @@ prettifyError error =
                 )
 
         InvalidOutline replOutlinePath ->
-            Terminal.Help.report
+            Report.create
                 "CANNOT READ REPL OUTLINE"
                 (Just replOutlinePath)
                 (PP.verticalBlock
@@ -128,7 +129,7 @@ prettifyError error =
                 )
 
         InitFailure path ->
-            Terminal.Help.report
+            Report.create
                 "CANNOT INITIALIZE REPL PROJECT"
                 (Just path)
                 (PP.verticalBlock
