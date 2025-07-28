@@ -35,7 +35,7 @@ viewStudent student =
   li [] [ text student.name ]
 ```
 
-If you are worried about the performance of changing the order or updating information about particular students, you can start using the [`Html.Lazy`](https://package.gren-lang.org/packages/gren/html/latest/Html-Lazy) and [`Html.Keyed`](https://package.gren-lang.org/packages/gren/html/latest/Html-Keyed) modules. The updated code would look something like this:
+If you are worried about the performance of changing the order or updating information about particular students, you can start using the [`Html.Lazy`](https://packages.gren-lang.org/package/gren-lang/browser/latest/module/Html.Lazy) and [`Html.Keyed`](https://packages.gren-lang.org/package/gren-lang/browser/latest/module/Html.Keyed) modules. The updated code would look something like this:
 
 ```gren
 import Html exposing (..)

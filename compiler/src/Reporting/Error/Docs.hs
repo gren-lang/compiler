@@ -55,11 +55,10 @@ toReports source err =
             source
             region
             Nothing
-            ( D.reflow $
+            ( D.reflow
                 "You must have a documentation comment between the module\
                 \ declaration and the imports.",
-              D.reflow
-                "Learn more at <https://package.gren-lang.org/help/documentation-format>"
+              D.empty
             )
     ImplicitExposing region ->
       NE.singleton $
@@ -97,11 +96,8 @@ toSyntaxProblemReport source problem =
                 region
                 Nothing
                 ( D.reflow "I was partway through parsing your module documentation, but I got stuck here:",
-                  D.stack $
-                    [ D.reflow details,
-                      D.toSimpleHint $
-                        "Read through <https://package.gren-lang.org/help/documentation-format> for\
-                        \ tips on how to write module documentation!"
+                  D.stack
+                    [ D.reflow details
                     ]
                 )
    in case problem of

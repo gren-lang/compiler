@@ -502,10 +502,10 @@ toReport source err =
                             D.stack
                               [ D.reflow $
                                   "If you want the behavior of (%) like in JavaScript, switch to:\
-                                  \ <https://package.gren-lang.org/packages/gren/core/latest/Basics#remainderBy>",
+                                  \ <https://packages.gren-lang.org/package/gren-lang/core/latest/module/Math#remainderBy>",
                                 D.reflow $
                                   "If you want modular arithmetic like in math, switch to:\
-                                  \ <https://package.gren-lang.org/packages/gren/core/latest/Basics#modBy>",
+                                  \ <https://packages.gren-lang.org/package/gren-lang/core/latest/module/Math#modBy>",
                                 D.reflow $
                                   "The difference is how things work when negative numbers are involved."
                               ]
@@ -1096,85 +1096,6 @@ notFound source region maybePrefix name thing (PossibleNames locals quals) =
 toQualString :: Name.Name -> Name.Name -> String
 toQualString prefix name =
   Name.toChars prefix ++ "." ++ Name.toChars name
-
-{-- VAR ERROR
-
-varErrorToReport :: VarError -> Report.Report
-varErrorToReport (VarError kind name problem suggestions) =
-  let
-    learnMore orMaybe =
-      D.reflow $
-        orMaybe <> " `import` works different than you expect? Learn all about it here: "
-        <> D.hintLink "imports"
-
-    namingError overview maybeStarter specializedSuggestions =
-      Report.reportDoc "NAMING ERROR" Nothing overview $
-        case D.maybeYouWant' maybeStarter specializedSuggestions of
-          Nothing ->
-            learnMore "Maybe"
-          Just doc ->
-            D.stack [ doc, learnMore "Or maybe" ]
-
-    specialNamingError specialHint =
-      Report.reportDoc "NAMING ERROR" Nothing (cannotFind kind name) (D.hsep specialHint)
-  in
-  case problem of
-    Ambiguous ->
-      namingError (ambiguous kind name) Nothing suggestions
-
-    UnknownQualifier qualifier localName ->
-      namingError
-        (cannotFind kind name)
-        (Just $ text $ "No module called `" <> qualifier <> "` has been imported.")
-        (map (\modul -> modul <> "." <> localName) suggestions)
-
-    QualifiedUnknown qualifier localName ->
-      namingError
-        (cannotFind kind name)
-        (Just $ text $ "`" <> qualifier <> "` does not expose `" <> localName <> "`.")
-        (map (\v -> qualifier <> "." <> v) suggestions)
-
-    ExposedUnknown ->
-      case name of
-        "!="  -> specialNamingError (notEqualsHint name)
-        "!==" -> specialNamingError (notEqualsHint name)
-        "===" -> specialNamingError equalsHint
-        "%"   -> specialNamingError modHint
-        _     -> namingError (cannotFind kind name) Nothing suggestions
-
-cannotFind :: VarKind -> Text -> [Doc]
-cannotFind kind rawName =
-  let ( a, thing, name ) = toKindInfo kind rawName in
-  [ "Cannot", "find", a, thing, "named", D.dullyellow name <> ":" ]
-
-ambiguous :: VarKind -> Text -> [Doc]
-ambiguous kind rawName =
-  let ( _a, thing, name ) = toKindInfo kind rawName in
-  [ "This", "usage", "of", "the", D.dullyellow name, thing, "is", "ambiguous." ]
-
-notEqualsHint :: Text -> [Doc]
-notEqualsHint op =
-  [ "Looking", "for", "the", "“not", "equal”", "operator?", "The", "traditional"
-  , D.dullyellow $ text $ "(" <> op <> ")"
-  , "is", "replaced", "by", D.green "(/=)", "in", "Gren.", "It", "is", "meant"
-  , "to", "look", "like", "the", "“not", "equal”", "sign", "from", "math!", "(≠)"
-  ]
-
-equalsHint :: [Doc]
-equalsHint =
-  [ "A", "special", D.dullyellow "(===)", "operator", "is", "not", "needed"
-  , "in", "Gren.", "We", "use", D.green "(==)", "for", "everything!"
-  ]
-
-modHint :: [Doc]
-modHint =
-  [ "Rather", "than", "a", D.dullyellow "(%)", "operator,"
-  , "Gren", "has", "a", D.green "modBy", "function."
-  , "Learn", "more", "here:"
-  , "<https://package.gren-lang.org/packages/gren/core/latest/Basics#modBy>"
-  ]
-
--}
 
 -- ARG MISMATCH
 

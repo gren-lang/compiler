@@ -49,7 +49,7 @@ Now the compiler will say "hey, what should `toName` do when it sees a `Visitor`
 
 Imagine that the `User` type appears in 20 or 30 functions across your project. When we add a `Visitor` variant, the compiler points out all the places that need to be updated. That is very convenient, but in a big project, maybe you want to get through it extra quickly.
 
-In that case, it can be helpful to use [`Debug.todo`](https://package.gren-lang.org/packages/gren-lang/core/latest/Debug#todo) to leave some code incomplete:
+In that case, it can be helpful to use [`Debug.todo`](https://packages.gren-lang.org/package/gren-lang/core/latest/module/Debug#todo) to leave some code incomplete:
 
 ```gren
 type User

@@ -230,7 +230,7 @@ parser =
                         , PP.empty
                         , PP.words
                             """
-                            This tries to compile an Gren file named src/Main.gren, generating an index.html
+                            This tries to compile a Gren file named src/Main.gren, generating an index.html
                             file if possible.
                             """
                         ]
