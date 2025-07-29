@@ -1,7 +1,6 @@
 module Terminal.Help exposing
     ( confirm
     , prettyPrint
-    , report
     , makeLink
     , getNullStream
     )
@@ -71,42 +70,6 @@ prettyPrint { useColor } doc =
         else
             PP.stripColor doc
         )
-
-
-report : String -> Maybe Path -> PP.Document -> PP.Document
-report title maybePath message =
-    let
-        makeDashes n =
-            String.repeat (max 1 (80 - n)) "-"
-
-        errorBarEnd =
-            when maybePath is
-                Nothing ->
-                    makeDashes (4 + String.unitLength title)
-
-                Just path ->
-                    -- TODO: platform toString
-                    let
-                        pathStr =
-                            Path.toPosixString path
-                    in
-                    makeDashes (5 + String.unitLength title + String.unitLength pathStr) ++ " " ++ pathStr
-
-        errorBar =
-            PP.block
-                [ PP.text "--"
-                , PP.text title
-                , PP.text errorBarEnd
-                ]
-                |> PP.color PP.Cyan
-    in
-    PP.verticalBlock
-        [ errorBar
-        , PP.empty
-        , message
-        , PP.empty
-        , PP.empty
-        ]
 
 
 makeLink : String -> PP.Document

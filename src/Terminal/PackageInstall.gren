@@ -41,6 +41,7 @@ import Json.Encode as Json
 import Json.Decode as Decode exposing (Decoder)
 import Stream.Extra
 import Terminal.Help as Help
+import Terminal.Report as Report exposing (Report)
 
 
 type alias Config =
@@ -611,11 +612,11 @@ installStep config opts =
                 }
 
 
-prettifyError : PackageInstallError -> PP.Document
+prettifyError : PackageInstallError -> Report
 prettifyError error =
     when error is
         PackageInstallFailedToFindProjectSourceFiles fsErr ->
-            Help.report
+            Report.create
                 "FAILED TO FIND PROJECT SOURCES"
                 Nothing
                 (PP.verticalBlock
@@ -629,7 +630,7 @@ prettifyError error =
                 )
 
         PackageInstallFailedToFindSourceFiles { package, error = fsErr} ->
-            Help.report
+            Report.create
                 ("FAILED TO FIND SOURCES FOR PACKAGE " ++ PackageName.toString package)
                 Nothing
                 (PP.verticalBlock
@@ -643,7 +644,7 @@ prettifyError error =
                 )
         
         PackageInstallInvalidOutline { package, message } ->
-            Help.report
+            Report.create
                 ("INVALID gren.json IN " ++ PackageName.toString package)
                 Nothing
                 (PP.verticalBlock
@@ -657,7 +658,7 @@ prettifyError error =
                 )
 
         PackageInstallFailedToLoadBundle { package, path, message } ->
-            Help.report
+            Report.create
                 "FAILED TO LOAD PACKAGE BUNDLE"
                 (Just path)
                 (PP.verticalBlock
@@ -678,7 +679,7 @@ prettifyError error =
                 )
 
         PackageInstallInvalidBundle { package, path, message } ->
-            Help.report
+            Report.create
                 "FAILED TO LOAD PACKAGE BUNDLE"
                 (Just path)
                 (PP.verticalBlock
@@ -699,7 +700,7 @@ prettifyError error =
                 )
 
         PackageInstallConflict { package, version1, version2 } ->
-            Help.report
+            Report.create
                 "CANNOT FIND COMPATIBLE VERSION"
                 Nothing
                 (PP.verticalBlock
@@ -727,7 +728,7 @@ prettifyError error =
                 gitErr
 
         PackageInstallFileSystemError { package, error = fsErr } ->
-            Help.report
+            Report.create
                 "FAILED TO LOAD PACKAGE"
                 Nothing
                 (PP.verticalBlock
@@ -746,7 +747,7 @@ prettifyError error =
                 )
 
         PackageInstallCreateBundleError { package, path, error = streamErr } ->
-            Help.report
+            Report.create
                 "FAILED TO CREATE PACKAGE BUNDLE"
                 (Just path)
                 (PP.verticalBlock
@@ -765,7 +766,7 @@ prettifyError error =
                 )
 
         PackageInstallMissingIndirectDependency { package, version } ->
-            Help.report
+            Report.create
                 "MISSING INDIRECT DEPENDENCIES"
                 (Just (Path.fromPosixString "gren.json"))
                 (PP.verticalBlock
@@ -780,7 +781,7 @@ prettifyError error =
                 )
 
         PackageInstallBadLocalDependency { package, dependency } ->
-            Help.report
+            Report.create
                 "INDIRECT LOCAL DEPENDENCY"
                 Nothing
                 (PP.verticalBlock
@@ -802,7 +803,7 @@ prettifyError error =
                 )
 
         PackageInstallRootIncompatibleCompiler rootCompiler ->
-            Help.report
+            Report.create
                 "INCOMPATIBLE COMPILER"
                 Nothing
                 (PP.verticalBlock
@@ -821,7 +822,7 @@ prettifyError error =
                 )
 
         PackageInstallIncompatibleCompiler { package, rootCompiler, packageCompiler } ->
-            Help.report
+            Report.create
                 "INCOMPATIBLE PACKAGE"
                 Nothing
                 (PP.verticalBlock
@@ -841,7 +842,7 @@ prettifyError error =
                 )
 
         PackageInstallIncompatiblePlatform { package, rootPlatform, packagePlatform } ->
-            Help.report
+            Report.create
                 "INCOMPATIBLE PACKAGE"
                 Nothing
                 (PP.verticalBlock
@@ -1125,14 +1126,14 @@ promptUpdateOutline config grenJsonPath newPackages finalOutline =
                     |> Task.map (\_ -> {})
             )
 
-prettifyAddPackageError : AddPackageError -> PP.Document
+prettifyAddPackageError : AddPackageError -> Report
 prettifyAddPackageError error =
     when error is
         AddPackageAlreadyInstalled ->
-            PP.empty
+            Report.empty
 
         AddPackagePromptError streamErr ->
-            Help.report
+            Report.create
                 "FAILED TO COMMUNICATE WITH USER"
                 Nothing
                 (PP.verticalBlock
@@ -1148,10 +1149,10 @@ prettifyAddPackageError error =
                 )
 
         AddPackageUserCancelled ->
-            PP.empty
+            Report.empty
 
         AddPackageWriteOutlineError fsErr ->
-            Help.report
+            Report.create
                 "FAILED TO UPDATE OUTLINE"
                 Nothing
                 (PP.verticalBlock
@@ -1234,11 +1235,11 @@ readProjectOutline fsPermission =
                         )
             )
 
-prettifyProjectOutlineError : ReadProjectOutlineError -> PP.Document
+prettifyProjectOutlineError : ReadProjectOutlineError -> Report
 prettifyProjectOutlineError error =
     when error is
         ReadProjectOutlineNoProject _ ->
-            Help.report
+            Report.create
                 "COULDN'T FIND PROJECT"
                 (Just (Path.fromPosixString "gren.json"))
                 (PP.verticalBlock
@@ -1253,7 +1254,7 @@ prettifyProjectOutlineError error =
                 )
 
         ReadProjectOutlineInvalidGrenJson jsonErr ->
-            Help.report
+            Report.create
                 "FAILED TO READ OUTLINE"
                 (Just (Path.fromPosixString "gren.json"))
                 (PP.verticalBlock

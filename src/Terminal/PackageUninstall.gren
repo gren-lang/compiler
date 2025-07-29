@@ -26,6 +26,7 @@ import Json.Decode as Decode exposing (Decoder)
 import Stream.Extra
 import Terminal.Help as Help
 import Terminal.PackageInstall
+import Terminal.Report as Report exposing (Report)
 
 
 type alias Config =
@@ -217,11 +218,11 @@ promptUpdateOutline config grenJsonPath finalOutline removedPackages =
             )
 
 
-prettifyError : Error -> PP.Document
+prettifyError : Error -> Report
 prettifyError error =
     when error is
         PackageNotInstalled ->
-            Help.report
+            Report.create
                 "PACKAGE NOT INSTALLED"
                 Nothing
                 (PP.verticalBlock
@@ -232,7 +233,7 @@ prettifyError error =
                 )
         
         PackageInstallError (Terminal.PackageInstall.PackageInstallMissingIndirectDependency { package }) ->
-            Help.report
+            Report.create
                 "FAILED TO UNINSTALL PACKAGE"
                 (Just <| Path.fromPosixString "gren.json")
                 (PP.verticalBlock
@@ -243,13 +244,13 @@ prettifyError error =
                 )
 
         PackageInstallError _ ->
-            Help.report
+            Report.create
                 "FAILED TO UNINSTALL PACKAGE"
                 (Just <| Path.fromPosixString "gren.json")
                 (PP.words "I cannot seem to resolve your dependencies once I remove the requested package, for some reason.")
         
         PromptError streamErr ->
-            Help.report
+            Report.create
                 "FAILED TO COMMUNICATE WITH USER"
                 Nothing
                 (PP.verticalBlock
@@ -265,10 +266,10 @@ prettifyError error =
                 )
 
         UserCancelled ->
-            PP.empty
+            Report.empty
 
         OutlineWriteError fsErr ->
-            Help.report
+            Report.create
                 "FAILED TO UPDATE OUTLINE"
                 Nothing
                 (PP.verticalBlock

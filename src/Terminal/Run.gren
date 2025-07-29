@@ -28,6 +28,7 @@ import Stream
 import Task exposing (Task)
 import Terminal.PackageInstall as PackageInstall exposing (PackageResolution)
 import Terminal.Help as Help
+import Terminal.Report as Report exposing (Report)
 
 
 type Error
@@ -273,11 +274,11 @@ getOutputPath projectOutline =
             Nothing
 
 
-prettifyError : Error -> PP.Document
+prettifyError : Error -> Report
 prettifyError error =
     when error is
         NotAnApplication ->
-            Help.report
+            Report.create
                 "NOT AN APPLICATION"
                 Nothing
                 ( PP.words 

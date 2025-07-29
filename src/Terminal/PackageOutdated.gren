@@ -24,6 +24,7 @@ import Json.Encode as Json
 import Json.Decode as Decode exposing (Decoder)
 import Stream.Extra
 import CLI.PrettyPrinter as PP
+import Terminal.Report as Report exposing (Report)
 
 
 type alias Config =
@@ -129,7 +130,7 @@ run config { projectPath, outline } =
             -- TODO: Ask user to auto-update dependencies
 
 
-prettifyError : Error -> PP.Document
+prettifyError : Error -> Report
 prettifyError error =
     when error is
         FailedToFetchVersions { package, error = gitError } ->

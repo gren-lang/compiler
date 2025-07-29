@@ -15,6 +15,7 @@ import Terminal.Init
 import Terminal.Run
 import Terminal.Help
 import Terminal.Repl
+import Terminal.Report exposing (Report)
 import Compiler.Backend
 import Compiler.PackageName as PackageName exposing (PackageName)
 import Compiler.Paths
@@ -293,7 +294,7 @@ update msg model =
                         |> Task.onError
                             (\error ->
                                 Terminal.Run.prettifyError error
-                                    |> Terminal.Help.prettyPrint { useColor = model.useColor }
+                                    |> Terminal.Report.toString (Terminal.Report.Terminal { useColor = model.useColor })
                                     |> Stream.Log.line model.stderr
                                     |> Task.map (\_ -> Task.execute <| Node.exitWithCode 1)
                             )
@@ -351,6 +352,10 @@ parseUserArgs model compilerPath =
         endWithErrorString stringErr =
             Stream.Log.string model.stderr stringErr
                 |> Task.map (\_ -> Task.execute <| Node.exitWithCode 1)
+
+        endWithErrorReport outputType report =
+            Terminal.Report.toString outputType report
+                |> endWithErrorString
     in
     when CLI.Parser.run model.args CliParser.parser is
         CLI.Parser.UnknownCommand commandName ->
@@ -410,7 +415,7 @@ parseUserArgs model compilerPath =
                         }
                         |> Task.map (\_ -> Cmd.none)
                         |> Task.mapError Terminal.Init.prettifyError
-                        |> Task.onError endWithError
+                        |> Task.onError (endWithErrorReport (Terminal.Report.Terminal printOpts))
                         |> Task.perform RunCmd
 
                 CliParser.Repl flags ->
@@ -467,7 +472,7 @@ parseUserArgs model compilerPath =
                                     , onComplete = CompilerRan
                                     }
                             )
-                        |> Task.onError endWithError
+                        |> Task.onError (endWithErrorReport (Terminal.Report.Terminal printOpts))
                         |> Task.perform RunCmd
 
                 CliParser.Make flags ->
@@ -482,6 +487,14 @@ parseUserArgs model compilerPath =
 
                                 _ ->
                                     Task.succeed model.stdout
+
+                        reportType =
+                            when flags.report is
+                                Just {} ->
+                                    Terminal.Report.Json
+
+                                Nothing ->
+                                    Terminal.Report.Terminal printOpts
                     in
                     determineOutputStreamForResolve
                         |> Task.andThen (\output -> resolveProject { model | stdout = output })
@@ -508,7 +521,7 @@ parseUserArgs model compilerPath =
                                     , onComplete = CompilerRan
                                     }
                             )
-                        |> Task.onError endWithError
+                        |> Task.onError (endWithErrorReport reportType)
                         |> Task.perform RunCmd
 
                 CliParser.Run opts ->
@@ -543,7 +556,7 @@ parseUserArgs model compilerPath =
                             )
                         }
                         |> Task.mapError Terminal.Run.prettifyError
-                        |> Task.onError endWithError
+                        |> Task.onError (endWithErrorReport (Terminal.Report.Terminal printOpts))
                         |> Task.perform RunCmd
 
                 CliParser.Docs flags ->
@@ -558,6 +571,14 @@ parseUserArgs model compilerPath =
 
                                 _ ->
                                     Task.succeed model.stdout
+
+                        reportType =
+                            when flags.report is
+                                Just {} ->
+                                    Terminal.Report.Json
+
+                                Nothing ->
+                                    Terminal.Report.Terminal printOpts
                     in
                     determineOutputStreamForResolve
                         |> Task.andThen (\output -> resolveProject { model | stdout = output })
@@ -581,7 +602,7 @@ parseUserArgs model compilerPath =
                                     , onComplete = CompilerRan
                                     }
                             )
-                        |> Task.onError endWithError
+                        |> Task.onError (endWithErrorReport reportType)
                         |> Task.perform RunCmd
 
                 CliParser.PackageInstall Nothing ->
@@ -589,10 +610,10 @@ parseUserArgs model compilerPath =
                         |> Task.andThen
                             (\res ->
                                 Terminal.PackageInstall.cleanPackageDirectory model.fsPermission res
-                                    |> Task.mapError (\_ -> PP.empty)
+                                    |> Task.mapError (\_ -> Terminal.Report.empty)
                             )
                         |> Task.map (\_ -> Cmd.none)
-                        |> Task.onError endWithError
+                        |> Task.onError (endWithErrorReport (Terminal.Report.Terminal printOpts))
                         |> Task.perform RunCmd
 
                 CliParser.PackageInstall (Just requestedPackage) ->
@@ -615,7 +636,7 @@ parseUserArgs model compilerPath =
                                     |> Task.mapError Terminal.PackageInstall.prettifyAddPackageError
                             )
                         |> Task.map (\_ -> Cmd.none)
-                        |> Task.onError endWithError
+                        |> Task.onError (endWithErrorReport (Terminal.Report.Terminal printOpts))
                         |> Task.perform RunCmd
 
                 CliParser.PackageUninstall packageName ->
@@ -638,11 +659,11 @@ parseUserArgs model compilerPath =
                                     |> Task.andThen
                                         (\res ->
                                             Terminal.PackageInstall.cleanPackageDirectory model.fsPermission res
-                                                |> Task.mapError (\_ -> PP.empty)
+                                                |> Task.mapError (\_ -> Terminal.Report.empty)
                                         )
                             )
                         |> Task.map (\_ -> Cmd.none)
-                        |> Task.onError endWithError
+                        |> Task.onError (endWithErrorReport (Terminal.Report.Terminal printOpts))
                         |> Task.perform RunCmd
 
                 CliParser.PackageOutdated ->
@@ -662,7 +683,7 @@ parseUserArgs model compilerPath =
                                     |> Task.mapError Terminal.PackageOutdated.prettifyError
                             )
                         |> Task.map (\_ -> Cmd.none)
-                        |> Task.onError endWithError
+                        |> Task.onError (endWithErrorReport (Terminal.Report.Terminal printOpts))
                         |> Task.perform RunCmd
 
                 CliParser.PackageValidate ->
@@ -695,7 +716,7 @@ parseUserArgs model compilerPath =
                                     , onComplete = CompilerRan
                                     }
                             )
-                        |> Task.onError endWithError
+                        |> Task.onError (endWithErrorReport (Terminal.Report.Terminal printOpts))
                         |> Task.perform RunCmd
 
                 CliParser.PackageBump ->
@@ -728,7 +749,7 @@ parseUserArgs model compilerPath =
                                     , onComplete = CompilerRan
                                     }
                             )
-                        |> Task.onError endWithError
+                        |> Task.onError (endWithErrorReport (Terminal.Report.Terminal printOpts))
                         |> Task.perform RunCmd
 
                 CliParser.PackageDiff args ->
@@ -818,7 +839,7 @@ parseUserArgs model compilerPath =
                                     , onComplete = CompilerRan
                                     }
                             )
-                        |> Task.onError endWithError
+                        |> Task.onError (endWithErrorReport (Terminal.Report.Terminal printOpts))
                         |> Task.perform RunCmd
 
                 CliParser.Paths opts ->
@@ -836,7 +857,7 @@ parseUserArgs model compilerPath =
                         |> Task.perform RunCmd
 
 
-resolveProject : Model -> Task PP.Document Terminal.PackageInstall.PackageResolution
+resolveProject : Model -> Task Report Terminal.PackageInstall.PackageResolution
 resolveProject model =
     Terminal.PackageInstall.readProjectOutline model.fsPermission
         |> Task.mapError Terminal.PackageInstall.prettifyProjectOutlineError
@@ -858,7 +879,7 @@ resolveProject model =
 
 
 -- TODO: Move to gren-lang/compiler-node
-verifyMakeFlags : FileSystem.Permission -> Array ModuleName  -> Maybe Compiler.Backend.MakeOutput -> Terminal.PackageInstall.PackageResolution -> Task PP.Document Terminal.PackageInstall.PackageResolution
+verifyMakeFlags : FileSystem.Permission -> Array ModuleName  -> Maybe Compiler.Backend.MakeOutput -> Terminal.PackageInstall.PackageResolution -> Task Report Terminal.PackageInstall.PackageResolution
 verifyMakeFlags fsPermission entryPoints maybeOutput resolution =
     let
         maybeOutputPath =
@@ -908,7 +929,7 @@ verifyMakeFlags fsPermission entryPoints maybeOutput resolution =
 
                                             else
                                                 Task.fail <|
-                                                    Terminal.Help.report
+                                                    Terminal.Report.create
                                                         "CANNOT ACCESS OUTPUT PATH"
                                                         (Just path)
                                                         (PP.verticalBlock
@@ -928,7 +949,7 @@ verifyMakeFlags fsPermission entryPoints maybeOutput resolution =
 
                                                 Just metadata ->
                                                     if metadata.entityType == FileSystem.Directory then
-                                                        Terminal.Help.report
+                                                        Terminal.Report.create
                                                             "OUTPUT PATH IS A DIRECTORY"
                                                             (Just path)
                                                             (PP.verticalBlock
@@ -955,7 +976,7 @@ verifyMakeFlags fsPermission entryPoints maybeOutput resolution =
 
                     Just { value = moduleName } ->
                         Task.fail <|
-                            Terminal.Help.report
+                            Terminal.Report.create
                                 "MODULE DOES NOT EXIST"
                                 Nothing
                                 (PP.verticalBlock
