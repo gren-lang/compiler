@@ -187,7 +187,9 @@ run config =
     let
         getOutline =
             config.path
+                -- compiled to [project path]/.gren/filename
                 |> Path.parentPath
+                |> Maybe.andThen Path.parentPath
                 |> Maybe.withDefault (Path.fromPosixString ".")
                 |> getProjectOutline config.fsPermission
     in
@@ -260,7 +262,7 @@ getOutputPath projectOutline =
             { outputType =
                 outputType
             , outputPath =
-                fileName
+                ".gren/" ++ fileName
                     |> Path.fromPosixString
                     |> Path.prepend projectOutline.projectPath
             }
