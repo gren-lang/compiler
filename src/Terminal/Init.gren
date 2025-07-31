@@ -239,6 +239,11 @@ generateGrenJson config projectPath deps =
                 in
                 Path.append (Path.fromPosixString "gren.json") projectPath
                     |> FileSystem.writeFile config.fsPermission (Bytes.fromString encodedOutline)
+                    |> Task.andThen
+                        (\_ ->
+                            Path.append (Path.fromPosixString "src") projectPath
+                                |> FileSystem.makeDirectory config.fsPermission { recursive = False }
+                        )
                     |> Task.mapError FileSystemFailure
                     |> Task.map (\_ -> newOutline)
             )
