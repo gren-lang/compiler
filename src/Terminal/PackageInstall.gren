@@ -260,11 +260,6 @@ run config { projectPath, outline } =
                 else
                     Task.succeed resolution
             )
-        |> Task.onError
-            (\err ->
-                Stream.Log.line config.stdout ""
-                    |> Task.andThen (\_ -> Task.fail err)
-            )
 
 
 type alias StepOptions =
@@ -608,7 +603,7 @@ installStep config opts =
             Task.fail <| PackageInstallConflict
                 { package = conflict.name
                 , version1 = conflict.version1
-                , version2 = conflict.version2
+                ,  version2 = conflict.version2
                 }
 
 
