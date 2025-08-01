@@ -173,7 +173,7 @@ type Msg
     | CompilerInitialized { quiet : Bool, backendStreams : ChildProcess.StreamIO, encodedCommand : Bytes }
     | CompilerRan Int
     | CompiledForRun { path : Path, exitCode : Int }
-    | RunStarted Process.Id
+    | RunStarted { processId : Process.Id, streams : Maybe ChildProcess.StreamIO }
     | RunExited Int
     | RedirectTerminalIO
         (Result
@@ -288,7 +288,7 @@ update msg model =
                         , fsPermission = model.fsPermission
                         , pathToString = model.pathToString
                         , path = path
-                        , onInit = \{ processId } -> RunStarted processId
+                        , onInit = RunStarted
                         , onExit = RunExited
                         }
                         |> Task.onError
@@ -303,8 +303,18 @@ update msg model =
                 else
                     Task.execute <| Node.exitWithCode exitCode
 
-            RunStarted _ ->
-                Cmd.none
+            RunStarted { streams } ->
+                when streams is
+                    Nothing ->
+                        Debug.todo "Handle missing streams on run"
+
+                    Just { input, output, error } ->
+                        [ Task.succeed { source = output, target = model.stdout }
+                        , Task.succeed { source = model.stdin, target = input }
+                        , Task.succeed { source = error, target = model.stderr }
+                        ]
+                            |> Array.map (Task.attempt RedirectTerminalIO)
+                            |> Cmd.batch
 
             RunExited exitCode ->
                 Task.execute <| Node.exitWithCode exitCode
@@ -328,6 +338,7 @@ update msg model =
                         Cmd.none
 
                     _ ->
+                        -- TODO: This is no longer only used for comms with the compiler backend. Need better error message.
                         Stream.Log.line model.stderr ("Something went wrong when communicating with compiler backend: " ++ Stream.errorToString error)
                             |> Task.andThen (\_ -> Node.exitWithCode 1)
                             |> Task.execute
