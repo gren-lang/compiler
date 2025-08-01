@@ -259,16 +259,26 @@ update msg model =
 
             CompilerInitialized { backendStreams, encodedCommand, quiet } ->
                 Cmd.batch
-                    [ Stream.write encodedCommand backendStreams.input
-                        |> Task.map (\_ -> { source = model.stdin, target = backendStreams.input })
-                        |> Task.mapError
-                            (\err ->
-                                { error = err
-                                , source = model.stdin
-                                , target = backendStreams.input
-                                }
-                            )
-                        |> Task.attempt RedirectTerminalIO
+                    [ if quiet then
+                        Stream.write encodedCommand backendStreams.input
+                            |> Task.map (\_ -> {})
+                            |> Task.onError
+                                (\e ->
+                                    Stream.Log.line model.stderr (Stream.errorToString e)
+                                        |> Task.andThen (\_ -> Node.exitWithCode 1)
+                                )
+                            |> Task.execute
+                      else
+                        Stream.write encodedCommand backendStreams.input
+                            |> Task.map (\_ -> { source = model.stdin, target = backendStreams.input })
+                            |> Task.mapError
+                                (\err ->
+                                    { error = err
+                                    , source = model.stdin
+                                    , target = backendStreams.input
+                                    }
+                                )
+                            |> Task.attempt RedirectTerminalIO
                     , if quiet then
                         Cmd.none
                       else
