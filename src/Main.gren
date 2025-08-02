@@ -327,6 +327,10 @@ update msg model =
                             |> Cmd.batch
 
             RunExited exitCode ->
+                let
+                    _ =
+                        Debug.log "Exited" {}
+                in
                 Task.execute <| Node.exitWithCode exitCode
 
             RedirectTerminalIO (Ok streams) ->
