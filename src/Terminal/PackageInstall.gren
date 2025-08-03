@@ -42,6 +42,7 @@ import Json.Decode as Decode exposing (Decoder)
 import Stream.Extra
 import Terminal.Help as Help
 import Terminal.Report as Report exposing (Report)
+import Compiler.ModuleName as ModuleName
 
 
 type alias Config =
@@ -193,7 +194,18 @@ run config { projectPath, outline } =
                             , outline = outline
                             , projectSources =
                                 Array.foldl
-                                    (\{ path, moduleName, source } dict -> Dict.set moduleName { path = path, data = source } dict)
+                                    (\{ path, moduleName, source } dict ->
+                                        -- TODO: Temporary fix. Should be handled in compiler-node
+                                        when ModuleName.fromString moduleName is
+                                            Just _ -> 
+                                                Dict.set moduleName { path = path, data = source } dict
+
+                                            Nothing ->
+                                                -- Filter out bad module names.
+                                                -- The real solution should give a better error message, but this
+                                                -- at least prevents the backend crashing with cryptic json error.
+                                                dict
+                                    )
                                     Dict.empty
                                     sourceFiles
                             , startedDownload = False
