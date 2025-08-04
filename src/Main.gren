@@ -177,10 +177,7 @@ type Msg
     | RunExited Int
     | RedirectTerminalIO
         (Result
-            { error : Stream.Error
-            , source : Stream.Readable Bytes
-            , target : Stream.Writable Bytes
-            }
+            Stream.Error
             { source : Stream.Readable Bytes
             , target : Stream.Writable Bytes
             }
@@ -271,13 +268,6 @@ update msg model =
                       else
                         Stream.write encodedCommand backendStreams.input
                             |> Task.map (\_ -> { source = model.stdin, target = backendStreams.input })
-                            |> Task.mapError
-                                (\err ->
-                                    { error = err
-                                    , source = model.stdin
-                                    , target = backendStreams.input
-                                    }
-                                )
                             |> Task.attempt RedirectTerminalIO
                     , if headless then
                         Cmd.none
@@ -323,16 +313,9 @@ update msg model =
                 Stream.read streams.source
                     |> Task.andThen (\str -> Stream.write str streams.target)
                     |> Task.map (\_ -> streams)
-                    |> Task.mapError
-                        (\err ->
-                            { error = err
-                            , source = streams.source
-                            , target = streams.target
-                            }
-                        )
                     |> Task.attempt RedirectTerminalIO
 
-            RedirectTerminalIO (Err { error, source, target }) ->
+            RedirectTerminalIO (Err error) ->
                 when error is
                     Stream.Closed ->
                         Cmd.none
