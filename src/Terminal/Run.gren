@@ -208,6 +208,7 @@ run config =
             
             runWith command =
                 ChildProcess.defaultSpawnOptions config.onInit config.onExit
+                    |> (\opts -> { opts | connection = ChildProcess.Integrated })
                     |> ChildProcess.spawn config.cpPermission command [ path ]
                     |> Task.succeed
         in

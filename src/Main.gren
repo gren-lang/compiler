@@ -170,17 +170,14 @@ type Msg
         , downloadResult : Result (HttpClient.Error Bytes) (HttpClient.Response Bytes)
         }
     | CompilerInstalled (Result FileSystem.Error Path)
-    | CompilerInitialized { quiet : Bool, backendStreams : ChildProcess.StreamIO, encodedCommand : Bytes }
+    | CompilerInitialized { headless : Bool, backendStreams : ChildProcess.StreamIO, encodedCommand : Bytes }
     | CompilerRan Int
     | CompiledForRun { path : Path, exitCode : Int }
-    | RunStarted Process.Id
+    | RunStarted { processId : Process.Id, streams : Maybe ChildProcess.StreamIO }
     | RunExited Int
     | RedirectTerminalIO
         (Result
-            { error : Stream.Error
-            , source : Stream.Readable Bytes
-            , target : Stream.Writable Bytes
-            }
+            Stream.Error
             { source : Stream.Readable Bytes
             , target : Stream.Writable Bytes
             }
@@ -257,19 +254,22 @@ update msg model =
             CompilerInstalled (Ok compilerPath) ->
                 parseUserArgs model compilerPath
 
-            CompilerInitialized { backendStreams, encodedCommand, quiet } ->
+            CompilerInitialized { backendStreams, encodedCommand, headless } ->
                 Cmd.batch
-                    [ Stream.write encodedCommand backendStreams.input
-                        |> Task.map (\_ -> { source = model.stdin, target = backendStreams.input })
-                        |> Task.mapError
-                            (\err ->
-                                { error = err
-                                , source = model.stdin
-                                , target = backendStreams.input
-                                }
-                            )
-                        |> Task.attempt RedirectTerminalIO
-                    , if quiet then
+                    [ if headless then
+                        Stream.write encodedCommand backendStreams.input
+                            |> Task.map (\_ -> {})
+                            |> Task.onError
+                                (\e ->
+                                    Stream.Log.line model.stderr (Stream.errorToString e)
+                                        |> Task.andThen (\_ -> Node.exitWithCode 1)
+                                )
+                            |> Task.execute
+                      else
+                        Stream.write encodedCommand backendStreams.input
+                            |> Task.map (\_ -> { source = model.stdin, target = backendStreams.input })
+                            |> Task.attempt RedirectTerminalIO
+                    , if headless then
                         Cmd.none
                       else
                         Task.succeed { source = backendStreams.output, target = model.stdout }
@@ -288,7 +288,7 @@ update msg model =
                         , fsPermission = model.fsPermission
                         , pathToString = model.pathToString
                         , path = path
-                        , onInit = \{ processId } -> RunStarted processId
+                        , onInit = RunStarted
                         , onExit = RunExited
                         }
                         |> Task.onError
@@ -313,16 +313,9 @@ update msg model =
                 Stream.read streams.source
                     |> Task.andThen (\str -> Stream.write str streams.target)
                     |> Task.map (\_ -> streams)
-                    |> Task.mapError
-                        (\err ->
-                            { error = err
-                            , source = streams.source
-                            , target = streams.target
-                            }
-                        )
                     |> Task.attempt RedirectTerminalIO
 
-            RedirectTerminalIO (Err { error, source, target }) ->
+            RedirectTerminalIO (Err error) ->
                 when error is
                     Stream.Closed ->
                         Cmd.none
@@ -391,7 +384,7 @@ parseUserArgs model compilerPath =
                             Just streams ->
                                 CompilerInitialized
                                     { backendStreams = streams
-                                    , quiet = False
+                                    , headless = False
                                     , encodedCommand =
                                         Compiler.Backend.encodeCommand
                                             { interactiveSession = model.interactive
@@ -544,7 +537,7 @@ parseUserArgs model compilerPath =
                                         CompilerInitialized
                                             { backendStreams = streams
                                             , encodedCommand = encodedCommand
-                                            , quiet = True
+                                            , headless = True
                                             }
                             )
                         , onCompiled = 
