@@ -262,6 +262,20 @@ crawlDeps env mvar sources deps blockedValue =
   where
     crawlNew name () = fork (crawlModule env mvar sources (DocsNeed False) name)
 
+crawlRootModuleHelp :: Env -> MVar StatusDict -> Sources -> DocsNeed -> ModuleName.Raw -> IO Status
+crawlRootModuleHelp env@(Env _ _ _ _ _ locals _) mvar sources docsNeed name =
+  case Map.lookup name sources of
+    Just source ->
+      if Name.isKernel name
+        then return $ SBadImport Import.NotFound
+        else case Map.lookup name locals of
+          Nothing ->
+            crawlFile env mvar sources docsNeed name source
+          Just local@(Details.Local _ deps _) ->
+            crawlDeps env mvar sources deps (SCached local)
+    Nothing ->
+      return $ SBadImport Import.NotFound
+
 crawlModule :: Env -> MVar StatusDict -> Sources -> DocsNeed -> ModuleName.Raw -> IO Status
 crawlModule env@(Env _ _ projectType _ _ locals foreigns) mvar sources docsNeed name =
   case Map.lookup name sources of
@@ -963,12 +977,7 @@ crawlRoot :: Env -> MVar StatusDict -> Sources -> RootLocation -> IO RootStatus
 crawlRoot env mvar sources root =
   case root of
     LInside name ->
-      do
-        statusMVar <- newEmptyMVar
-        statusDict <- takeMVar mvar
-        putMVar mvar (Map.insert name statusMVar statusDict)
-        putMVar statusMVar =<< crawlModule env mvar sources (DocsNeed False) name
-        return (SInside name)
+      crawlRootModule env mvar sources name
     LOutside _ ->
       error "Bad assumption"
 
@@ -978,7 +987,7 @@ crawlRootModule env mvar sources root =
     statusMVar <- newEmptyMVar
     statusDict <- takeMVar mvar
     putMVar mvar (Map.insert root statusMVar statusDict)
-    putMVar statusMVar =<< crawlModule env mvar sources (DocsNeed False) root
+    putMVar statusMVar =<< crawlRootModuleHelp env mvar sources (DocsNeed False) root
     return (SInside root)
 
 -- CHECK ROOTS
