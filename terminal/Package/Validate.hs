@@ -44,22 +44,18 @@ validate (Flags root knownVersions (Command.ProjectInfo currentOutline currentSo
       Task.throw Exit.ValidateApplication
     (Outline.Pkg currentPkgOutline@(Outline.PkgOutline _ _ _ _ _ _ _ _), Nothing) ->
       do
-        _ <- verifyBuild root currentPkgOutline currentSources currentDeps
+        _ <- buildProject root currentPkgOutline currentSources currentDeps
         Task.io $ putStrLn "Everything looks good!"
     (Outline.Pkg (Outline.PkgOutline _ _ _ _ _ _ _ _), Just (Command.ProjectInfo (Outline.App _) _ _)) ->
       error "Previous version is app"
     (Outline.Pkg currentPkgOutline@(Outline.PkgOutline _ _ _ vsn _ _ _ _), Just (Command.ProjectInfo (Outline.Pkg previousOutline) previousSources previousDeps)) ->
       do
-        currentDocs <- verifyBuild root currentPkgOutline currentSources currentDeps
+        currentDocs <- buildProject root currentPkgOutline currentSources currentDeps
         previousDocs <- buildProject root previousOutline previousSources previousDeps
 
         _ <- Task.eio id $ verifyBump vsn currentDocs previousDocs knownVersions
 
         Task.io $ putStrLn "Everything looks good!"
-
-verifyBuild :: FilePath -> Outline.PkgOutline -> Build.Sources -> Map Pkg.Name Details.Dependency -> Task.Task Exit.Validate Docs.Documentation
-verifyBuild root outline sources solution =
-  buildProject root outline sources solution
 
 buildProject :: FilePath -> Outline.PkgOutline -> Build.Sources -> Map Pkg.Name Details.Dependency -> Task.Task Exit.Validate Docs.Documentation
 buildProject root pkgOutline@(Outline.PkgOutline _ _ _ _ _ _ _ _) sources solution =

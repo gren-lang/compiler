@@ -71,8 +71,8 @@ bump flags@(Flags _ _ knownVersions _ _) currentOutline@(Outline.PkgOutline _ _ 
 suggestVersion :: Flags -> Outline.PkgOutline -> Outline.PkgOutline -> Task.Task Exit.Bump ()
 suggestVersion flags@(Flags _ root _ (Command.ProjectInfo _ currentSources currentDeps) (Command.ProjectInfo _ publishedSources publishedDeps)) currentOutline@(Outline.PkgOutline _ _ _ vsn _ _ _ _) publishedOutline =
   do
-    oldDocs <- generateDocs root currentOutline currentSources currentDeps
-    newDocs <- generateDocs root publishedOutline publishedSources publishedDeps
+    newDocs <- generateDocs root currentOutline currentSources currentDeps
+    oldDocs <- generateDocs root publishedOutline publishedSources publishedDeps
     let changes = Diff.diff oldDocs newDocs
     let newVersion = Diff.bump changes vsn
     Task.io $

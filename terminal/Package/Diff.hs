@@ -41,11 +41,11 @@ data Flags = Flags
   deriving (Show)
 
 run :: Flags -> IO ()
-run flags@(Flags _ _ firstPackage secondPackage) =
+run flags@(Flags _ _ currentPackage publishedPackage) =
   Reporting.attempt Exit.diffToReport $
-    case (Command._project_outline firstPackage, Command._project_outline secondPackage) of
-      (Outline.Pkg firstOutline, Outline.Pkg secondOutline) ->
-        Task.run (diff flags firstOutline secondOutline)
+    case (Command._project_outline currentPackage, Command._project_outline publishedPackage) of
+      (Outline.Pkg currentOutline, Outline.Pkg publishedOutline) ->
+        Task.run (diff flags currentOutline publishedOutline)
       _ ->
         error "Received outlines are in the wrong format"
 
@@ -55,10 +55,10 @@ type Task a =
   Task.Task Exit.Diff a
 
 diff :: Flags -> Outline.PkgOutline -> Outline.PkgOutline -> Task ()
-diff (Flags _ root (Command.ProjectInfo _ firstSources firstSolution) (Command.ProjectInfo _ secondSources secondSolution)) firstOutline secondOutline =
+diff (Flags _ root (Command.ProjectInfo _ currentSources currentSolution) (Command.ProjectInfo _ publishedSources publishedSolution)) currentOutline publishedOutline =
   do
-    oldDocs <- generateDocs root firstOutline firstSources firstSolution
-    newDocs <- generateDocs root secondOutline secondSources secondSolution
+    newDocs <- generateDocs root currentOutline currentSources currentSolution
+    oldDocs <- generateDocs root publishedOutline publishedSources publishedSolution
     writeDiff oldDocs newDocs
 
 -- GENERATE DOCS
