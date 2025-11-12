@@ -3988,7 +3988,7 @@ noteForCaseError =
     [ D.toSimpleNote $
         "Here is an example of a valid `when` expression for reference.",
       D.vcat $
-        [ D.indent 4 $ D.fillSep [D.cyan "when", "maybeWidth", D.cyan "of"],
+        [ D.indent 4 $ D.fillSep [D.cyan "when", "maybeWidth", D.cyan "is"],
           D.indent 6 $ D.fillSep [D.blue "Just", "width", "->"],
           D.indent 8 $ D.fillSep ["width", "+", D.dullyellow "200"],
           "",
@@ -4007,7 +4007,7 @@ noteForCaseIndentError =
         "Sometimes I get confused by indentation, so try to make your `when` look\
         \ something like this:",
       D.vcat $
-        [ D.indent 4 $ D.fillSep [D.cyan "when", "maybeWidth", D.cyan "of"],
+        [ D.indent 4 $ D.fillSep [D.cyan "when", "maybeWidth", D.cyan "is"],
           D.indent 6 $ D.fillSep [D.blue "Just", "width", "->"],
           D.indent 8 $ D.fillSep ["width", "+", D.dullyellow "200"],
           "",
