@@ -718,7 +718,7 @@ prettifyError error =
                         , PP.words "that is compatible with your existing dependencies."
                         ]
                     , PP.empty
-                    , PP.words "These are the confliction versions:"
+                    , PP.words "These are the conflicting versions:"
                     , PP.empty
                     , PP.verticalBlock
                         [ PP.text (SemanticVersionRange.toString version1)
@@ -783,7 +783,7 @@ prettifyError error =
                         |> PP.indent
                         |> PP.color PP.Green
                     , PP.empty
-                    , PP.words "Try adding them to your gren.json file in the \"indirect\" dependencies object then try this operaton again."
+                    , PP.words "Try adding them to your gren.json file in the \"indirect\" dependencies object then try this operation again."
                     ]
                 )
 
