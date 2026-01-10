@@ -248,6 +248,7 @@ Test-Suite gren-tests
 
         -- tests
         Generate.VLQSpec
+        Nitpick.PatternMatchesSpec
         Parse.AliasSpec
         Parse.RecordUpdateSpec
         Parse.SpaceSpec
@@ -258,6 +259,7 @@ Test-Suite gren-tests
     Build-Depends:
         gren:common,
         base >= 4.19 && <5,
+        containers >= 0.6 && < 0.7,
         utf8-string,
         bytestring >= 0.11 && < 0.12,
         hspec >= 2.7.10 && < 3
