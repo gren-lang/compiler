@@ -7,7 +7,6 @@ import Data.Map qualified as Map
 import Data.Name qualified as N
 import Data.NonEmptyList qualified as NE
 import Data.Utf8 qualified as Utf8
-import Data.Word (Word16)
 import Gren.ModuleName qualified as ModuleName
 import Gren.Package qualified as Pkg
 import Reporting.Annotation qualified as A
@@ -15,18 +14,6 @@ import Reporting.Annotation qualified as A
 import Nitpick.PatternMatches (check, Error (..))
 
 import Test.Hspec (Spec, describe, it)
-
--- Create a Located
-at :: A.Region -> a -> A.Located a
-at = A.At
-
--- Create a Region
-region :: A.Position -> A.Position -> A.Region
-region = A.Region
-
--- Creat a Position
-pos :: Word16 -> Word16 -> A.Position
-pos = A.Position
 
 -- Create a Can.Union for Bool
 boolUnion :: Can.Union
@@ -65,14 +52,14 @@ moduleNameCanonical pkgName authorName modName =
         }
 
 -- Create a Module from Decls
+-- We use A.zero to give an empty Region for exports and docs, as we don't
+-- care about their values
 makeModule :: Can.Decls -> Can.Module
 makeModule decls = 
     Can.Module
         { Can._name = moduleNameCanonical "TestPkg" "gren-devs" "TestModule"
-        -- The region here is made up and has no pertinent meaning
-        , Can._exports = Can.ExportEverything (region (pos 1 1) (pos 3 3))
-        -- The region here is made up and has no pertinent meaning
-        , Can._docs = Src.NoDocs (region (pos 1 1) (pos 3 3))
+        , Can._exports = Can.ExportEverything A.zero
+        , Can._docs = Src.NoDocs A.zero
         , Can._decls = decls
         , Can._unions = emptyUnions
         , Can._aliases = emptyAliases
@@ -84,8 +71,7 @@ makeModule decls =
 -- the compiler. Use this Region when doing so.
 failedRegion :: A.Region
 failedRegion =
-    region (pos 99 99) (pos 99 99)
-
+    A.Region (A.Position 99 99) (A.Position 99 99)
 
 
 -- Incomplete Bool Records
@@ -99,31 +85,34 @@ fn r =
 -- Debug.Trace trace was used to show the decls during "check",
 -- and this function was entered into  "gren repl".
 -- The result was used to create this AST
+--
+-- Since we don't care about the true column/row range of each token
+-- in the source code, we use A.zero for each Region.
 incompleteBoolRecordsDecls :: Can.Decls
 incompleteBoolRecordsDecls =
   Can.Declare 
-    (Can.Def (at (region (pos 2 1) (pos 2 6)) (N.fromChars "fn")) 
-      [ at (region (pos 2 7) (pos 2 8)) (Can.PVar (N.fromChars "r")) ]
-      (at (region (pos 3 5) (pos 5 37)) 
-        (Can.Case (at (region (pos 3 10) (pos 3 11)) (Can.VarLocal (N.fromChars "r"))) 
+    (Can.Def (A.At A.zero (N.fromChars "fn"))
+      [ A.At A.zero (Can.PVar (N.fromChars "r")) ]
+      (A.At A.zero
+        (Can.Case (A.At A.zero (Can.VarLocal (N.fromChars "r")))
           [ Can.CaseBranch 
-              (at (region (pos 4 9) (pos 4 32)) 
+              (A.At A.zero
                 (Can.PRecord 
-                  [ at (region (pos 4 11) (pos 4 20)) (Can.PRFieldPattern (N.fromChars "a") (at (region (pos 4 15) (pos 4 20)) (Can.PBool boolUnion False)))
-                  , at (region (pos 4 22) (pos 4 30)) (Can.PRFieldPattern (N.fromChars "b") (at (region (pos 4 26) (pos 4 30)) (Can.PBool boolUnion True)))
+                  [ A.At A.zero (Can.PRFieldPattern (N.fromChars "a") (A.At A.zero (Can.PBool boolUnion False)))
+                  , A.At A.zero (Can.PRFieldPattern (N.fromChars "b") (A.At A.zero (Can.PBool boolUnion True)))
                   ]
                 )
               ) 
-              (at (region (pos 4 36) (pos 4 37)) (Can.Int 1))
+              (A.At A.zero (Can.Int 1))
           , Can.CaseBranch 
-              (at (region (pos 5 9) (pos 5 32)) 
+              (A.At A.zero
                 (Can.PRecord 
-                  [ at (region (pos 5 11) (pos 5 19)) (Can.PRFieldPattern (N.fromChars "a") (at (region (pos 5 15) (pos 5 19)) (Can.PBool boolUnion True)))
-                  , at (region (pos 5 21) (pos 5 30)) (Can.PRFieldPattern (N.fromChars "b") (at (region (pos 5 25) (pos 5 30)) (Can.PBool boolUnion False)))
+                  [ A.At A.zero (Can.PRFieldPattern (N.fromChars "a") (A.At A.zero (Can.PBool boolUnion True)))
+                  , A.At A.zero (Can.PRFieldPattern (N.fromChars "b") (A.At A.zero (Can.PBool boolUnion False)))
                   ]
                 )
               ) 
-              (at (region (pos 5 36) (pos 5 37)) (Can.Int 2))
+              (A.At A.zero (Can.Int 2))
           ]
         )
       )
