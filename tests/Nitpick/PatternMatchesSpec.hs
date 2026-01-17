@@ -170,7 +170,7 @@ runCheckPatterns patterns =
 -- checkPatterns returns an [Error],
 -- which can have [Pattern] in it.
 -- This is cumbersome to test in the unit tests.
--- We convert each [Error] (and thus, [Pattern]) to a String,
+-- We convert each Error (and thus, [Pattern]) to a [String],
 -- making it a lot easier to assert on in the unit tests.
 --
 -- E.g., this [Error]
@@ -217,7 +217,6 @@ patternToTestableString pat =
         Literal (Str s) -> Utf8.toChars s
         Literal (Int n) -> show n -- convert Int to String
 
-        --Array patterns -> "[ " ++ (intercalate ", " (map patternToTestableString patterns)) ++ " ]"
         Array patterns -> patternsToTestableString patterns
 
         Ctor _ vName patterns ->
