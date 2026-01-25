@@ -263,12 +263,10 @@ isExhaustive matrix n =
                               recoverRecord patterns =
                                 let (fieldPats, rest) = splitAt fieldCount patterns
                                  in Record (Map.fromList (zip baseFieldsInOrder fieldPats)) : rest
-                           in
-                             map recoverRecord $
-                               isExhaustive
-                                 (Maybe.mapMaybe (specializeRowByRecord baseRecord) matrix)
-                                 (fieldCount + n - 1)
-
+                           in map recoverRecord $
+                                isExhaustive
+                                  (Maybe.mapMaybe (specializeRowByRecord baseRecord) matrix)
+                                  (fieldCount + n - 1)
                 else
                   let alts@(Can.Union _ altList numAlts _) = snd (Map.findMin ctors)
                    in if numSeen < numAlts
