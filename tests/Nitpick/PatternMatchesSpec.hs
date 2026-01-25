@@ -16,22 +16,6 @@ import Nitpick.PatternMatches (Pattern(..), Literal(..), Context(..), Error(..),
 
 import Test.Hspec (Spec, describe, it, shouldBe)
 
--- Create a Pkg.Name
-packageName :: String -> String -> Pkg.Name
-packageName pkgName authorName =
-    Pkg.Name
-        { Pkg._author = Utf8.fromChars authorName
-        , Pkg._project = Utf8.fromChars pkgName
-        }
-
--- Create a ModuleName.Canonical
-moduleNameCanonical :: String -> String -> String -> ModuleName.Canonical
-moduleNameCanonical pkgName authorName modName =
-    ModuleName.Canonical
-        { ModuleName._package = packageName pkgName authorName
-        , ModuleName._module = N.fromChars modName
-        }
-
 -- Create a Can.Union for Bool
 boolUnion :: Can.Union
 boolUnion = 
@@ -62,7 +46,8 @@ maybeUnion =
 maybePCtor :: Bool -> [Can.PatternCtorArg] -> Pattern_
 maybePCtor isJust args =
   Can.PCtor
-    { Can._p_home = moduleNameCanonical "core" "gren-lang" "Maybe"
+    { Can._p_home = ModuleName.Canonical
+        (Pkg.Name (Utf8.fromChars "core") (Utf8.fromChars "gren-lang")) (Utf8.fromChars "Maybe")
     , Can._p_type = (N.fromChars "Maybe")
     , Can._p_union = maybeUnion
     , Can._p_name = if isJust then (N.fromChars "Just") else (N.fromChars "Nothing")
