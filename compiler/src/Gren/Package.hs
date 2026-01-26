@@ -50,7 +50,7 @@ import Parse.Primitives qualified as P
 import Reporting.Suggest qualified as Suggest
 import System.FilePath ((</>))
 
--- PACKGE NAMES
+-- PACKAGE NAMES
 
 data Name = Name
   { _author :: !Author,

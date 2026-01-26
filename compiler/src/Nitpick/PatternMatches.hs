@@ -7,6 +7,7 @@ module Nitpick.PatternMatches
     Context (..),
     Pattern (..),
     Literal (..),
+    checkPatterns,
   )
 where
 
@@ -252,21 +253,20 @@ isExhaustive matrix n =
                           (:) Anything
                             <$> isExhaustive (Maybe.mapMaybe specializeRowByAnything matrix) (n - 1)
                         Just baseRecord ->
-                          let fieldNames = Map.keys baseRecord
+                          -- Treat records as a product of fields (cartesian combination),
+                          -- not each field independently.
+                          let fieldCount = Map.size baseRecord
+                              baseFieldsInOrder = Map.keys baseRecord
 
-                              isAltExhaustive fieldName =
-                                map (asRecordPattern fieldName) $
-                                  isExhaustive
-                                    (Maybe.mapMaybe (specializeRowByRecordField fieldName) matrix)
-                                    n
-
-                              asRecordPattern fieldName ptn =
-                                case ptn of
-                                  firstValue : _ ->
-                                    [Record $ Map.singleton fieldName firstValue]
-                                  _ ->
-                                    ptn
-                           in concatMap isAltExhaustive fieldNames
+                              -- Rebuild a record from the first `fieldCount` patterns in a counterexample row
+                              recoverRecord :: [Pattern] -> [Pattern]
+                              recoverRecord patterns =
+                                let (fieldPats, rest) = splitAt fieldCount patterns
+                                 in Record (Map.fromList (zip baseFieldsInOrder fieldPats)) : rest
+                           in map recoverRecord $
+                                isExhaustive
+                                  (Maybe.mapMaybe (specializeRowByRecord baseRecord) matrix)
+                                  (fieldCount + n - 1)
                 else
                   let alts@(Can.Union _ altList numAlts _) = snd (Map.findMin ctors)
                    in if numSeen < numAlts
@@ -425,29 +425,6 @@ specializeRowByRecord baseMap row =
     Literal _ : _ ->
       error $
         "Compiler bug! After type checking, records and literals\
-        \ should never align in pattern match exhaustiveness checks."
-    [] ->
-      error "Compiler error! Empty matrices should not get specialized."
-
--- INVARIANT: (length row == N) ==> (length result == arity + N - 1)
-specializeRowByRecordField :: Name.Name -> [Pattern] -> Maybe [Pattern]
-specializeRowByRecordField fieldName row =
-  case row of
-    Ctor _ _ _ : _ ->
-      Nothing
-    Anything : patterns ->
-      Just (Anything : patterns)
-    Array _ : _ ->
-      Nothing
-    Record namedPatterns : patterns ->
-      case Map.lookup fieldName namedPatterns of
-        Just pattern ->
-          Just (pattern : patterns)
-        Nothing ->
-          Nothing
-    Literal _ : _ ->
-      error $
-        "Compiler bug! After type checking, constructors and literals\
         \ should never align in pattern match exhaustiveness checks."
     [] ->
       error "Compiler error! Empty matrices should not get specialized."
