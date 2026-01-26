@@ -342,6 +342,10 @@ parseUserArgs model compilerPath =
                 |> Stream.Log.string model.stderr
                 |> Task.map (\_ -> Task.execute <| Node.exitWithCode 1)
 
+        endWithErrorLine stringErr =
+            Stream.Log.line model.stderr stringErr
+                |> Task.map (\_ -> Task.execute <| Node.exitWithCode 1)
+
         endWithErrorString stringErr =
             Stream.Log.string model.stderr stringErr
                 |> Task.map (\_ -> Task.execute <| Node.exitWithCode 1)
@@ -352,7 +356,7 @@ parseUserArgs model compilerPath =
     in
     when CLI.Parser.run model.args CliParser.parser is
         CLI.Parser.UnknownCommand commandName ->
-            endWithErrorString ("I don't recognize this command: " ++ commandName)
+            endWithErrorLine ("I don't recognize this command: " ++ commandName)
                 |> Task.perform RunCmd
     
         CLI.Parser.BadFlags err ->
