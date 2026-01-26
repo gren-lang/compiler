@@ -42,13 +42,22 @@ toSource source =
 -- CODE FORMATTING
 
 toSnippet :: Source -> A.Region -> Maybe A.Region -> (D.Doc, D.Doc) -> D.Doc
-toSnippet source region highlight (preHint, postHint) =
-  D.vcat
-    [ preHint,
-      "",
-      render source region highlight,
-      postHint
-    ]
+toSnippet source region@(A.Region (A.Position startLine _) (A.Position _ _)) highlight (preHint, postHint) =
+  if startLine > 0
+    then
+      D.vcat
+        [ preHint,
+          "",
+          render source region highlight,
+          postHint
+        ]
+    else
+      -- The region doesn't point to actual source code. Don't render it.
+      D.vcat
+        [ preHint,
+          "",
+          postHint
+        ]
 
 toPair :: Source -> A.Region -> A.Region -> (D.Doc, D.Doc) -> (D.Doc, D.Doc, D.Doc) -> D.Doc
 toPair source r1 r2 (oneStart, oneEnd) (twoStart, twoMiddle, twoEnd) =

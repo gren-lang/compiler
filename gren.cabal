@@ -255,6 +255,7 @@ Test-Suite gren-tests
         Parse.UnderscorePatternSpec
         Parse.MultilineStringSpec
         Parse.DeclSpec
+        Reporting.Error.ImportSpec
 
     Build-Depends:
         gren:common,
@@ -262,7 +263,9 @@ Test-Suite gren-tests
         containers >= 0.6 && < 0.7,
         utf8-string,
         bytestring >= 0.11 && < 0.12,
-        hspec >= 2.7.10 && < 3
+        hspec >= 2.7.10 && < 3,
+        prettyprinter >= 1.7.1 && < 2,
+        text >= 2.1.2 && < 3
 
     Build-Tool-Depends:
         hspec-discover:hspec-discover >= 2.7.10 && < 3
