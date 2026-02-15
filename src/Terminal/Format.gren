@@ -1,0 +1,20 @@
+module Terminal.Format exposing
+    ( Config
+    , run
+    )
+
+
+import Stream
+import Stream.Log
+import Task exposing (Task)
+import Bytes exposing (Bytes)
+
+
+type alias Config =
+    { stdout : Stream.Writable Bytes
+    }
+
+
+run : Config -> Task x {}
+run config =
+    Stream.Log.line config.stdout "TODO"

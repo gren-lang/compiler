@@ -16,6 +16,7 @@ import Terminal.Run
 import Terminal.Help
 import Terminal.Repl
 import Terminal.Report exposing (Report)
+import Terminal.Format
 import Compiler.Backend
 import Compiler.PackageName as PackageName exposing (PackageName)
 import Compiler.Paths
@@ -837,6 +838,13 @@ parseUserArgs model compilerPath =
                         |> Task.map (\_ -> Cmd.none)
                         |> Task.mapError Terminal.Paths.errorToString
                         |> Task.onError endWithErrorString
+                        |> Task.perform RunCmd
+
+                CliParser.Format ->
+                    Terminal.Format.run
+                        { stdout = model.stdout
+                        }
+                        |> Task.map (\_ -> Cmd.none)
                         |> Task.perform RunCmd
 
 

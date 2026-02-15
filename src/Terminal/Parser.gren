@@ -31,6 +31,7 @@ type Command
     | PackageDiff DiffArgs
     | Paths Paths.Options
     | Run RunOptions
+    | Format
 
 
 type alias InitFlags =
@@ -202,6 +203,20 @@ parser =
                         ]
                 , builder =
                     \_args flags -> Paths flags
+                }
+            |> CLI.Parser.withCommand
+                { word = "format"
+                , arguments =
+                    CLI.Parser.noArgs
+                , flags =
+                    CLI.Parser.noFlags
+                , commonDescription = Nothing
+                , summary =
+                    "Format Gren source code."
+                , example =
+                    PP.empty
+                , builder =
+                    \_args _flags -> Format
                 }
             |> CLI.Parser.withCommand
                 { word = "make"
