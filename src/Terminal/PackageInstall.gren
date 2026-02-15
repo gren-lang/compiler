@@ -154,7 +154,7 @@ run config { projectPath, outline } =
                         loadPackageFromPath config.fsPermission name path
                             |> Task.map Just
             )
-        |> Task.sequence -- TODO: use concurrent
+        |> Task.concurrent
         |> Task.map (Array.mapAndKeepJust identity)
         |> Task.andThen
             (\pkgs ->
@@ -563,7 +563,7 @@ installStep config opts =
                                                     )
                                                 |> Task.andThen
                                                     (\_ ->
-                                                        FileSystem.writeFileStream config.fsPermission bundlePath
+                                                        FileSystem.writeFileStream config.fsPermission FileSystem.Replace bundlePath
                                                             |> Task.mapError
                                                                 (\err ->
                                                                     PackageInstallFileSystemError
@@ -898,8 +898,8 @@ cleanPackageDirectory fsPermission resolution =
                         (\bundlePath ->
                             not (Array.member bundlePath bundlesToKeep)
                         )
-                    |> Array.map (FileSystem.remove fsPermission { recursive = False, ignoreErrors = False })
-                    |> Task.sequence
+                    |> Array.map (FileSystem.remove fsPermission { recursive = False })
+                    |> Task.concurrent
             )
         |> Task.map (\_ -> {})
 
@@ -1394,7 +1394,7 @@ loadPackageFromBundle fsPermission name vsn projectPath =
             packageBundlePath name vsn projectPath
     in
     bundlePath
-        |> FileSystem.readFileStream fsPermission
+        |> FileSystem.readFileStream fsPermission FileSystem.Beginning
         |> Task.mapError
             (\fsErr ->
                 PackageInstallFailedToLoadBundle

@@ -45,7 +45,7 @@ confirm { stdout, stdin, useColor, interactive, question, defaultValue } =
             |> Task.andThen (\_ -> Stream.readBytesAsString stdin)
             |> Task.map
                 (\answer ->
-                    when String.trim <| String.toLower <| Maybe.withDefault "" answer is
+                    when String.trim <| String.toLower answer is
                         "y" ->
                             True
 

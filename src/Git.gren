@@ -123,11 +123,12 @@ clonePackage cpPerm repo name version =
         }
         |> Task.mapError
             (\details ->
-                if details.exitCode == 128 then
-                    NoSuchRepoOrVersion version
+                when details is
+                    ChildProcess.ProgramError { exitCode = 128 } ->
+                        NoSuchRepoOrVersion version
 
-                else
-                    constructFailedCommand args details
+                    _ ->
+                        constructFailedCommand args details
             )
 
 
@@ -166,7 +167,16 @@ constructFailedCommand : Array String -> ChildProcess.FailedRun -> Error
 constructFailedCommand args details =
     FailedCommand
         { args = Array.pushFirst "git" args
-        , message = Maybe.withDefault "" (Bytes.toString details.stderr)
+        , message =
+            when details is
+                ChildProcess.InitError err ->
+                    "Exit code: " ++ err.errorCode
+
+                ChildProcess.ProgramError err ->
+                    String.join "\n"
+                        [ "Exit code: " ++ String.fromInt err.exitCode
+                        , "Message: " ++ Maybe.withDefault "" (Bytes.toString err.stderr)
+                        ]
         }
 
 
@@ -208,10 +218,12 @@ fetchVersions cpPerm name =
         }
         |> Task.mapError
             (\details ->
-                if details.exitCode == 128 then
-                    NoSuchRepo
-                else
-                    constructFailedCommand args details
+                when details is
+                    ChildProcess.ProgramError { exitCode = 128 } ->
+                        NoSuchRepo
+
+                    _ ->
+                        constructFailedCommand args details
             )
         |> Task.andThen
             (\result ->

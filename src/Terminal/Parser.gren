@@ -74,13 +74,17 @@ type DiffArgs
 
 parser : CLI.Parser.App Command
 parser =
+    let
+        versionString =
+            SemanticVersion.toString Meta.version
+    in
     { name = "gren"
-    , version = SemanticVersion.toString Meta.version
+    , version = versionString
     , intro = 
         PP.verticalBlock
             [ PP.block
                 [ PP.text "Hi, thank you for trying out "
-                , PP.intenseColor PP.Green <| PP.text ("Gren " ++ Compiler.Backend.version)
+                , PP.intenseColor PP.Green <| PP.text ("Gren " ++ versionString)
                 , PP.text ". I hope you like it!"
                 ]
             , PP.empty

@@ -104,7 +104,7 @@ init env =
                             }
 
                     _ ->
-                        Compiler.Backend.downloadUrl env.platform env.cpuArchitecture
+                        Compiler.Backend.downloadUrl Meta.version env.platform env.cpuArchitecture
                             |> Result.map 
                                 (\url ->
                                     { remotePath = Just url
@@ -154,8 +154,8 @@ init env =
 
                     Nothing ->
                         Stream.Log.line env.stderr "We currently don't support this platform/arch."
-                            |> Task.andThen (\_ -> Node.exitWithCode 1)
-                            |> Task.execute
+                            |> Task.map (\_ -> Node.exitWithCode 1)
+                            |> Task.executeCmd
             }
 
 
@@ -167,13 +167,13 @@ type Msg
         }
     | CompilerDownloaded 
         { localPath : Path
-        , downloadResult : Result (HttpClient.Error Bytes) (HttpClient.Response Bytes)
+        , downloadResult : Result HttpClient.Error (HttpClient.Response Bytes)
         }
     | CompilerInstalled (Result FileSystem.Error Path)
     | CompilerInitialized { headless : Bool, backendStreams : ChildProcess.StreamIO, encodedCommand : Bytes }
     | CompilerRan Int
     | CompiledForRun { path : Path, exitCode : Int }
-    | RunStarted { processId : Process.Id, streams : Maybe ChildProcess.StreamIO }
+    | RunStarted Process.Id
     | RunExited Int
     | RedirectTerminalIO
         (Result
@@ -190,8 +190,8 @@ update msg model =
     let
         endWithError errorStr =
             Stream.Log.line model.stderr errorStr
-                |> Task.andThen (\_ -> Node.exitWithCode 1)
-                |> Task.execute
+                |> Task.map (\_ -> Node.exitWithCode 1)
+                |> Task.executeCmd
     in
     { model = model
     , command =
@@ -258,13 +258,13 @@ update msg model =
                 Cmd.batch
                     [ if headless then
                         Stream.write encodedCommand backendStreams.input
-                            |> Task.map (\_ -> {})
+                            |> Task.map (\_ -> Cmd.none)
                             |> Task.onError
                                 (\e ->
                                     Stream.Log.line model.stderr (Stream.errorToString e)
-                                        |> Task.andThen (\_ -> Node.exitWithCode 1)
+                                        |> Task.map (\_ -> Node.exitWithCode 1)
                                 )
-                            |> Task.execute
+                            |> Task.executeCmd
                       else
                         Stream.write encodedCommand backendStreams.input
                             |> Task.map (\_ -> { source = model.stdin, target = backendStreams.input })
@@ -279,7 +279,7 @@ update msg model =
                     ]
 
             CompilerRan exitCode ->
-                Task.execute <| Node.exitWithCode exitCode
+                Node.exitWithCode exitCode
             
             CompiledForRun { path, exitCode } ->
                 if exitCode == 0 then
@@ -296,18 +296,18 @@ update msg model =
                                 Terminal.Run.prettifyError error
                                     |> Terminal.Report.toString (Terminal.Report.Terminal { useColor = model.useColor })
                                     |> Stream.Log.line model.stderr
-                                    |> Task.map (\_ -> Task.execute <| Node.exitWithCode 1)
+                                    |> Task.map (\_ -> Node.exitWithCode 1)
                             )
                         |> Task.perform RunCmd
 
                 else
-                    Task.execute <| Node.exitWithCode exitCode
+                    Node.exitWithCode exitCode
 
             RunStarted _ ->
                 Cmd.none
 
             RunExited exitCode ->
-                Task.execute <| Node.exitWithCode exitCode
+                Node.exitWithCode exitCode
 
             RedirectTerminalIO (Ok streams) ->
                 Stream.read streams.source
@@ -322,8 +322,8 @@ update msg model =
 
                     _ ->
                         Stream.Log.line model.stderr ("Something went wrong when communicating with compiler backend: " ++ Stream.errorToString error)
-                            |> Task.andThen (\_ -> Node.exitWithCode 1)
-                            |> Task.execute
+                            |> Task.map (\_ -> Node.exitWithCode 1)
+                            |> Task.executeCmd
 
             RunCmd cmd ->
                 cmd
@@ -340,11 +340,11 @@ parseUserArgs model compilerPath =
         endWithError prettyErr =
             Terminal.Help.prettyPrint printOpts prettyErr
                 |> Stream.Log.string model.stderr
-                |> Task.map (\_ -> Task.execute <| Node.exitWithCode 1)
+                |> Task.map (\_ -> Node.exitWithCode 1)
 
         endWithErrorString stringErr =
             Stream.Log.string model.stderr stringErr
-                |> Task.map (\_ -> Task.execute <| Node.exitWithCode 1)
+                |> Task.map (\_ -> Node.exitWithCode 1)
 
         endWithErrorReport outputType report =
             Terminal.Report.toString outputType report
@@ -377,21 +377,16 @@ parseUserArgs model compilerPath =
             let
                 initWithCommand backendCommand =
                     \cpOpts ->
-                        when cpOpts.streams is
-                            Nothing ->
-                                RunCmd Cmd.none
-
-                            Just streams ->
-                                CompilerInitialized
-                                    { backendStreams = streams
-                                    , headless = False
-                                    , encodedCommand =
-                                        Compiler.Backend.encodeCommand
-                                            { interactiveSession = model.interactive
-                                            , pathToString = model.pathToString
-                                            }
-                                            backendCommand
+                        CompilerInitialized
+                            { backendStreams = cpOpts.streams
+                            , headless = False
+                            , encodedCommand =
+                                Compiler.Backend.encodeCommand
+                                    { interactiveSession = model.interactive
+                                    , pathToString = model.pathToString
                                     }
+                                    backendCommand
+                            }
             in
             when parsedCommand is
                 CliParser.Init flags ->
@@ -529,16 +524,11 @@ parseUserArgs model compilerPath =
                         , package = opts.package
                         , onBackendInitialized = 
                             (\{ backendStreams, encodedCommand } ->
-                                when backendStreams is
-                                    Nothing ->
-                                        RunCmd Cmd.none
-
-                                    Just streams ->
-                                        CompilerInitialized
-                                            { backendStreams = streams
-                                            , encodedCommand = encodedCommand
-                                            , headless = True
-                                            }
+                                CompilerInitialized
+                                    { backendStreams = backendStreams
+                                    , encodedCommand = encodedCommand
+                                    , headless = True
+                                    }
                             )
                         , onCompiled = 
                             (\outputPath exitCode ->

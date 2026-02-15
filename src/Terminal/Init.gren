@@ -133,7 +133,7 @@ runNonInteractive config projectPath =
                             }
                         )
             )
-        |> Task.sequence -- TODO: use concurrent
+        |> Task.concurrent
         |> Task.andThen (generateGrenJson config projectPath)
 
 

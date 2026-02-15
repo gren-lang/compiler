@@ -1,12 +1,12 @@
 {
   "name": "gren-lang",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "description": "Compiler for the Gren programming language",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "prepublishOnly": "scripts/prod_build.sh",
-    "build": "npx --package=gren-lang@0.5 gren make src/Main.gren --output=app",
-    "build:sourcemaps": "npx --package=gren-lang@0.5 gren make src/Main.gren --output=app --sourcemaps",
+    "build": "npx --package=gren-lang@0.6.3 gren make Main --output=app",
+    "build:sourcemaps": "npx --package=gren-lang@0.6.3 gren make Main --output=app --sourcemaps",
     "prettier": "prettier -w index.js",
     "prettier:check": "prettier -c index.js"
   },
@@ -38,7 +38,7 @@
   "homepage": "https://gren-lang.org",
   "dependencies": {},
   "devDependencies": {
-    "gren-lang": "^0.5.4",
+    "gren-lang": "0.6.3",
     "prettier": "^3.4.2",
     "terser": "^5.38.1"
   }

@@ -96,7 +96,7 @@ run config { projectPath, outline } =
                         Array.pushLast task tasks
             )
             []
-        |> Task.sequence -- TODO: Task.concurrent
+        |> Task.concurrent
         |> Task.map
             (\vs ->
                 Array.mapAndKeepJust

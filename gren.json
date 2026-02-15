@@ -4,15 +4,15 @@
     "source-directories": [
         "src"
     ],
-    "gren-version": "0.5.3",
+    "gren-version": "0.6.3",
     "dependencies": {
         "direct": {
-            "gren-lang/core": "6.0.1",
-            "gren-lang/node": "5.0.4",
-            "gren-lang/compiler-node": "3.0.7"
+            "gren-lang/core": "local:../core",
+            "gren-lang/node": "6.1.0",
+            "gren-lang/compiler-node": "local:../compiler-node"
         },
         "indirect": {
-            "gren-lang/url": "5.0.0"
+            "gren-lang/url": "6.0.0"
         }
     }
 }

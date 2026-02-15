@@ -46,7 +46,7 @@ type alias MakeConfig msg =
     , pathToString : Path -> String
     , moduleName : ModuleName
     , package : Maybe PackageName
-    , onBackendInitialized : { backendStreams : Maybe ChildProcess.StreamIO, encodedCommand : Bytes } -> msg
+    , onBackendInitialized : { backendStreams : ChildProcess.StreamIO, encodedCommand : Bytes } -> msg
     , onCompiled : Path -> Int -> msg
     }
 
@@ -56,7 +56,7 @@ type alias RunConfig msg =
     , fsPermission : FileSystem.Permission
     , pathToString : Path -> String
     , path : Path
-    , onInit : { processId : Process.Id, streams : Maybe ChildProcess.StreamIO } -> msg
+    , onInit : Process.Id -> msg
     , onExit : Int -> msg
     }
 
@@ -207,8 +207,7 @@ run config =
                 config.pathToString config.path
             
             runWith command =
-                ChildProcess.defaultSpawnOptions config.onInit config.onExit
-                    |> (\opts -> { opts | connection = ChildProcess.Integrated })
+                ChildProcess.defaultSpawnOptions (ChildProcess.Integrated config.onInit) config.onExit
                     |> ChildProcess.spawn config.cpPermission command [ path ]
                     |> Task.succeed
         in
