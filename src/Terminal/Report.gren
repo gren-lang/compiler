@@ -10,7 +10,7 @@ module Terminal.Report exposing
 
 
 import FileSystem.Path as Path exposing (Path)
-import CLI.PrettyPrinter as PP
+import Cli.PrettyPrinter as PP
 import Terminal.Help
 import Json.Encode as Encode
 

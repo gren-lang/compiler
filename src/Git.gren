@@ -18,7 +18,7 @@ import Compiler.PackageName as PackageName exposing (PackageName)
 import SemanticVersion exposing (SemanticVersion)
 import Task exposing (Task)
 import Terminal.Help as Help
-import CLI.PrettyPrinter as PP
+import Cli.PrettyPrinter as PP
 import Compiler.Paths
 import Terminal.Report as Report exposing (Report)
 

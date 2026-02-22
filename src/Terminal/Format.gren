@@ -14,9 +14,9 @@ import FileSystem
 import FileSystem.Path as Path exposing (Path)
 import Compiler.Outline as Outline exposing (Outline)
 import Terminal.Report as Report exposing (Report)
-import CLI.PrettyPrinter as PP
-import Parse.Module as PM
-import Parse.Context as Context
+import Cli.PrettyPrinter as PP
+import Compiler.Parse.Module as PM
+import Compiler.Parse.Context as Context
 import String.Parser.Advanced as Parser
 
 

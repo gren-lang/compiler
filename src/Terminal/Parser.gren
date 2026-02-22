@@ -6,8 +6,8 @@ module Terminal.Parser exposing
     )
 
 
-import CLI.Parser
-import CLI.PrettyPrinter as PP
+import Cli.Parser
+import Cli.PrettyPrinter as PP
 import Compiler.Backend
 import Compiler.PackageName as PackageName exposing (PackageName)
 import Compiler.Platform as Platform exposing (Platform)
@@ -73,7 +73,7 @@ type DiffArgs
     | DiffGlobal { package : PackageName, lower : SemanticVersion, upper : SemanticVersion }
 
 
-parser : CLI.Parser.App Command
+parser : Cli.Parser.App Command
 parser =
     let
         versionString =
@@ -106,13 +106,13 @@ parser =
             to get the best results!
             """
     , commands =
-        CLI.Parser.defineGroup
-            |> CLI.Parser.withCommand
+        Cli.Parser.defineGroup
+            |> Cli.Parser.withCommand
                 { word = "init"
                 , arguments =
-                    CLI.Parser.noArgs
+                    Cli.Parser.noArgs
                 , flags =
-                    CLI.Parser.initFlags 
+                    Cli.Parser.initFlags 
                         (\package maybePlatform ->
                             { package = package
                             , platform = 
@@ -123,8 +123,8 @@ parser =
                                     Maybe.withDefault Platform.Browser maybePlatform
                             }
                         )
-                        |> CLI.Parser.toggle "package" "Create a package (as opposed to an application)"
-                        |> CLI.Parser.flag "platform" initPlatformParser "Which platform to target"
+                        |> Cli.Parser.toggle "package" "Create a package (as opposed to an application)"
+                        |> Cli.Parser.flag "platform" initPlatformParser "Which platform to target"
                 , commonDescription =
                     Just "Start a Gren project. It creates a starter gren.json file."
                 , summary =
@@ -138,17 +138,17 @@ parser =
                 , builder =
                     \_args flags -> Init flags
                 }
-            |> CLI.Parser.withCommand
+            |> Cli.Parser.withCommand
                 { word = "repl"
                 , arguments =
-                    CLI.Parser.noArgs
+                    Cli.Parser.noArgs
                 , flags =
-                    CLI.Parser.initFlags
+                    Cli.Parser.initFlags
                         (\maybeInterpreter ->
                             { interpreter = maybeInterpreter
                             }
                         )
-                        |> CLI.Parser.flag "interpreter" interpreterParser "Path to a alternate JS interpreter, like deno or nodejs"
+                        |> Cli.Parser.flag "interpreter" interpreterParser "Path to a alternate JS interpreter, like deno or nodejs"
                 , commonDescription =
                     Just 
                         """
@@ -167,12 +167,12 @@ parser =
                 , builder =
                     \_args flags -> Repl flags
                 }
-            |> CLI.Parser.withCommand
+            |> Cli.Parser.withCommand
                 { word = "paths"
                 , arguments =
-                    CLI.Parser.noArgs
+                    Cli.Parser.noArgs
                 , flags =
-                    CLI.Parser.initFlags
+                    Cli.Parser.initFlags
                         (\project cache backend json ->
                             { project = project
                             , cache = cache
@@ -180,10 +180,10 @@ parser =
                             , json = json
                             }
                         )
-                        |> CLI.Parser.toggle "project" "Only output the path to the project"
-                        |> CLI.Parser.toggle "cache" "Only output the path to the compiler cache"
-                        |> CLI.Parser.toggle "backend" "Only output the path to the compiler backend"
-                        |> CLI.Parser.toggle "json" "Output in JSON format"
+                        |> Cli.Parser.toggle "project" "Only output the path to the project"
+                        |> Cli.Parser.toggle "cache" "Only output the path to the compiler cache"
+                        |> Cli.Parser.toggle "backend" "Only output the path to the compiler backend"
+                        |> Cli.Parser.toggle "json" "Output in JSON format"
                 , commonDescription = Nothing
                 , summary =
                     "Return the paths used for compiling a project."
@@ -204,12 +204,12 @@ parser =
                 , builder =
                     \_args flags -> Paths flags
                 }
-            |> CLI.Parser.withCommand
+            |> Cli.Parser.withCommand
                 { word = "format"
                 , arguments =
-                    CLI.Parser.noArgs
+                    Cli.Parser.noArgs
                 , flags =
-                    CLI.Parser.noFlags
+                    Cli.Parser.noFlags
                 , commonDescription = Nothing
                 , summary =
                     "Format Gren source code."
@@ -218,12 +218,12 @@ parser =
                 , builder =
                     \_args _flags -> Format
                 }
-            |> CLI.Parser.withCommand
+            |> Cli.Parser.withCommand
                 { word = "make"
                 , arguments =
-                    CLI.Parser.zeroOrMoreArgs moduleNameParser
+                    Cli.Parser.zeroOrMoreArgs moduleNameParser
                 , flags =
-                    CLI.Parser.initFlags 
+                    Cli.Parser.initFlags 
                         (\optimize sourcemaps output report ->
                             { optimize = optimize
                             , sourcemaps = sourcemaps
@@ -231,10 +231,10 @@ parser =
                             , report = report
                             }
                         )
-                        |> CLI.Parser.toggle "optimize" "Turn on optimizations to make code smaller and faster. For example, the compiler renames record fields to be as short as possible and unboxes values to reduce allocation."
-                        |> CLI.Parser.toggle "sourcemaps" "Add sourcemaps to the resulting JS file. This let's you debug Gren code in a JS debugger, at the cost of longer compile times and a bigger JS file."
-                        |> CLI.Parser.flag "output" outputParser "Specify the name of the resulting JS file. For example --output=assets/gren.js to generate the JS at assets/gren.js. You can also use --output=/dev/stdout to output the JS to the terminal, or --output=/dev/null to generate no output at all!"
-                        |> CLI.Parser.flag "report" reportParser "You can say --report=json to get error messages as JSON. This is only really useful if you are an editor plugin. Humans should avoid it!"
+                        |> Cli.Parser.toggle "optimize" "Turn on optimizations to make code smaller and faster. For example, the compiler renames record fields to be as short as possible and unboxes values to reduce allocation."
+                        |> Cli.Parser.toggle "sourcemaps" "Add sourcemaps to the resulting JS file. This let's you debug Gren code in a JS debugger, at the cost of longer compile times and a bigger JS file."
+                        |> Cli.Parser.flag "output" outputParser "Specify the name of the resulting JS file. For example --output=assets/gren.js to generate the JS at assets/gren.js. You can also use --output=/dev/stdout to output the JS to the terminal, or --output=/dev/null to generate no output at all!"
+                        |> Cli.Parser.flag "report" reportParser "You can say --report=json to get error messages as JSON. This is only really useful if you are an editor plugin. Humans should avoid it!"
                 , commonDescription =
                     Nothing
                 , summary =
@@ -263,18 +263,18 @@ parser =
                             , entryPoints = args
                             }
                 }
-            |> CLI.Parser.withCommand
+            |> Cli.Parser.withCommand
                 { word = "run"
                 , arguments =
-                    CLI.Parser.oneArg moduleNameParser
+                    Cli.Parser.oneArg moduleNameParser
                 , flags =
-                    CLI.Parser.initFlags 
+                    Cli.Parser.initFlags 
                         (\package ->
                             { package = package
                             }
                         )
                         -- TODO: --package name (without equals) does not work. Is that expected?
-                        |> CLI.Parser.flag "package" PackageName.cliParser "Run a module in a particular package."
+                        |> Cli.Parser.flag "package" PackageName.cliParser "Run a module in a particular package."
                 , commonDescription =
                     Nothing
                 , summary =
@@ -301,19 +301,19 @@ parser =
                             }
                     )
                 }
-            |> CLI.Parser.withCommand
+            |> Cli.Parser.withCommand
                 { word = "docs"
                 , arguments =
-                    CLI.Parser.noArgs
+                    Cli.Parser.noArgs
                 , flags =
-                    CLI.Parser.initFlags 
+                    Cli.Parser.initFlags 
                         (\output report ->
                             { output = output
                             , report = report
                             }
                         )
-                        |> CLI.Parser.flag "output" docsOutputParser "Specify the name of the resulting JSON file. For example --output=assets/docs.json to generate the JSON at assets/docs.json. You can also use --output=/dev/stdout to output the JSON to the terminal, or --output=/dev/null to verify that generating the documentation would work."
-                        |> CLI.Parser.flag "report" reportParser "You can say --report=json to get error messages as JSON. This is only really useful if you are an editor plugin. Humans should avoid it!"
+                        |> Cli.Parser.flag "output" docsOutputParser "Specify the name of the resulting JSON file. For example --output=assets/docs.json to generate the JSON at assets/docs.json. You can also use --output=/dev/stdout to output the JSON to the terminal, or --output=/dev/null to verify that generating the documentation would work."
+                        |> Cli.Parser.flag "report" reportParser "You can say --report=json to get error messages as JSON. This is only really useful if you are an editor plugin. Humans should avoid it!"
                 , commonDescription =
                     Nothing
                 , summary =
@@ -333,24 +333,24 @@ parser =
                 , builder =
                     \_args flags -> Docs flags
                 }
-            |> CLI.Parser.withPrefix "package" packageCommands
+            |> Cli.Parser.withPrefix "package" packageCommands
     }
 
 
-packageCommands : CLI.Parser.GroupParser Command
+packageCommands : Cli.Parser.GroupParser Command
 packageCommands =
-    CLI.Parser.defineGroup
-        |> CLI.Parser.withCommand
+    Cli.Parser.defineGroup
+        |> Cli.Parser.withCommand
             { word = "install"
             , arguments =
-                CLI.Parser.oneOfArgs
-                    [ CLI.Parser.noArgs
-                        |> CLI.Parser.mapArgs (\_ -> Nothing)
-                    , CLI.Parser.oneArg PackageName.cliParser
-                        |> CLI.Parser.mapArgs Just
+                Cli.Parser.oneOfArgs
+                    [ Cli.Parser.noArgs
+                        |> Cli.Parser.mapArgs (\_ -> Nothing)
+                    , Cli.Parser.oneArg PackageName.cliParser
+                        |> Cli.Parser.mapArgs Just
                     ]
             , flags =
-                CLI.Parser.noFlags 
+                Cli.Parser.noFlags 
             , commonDescription =
                 Nothing
             , summary =
@@ -384,12 +384,12 @@ packageCommands =
                 \arg _flags ->
                     PackageInstall arg
             }
-        |> CLI.Parser.withCommand
+        |> Cli.Parser.withCommand
             { word = "uninstall"
             , arguments =
-                CLI.Parser.oneArg PackageName.cliParser
+                Cli.Parser.oneArg PackageName.cliParser
             , flags =
-                CLI.Parser.noFlags 
+                Cli.Parser.noFlags 
             , commonDescription =
                 Nothing
             , summary =
@@ -420,12 +420,12 @@ packageCommands =
             , builder =
                 \arg _flags -> PackageUninstall arg
             }
-        |> CLI.Parser.withCommand
+        |> Cli.Parser.withCommand
             { word = "outdated"
             , arguments =
-                CLI.Parser.noArgs
+                Cli.Parser.noArgs
             , flags =
-                CLI.Parser.noFlags 
+                Cli.Parser.noFlags 
             , commonDescription =
                 Nothing
             , summary =
@@ -438,12 +438,12 @@ packageCommands =
             , builder =
                 \_args _flags -> PackageOutdated
             }
-        |> CLI.Parser.withCommand
+        |> Cli.Parser.withCommand
             { word = "validate"
             , arguments =
-                CLI.Parser.noArgs
+                Cli.Parser.noArgs
             , flags =
-                CLI.Parser.noFlags 
+                Cli.Parser.noFlags 
             , commonDescription =
                 Nothing
             , summary =
@@ -483,12 +483,12 @@ packageCommands =
             , builder =
                 \_args _flags -> PackageValidate
             }
-        |> CLI.Parser.withCommand
+        |> Cli.Parser.withCommand
             { word = "bump"
             , arguments =
-                CLI.Parser.noArgs
+                Cli.Parser.noArgs
             , flags =
-                CLI.Parser.noFlags 
+                Cli.Parser.noFlags 
             , commonDescription =
                 Nothing
             , summary =
@@ -504,15 +504,15 @@ packageCommands =
             , builder =
                 \_args _flags -> PackageBump
             }
-        |> CLI.Parser.withCommand
+        |> Cli.Parser.withCommand
             { word = "diff"
             , arguments =
-                CLI.Parser.oneOfArgs
-                    [ CLI.Parser.noArgs
-                        |> CLI.Parser.mapArgs (\{} -> DiffLatest)
-                    , CLI.Parser.oneArg SemanticVersion.cliParser
-                        |> CLI.Parser.mapArgs DiffVersion
-                    , CLI.Parser.twoArgs
+                Cli.Parser.oneOfArgs
+                    [ Cli.Parser.noArgs
+                        |> Cli.Parser.mapArgs (\{} -> DiffLatest)
+                    , Cli.Parser.oneArg SemanticVersion.cliParser
+                        |> Cli.Parser.mapArgs DiffVersion
+                    , Cli.Parser.twoArgs
                         (\lower upper ->
                             DiffRange
                                 { lower = lower
@@ -521,7 +521,7 @@ packageCommands =
                         )
                         SemanticVersion.cliParser
                         SemanticVersion.cliParser
-                    , CLI.Parser.threeArgs
+                    , Cli.Parser.threeArgs
                         (\package lower upper ->
                             DiffGlobal
                                 { package = package
@@ -534,7 +534,7 @@ packageCommands =
                         SemanticVersion.cliParser
                     ]
             , flags =
-                CLI.Parser.noFlags 
+                Cli.Parser.noFlags 
             , commonDescription =
                 Nothing
             , summary =
@@ -562,7 +562,7 @@ packageCommands =
             }
 
 
-initPlatformParser : CLI.Parser.ValueParser Platform
+initPlatformParser : Cli.Parser.ValueParser Platform
 initPlatformParser =
     { singular = "platform"
     , plural = "platforms"
@@ -580,7 +580,7 @@ initPlatformParser =
     }
 
 
-reportParser : CLI.Parser.ValueParser {}
+reportParser : Cli.Parser.ValueParser {}
 reportParser =
     { singular = "report-type"
     , plural = "report-types"
@@ -595,7 +595,7 @@ reportParser =
     }
 
 
-interpreterParser : CLI.Parser.ValueParser String
+interpreterParser : Cli.Parser.ValueParser String
 interpreterParser =
     { singular = "interpreter"
     , plural = "interpreters"
@@ -608,7 +608,7 @@ interpreterParser =
     }
 
 
-outputParser : CLI.Parser.ValueParser Compiler.Backend.MakeOutput
+outputParser : Cli.Parser.ValueParser Compiler.Backend.MakeOutput
 outputParser =
     { singular = "output-file"
     , plural = "output-files"
@@ -637,7 +637,7 @@ outputParser =
     }
 
 
-docsOutputParser : CLI.Parser.ValueParser Compiler.Backend.DocsOutput
+docsOutputParser : Cli.Parser.ValueParser Compiler.Backend.DocsOutput
 docsOutputParser =
     { singular = "output-file"
     , plural = "output-files"
@@ -661,7 +661,7 @@ docsOutputParser =
     }
 
 
-moduleNameParser : CLI.Parser.ValueParser ModuleName
+moduleNameParser : Cli.Parser.ValueParser ModuleName
 moduleNameParser =
     { singular = "module-name"
     , plural = "module-names"

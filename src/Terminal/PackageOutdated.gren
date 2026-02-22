@@ -23,7 +23,7 @@ import SemanticVersionRange exposing (SemanticVersionRange)
 import Json.Encode as Json
 import Json.Decode as Decode exposing (Decoder)
 import Stream.Extra
-import CLI.PrettyPrinter as PP
+import Cli.PrettyPrinter as PP
 import Terminal.Report as Report exposing (Report)
 
 

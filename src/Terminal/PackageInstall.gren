@@ -18,7 +18,7 @@ module Terminal.PackageInstall exposing
     )
 
 
-import CLI.PrettyPrinter as PP
+import Cli.PrettyPrinter as PP
 import ChildProcess
 import Meta
 import Compiler.PackageName as PackageName exposing (PackageName)

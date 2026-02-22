@@ -6,7 +6,7 @@ module Terminal.Init exposing
     , prettifyError
     )
 
-import CLI.PrettyPrinter as PP
+import Cli.PrettyPrinter as PP
 import ChildProcess
 import Stream
 import Stream.Log

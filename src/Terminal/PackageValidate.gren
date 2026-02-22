@@ -30,7 +30,7 @@ import Json.Decode as Decode exposing (Decoder)
 import Stream.Extra
 import Terminal.PackageInstall
 import Terminal.Help as Help
-import CLI.PrettyPrinter as PP
+import Cli.PrettyPrinter as PP
 import Terminal.Report as Report exposing (Report)
 
 

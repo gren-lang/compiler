@@ -8,7 +8,7 @@ module Terminal.Run exposing
 {-| Support the `gren run ModuleName` command.
 -}
 
-import CLI.PrettyPrinter as PP
+import Cli.PrettyPrinter as PP
 import Compiler.PackageName as PackageName exposing (PackageName)
 import Compiler.Backend as Backend
 import Compiler.Paths

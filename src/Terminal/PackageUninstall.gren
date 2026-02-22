@@ -5,7 +5,7 @@ module Terminal.PackageUninstall exposing
     )
 
 
-import CLI.PrettyPrinter as PP
+import Cli.PrettyPrinter as PP
 import ChildProcess
 import Compiler.PackageName as PackageName exposing (PackageName)
 import Compiler.Paths

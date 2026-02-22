@@ -33,8 +33,8 @@ import FileSystem.Path as Path exposing (Path)
 import HttpClient
 import Bytes exposing (Bytes)
 import Terminal
-import CLI.Parser
-import CLI.PrettyPrinter as PP
+import Cli.Parser
+import Cli.PrettyPrinter as PP
 import SemanticVersion exposing (SemanticVersion)
 import Json.Encode as Json
 import Stream.Extra
@@ -351,30 +351,30 @@ parseUserArgs model compilerPath =
             Terminal.Report.toString outputType report
                 |> endWithErrorString
     in
-    when CLI.Parser.run model.args CliParser.parser is
-        CLI.Parser.UnknownCommand commandName ->
+    when Cli.Parser.run model.args CliParser.parser is
+        Cli.Parser.UnknownCommand commandName ->
             endWithErrorString ("I don't recognize this command: " ++ commandName ++ "\n")
                 |> Task.perform RunCmd
     
-        CLI.Parser.BadFlags err ->
+        Cli.Parser.BadFlags err ->
             err
-                |> CLI.Parser.flagErrorPrettified
+                |> Cli.Parser.flagErrorPrettified
                 |> endWithError
                 |> Task.perform RunCmd
     
-        CLI.Parser.BadArguments err ->
+        Cli.Parser.BadArguments err ->
             err
-                |> CLI.Parser.argumentErrorPrettified
+                |> Cli.Parser.argumentErrorPrettified
                 |> endWithError
                 |> Task.perform RunCmd
     
-        CLI.Parser.HelpText prettifiedText ->
+        Cli.Parser.HelpText prettifiedText ->
             prettifiedText
                 |> Terminal.Help.prettyPrint printOpts
                 |> Stream.Log.line model.stdout
                 |> Task.execute
     
-        CLI.Parser.Success parsedCommand ->
+        Cli.Parser.Success parsedCommand ->
             let
                 initWithCommand backendCommand =
                     \cpOpts ->
