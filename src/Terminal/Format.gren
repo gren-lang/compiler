@@ -1,6 +1,8 @@
 module Terminal.Format exposing
     ( Config
+    , Error(..)
     , run
+    , prettifyError
     )
 
 
@@ -8,13 +10,70 @@ import Stream
 import Stream.Log
 import Task exposing (Task)
 import Bytes exposing (Bytes)
+import FileSystem
+import FileSystem.Path as Path exposing (Path)
+import Compiler.Outline as Outline exposing (Outline)
+import Terminal.Report as Report exposing (Report)
+import CLI.PrettyPrinter as PP
+import Parse.Module as PM
+import Parse.Context as Context
+import String.Parser.Advanced as Parser
 
 
 type alias Config =
     { stdout : Stream.Writable Bytes
+    , fsPermission : FileSystem.Permission
+    , pathToString : Path -> String
+    , projectPath : Path
+    , outline : Outline
     }
 
 
-run : Config -> Task x {}
-run config =
-    Stream.Log.line config.stdout "TODO"
+type Error
+    = FailedToFindSources FileSystem.Error
+    | NothingToFormat
+
+
+run : Config -> Task Error String
+run { fsPermission, pathToString, projectPath, outline } =
+    Outline.findSourceFiles fsPermission outline projectPath
+        |> Task.mapError FailedToFindSources
+        |> Task.andThen
+            (\files ->
+                when Array.get 0 files is
+                    Just { path, source } ->
+                        when Parser.run PM.parser Context.empty source is
+                            Ok _ -> 
+                                Task.succeed (pathToString path)
+
+                            Err errs ->
+                                Task.succeed (PM.errorsToString source errs)
+
+                    Nothing ->
+                        Task.fail NothingToFormat
+            )
+
+
+prettifyError : Error -> Report
+prettifyError error =
+    when error is
+        FailedToFindSources fsErr ->
+            Report.create
+                ("Failed to find project source files")
+                Nothing
+                (PP.verticalBlock
+                    [ PP.words "An error occured while I was searching for .gren files in this project."
+                    , PP.empty
+                    , PP.words "The error is:"
+                    , PP.empty
+                    , PP.words (FileSystem.errorToString fsErr)
+                        |> PP.indent
+                    ]
+                )
+
+        NothingToFormat ->
+            Report.create
+                ("There are no files to format")
+                Nothing
+                ( PP.words "I can't seem to find any files in this project."
+                )
