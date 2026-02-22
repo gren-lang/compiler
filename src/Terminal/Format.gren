@@ -32,6 +32,7 @@ type alias Config =
 type Error
     = FailedToFindSources FileSystem.Error
     | NothingToFormat
+    | ParseFailure { path : Path, error : String }
 
 
 run : Config -> Task Error String
@@ -47,7 +48,11 @@ run { fsPermission, pathToString, projectPath, outline } =
                                 Task.succeed (pathToString path)
 
                             Err errs ->
-                                Task.succeed (PM.errorsToString source errs)
+                                Task.fail <|
+                                    ParseFailure
+                                        { path = path
+                                        , error = PM.errorsToString source errs 
+                                        }
 
                     Nothing ->
                         Task.fail NothingToFormat
@@ -76,4 +81,11 @@ prettifyError error =
                 ("There are no files to format")
                 Nothing
                 ( PP.words "I can't seem to find any files in this project."
+                )
+
+        ParseFailure { path, error = message } ->
+            Report.create
+                ("Could not parse this file")
+                (Just path)
+                ( PP.verticalBlock (Array.map PP.text (String.split "\n" message))
                 )
