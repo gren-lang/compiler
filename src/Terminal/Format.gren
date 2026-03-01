@@ -41,21 +41,30 @@ run { fsPermission, pathToString, projectPath, outline } =
         |> Task.mapError FailedToFindSources
         |> Task.andThen
             (\files ->
-                when Array.get 0 files is
-                    Just { path, source } ->
-                        when Parser.run PM.parser Context.empty source is
-                            Ok _ -> 
-                                Task.succeed (pathToString path)
+                let
+                    parseFn { path, source } previous =
+                        Task.andThen
+                            (\previousFiles ->
+                                when Parser.run PM.parser Context.empty source is
+                                    Ok _ -> 
+                                        Task.succeed <|
+                                            Array.pushLast (pathToString path) previousFiles
 
-                            Err errs ->
-                                Task.fail <|
-                                    ParseFailure
-                                        { path = path
-                                        , error = PM.errorsToString source errs 
-                                        }
+                                    Err errs ->
+                                        Task.fail <|
+                                            ParseFailure
+                                                { path = path
+                                                , error = PM.errorsToString source errs 
+                                                }
+                            )
+                            previous
+                in
+                if files == [] then
+                    Task.fail NothingToFormat
 
-                    Nothing ->
-                        Task.fail NothingToFormat
+                else
+                    Array.foldl parseFn (Task.succeed []) files
+                        |> Task.map (String.join "\n")
             )
 
 
