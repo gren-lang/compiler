@@ -74,12 +74,12 @@ type alias Result =
         Maybe
             { outline : Outline
             , rootSources : Dict String Compiler.Backend.SourceFile
-            , dependencies : Dict String { outline : Outline.PkgOutline, sources : Dict String String }
+            , dependencies : Dict String { path : Path, outline : Outline.PkgOutline, sources : Dict String String }
             }
     , currentVersion :
         { outline : Outline
         , rootSources : Dict String Compiler.Backend.SourceFile
-        , dependencies : Dict String { outline : Outline.PkgOutline, sources : Dict String String }
+        , dependencies : Dict String { path : Path, outline : Outline.PkgOutline, sources : Dict String String }
         }
     }
 

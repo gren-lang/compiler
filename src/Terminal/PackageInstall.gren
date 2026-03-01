@@ -67,7 +67,7 @@ type alias PackageResolution =
     { projectPath : Path
     , outline : Outline
     , rootSources : Dict String Compiler.Backend.SourceFile
-    , dependencies : Dict String { outline : Outline.PkgOutline, sources : Dict String String }
+    , dependencies : Dict String { path : Path, outline : Outline.PkgOutline, sources : Dict String String }
     , didDownload : Bool
     }
 
@@ -173,7 +173,8 @@ run config { projectPath, outline } =
                     loadedPackages =
                         Dict.map
                             (\_name pkg ->
-                                { outline = pkg.outline
+                                { path = pkg.path
+                                , outline = pkg.outline
                                 , sources = pkg.sources
                                 }
                             )
@@ -282,7 +283,7 @@ type alias StepOptions =
     , startedDownload : Bool
     , rootPackages : Array { name : PackageName, version : SemanticVersionRange }
     , rootPackageConstraints : Dict String (Outline.VersionConstraint SemanticVersionRange)
-    , loadedPackages : Dict String { outline : Outline.PkgOutline, sources : Dict String String }
+    , loadedPackages : Dict String { path : Path, outline : Outline.PkgOutline, sources : Dict String String }
     , solvedPackages : Dict String Compiler.Dependencies.SimplifiedOutline
     }
 
@@ -383,7 +384,8 @@ installStep config opts =
                                                         acc
                                                             |> Task.andThen
                                                                 (\_ ->
-                                                                    FileSystem.realPath config.fsPermission path
+                                                                    Path.join [ loadedPackage.path, path ]
+                                                                        |> FileSystem.realPath config.fsPermission
                                                                         |> Task.mapError
                                                                             (\err ->
                                                                                 PackageInstallFileSystemError
@@ -446,7 +448,7 @@ installStep config opts =
                                     | loadedPackages =
                                         Dict.set
                                             (PackageName.toString name)
-                                            { outline = pkg.outline, sources = pkg.sources }
+                                            { path = pkg.path, outline = pkg.outline, sources = pkg.sources }
                                             opts.loadedPackages
                                 }
                             )
@@ -521,6 +523,7 @@ installStep config opts =
                                                                                     files
                                                                         in
                                                                         { name = name
+                                                                        , path = repoPath
                                                                         , outline = packageOutline
                                                                         , sources = sources
                                                                         , data =
@@ -594,7 +597,7 @@ installStep config opts =
                                                             |> PP.toString
                                                             |> Stream.Log.line config.stdout 
                                                     )
-                                                |> Task.map (\_ -> pkg)
+                                                |> Task.map (\_ -> { pkg | path = bundlePath })
                                         )
                                     |> Task.map
                                         (\pkg ->
@@ -603,7 +606,7 @@ installStep config opts =
                                                 , loadedPackages =
                                                     Dict.set
                                                         (PackageName.toString name)
-                                                        { outline = pkg.outline, sources = pkg.sources }
+                                                        { path = pkg.path, outline = pkg.outline, sources = pkg.sources }
                                                         opts.loadedPackages
                                             }
                                         )
@@ -615,7 +618,7 @@ installStep config opts =
             Task.fail <| PackageInstallConflict
                 { package = conflict.name
                 , version1 = conflict.version1
-                ,  version2 = conflict.version2
+                , version2 = conflict.version2
                 }
 
 
