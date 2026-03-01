@@ -45,15 +45,19 @@ run { fsPermission, pathToString, projectPath, outline } =
                     parseFn { path, source } previous =
                         Task.andThen
                             (\previousFiles ->
+                                let
+                                    relPath =
+                                        pathRelativeFrom projectPath path
+                                in
                                 when Parser.run PM.parser Context.empty source is
                                     Ok _ -> 
                                         Task.succeed <|
-                                            Array.pushLast (pathToString path) previousFiles
+                                            Array.pushLast (pathToString relPath) previousFiles
 
                                     Err errs ->
                                         Task.fail <|
                                             ParseFailure
-                                                { path = path
+                                                { path = relPath
                                                 , error = PM.errorsToString source errs 
                                                 }
                             )
@@ -66,6 +70,37 @@ run { fsPermission, pathToString, projectPath, outline } =
                     Array.foldl parseFn (Task.succeed []) files
                         |> Task.map (String.join "\n")
             )
+
+
+pathRelativeFrom : Path -> Path -> Path
+pathRelativeFrom base absolute =
+    let
+        commonPrefix =
+            findCommonPrefix 0 (Array.pushLast base.filename base.directory) absolute.directory
+    in
+    if commonPrefix > 0 then
+        { root = ""
+        , directory = Array.dropFirst commonPrefix absolute.directory
+        , filename = absolute.filename
+        , extension = absolute.extension
+        }
+
+    else
+        absolute
+
+
+findCommonPrefix : Int -> Array String -> Array String -> Int
+findCommonPrefix count left right =
+    when { l = Array.popFirst left, r = Array.popFirst right } is
+        { l = Just { first = lFirst, rest = lRest }, r = Just { first = rFirst, rest = rRest} } ->
+            if lFirst == rFirst then
+                findCommonPrefix (count + 1) lRest rRest
+
+            else
+                count
+
+        _ ->
+            count
 
 
 prettifyError : Error -> Report
