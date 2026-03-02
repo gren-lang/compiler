@@ -72,6 +72,7 @@ run { fsPermission, pathToString, projectPath, outline } =
             )
 
 
+-- TODO: add to gren-lang/node?
 pathRelativeFrom : Path -> Path -> Path
 pathRelativeFrom base absolute =
     let
