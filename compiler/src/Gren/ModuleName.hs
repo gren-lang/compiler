@@ -15,6 +15,7 @@ module Gren.ModuleName
     --
     Canonical (..),
     basics,
+    bytes,
     char,
     string,
     maybe,
@@ -173,6 +174,9 @@ sub = Canonical Pkg.core "Platform.Sub"
 
 debug :: Canonical
 debug = Canonical Pkg.core Name.debug
+
+bytes :: Canonical
+bytes = Canonical Pkg.core "Bytes"
 
 -- HTML
 

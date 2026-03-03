@@ -25,9 +25,9 @@ nodeHasDebug node =
     Opt.Cycle _ vs fs _ -> any (hasDebug . snd) vs || any defHasDebug fs
     Opt.Manager _ -> False
     Opt.Kernel _ _ -> False
-    Opt.PortIncoming expr _ -> hasDebug expr
-    Opt.PortOutgoing expr _ -> hasDebug expr
-    Opt.PortTask maybeExpr expr _ -> hasDebug expr || Maybe.maybe False hasDebug maybeExpr
+    Opt.PortIncoming _ expr _ -> hasDebug expr
+    Opt.PortOutgoing _ expr _ -> hasDebug expr
+    Opt.PortTask _ maybeExpr _ expr _ -> hasDebug expr || Maybe.maybe False hasDebug maybeExpr
 
 hasDebug :: Opt.Expr -> Bool
 hasDebug expression =

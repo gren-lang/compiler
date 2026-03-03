@@ -96,22 +96,22 @@ addPort home name port_ graph =
   case port_ of
     Can.Incoming _ payloadType _ ->
       let (deps, fields, decoder) = Names.run (Port.toDecoder payloadType)
-          node = Opt.PortIncoming decoder deps
+          node = Opt.PortIncoming (Port.isBytes payloadType) decoder deps
        in addToGraph (Opt.Global home name) node fields graph
     Can.Outgoing _ payloadType _ ->
       let (deps, fields, encoder) = Names.run (Port.toEncoder payloadType)
-          node = Opt.PortOutgoing encoder deps
+          node = Opt.PortOutgoing (Port.isBytes payloadType) encoder deps
        in addToGraph (Opt.Global home name) node fields graph
     Can.Task _ Nothing payloadType _ ->
       let (deps, fields, decoder) = Names.run (Port.toDecoder payloadType)
-          node = Opt.PortTask Nothing decoder deps
+          node = Opt.PortTask False Nothing (Port.isBytes payloadType) decoder deps
        in addToGraph (Opt.Global home name) node fields graph
     Can.Task _ (Just inputType) payloadType _ ->
       let (payloadDeps, payloadFields, decoder) = Names.run (Port.toDecoder payloadType)
           (inputDeps, inputFields, encoder) = Names.run (Port.toEncoder inputType)
           deps = Set.union payloadDeps inputDeps
           fields = Map.unionWith (+) payloadFields inputFields
-          node = Opt.PortTask (Just encoder) decoder deps
+          node = Opt.PortTask (Port.isBytes inputType) (Just encoder) (Port.isBytes payloadType) decoder deps
        in addToGraph (Opt.Global home name) node fields graph
 
 -- HELPER

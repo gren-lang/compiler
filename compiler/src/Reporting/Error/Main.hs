@@ -95,7 +95,7 @@ toReport localizer source err =
                     [ D.reflow $ "I cannot handle that. The types that CAN be in flags include:",
                       D.indent 4 $
                         D.reflow $
-                          "Unit, Ints, Floats, Bools, Strings, Maybes, Arrays,\
+                          "Ints, Floats, Bools, Strings, Bytes, Maybes, Arrays,\
                           \ records, and JSON values.",
                       D.reflow $
                         "Since JSON values can flow through, you can use JSON encoders and decoders\

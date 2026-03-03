@@ -35,7 +35,7 @@ module Data.Name
     bool,
     char,
     string,
-    unit,
+    bytes,
     maybe,
     result,
     array,
@@ -393,8 +393,8 @@ char = fromChars "Char"
 string :: Name
 string = fromChars "String"
 
-unit :: Name
-unit = fromChars "Unit"
+bytes :: Name
+bytes = fromChars "Bytes"
 
 maybe :: Name
 maybe = fromChars "Maybe"

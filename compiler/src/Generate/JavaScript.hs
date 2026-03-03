@@ -221,20 +221,20 @@ addGlobalHelp mode graph global@(Opt.Global home _) state =
             (addGlobal mode graph state identity)
             ( generateBox mode global
             )
-        Just (Opt.PortIncoming decoder deps) ->
+        Just (Opt.PortIncoming isBytes decoder deps) ->
           addStmt
             (addDeps deps state)
-            ( generatePort mode global "incomingPort" decoder
+            ( generatePort mode global "incomingPort" isBytes decoder
             )
-        Just (Opt.PortOutgoing encoder deps) ->
+        Just (Opt.PortOutgoing isBytes encoder deps) ->
           addStmt
             (addDeps deps state)
-            ( generatePort mode global "outgoingPort" encoder
+            ( generatePort mode global "outgoingPort" isBytes encoder
             )
-        Just (Opt.PortTask maybeEncoder decoder deps) ->
+        Just (Opt.PortTask inputBytes maybeEncoder outputBytes decoder deps) ->
           addStmt
             (addDeps deps state)
-            ( generateTaskPort mode global maybeEncoder decoder
+            ( generateTaskPort mode global inputBytes maybeEncoder outputBytes decoder
             )
 
 addStmt :: State -> JS.Stmt -> State
@@ -403,17 +403,18 @@ identity =
 
 -- GENERATE PORTS
 
-generatePort :: Mode.Mode -> Opt.Global -> Name.Name -> Opt.Expr -> JS.Stmt
-generatePort mode (Opt.Global home name) makePort converter =
+generatePort :: Mode.Mode -> Opt.Global -> Name.Name -> Bool -> Opt.Expr -> JS.Stmt
+generatePort mode (Opt.Global home name) makePort isBytes converter =
   JS.Var (JsName.fromGlobal home name) $
     JS.Call
       (JS.Ref (JsName.fromKernel Name.platform makePort))
       [ JS.String (Name.toBuilder name),
-        Expr.codeToExpr (Expr.generate mode (\_ _ -> Nothing) home converter)
+        Expr.codeToExpr (Expr.generate mode (\_ _ -> Nothing) home converter),
+        JS.Bool isBytes
       ]
 
-generateTaskPort :: Mode.Mode -> Opt.Global -> Maybe Opt.Expr -> Opt.Expr -> JS.Stmt
-generateTaskPort mode (Opt.Global home name) maybeInputConverter outputConverter =
+generateTaskPort :: Mode.Mode -> Opt.Global -> Bool -> Maybe Opt.Expr -> Bool -> Opt.Expr -> JS.Stmt
+generateTaskPort mode (Opt.Global home name) inputIsBytes maybeInputConverter outputIsBytes outputConverter =
   JS.Var
     (JsName.fromGlobal home name)
     ( case maybeInputConverter of
@@ -423,7 +424,9 @@ generateTaskPort mode (Opt.Global home name) maybeInputConverter outputConverter
                 (JS.Ref (JsName.fromKernel Name.platform "taskPort"))
                 [ JS.String (Name.toBuilder name),
                   JS.Null,
-                  Expr.codeToExpr (Expr.generate mode (\_ _ -> Nothing) home outputConverter)
+                  Expr.codeToExpr (Expr.generate mode (\_ _ -> Nothing) home outputConverter),
+                  JS.Bool inputIsBytes,
+                  JS.Bool outputIsBytes
                 ]
             )
             [JS.Null]
@@ -432,7 +435,9 @@ generateTaskPort mode (Opt.Global home name) maybeInputConverter outputConverter
             (JS.Ref (JsName.fromKernel Name.platform "taskPort"))
             [ JS.String (Name.toBuilder name),
               Expr.codeToExpr (Expr.generate mode (\_ _ -> Nothing) home inputConverter),
-              Expr.codeToExpr (Expr.generate mode (\_ _ -> Nothing) home outputConverter)
+              Expr.codeToExpr (Expr.generate mode (\_ _ -> Nothing) home outputConverter),
+              JS.Bool inputIsBytes,
+              JS.Bool outputIsBytes
             ]
     )
 
