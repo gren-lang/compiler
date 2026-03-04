@@ -891,9 +891,12 @@ generateMain mode argLookup home main =
     Opt.StaticVDom ->
       JS.Ref (JsName.fromKernel Name.virtualDom "init")
         # JS.Ref (JsName.fromGlobal home "main")
-    Opt.Dynamic _ decoder ->
+    Opt.Dynamic _ False decoder ->
       JS.Ref (JsName.fromGlobal home "main")
         # generateJsExpr mode argLookup home decoder
+    Opt.Dynamic _ True _ ->
+      JS.Ref (JsName.fromGlobal home "main")
+        # JS.Null
 
 (#) :: JS.Expr -> JS.Expr -> JS.Expr
 (#) func arg =

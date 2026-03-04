@@ -200,7 +200,7 @@ addDefHelp platform region annotations home name args body graph@(Opt.LocalGraph
                   Result.ok $
                     addMain $
                       Names.run $
-                        Opt.Dynamic message <$> Port.toFlagsDecoder flags
+                        Opt.Dynamic message (Port.isBytes flags) <$> Port.toFlagsDecoder flags
                 Left (subType, invalidPayload) ->
                   Result.throw (E.BadFlags region subType invalidPayload)
             _ ->

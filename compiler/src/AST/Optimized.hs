@@ -127,6 +127,7 @@ data Main
   | StaticVDom
   | Dynamic
       { _message :: Can.Type,
+        _isBytes :: Bool,
         _decoder :: Expr
       }
 
@@ -349,7 +350,7 @@ instance Binary Main where
     case main of
       StaticString -> putWord8 0
       StaticVDom -> putWord8 1
-      Dynamic a b -> putWord8 2 >> put a >> put b
+      Dynamic a b c -> putWord8 2 >> put a >> put b >> put c
 
   get =
     do
@@ -357,7 +358,7 @@ instance Binary Main where
       case word of
         0 -> return StaticString
         1 -> return StaticVDom
-        2 -> liftM2 Dynamic get get
+        2 -> liftM3 Dynamic get get get
         _ -> fail "problem getting Opt.Main binary"
 
 instance Binary Node where
