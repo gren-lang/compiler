@@ -1,6 +1,5 @@
 // This file gives you programmatic access to the Gren compiler from JavaScript.
 
-const fs = require("fs/promises");
 const childProcess = require("child_process");
 const util = require("util");
 
