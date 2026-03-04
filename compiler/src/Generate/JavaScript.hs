@@ -176,13 +176,11 @@ addGlobalHelp mode graph global@(Opt.Global home _) state =
           | length args > 1 ->
               addStmt
                 (addDeps deps state)
-                ( trackedFn region global args (Expr.generateFunctionImplementation mode argLookup home funcStart args body)
-                )
+                (trackedFn region global args (Expr.generateFunctionImplementation mode argLookup home funcStart args body))
         Just (Opt.Define region expr deps) ->
           addStmt
             (addDeps deps state)
-            ( trackedVar region global (Expr.generate mode argLookup home expr)
-            )
+            (trackedVar region global (Expr.generate mode argLookup home expr))
         Just (Opt.DefineTailFunc region argNames body deps) ->
           addStmt
             (addDeps deps state)
@@ -193,20 +191,17 @@ addGlobalHelp mode graph global@(Opt.Global home _) state =
           | arity > 1 ->
               addStmt
                 state
-                ( ctor global arity (Expr.generateCtorImplementation mode global index arity)
-                )
+                (ctor global arity (Expr.generateCtorImplementation mode global index arity))
         Just (Opt.Ctor index arity) ->
           addStmt
             state
-            ( var global (Expr.generateCtor mode global index arity)
-            )
+            (var global (Expr.generateCtor mode global index arity))
         Just (Opt.Link linkedGlobal) ->
           addGlobal mode graph state linkedGlobal
         Just (Opt.Cycle names values functions deps) ->
           addStmt
             (addDeps deps state)
-            ( generateCycle mode argLookup global names values functions
-            )
+            (generateCycle mode argLookup global names values functions)
         Just (Opt.Manager effectsType) ->
           generateManager mode graph global effectsType state
         Just (Opt.Kernel chunks deps) ->
@@ -214,28 +209,23 @@ addGlobalHelp mode graph global@(Opt.Global home _) state =
         Just (Opt.Enum index) ->
           addStmt
             state
-            ( generateEnum mode global index
-            )
+            (generateEnum mode global index)
         Just Opt.Box ->
           addStmt
             (addGlobal mode graph state identity)
-            ( generateBox mode global
-            )
+            (generateBox mode global)
         Just (Opt.PortIncoming isBytes decoder deps) ->
           addStmt
             (addDeps deps state)
-            ( generatePort mode global "incomingPort" isBytes decoder
-            )
+            (generatePort mode global "incomingPort" isBytes decoder)
         Just (Opt.PortOutgoing isBytes encoder deps) ->
           addStmt
             (addDeps deps state)
-            ( generatePort mode global "outgoingPort" isBytes encoder
-            )
+            (generatePort mode global "outgoingPort" isBytes encoder)
         Just (Opt.PortTask inputBytes maybeEncoder outputBytes decoder deps) ->
           addStmt
             (addDeps deps state)
-            ( generateTaskPort mode global inputBytes maybeEncoder outputBytes decoder
-            )
+            (generateTaskPort mode global inputBytes maybeEncoder outputBytes decoder)
 
 addStmt :: State -> JS.Stmt -> State
 addStmt (State seen builder) stmt =

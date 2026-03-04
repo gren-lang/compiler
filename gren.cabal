@@ -176,7 +176,7 @@ Library common
     Build-depends:
         ansi-wl-pprint >= 1.0.2 && < 2,
         prettyprinter >= 1.7.1 && < 2,
-        base >= 4.19 && < 5,
+        base >= 4.20 && < 5,
         text >= 2.1.2 && < 3,
         binary >= 0.8 && < 0.9,
         bytestring >= 0.11 && < 0.12,
@@ -218,7 +218,7 @@ Executable gren
 
     build-depends:
         gren:common,
-        base >= 4.19 && <5,
+        base >= 4.20 && <5,
         bytestring >= 0.11 && < 0.12,
         containers >= 0.6 && < 0.7,
         directory >= 1.2.3.0 && < 2.0,
@@ -259,7 +259,7 @@ Test-Suite gren-tests
 
     Build-Depends:
         gren:common,
-        base >= 4.19 && <5,
+        base >= 4.20 && <5,
         containers >= 0.6 && < 0.7,
         utf8-string,
         bytestring >= 0.11 && < 0.12,

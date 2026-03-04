@@ -157,8 +157,7 @@ test2InputCanPatterns =
                                 A.zero
                                 ( Can.PRFieldPattern
                                     (N.fromChars "rest")
-                                    ( A.At A.zero (Can.PVar (N.fromChars "rest"))
-                                    )
+                                    (A.At A.zero (Can.PVar (N.fromChars "rest")))
                                 )
                             ]
                         ) -- Can.PRecord

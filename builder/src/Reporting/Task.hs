@@ -16,8 +16,7 @@ where
 
 newtype Task x a
   = Task
-      ( forall result. (a -> IO result) -> (x -> IO result) -> IO result
-      )
+      (forall result. (a -> IO result) -> (x -> IO result) -> IO result)
 
 run :: Task x a -> IO (Either x a)
 run (Task task) =

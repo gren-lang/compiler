@@ -128,8 +128,7 @@ diffToReport diff =
       Help.report
         "UNKNOWN PACKAGE"
         Nothing
-        ( "I cannot find a package called:"
-        )
+        ("I cannot find a package called:")
         [ D.indent 4 $ D.red $ D.fromChars $ Pkg.toChars pkg,
           "Maybe you want one of these instead?",
           D.indent 4 $ D.dullyellow $ D.vcat $ map (D.fromChars . Pkg.toChars) suggestions,
@@ -1976,8 +1975,7 @@ makeToReport make =
       Help.report
         "TOO MANY FILES"
         Nothing
-        ( "When producing an HTML file or executable, I can only handle one file."
-        )
+        ("When producing an HTML file or executable, I can only handle one file.")
         [ D.fillSep
             [ "Switch",
               "to",
@@ -2145,8 +2143,7 @@ makeToReport make =
       Help.report
         "HTML FILES CAN ONLY BE CREATED FOR BROWSER PLATFORM"
         Nothing
-        ( "When producing a HTML file, I require that the project platform is `browser`."
-        )
+        ("When producing a HTML file, I require that the project platform is `browser`.")
         [ D.reflow $
             "Try changing the `target` value in `gren.json` to `browser`.\
             \ alternatively, pass a filename ending with `.js` to the compiler."
@@ -2155,8 +2152,7 @@ makeToReport make =
       Help.report
         "EXECUTABLES CAN ONLY BE CREATED FOR NODE PLATFORM"
         Nothing
-        ( "When producing an executable, I require that the project platform is `node`."
-        )
+        ("When producing an executable, I require that the project platform is `node`.")
         [ D.reflow $
             "Try changing the `target` value in `gren.json` to `node`.\
             \ alternatively, pass a filename ending with `.js` to the compiler."
