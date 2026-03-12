@@ -45,21 +45,26 @@ run { fsPermission, pathToString, projectPath, outline } =
                     parseFn { path, source } previous =
                         Task.andThen
                             (\previousFiles ->
-                                let
-                                    relPath =
-                                        pathRelativeFrom projectPath path
-                                in
-                                when Parser.run PM.parser Context.empty source is
-                                    Ok _ -> 
-                                        Task.succeed <|
-                                            Array.pushLast (pathToString relPath) previousFiles
+                                if path.extension /= "gren" then
+                                    -- Probably kernel code
+                                    Task.succeed previousFiles
 
-                                    Err errs ->
-                                        Task.fail <|
-                                            ParseFailure
-                                                { path = relPath
-                                                , error = PM.errorsToString source errs 
-                                                }
+                                else
+                                    let
+                                        relPath =
+                                            pathRelativeFrom projectPath path
+                                    in
+                                    when Parser.run PM.parser Context.empty source is
+                                        Ok _ -> 
+                                            Task.succeed <|
+                                                Array.pushLast (pathToString relPath) previousFiles
+
+                                        Err errs ->
+                                            Task.fail <|
+                                                ParseFailure
+                                                    { path = relPath
+                                                    , error = PM.errorsToString source errs 
+                                                    }
                             )
                             previous
                 in
