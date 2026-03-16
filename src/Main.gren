@@ -1,6 +1,6 @@
 module Main exposing (main)
 
-bimport Meta
+import Meta
 import Node
 import ChildProcess
 import Terminal.Parser as CliParser

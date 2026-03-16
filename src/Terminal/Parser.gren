@@ -273,8 +273,7 @@ parser =
                             { package = package
                             }
                         )
-                        -- TODO: --package name (without equals) does not work. Is that expected?
-                        |> Cli.Parser.flag "package" PackageName.cliParser "Run a module in a particular package."
+                        |> Cli.Parser.flag "package" Cli.Parser.packageNameParser "Run a module in a particular package."
                 , commonDescription =
                     Nothing
                 , summary =
@@ -346,7 +345,7 @@ packageCommands =
                 Cli.Parser.oneOfArgs
                     [ Cli.Parser.noArgs
                         |> Cli.Parser.mapArgs (\_ -> Nothing)
-                    , Cli.Parser.oneArg PackageName.cliParser
+                    , Cli.Parser.oneArg Cli.Parser.packageNameParser
                         |> Cli.Parser.mapArgs Just
                     ]
             , flags =
@@ -387,7 +386,7 @@ packageCommands =
         |> Cli.Parser.withCommand
             { word = "uninstall"
             , arguments =
-                Cli.Parser.oneArg PackageName.cliParser
+                Cli.Parser.oneArg Cli.Parser.packageNameParser
             , flags =
                 Cli.Parser.noFlags 
             , commonDescription =
@@ -510,7 +509,7 @@ packageCommands =
                 Cli.Parser.oneOfArgs
                     [ Cli.Parser.noArgs
                         |> Cli.Parser.mapArgs (\{} -> DiffLatest)
-                    , Cli.Parser.oneArg SemanticVersion.cliParser
+                    , Cli.Parser.oneArg Cli.Parser.semanticVersionParser
                         |> Cli.Parser.mapArgs DiffVersion
                     , Cli.Parser.twoArgs
                         (\lower upper ->
@@ -519,8 +518,8 @@ packageCommands =
                                 , upper = upper
                                 }
                         )
-                        SemanticVersion.cliParser
-                        SemanticVersion.cliParser
+                        Cli.Parser.semanticVersionParser
+                        Cli.Parser.semanticVersionParser
                     , Cli.Parser.threeArgs
                         (\package lower upper ->
                             DiffGlobal
@@ -529,9 +528,9 @@ packageCommands =
                                 , upper = upper
                                 }
                         )
-                        PackageName.cliParser
-                        SemanticVersion.cliParser
-                        SemanticVersion.cliParser
+                        Cli.Parser.packageNameParser
+                        Cli.Parser.semanticVersionParser
+                        Cli.Parser.semanticVersionParser
                     ]
             , flags =
                 Cli.Parser.noFlags 
