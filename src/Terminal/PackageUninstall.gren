@@ -23,7 +23,6 @@ import SemanticVersion exposing (SemanticVersion)
 import SemanticVersionRange exposing (SemanticVersionRange)
 import Json.Encode as Json
 import Json.Decode as Decode exposing (Decoder)
-import Stream.Extra
 import Terminal.Help as Help
 import Terminal.PackageInstall
 import Terminal.Report as Report exposing (Report)

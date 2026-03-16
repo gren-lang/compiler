@@ -12,8 +12,8 @@ module Terminal.PackageInstall exposing
     --
     , ReadProjectOutlineError (..)
     , readProjectOutline
-    , prettifyProjectOutlineError
     , readOutline
+    , prettifyProjectOutlineError
     , localRepoPath
     , outlineFindSourcesErrorToString
     )
@@ -28,6 +28,7 @@ import Compiler.Outline as Outline exposing (Outline)
 import Compiler.Dependencies
 import Compiler.Backend
 import Compiler.Platform as Platform exposing (Platform)
+import Compiler.Package as Package
 import Git
 import Stream
 import Stream.Log
@@ -40,7 +41,6 @@ import SemanticVersion exposing (SemanticVersion)
 import SemanticVersionRange exposing (SemanticVersionRange)
 import Json.Encode as Json
 import Json.Decode as Decode exposing (Decoder)
-import Stream.Extra
 import Terminal.Help as Help
 import Terminal.Report as Report exposing (Report)
 import Compiler.ModuleName as ModuleName
@@ -480,62 +480,20 @@ installStep config opts =
                                                             }
                                                     )
                                         )
-                                    |> Task.andThen (\repoPath ->
-                                        (Path.append (Path.fromPosixString "gren.json") repoPath)
-                                            |> readOutline config.fsPermission
-                                            |> Task.mapError
-                                                (\err ->
-                                                    PackageInstallFileSystemError
-                                                        { package = name
-                                                        , error = err
+                                    |> Task.andThen
+                                        (\repoPath ->
+                                            Package.loadFromPath config.fsPermission repoPath
+                                                |> Task.mapError (packageFromPathErrorToPackageInstallError name)
+                                                |> Task.map
+                                                    (\package ->
+                                                        { name = name
+                                                        , path = repoPath
+                                                        , outline = package.outline
+                                                        , sources = package.sources
+                                                        , data = package
                                                         }
-                                                )
-                                            |> Task.andThen
-                                                (\decodeResult ->
-                                                    when decodeResult is
-                                                        Ok (Outline.Pkg packageOutline) ->
-                                                            Outline.findSourceFiles config.fsPermission (Outline.Pkg packageOutline) repoPath
-                                                                |> Task.mapError
-                                                                    (\err ->
-                                                                        PackageInstallFailedToFindSourceFiles
-                                                                            { package = name
-                                                                            , error = err
-                                                                            }
-                                                                    )
-                                                                |> Task.map
-                                                                    (\files ->
-                                                                        let
-                                                                            sources =
-                                                                                Array.foldl
-                                                                                    (\{ moduleName, source } dict ->
-                                                                                        Dict.set (ModuleName.toString moduleName) source dict
-                                                                                    )
-                                                                                    Dict.empty
-                                                                                    files
-                                                                        in
-                                                                        { name = name
-                                                                        , path = repoPath
-                                                                        , outline = packageOutline
-                                                                        , sources = sources
-                                                                        , data =
-                                                                            packageBundleEncoder packageOutline sources
-                                                                                |> Json.encode 0
-                                                                        }
-                                                                    )
-
-                                                        Ok (Outline.App _) ->
-                                                            Task.fail <| PackageInstallInvalidOutline
-                                                                { package = name
-                                                                , message = "Expected package-type outline."
-                                                                }
-
-                                                        Err err ->
-                                                            Task.fail <| PackageInstallInvalidOutline
-                                                                { package = name
-                                                                , message = Decode.errorToString err
-                                                                }
-                                                )
-                                    )
+                                                    )
+                                        )
                                     |> Task.andThen
                                         (\pkg ->
                                             let
@@ -568,10 +526,7 @@ installStep config opts =
                                                     )
                                                 |> Task.andThen
                                                     (\stream ->
-                                                        Stream.fromArray [ pkg.data ]
-                                                            |> Task.andThen (Stream.awaitAndPipeThrough Stream.textEncoder)
-                                                            |> Task.andThen (Stream.awaitAndPipeThrough Stream.gzipCompression)
-                                                            |> Task.andThen (Stream.pipeTo stream)
+                                                        Package.saveToStream pkg.data stream
                                                             |> Task.mapError
                                                                 (\ err ->
                                                                     PackageInstallCreateBundleError
@@ -610,6 +565,40 @@ installStep config opts =
                 { package = conflict.name
                 , version1 = conflict.version1
                 , version2 = conflict.version2
+                }
+
+
+packageFromPathErrorToPackageInstallError : PackageName -> Package.LoadFromPathError -> PackageInstallError
+packageFromPathErrorToPackageInstallError name err =
+    when err is
+        Package.FromPathOutlineFileSystemError fsErr ->
+            PackageInstallFileSystemError
+                { package = name
+                , error = fsErr
+                }
+
+        Package.FromPathOutlineInvalidString ->
+            PackageInstallInvalidOutline
+                { package = name
+                , message = "gren.json file does not contain a valid utf-8 encoded string."
+                }
+
+        Package.FromPathOutlineInvalidJson jsonErr ->
+            PackageInstallInvalidOutline
+                { package = name
+                , message = Decode.errorToString jsonErr
+                }
+
+        Package.FromPathOutlineIsApp ->
+            PackageInstallInvalidOutline
+                { package = name
+                , message = "Expected package-type outline."
+                }
+
+        Package.FromPathFindSourcesError findSourceFilesErr ->
+            PackageInstallFailedToFindSourceFiles
+                { package = name
+                , error = findSourceFilesErr
                 }
 
 
@@ -1252,6 +1241,7 @@ localRepoPath name version projectPath =
 
 type ReadProjectOutlineError
     = ReadProjectOutlineNoProject FileSystem.Error
+    | ReadProjectOutlineInvalidGrenJsonString
     | ReadProjectOutlineInvalidGrenJson Decode.Error
 
 
@@ -1261,21 +1251,59 @@ readProjectOutline fsPermission =
         |> Task.mapError ReadProjectOutlineNoProject
         |> Task.andThen
             (\projectPath ->
-                readOutline fsPermission (Path.append (Path.fromPosixString "gren.json") projectPath)
-                    |> Task.mapError ReadProjectOutlineNoProject
-                    |> Task.andThen
-                        (\decodeResult ->
-                            when decodeResult is
-                                Ok outline ->
-                                    Task.succeed
-                                        { projectPath = projectPath
-                                        , outline = outline
-                                        }
+                Outline.readFromPath fsPermission (Path.append (Path.fromPosixString "gren.json") projectPath)
+                    |> Task.mapError
+                        (\err ->
+                            when err is
+                                Outline.FromPathFileSystemError fsErr ->
+                                    ReadProjectOutlineNoProject fsErr
 
-                                Err err ->
-                                    Task.fail (ReadProjectOutlineInvalidGrenJson err)
+                                Outline.FromPathInvalidString ->
+                                    ReadProjectOutlineInvalidGrenJsonString
+
+                                Outline.FromPathInvalidJson jsonErr ->
+                                    ReadProjectOutlineInvalidGrenJson jsonErr
+                        )
+                    |> Task.map
+                        (\outline ->
+                            { projectPath = projectPath
+                            , outline = outline
+                            }
                         )
             )
+
+
+-- TODO: remove this. Only kept around for compatibility
+readOutline : FileSystem.Permission -> Path -> Task FileSystem.Error (Result Decode.Error Outline)
+readOutline fsPermission path =
+    Outline.readFromPath fsPermission path
+        |> Task.map Ok
+        |> Task.onError
+            (\err ->
+                Task.succeed (Err err)
+            )
+        |> Task.andThen
+            (\result ->
+                when result is
+                    Ok outline ->
+                        Task.succeed <| Ok outline
+                    
+                    Err (Outline.FromPathFileSystemError fsErr) ->
+                        Task.fail fsErr
+
+                    Err Outline.FromPathInvalidString ->
+                        when Decode.decodeString Outline.jsonDecoder "" is
+                            Ok _ ->
+                                -- cannot happen
+                                readOutline fsPermission path
+
+                            err ->
+                                Task.succeed <| err
+
+                    Err (Outline.FromPathInvalidJson jsonErr) ->
+                        Task.succeed <| Err jsonErr
+            )
+
 
 prettifyProjectOutlineError : ReadProjectOutlineError -> Report
 prettifyProjectOutlineError error =
@@ -1295,6 +1323,17 @@ prettifyProjectOutlineError error =
                     ]
                 )
 
+        ReadProjectOutlineInvalidGrenJsonString ->
+            Report.create
+                "FAILED TO READ OUTLINE"
+                (Just (Path.fromPosixString "gren.json"))
+                (PP.verticalBlock
+                    [ PP.words "Something seems to be wrong with the gren.json file."
+                    , PP.empty
+                    , PP.words "It doesn't contain a valid utf-8 encoded string."
+                    ]
+                )
+
         ReadProjectOutlineInvalidGrenJson jsonErr ->
             Report.create
                 "FAILED TO READ OUTLINE"
@@ -1310,28 +1349,6 @@ prettifyProjectOutlineError error =
                 )
 
 
-readOutline : FileSystem.Permission -> Path -> Task FileSystem.Error (Result Decode.Error Outline)
-readOutline fsPerm path =
-    FileSystem.readFile fsPerm path
-        |> Task.map (Bytes.toString >> Maybe.withDefault "")
-        |> Task.map (Decode.decodeString Outline.jsonDecoder)
-
-
-packageBundleEncoder : Outline.PkgOutline -> Dict String String -> Json.Value
-packageBundleEncoder outline sources =
-    Json.object
-        [ { key = "outline", value = Outline.toJson (Outline.Pkg outline) }
-        , { key = "sources", value = Json.dict identity Json.string sources }
-        ]
-
-
-packageBundleDecoder : Decoder { outline : Outline.PkgOutline, sources : Dict String String }
-packageBundleDecoder =
-    Decode.map2 (\outline sources -> { outline = outline, sources = sources })
-        (Decode.field "outline" Outline.pkgJsonDecoder)
-        (Decode.field "sources" (Decode.dict Decode.string))
-
-
 type alias LoadedPackage =
     { name : PackageName
     , path : Path
@@ -1340,7 +1357,6 @@ type alias LoadedPackage =
     }
 
 
--- TODO: extract to module
 loadPackageFromPath : FileSystem.Permission -> PackageName -> Path -> Task PackageInstallError LoadedPackage
 loadPackageFromPath fsPermission name path =
     FileSystem.realPath fsPermission path
@@ -1353,70 +1369,23 @@ loadPackageFromPath fsPermission name path =
             )
         |> Task.andThen
             (\realPath ->
-                let
-                    outlinePath =
-                        Path.append (Path.fromPosixString "gren.json") realPath
-                in
-                FileSystem.readFile fsPermission outlinePath
-                    |> Task.mapError
-                        (\err ->
-                            PackageInstallInvalidOutline
-                                { package = name
-                                , message = FileSystem.errorToString err
-                                }
-                        )
+                Package.loadFromPath fsPermission path
+                    |> Task.mapError (packageFromPathErrorToPackageInstallError name)
                     |> Task.andThen
-                        (\outlineBytes ->
-                            when Bytes.toString outlineBytes is
-                                Just str ->
-                                    Task.succeed str
+                        (\package ->
+                            if name /= package.outline.name then
+                                Task.fail <| PackageInstallInvalidOutline
+                                    { package = name
+                                    , message = "Name in gren.json was expected to be " ++ PackageName.toString name
+                                    }
 
-                                Nothing ->
-                                    Task.fail <| PackageInstallInvalidOutline
-                                        { package = name
-                                        , message = "gren.json is not a valid utf-8 string"
-                                        }
-                        )
-                    |> Task.andThen
-                        (\outlineStr ->
-                            when Decode.decodeString Outline.pkgJsonDecoder outlineStr is
-                                Ok outline ->
-                                    Outline.findSourceFiles fsPermission (Outline.Pkg outline) realPath
-                                        |> Task.mapError
-                                            (\err ->
-                                                PackageInstallFailedToFindSourceFiles
-                                                    { package = name
-                                                    , error = err
-                                                    }
-                                            )
-                                        |> Task.andThen
-                                            (\sourceFiles ->
-                                                if name /= outline.name then
-                                                    Task.fail <| PackageInstallInvalidOutline
-                                                        { package = name
-                                                        , message = "Name in gren.json was expected to be " ++ PackageName.toString name
-                                                        }
-
-                                                else
-                                                    Task.succeed
-                                                        { name = name
-                                                        , path = realPath
-                                                        , outline = outline
-                                                        , sources =
-                                                            Array.foldl
-                                                                (\{ moduleName, source } acc ->
-                                                                    Dict.set (ModuleName.toString moduleName) source acc
-                                                                )
-                                                                Dict.empty
-                                                                sourceFiles
-                                                        }
-                                            )
-
-                                Err jsonErr ->
-                                    Task.fail <| PackageInstallInvalidOutline
-                                        { package = name
-                                        , message = Decode.errorToString jsonErr
-                                        }
+                            else
+                                Task.succeed
+                                    { name = name
+                                    , path = realPath
+                                    , outline = package.outline
+                                    , sources = package.sources
+                                    }
                         )
             )
 
@@ -1440,50 +1409,47 @@ loadPackageFromBundle fsPermission name vsn projectPath =
             )
         |> Task.andThen
             (\stream ->
-                stream
-                    |> Stream.awaitAndPipeThrough Stream.gzipDecompression
-                    |> Task.andThen (Stream.awaitAndPipeThrough Stream.textDecoder)
-                    |> Task.andThen Stream.Extra.consumeString
+                Package.loadFromStream stream
                     |> Task.mapError
                         (\err ->
-                            PackageInstallFailedToLoadBundleFromStream
-                                { package = name
-                                , path = bundlePath
-                                , error = err
-                                }
-                        )
-                    |> Task.andThen
-                        (\data ->
-                            when Decode.decodeString packageBundleDecoder data is
-                                Ok bundle ->
-                                    if name /= bundle.outline.name then
-                                        Task.fail <| PackageInstallInvalidBundle
-                                            { package = name
-                                            , path = bundlePath
-                                            , message = "Package name mismatch. Expected " ++ PackageName.toString name 
-                                            }
+                            when err is
+                                Package.FromStreamStreamError streamErr ->
+                                    PackageInstallFailedToLoadBundleFromStream
+                                        { package = name
+                                        , path = bundlePath
+                                        , error = streamErr
+                                        }
 
-                                    else if vsn /= bundle.outline.version then
-                                        Task.fail <| PackageInstallInvalidBundle
-                                            { package = name
-                                            , path = bundlePath
-                                            , message = "Package version mismatch. Expected " ++ SemanticVersion.toString vsn
-                                            }
-
-                                    else
-                                        Task.succeed
-                                            { name = name
-                                            , path = bundlePath
-                                            , outline = bundle.outline
-                                            , sources = bundle.sources
-                                            }
-
-                                Err jsonErr ->
-                                    Task.fail <| PackageInstallInvalidBundle
+                                Package.FromStreamInvalidJson jsonErr ->
+                                    PackageInstallInvalidBundle
                                         { package = name
                                         , path = bundlePath
                                         , message = Decode.errorToString jsonErr
                                         }
+                        )
+                    |> Task.andThen
+                        (\bundle ->
+                            if name /= bundle.outline.name then
+                                Task.fail <| PackageInstallInvalidBundle
+                                    { package = name
+                                    , path = bundlePath
+                                    , message = "Package name mismatch. Expected " ++ PackageName.toString name 
+                                    }
+
+                            else if vsn /= bundle.outline.version then
+                                Task.fail <| PackageInstallInvalidBundle
+                                    { package = name
+                                    , path = bundlePath
+                                    , message = "Package version mismatch. Expected " ++ SemanticVersion.toString vsn
+                                    }
+
+                            else
+                                Task.succeed
+                                    { name = name
+                                    , path = bundlePath
+                                    , outline = bundle.outline
+                                    , sources = bundle.sources
+                                    }
                         )
             )
 

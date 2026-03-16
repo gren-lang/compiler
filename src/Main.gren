@@ -37,7 +37,6 @@ import Cli.Parser
 import Cli.PrettyPrinter as PP
 import SemanticVersion exposing (SemanticVersion)
 import Json.Encode as Json
-import Stream.Extra
 import Process
 
 
