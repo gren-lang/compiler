@@ -14,6 +14,7 @@ import FileSystem
 import FileSystem.Path as Path exposing (Path)
 import Compiler.Outline as Outline exposing (Outline)
 import Terminal.Report as Report exposing (Report)
+import Terminal.PackageInstall as PackageInstall
 import Cli.PrettyPrinter as PP
 import Compiler.Parse.Module as PM
 import Compiler.Parse.Context as Context
@@ -30,7 +31,7 @@ type alias Config =
 
 
 type Error
-    = FailedToFindSources FileSystem.Error
+    = FailedToFindSources Outline.FindSourceFilesError
     | NothingToFormat
     | ParseFailure { path : Path, error : String }
 
@@ -121,7 +122,7 @@ prettifyError error =
                     , PP.empty
                     , PP.words "The error is:"
                     , PP.empty
-                    , PP.words (FileSystem.errorToString fsErr)
+                    , PP.words (PackageInstall.outlineFindSourcesErrorToString fsErr)
                         |> PP.indent
                     ]
                 )

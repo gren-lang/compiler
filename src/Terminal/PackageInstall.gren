@@ -15,6 +15,7 @@ module Terminal.PackageInstall exposing
     , prettifyProjectOutlineError
     , readOutline
     , localRepoPath
+    , outlineFindSourcesErrorToString
     )
 
 
@@ -73,8 +74,8 @@ type alias PackageResolution =
 
 
 type PackageInstallError
-    = PackageInstallFailedToFindProjectSourceFiles FileSystem.Error
-    | PackageInstallFailedToFindSourceFiles { package : PackageName, error : FileSystem.Error }
+    = PackageInstallFailedToFindProjectSourceFiles Outline.FindSourceFilesError
+    | PackageInstallFailedToFindSourceFiles { package : PackageName, error : Outline.FindSourceFilesError }
     | PackageInstallInvalidOutline { package : PackageName, message : String }
     | PackageInstallFailedToLoadBundleFromDisk { package : PackageName, path : Path, error : FileSystem.Error }
     | PackageInstallFailedToLoadBundleFromStream { package : PackageName, path : Path, error : Stream.Error }
@@ -177,11 +178,16 @@ run config { projectPath, outline } =
                 Outline.findSourceFiles config.fsPermission outline projectPath
                     |> Task.onError
                         (\err ->
-                            if FileSystem.errorIsNoSuchFileOrDirectory err then
-                                Task.succeed []
+                            when err is
+                                Outline.FileSystemError fsErr ->
+                                    if FileSystem.errorIsNoSuchFileOrDirectory fsErr then
+                                        Task.succeed []
 
-                            else
-                                Task.fail <| PackageInstallFailedToFindProjectSourceFiles err
+                                    else
+                                        Task.fail <| PackageInstallFailedToFindProjectSourceFiles err
+
+                                _ ->
+                                    Task.fail <| PackageInstallFailedToFindProjectSourceFiles err
                         )
                     |> Task.map
                         (\sourceFiles ->
@@ -190,16 +196,7 @@ run config { projectPath, outline } =
                             , projectSources =
                                 Array.foldl
                                     (\{ path, moduleName, source } dict ->
-                                        -- TODO: Temporary fix. Should be handled in compiler-node
-                                        when ModuleName.fromString moduleName is
-                                            Just _ -> 
-                                                Dict.set moduleName { path = path, data = source } dict
-
-                                            Nothing ->
-                                                -- Filter out bad module names.
-                                                -- The real solution should give a better error message, but this
-                                                -- at least prevents the backend crashing with cryptic json error.
-                                                dict
+                                        Dict.set (ModuleName.toString moduleName) { path = path, data = source } dict
                                     )
                                     Dict.empty
                                     sourceFiles
@@ -511,7 +508,7 @@ installStep config opts =
                                                                             sources =
                                                                                 Array.foldl
                                                                                     (\{ moduleName, source } dict ->
-                                                                                        Dict.set moduleName source dict
+                                                                                        Dict.set (ModuleName.toString moduleName) source dict
                                                                                     )
                                                                                     Dict.empty
                                                                                     files
@@ -619,7 +616,7 @@ installStep config opts =
 prettifyError : PackageInstallError -> Report
 prettifyError error =
     when error is
-        PackageInstallFailedToFindProjectSourceFiles fsErr ->
+        PackageInstallFailedToFindProjectSourceFiles outlineSourcesErr ->
             Report.create
                 "FAILED TO FIND PROJECT SOURCES"
                 Nothing
@@ -628,12 +625,12 @@ prettifyError error =
                     , PP.empty
                     , PP.words "The error is:"
                     , PP.empty
-                    , PP.words (FileSystem.errorToString fsErr)
+                    , PP.words (outlineFindSourcesErrorToString outlineSourcesErr)
                         |> PP.indent
                     ]
                 )
 
-        PackageInstallFailedToFindSourceFiles { package, error = fsErr} ->
+        PackageInstallFailedToFindSourceFiles { package, error = outlineSourcesErr } ->
             Report.create
                 ("FAILED TO FIND SOURCES FOR PACKAGE " ++ PackageName.toString package)
                 Nothing
@@ -642,7 +639,7 @@ prettifyError error =
                     , PP.empty
                     , PP.words "The error is:"
                     , PP.empty
-                    , PP.words (FileSystem.errorToString fsErr)
+                    , PP.words (outlineFindSourcesErrorToString outlineSourcesErr)
                         |> PP.indent
                     ]
                 )
@@ -885,6 +882,26 @@ prettifyError error =
                         )
                     ]
                 )
+
+
+outlineFindSourcesErrorToString : Outline.FindSourceFilesError -> String
+outlineFindSourcesErrorToString err =
+    when err is
+        Outline.FileSystemError fsErr ->
+            FileSystem.errorToString fsErr
+
+        Outline.FilePathInvalidModuleName { path, inferredModuleName } ->
+            "The file at path "
+                ++ Path.toPosixString path
+                ++ " would suggest a module name like "
+                ++ inferredModuleName
+                ++ ", but this is not a valid module name!"
+
+        Outline.FileContentNotValidString path ->
+            "The file at path "
+                ++ Path.toPosixString path
+                ++ " does not contain a valid utf-8 encoded string!"
+
 
 -- CLEAN
 
@@ -1388,7 +1405,7 @@ loadPackageFromPath fsPermission name path =
                                                         , sources =
                                                             Array.foldl
                                                                 (\{ moduleName, source } acc ->
-                                                                    Dict.set moduleName source acc
+                                                                    Dict.set (ModuleName.toString moduleName) source acc
                                                                 )
                                                                 Dict.empty
                                                                 sourceFiles
