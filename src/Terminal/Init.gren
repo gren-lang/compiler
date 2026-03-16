@@ -271,8 +271,7 @@ prettifyError err =
         FileSystemFailure fsErr ->
             Report.create
                 "FILESYSTEM ERROR"
-                -- TODO: (Just <| FileSystem.errorPath fsErr)
-                Nothing
+                (Just <| FileSystem.errorPath fsErr)
                 (PP.verticalBlock
                     [ PP.words "An unexpected error occured when accessing the filesystem."
                     , PP.empty

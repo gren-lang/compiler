@@ -43,8 +43,8 @@ type OutputType
     | Json
 
 
-toString : OutputType -> Report -> String
-toString outputType report =
+toString : OutputType -> (Path -> String) -> Report -> String
+toString outputType pathToString report =
     when outputType is
         Json ->
             when report is
@@ -59,7 +59,7 @@ toString outputType report =
                             , { key = "path"
                               , value =
                                   maybePath
-                                    |> Maybe.map Path.toPosixString
+                                    |> Maybe.map pathToString
                                     |> Maybe.withDefault ""
                                     |> Encode.string
                               }
@@ -88,10 +88,9 @@ toString outputType report =
                                         makeDashes (4 + String.unitLength title)
 
                                     Just path ->
-                                        -- TODO: platform toString
                                         let
                                             pathStr =
-                                                Path.toPosixString path
+                                                pathToString path
                                         in
                                         " "
                                             ++ makeDashes (5 + String.unitLength title + String.unitLength pathStr)

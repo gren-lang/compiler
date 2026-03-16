@@ -62,9 +62,9 @@ type alias Model =
     , fsPermission : FileSystem.Permission
     , cpPermission : ChildProcess.Permission
     , httpPermission : HttpClient.Permission
-    -- TODO: Remove
     , pathToString : Path -> String
     }
+
 
 init : Node.Environment -> Init.Task { model : Model, command : Cmd Msg }
 init env =
@@ -295,7 +295,7 @@ update msg model =
                         |> Task.onError
                             (\error ->
                                 Terminal.Run.prettifyError error
-                                    |> Terminal.Report.toString (Terminal.Report.Terminal { useColor = model.useColor })
+                                    |> Terminal.Report.toString (Terminal.Report.Terminal { useColor = model.useColor }) model.pathToString
                                     |> Stream.Log.line model.stderr
                                     |> Task.map (\_ -> Node.exitWithCode 1)
                             )
@@ -348,7 +348,7 @@ parseUserArgs model compilerPath =
                 |> Task.map (\_ -> Node.exitWithCode 1)
 
         endWithErrorReport outputType report =
-            Terminal.Report.toString outputType report
+            Terminal.Report.toString outputType model.pathToString report
                 |> endWithErrorString
     in
     when Cli.Parser.run model.args CliParser.parser is
@@ -882,7 +882,7 @@ resolveProject model =
 
 
 -- TODO: Move to gren-lang/compiler-node
-verifyMakeFlags : FileSystem.Permission -> Array ModuleName  -> Maybe Compiler.Backend.MakeOutput -> Terminal.PackageInstall.PackageResolution -> Task Report Terminal.PackageInstall.PackageResolution
+verifyMakeFlags : FileSystem.Permission -> Array ModuleName -> Maybe Compiler.Backend.MakeOutput -> Terminal.PackageInstall.PackageResolution -> Task Report Terminal.PackageInstall.PackageResolution
 verifyMakeFlags fsPermission entryPoints maybeOutput resolution =
     let
         maybeOutputPath =

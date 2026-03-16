@@ -76,7 +76,8 @@ type PackageInstallError
     = PackageInstallFailedToFindProjectSourceFiles FileSystem.Error
     | PackageInstallFailedToFindSourceFiles { package : PackageName, error : FileSystem.Error }
     | PackageInstallInvalidOutline { package : PackageName, message : String }
-    | PackageInstallFailedToLoadBundle { package : PackageName, path : Path, message : String }
+    | PackageInstallFailedToLoadBundleFromDisk { package : PackageName, path : Path, error : FileSystem.Error }
+    | PackageInstallFailedToLoadBundleFromStream { package : PackageName, path : Path, error : Stream.Error }
     | PackageInstallInvalidBundle { package : PackageName, path : Path, message : String }
     | PackageInstallConflict { package : PackageName, version1 : SemanticVersionRange, version2 : SemanticVersionRange }
     | PackageInstallGitError { package : PackageName, error : Git.Error }
@@ -129,16 +130,11 @@ run config { projectPath, outline } =
                             |> Task.map Just
                             |> Task.onError
                                 (\err ->
-                                    {- Due to a bug in gren-lang/core, we aren't able to
-                                    detech why installing the package failed. Will simply
-                                    assume that loading the package failed due to it being
-                                    missing until a new version of gren-lang/core is released.
-                                    TODO:
                                     when err is
-                                        PackageInstallFailedToLoadBundle { message } ->
+                                        PackageInstallFailedToLoadBundleFromDisk { error = fsErr } ->
                                             -- Ignore packages that doesn't exist, they
                                             -- will be created in `installStep`
-                                            if String.contains "ENOENT" message then
+                                            if FileSystem.errorIsNoSuchFileOrDirectory fsErr then
                                                 Task.succeed Nothing
 
                                             else
@@ -146,8 +142,6 @@ run config { projectPath, outline } =
 
                                         _ ->
                                             Task.fail err
-                                    -}
-                                    Task.succeed Nothing
                                 )
 
                     Outline.LocalPath path ->
@@ -667,7 +661,7 @@ prettifyError error =
                     ]
                 )
 
-        PackageInstallFailedToLoadBundle { package, path, message } ->
+        PackageInstallFailedToLoadBundleFromDisk { package, path, error = fsErr } ->
             Report.create
                 "FAILED TO LOAD PACKAGE BUNDLE"
                 (Just path)
@@ -681,7 +675,28 @@ prettifyError error =
                     , PP.empty
                     , PP.words "The error is:"
                     , PP.empty
-                    , PP.words message
+                    , PP.words (FileSystem.errorToString fsErr)
+                        |> PP.indent
+                    , PP.empty
+                    , PP.words "Try to delete it and re-run this command to re-generate the bundle."
+                    ]
+                )
+
+        PackageInstallFailedToLoadBundleFromStream { package, path, error = streamErr } ->
+            Report.create
+                "FAILED TO LOAD PACKAGE BUNDLE"
+                (Just path)
+                (PP.verticalBlock
+                    [ PP.block
+                        [ PP.words "An error occured while I was loading the bundle for "
+                        , PP.text (" " ++ PackageName.toString package)
+                            |> PP.color PP.Green
+                        , PP.text "."
+                        ]
+                    , PP.empty
+                    , PP.words "The error is:"
+                    , PP.empty
+                    , PP.words (Stream.errorToString streamErr)
                         |> PP.indent
                     , PP.empty
                     , PP.words "Try to delete it and re-run this command to re-generate the bundle."
@@ -1400,10 +1415,10 @@ loadPackageFromBundle fsPermission name vsn projectPath =
         |> FileSystem.readFileStream fsPermission FileSystem.Beginning
         |> Task.mapError
             (\fsErr ->
-                PackageInstallFailedToLoadBundle
+                PackageInstallFailedToLoadBundleFromDisk
                     { package = name
                     , path = bundlePath
-                    , message = FileSystem.errorToString fsErr
+                    , error = fsErr
                     }
             )
         |> Task.andThen
@@ -1414,10 +1429,10 @@ loadPackageFromBundle fsPermission name vsn projectPath =
                     |> Task.andThen Stream.Extra.consumeString
                     |> Task.mapError
                         (\err ->
-                            PackageInstallFailedToLoadBundle
+                            PackageInstallFailedToLoadBundleFromStream
                                 { package = name
                                 , path = bundlePath
-                                , message = Stream.errorToString err
+                                , error = err
                                 }
                         )
                     |> Task.andThen
