@@ -114,7 +114,7 @@ prettifyError error =
     when error is
         FailedToFindSources fsErr ->
             Report.create
-                ("Failed to find project source files")
+                "COULD NOT FIND SOURCE CODE"
                 Nothing
                 (PP.verticalBlock
                     [ PP.words "An error occured while I was searching for .gren files in this project."
@@ -128,14 +128,14 @@ prettifyError error =
 
         NothingToFormat ->
             Report.create
-                ("There are no files to format")
+                "NOTHING TO FORMAT"
                 Nothing
                 ( PP.words "I can't seem to find any files in this project."
                 )
 
         ParseFailure { path, error = message } ->
             Report.create
-                ("Could not parse this file")
+                "FAILED TO PARSE"
                 (Just path)
                 ( PP.verticalBlock (Array.map PP.text (String.split "\n" message))
                 )

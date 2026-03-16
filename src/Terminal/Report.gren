@@ -93,11 +93,14 @@ toString outputType report =
                                             pathStr =
                                                 Path.toPosixString path
                                         in
-                                        makeDashes (5 + String.unitLength title + String.unitLength pathStr) ++ " " ++ pathStr
+                                        " "
+                                            ++ makeDashes (5 + String.unitLength title + String.unitLength pathStr)
+                                            ++ " "
+                                            ++ pathStr
 
                             errorBar =
                                 PP.block
-                                    [ PP.text "--"
+                                    [ PP.text "-- "
                                     , PP.text title
                                     , PP.text errorBarEnd
                                     ]
