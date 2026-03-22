@@ -14,5 +14,4 @@ node_modules
 
 # Gren build stuff
 .gren
-gren_packages
 app

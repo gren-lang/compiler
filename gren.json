@@ -7,10 +7,10 @@
     "gren-version": "0.6.3",
     "dependencies": {
         "direct": {
-            "gren-lang/core": "local:../core",
+            "gren-lang/core": "7.4.0",
             "gren-lang/node": "6.1.0",
-            "gren-lang/compiler-node": "local:../compiler-node",
-            "gren-lang/compiler-common": "local:../compiler-common"
+            "gren-lang/compiler-node": "4.0.0",
+            "gren-lang/compiler-common": "1.0.0"
         },
         "indirect": {
             "gren-lang/url": "6.0.0"
