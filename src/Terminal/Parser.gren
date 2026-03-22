@@ -204,20 +204,20 @@ parser =
                 , builder =
                     \_args flags -> Paths flags
                 }
-            |> Cli.Parser.withCommand
-                { word = "format"
-                , arguments =
-                    Cli.Parser.noArgs
-                , flags =
-                    Cli.Parser.noFlags
-                , commonDescription = Nothing
-                , summary =
-                    "Format Gren source code."
-                , example =
-                    PP.empty
-                , builder =
-                    \_args _flags -> Format
-                }
+            -- |> Cli.Parser.withCommand
+            --     { word = "format"
+            --     , arguments =
+            --         Cli.Parser.noArgs
+            --     , flags =
+            --         Cli.Parser.noFlags
+            --     , commonDescription = Nothing
+            --     , summary =
+            --         "Format Gren source code."
+            --     , example =
+            --         PP.empty
+            --     , builder =
+            --         \_args _flags -> Format
+            --     }
             |> Cli.Parser.withCommand
                 { word = "make"
                 , arguments =
