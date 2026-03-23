@@ -141,6 +141,10 @@ run config { projectPath, outline } =
                                             else
                                                 Task.fail err
 
+                                        PackageInstallFailedToLoadBundleFromStream { error = streamErr } ->
+                                            -- Assume it fails because the file is missing
+                                            Task.succeed Nothing
+
                                         _ ->
                                             Task.fail err
                                 )
