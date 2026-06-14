@@ -243,7 +243,7 @@ parser =
                     PP.verticalBlock
                         [ PP.words "For example:"
                         , PP.empty
-                        , PP.words "gren make src/Main.gren"
+                        , PP.words "gren make Main"
                             |> PP.indent
                             |> PP.color PP.Green
                         , PP.empty
