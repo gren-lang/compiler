@@ -1,11 +1,11 @@
 module Terminal.Help exposing
     ( confirm
-    , prettyPrint
     , makeLink
     , getNullStream
     )
 
 import Cli.PrettyPrinter as PP
+import Terminal.Report
 import Bytes exposing (Bytes)
 import Stream
 import Stream.Log
@@ -40,7 +40,7 @@ confirm { stdout, stdin, useColor, interactive, question, defaultValue } =
                     " [y|N]: "
         in
         PP.block [ question, PP.text legend ]
-            |> prettyPrint { useColor = useColor }
+            |> Terminal.Report.prettyPrint { useColor = useColor }
             |> Stream.Log.string stdout
             |> Task.andThen (\_ -> Stream.readBytesAsString stdin)
             |> Task.map
@@ -55,21 +55,6 @@ confirm { stdout, stdin, useColor, interactive, question, defaultValue } =
                         _ ->
                             False
                 )
-
-
-prettyPrint : { useColor : Bool } -> PP.Document -> String
-prettyPrint { useColor } doc =
-    PP.toStringWithOptions
-        { maxColumns = 80
-        , indentationSize = 4
-        , newlineSeparator = "\n"
-        }
-        (if useColor then
-            doc
-
-        else
-            PP.stripColor doc
-        )
 
 
 makeLink : String -> PP.Document

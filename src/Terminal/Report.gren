@@ -6,12 +6,12 @@ module Terminal.Report exposing
     --
     , OutputType (..)
     , toString
+    , prettyPrint
     )
 
 
 import FileSystem.Path as Path exposing (Path)
 import Cli.PrettyPrinter as PP
-import Terminal.Help
 import Json.Encode as Encode
 
 
@@ -66,13 +66,13 @@ toString outputType pathToString report =
                             , { key = "message"
                               , value =
                                    message
-                                      |> Terminal.Help.prettyPrint { useColor = False }
+                                      |> prettyPrint { useColor = False }
                                       |> Encode.string
                               }
                             ]
 
         Terminal printOpts ->
-            Terminal.Help.prettyPrint printOpts <|
+            prettyPrint printOpts <|
                 when report is
                     Empty ->
                         PP.empty
@@ -112,3 +112,18 @@ toString outputType pathToString report =
                             , PP.empty
                             , PP.empty
                             ]
+
+
+prettyPrint : { useColor : Bool } -> PP.Document -> String
+prettyPrint { useColor } doc =
+    PP.toStringWithOptions
+        { maxColumns = 80
+        , indentationSize = 4
+        , newlineSeparator = "\n"
+        }
+        (if useColor then
+            doc
+
+        else
+            PP.stripColor doc
+        )

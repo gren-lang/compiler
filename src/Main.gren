@@ -338,7 +338,7 @@ parseUserArgs model compilerPath =
             }
 
         endWithError prettyErr =
-            Terminal.Help.prettyPrint printOpts prettyErr
+            Terminal.Report.prettyPrint printOpts prettyErr
                 |> Stream.Log.string model.stderr
                 |> Task.map (\_ -> Node.exitWithCode 1)
 
@@ -369,7 +369,7 @@ parseUserArgs model compilerPath =
     
         Cli.Parser.HelpText prettifiedText ->
             prettifiedText
-                |> Terminal.Help.prettyPrint printOpts
+                |> Terminal.Report.prettyPrint printOpts
                 |> Stream.Log.line model.stdout
                 |> Task.execute
     
