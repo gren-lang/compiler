@@ -13,7 +13,7 @@ import Bytes exposing (Bytes)
 import FileSystem
 import FileSystem.Path as Path exposing (Path)
 import Compiler.Outline as Outline exposing (Outline)
-import Terminal.Report as Report exposing (Report)
+import Cli.Report as Report exposing (Report)
 import Terminal.PackageInstall as PackageInstall
 import Cli.PrettyPrinter as PP
 import Compiler.Parse.Module as PM

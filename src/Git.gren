@@ -20,7 +20,7 @@ import Task exposing (Task)
 import Terminal.Help as Help
 import Cli.PrettyPrinter as PP
 import Compiler.Paths
-import Terminal.Report as Report exposing (Report)
+import Cli.Report as Report exposing (Report)
 
 
 type Error

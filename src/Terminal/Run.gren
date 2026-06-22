@@ -28,7 +28,7 @@ import Stream
 import Task exposing (Task)
 import Terminal.PackageInstall as PackageInstall exposing (PackageResolution)
 import Terminal.Help as Help
-import Terminal.Report as Report exposing (Report)
+import Cli.Report as Report exposing (Report)
 
 
 type Error

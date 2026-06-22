@@ -25,7 +25,7 @@ import Json.Encode as Json
 import Json.Decode as Decode exposing (Decoder)
 import Terminal.Help as Help
 import Terminal.PackageInstall
-import Terminal.Report as Report exposing (Report)
+import Cli.Report as Report exposing (Report)
 
 
 type alias Config =

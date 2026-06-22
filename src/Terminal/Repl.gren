@@ -28,7 +28,7 @@ import Dict
 import Meta
 import Terminal.PackageInstall as PackageInstall
 import Terminal.Init
-import Terminal.Report as Report exposing (Report)
+import Cli.Report as Report exposing (Report)
 
 
 type alias Config =

@@ -5,7 +5,7 @@ module Terminal.Help exposing
     )
 
 import Cli.PrettyPrinter as PP
-import Terminal.Report
+import Cli.Report
 import Bytes exposing (Bytes)
 import Stream
 import Stream.Log
@@ -40,7 +40,7 @@ confirm { stdout, stdin, useColor, interactive, question, defaultValue } =
                     " [y|N]: "
         in
         PP.block [ question, PP.text legend ]
-            |> Terminal.Report.prettyPrint { useColor = useColor }
+            |> Cli.Report.prettyPrint { useColor = useColor }
             |> Stream.Log.string stdout
             |> Task.andThen (\_ -> Stream.readBytesAsString stdin)
             |> Task.map
