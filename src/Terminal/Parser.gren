@@ -22,6 +22,7 @@ type Command
     = Init InitFlags
     | Repl ReplFlags
     | Make MakeFlags
+    | Make2 MakeFlags
     | Docs DocsFlags
     | PackageInstall (Maybe PackageName)
     | PackageUninstall PackageName
@@ -204,20 +205,6 @@ parser =
                 , builder =
                     \_args flags -> Paths flags
                 }
-            -- |> Cli.Parser.withCommand
-            --     { word = "format"
-            --     , arguments =
-            --         Cli.Parser.noArgs
-            --     , flags =
-            --         Cli.Parser.noFlags
-            --     , commonDescription = Nothing
-            --     , summary =
-            --         "Format Gren source code."
-            --     , example =
-            --         PP.empty
-            --     , builder =
-            --         \_args _flags -> Format
-            --     }
             |> Cli.Parser.withCommand
                 { word = "make"
                 , arguments =
@@ -256,6 +243,51 @@ parser =
                 , builder =
                     \args flags ->
                         Make
+                            { optimize = flags.optimize
+                            , sourcemaps = flags.sourcemaps
+                            , output = flags.output
+                            , report = flags.report
+                            , entryPoints = args
+                            }
+                }
+            |> Cli.Parser.withCommand
+                { word = "make2"
+                , arguments =
+                    Cli.Parser.zeroOrMoreArgs moduleNameParser
+                , flags =
+                    Cli.Parser.initFlags 
+                        (\optimize sourcemaps output report ->
+                            { optimize = optimize
+                            , sourcemaps = sourcemaps
+                            , output = output
+                            , report = report
+                            }
+                        )
+                        |> Cli.Parser.toggle "optimize" "Turn on optimizations to make code smaller and faster. For example, the compiler renames record fields to be as short as possible and unboxes values to reduce allocation."
+                        |> Cli.Parser.toggle "sourcemaps" "Add sourcemaps to the resulting JS file. This let's you debug Gren code in a JS debugger, at the cost of longer compile times and a bigger JS file."
+                        |> Cli.Parser.flag "output" outputParser "Specify the name of the resulting JS file. For example --output=assets/gren.js to generate the JS at assets/gren.js. You can also use --output=/dev/stdout to output the JS to the terminal, or --output=/dev/null to generate no output at all!"
+                        |> Cli.Parser.flag "report" reportParser "You can say --report=json to get error messages as JSON. This is only really useful if you are an editor plugin. Humans should avoid it!"
+                , commonDescription =
+                    Nothing
+                , summary =
+                    "The `make` command compiles Gren code into JS or HTML:"
+                , example = 
+                    PP.verticalBlock
+                        [ PP.words "For example:"
+                        , PP.empty
+                        , PP.words "gren make Main"
+                            |> PP.indent
+                            |> PP.color PP.Green
+                        , PP.empty
+                        , PP.words
+                            """
+                            This tries to compile a Gren file named src/Main.gren, generating an index.html
+                            file if possible.
+                            """
+                        ]
+                , builder =
+                    \args flags ->
+                        Make2
                             { optimize = flags.optimize
                             , sourcemaps = flags.sourcemaps
                             , output = flags.output
