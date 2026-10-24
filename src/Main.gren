@@ -372,7 +372,7 @@ parseUserArgs model compilerPath =
             Report.toString outputType model.pathToString report
                 |> endWithErrorString
     in
-    when Cli.Parser.run model.args CliParser.parser is
+    when Cli.Parser.run CliParser.parser model.args is
         Cli.Parser.UnknownCommand commandName ->
             endWithErrorString ("I don't recognize this command: " ++ commandName ++ "\n")
                 |> Task.perform RunCmd
