@@ -15,8 +15,8 @@ import Terminal.Init
 import Terminal.Run
 import Terminal.Help
 import Terminal.Repl
-import Cli.Report as Report exposing (Report)
-import Terminal.Format
+import Terminal.Make2
+import Terminal
 import Compiler.Backend
 import Compiler.PackageName as PackageName exposing (PackageName)
 import Compiler.Paths
@@ -35,6 +35,7 @@ import Bytes exposing (Bytes)
 import Terminal
 import Cli.Parser
 import Cli.PrettyPrinter as PP
+import Cli.Report as Report exposing (Report)
 import SemanticVersion exposing (SemanticVersion)
 import Json.Encode as Json
 import Process
@@ -558,10 +559,16 @@ parseUserArgs model compilerPath =
                     determineOutputStreamForResolve
                         |> Task.andThen (\output -> resolveProject { model | stdout = output })
                         |> Task.andThen (verifyMakeFlags model.fsPermission flags.entryPoints flags.output)
-                        |> Task.map
+                        |> Task.andThen
                             (\resolved ->
-                                Stream.Log.line model.stdout "MAKE"
-                                    |> Task.execute
+                                Terminal.Make2.run
+                                    { stdout = model.stdout
+                                    , fsPermission = model.fsPermission
+                                    , pathToString = model.pathToString
+                                    , project = resolved
+                                    }
+                                    |> Task.mapError Terminal.Make2.prettifyError
+                                    |> Task.map (Task.execute << Stream.Log.line model.stdout)
                             )
                         |> Task.onError (endWithErrorReport reportType)
                         |> Task.perform RunCmd
@@ -891,25 +898,6 @@ parseUserArgs model compilerPath =
                         |> Task.map (\_ -> Cmd.none)
                         |> Task.mapError Terminal.Paths.errorToString
                         |> Task.onError endWithErrorString
-                        |> Task.perform RunCmd
-
-                CliParser.Format ->
-                    Terminal.PackageInstall.readProjectOutline model.fsPermission
-                        |> Task.mapError Terminal.PackageInstall.prettifyProjectOutlineError
-                        |> Task.andThen
-                            (\{ projectPath, outline } ->
-                                Terminal.Format.run
-                                    { stdout = model.stdout
-                                    , fsPermission = model.fsPermission
-                                    , pathToString = model.pathToString                        
-                                    , projectPath = projectPath
-                                    , outline = outline
-                                    }
-                                    |> Task.mapError Terminal.Format.prettifyError
-                            )
-                        |> Task.andThen (Stream.Log.line model.stdout)
-                        |> Task.map (\_ -> Cmd.none)
-                        |> Task.onError (endWithErrorReport (Report.Terminal printOpts))
                         |> Task.perform RunCmd
 
 

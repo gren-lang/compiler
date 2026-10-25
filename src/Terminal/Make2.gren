@@ -1,0 +1,118 @@
+module Terminal.Make2 exposing
+    ( Config
+    , Error(..)
+    , run
+    , prettifyError
+    )
+
+
+import Stream
+import Stream.Log
+import Dict
+import Task exposing (Task)
+import Bytes exposing (Bytes)
+import FileSystem
+import FileSystem.Path as Path exposing (Path)
+import Compiler.Outline as Outline exposing (Outline)
+import Cli.Report as Report exposing (Report)
+import Terminal.PackageInstall as PackageInstall exposing (PackageResolution)
+import Cli.PrettyPrinter as PP
+import Compiler.Parse.Module as PM
+import Compiler.Parse.Context as Context
+import String.Parser.Advanced as Parser
+
+
+type alias Config =
+    { stdout : Stream.Writable Bytes
+    , fsPermission : FileSystem.Permission
+    , pathToString : Path -> String
+    , project : PackageResolution
+    }
+
+
+type Error
+    = NothingToFormat
+    | ParseFailure { path : Path, error : String }
+
+
+run : Config -> Task Error String
+run { fsPermission, pathToString, project } =
+    let
+        parseFn { path, data = source } previous =
+            Task.andThen
+                (\previousFiles ->
+                    if path.extension /= "gren" then
+                        -- Probably kernel code
+                        Task.succeed previousFiles
+
+                    else
+                        when Parser.run PM.parser Context.empty source is
+                            Ok _ -> 
+                                Task.succeed <|
+                                    Array.pushLast (pathToString path) previousFiles
+
+                            Err errs ->
+                                Task.fail <|
+                                    ParseFailure
+                                        { path = path
+                                        , error = PM.errorsToString source errs 
+                                        }
+                )
+                previous
+    in
+    if Dict.isEmpty project.rootSources then
+        Task.fail NothingToFormat
+
+    else
+        Array.foldl parseFn (Task.succeed []) (Dict.values project.rootSources)
+            |> Task.map (String.join "\n")
+
+
+-- TODO: add to gren-lang/node?
+pathRelativeFrom : Path -> Path -> Path
+pathRelativeFrom base absolute =
+    let
+        commonPrefix =
+            findCommonPrefix 0 (Array.pushLast base.filename base.directory) absolute.directory
+    in
+    if commonPrefix > 0 then
+        { root = ""
+        , directory = Array.dropFirst commonPrefix absolute.directory
+        , filename = absolute.filename
+        , extension = absolute.extension
+        }
+
+    else
+        absolute
+
+
+findCommonPrefix : Int -> Array String -> Array String -> Int
+findCommonPrefix count left right =
+    when { l = Array.popFirst left, r = Array.popFirst right } is
+        { l = Just { first = lFirst, rest = lRest }, r = Just { first = rFirst, rest = rRest} } ->
+            if lFirst == rFirst then
+                findCommonPrefix (count + 1) lRest rRest
+
+            else
+                count
+
+        _ ->
+            count
+
+
+prettifyError : Error -> Report
+prettifyError error =
+    when error is
+        NothingToFormat ->
+            Report.create
+                "NOTHING TO FORMAT"
+                Nothing
+                ( PP.words "I can't seem to find any files in this project."
+                )
+
+        ParseFailure { path, error = message } ->
+            Report.create
+                "FAILED TO PARSE"
+                (Just path)
+                ( PP.verticalBlock (Array.map PP.text (String.split "\n" message))
+                )

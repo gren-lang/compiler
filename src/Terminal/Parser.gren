@@ -32,7 +32,6 @@ type Command
     | PackageDiff DiffArgs
     | Paths Paths.Options
     | Run RunOptions
-    | Format
 
 
 type alias InitFlags =

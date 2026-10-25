@@ -10,7 +10,7 @@
             "gren-lang/core": "7.6.1",
             "gren-lang/node": "6.2.1",
             "gren-lang/compiler-node": "6.0.0",
-            "gren-lang/compiler-common": "4.1.0"
+            "gren-lang/compiler-common": "local:../compiler-common"
         },
         "indirect": {
             "gren-lang/url": "6.0.0"
