@@ -8,7 +8,7 @@ module Terminal.Make2 exposing
 
 import Stream
 import Stream.Log
-import Dict
+import Dict exposing (Dict)
 import Task exposing (Task)
 import Bytes exposing (Bytes)
 import FileSystem
@@ -17,9 +17,12 @@ import Compiler.Outline as Outline exposing (Outline)
 import Cli.Report as Report exposing (Report)
 import Terminal.PackageInstall as PackageInstall exposing (PackageResolution)
 import Cli.PrettyPrinter as PP
+import Compiler.PackageName as PackageName
 import Compiler.Parse.Module as PM
 import Compiler.Parse.Context as Context
 import String.Parser.Advanced as Parser
+import Compiler.Ast.Source as ParsedAst
+import Compiler.ModuleName as ModuleName
 
 
 type alias Config =
@@ -31,41 +34,72 @@ type alias Config =
 
 
 type Error
-    = NothingToFormat
+    = NoSources
     | ParseFailure { path : Path, error : String }
 
 
+type alias ParsedResolution =
+    { projectPath : Path
+    , outline : Outline
+    , rootSources : Dict String ParsedFile
+    , dependencies : Dict String { path : Path, outline : Outline.PkgOutline, sources : Dict String ParsedAst.Module }
+    }
+
+
+type alias ParsedFile =
+    { path : Path
+    , ast : ParsedAst.Module
+    }
+
+
 run : Config -> Task Error String
-run { fsPermission, pathToString, project } =
-    let
-        parseFn { path, data = source } previous =
-            Task.andThen
-                (\previousFiles ->
-                    if path.extension /= "gren" then
-                        -- Probably kernel code
-                        Task.succeed previousFiles
-
-                    else
-                        when Parser.run PM.parser Context.empty source is
-                            Ok _ -> 
-                                Task.succeed <|
-                                    Array.pushLast (pathToString path) previousFiles
-
-                            Err errs ->
-                                Task.fail <|
-                                    ParseFailure
-                                        { path = path
-                                        , error = PM.errorsToString source errs 
-                                        }
-                )
-                previous
-    in
+run { stdout, fsPermission, pathToString, project } =
     if Dict.isEmpty project.rootSources then
-        Task.fail NothingToFormat
+        Task.fail NoSources
 
     else
-        Array.foldl parseFn (Task.succeed []) (Dict.values project.rootSources)
+        Dict.values project.rootSources
+            |> Array.keepIf (\{ path } -> path.extension == "gren")
+            |> Array.foldl parseFn (Task.succeed [])
+            |> Task.andThen
+                (\parsedRoots ->
+                    Dict.foldl
+                        (\_ { path, outline, sources } acc ->
+                            Dict.foldl
+                                (\modName src acc_ ->
+                                    if String.startsWith "Gren.Kernel." modName then
+                                        acc_
+
+                                    else
+                                        parseFn { path = path, data = src } acc_
+                                )
+                                acc
+                                sources
+                        )
+                        (Task.succeed parsedRoots)
+                        project.dependencies
+                )
             |> Task.map (String.join "\n")
+
+
+parseFn { path, data = source } previous =
+    Task.andThen
+        (\previousFiles ->
+            when Parser.run (PM.parser PackageName.example) Context.empty source is
+                Ok mod -> 
+                    Task.succeed <|
+                        Array.pushLast
+                            (ModuleName.toString <| .value <| ParsedAst.moduleName mod)
+                            previousFiles
+
+                Err errs ->
+                    Task.fail <|
+                        ParseFailure
+                            { path = path
+                            , error = PM.errorsToString source errs 
+                            }
+        )
+        previous
 
 
 -- TODO: add to gren-lang/node?
@@ -103,9 +137,9 @@ findCommonPrefix count left right =
 prettifyError : Error -> Report
 prettifyError error =
     when error is
-        NothingToFormat ->
+        NoSources ->
             Report.create
-                "NOTHING TO FORMAT"
+                "NO SOURCE FILES"
                 Nothing
                 ( PP.words "I can't seem to find any files in this project."
                 )
