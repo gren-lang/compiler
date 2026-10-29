@@ -103,11 +103,11 @@ parseApplicationSource stdout pathToString projectPath { path, data = source } p
                         pathRelativeFrom projectPath path
                 in
                 -- TODO: diagnostics should be written to stderr
-                Stream.Log.string stdout (pathToString relPath ++ "... ")
+                Stream.Log.string stdout (pathToString relPath ++ " ")
                     |> Task.andThen (\_ -> parseFn source)
                     |> Task.andThen
                         (\mod ->
-                            Stream.Log.line stdout "V" -- TODO: unicode check, color
+                            Stream.Log.line stdout "\u{2714}"
                                 |> Task.map
                                     (\_ ->
                                         Array.pushLast
@@ -117,7 +117,7 @@ parseApplicationSource stdout pathToString projectPath { path, data = source } p
                         )
                     |> Task.onError
                         (\errs ->
-                            Stream.Log.line stdout "X" -- TODO: unicode cross, color
+                            Stream.Log.line stdout "x"
                                 |> Task.andThen
                                     (\_ ->
                                         Task.fail <|
