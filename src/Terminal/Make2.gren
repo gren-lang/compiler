@@ -60,7 +60,9 @@ run { stdout, fsPermission, pathToString, project } =
     else
         Dict.values project.rootSources
             |> Array.keepIf (\{ path } -> path.extension == "gren")
-            |> Array.foldl parseFn (Task.succeed [])
+            |> Array.foldl
+                (parseApplicationSource stdout (pathRelativeFrom project.projectPath >> pathToString))
+                (Task.succeed [])
             |> Task.andThen
                 (\parsedRoots ->
                     Dict.foldl
@@ -80,6 +82,40 @@ run { stdout, fsPermission, pathToString, project } =
                         project.dependencies
                 )
             |> Task.map (String.join "\n")
+
+
+parseApplicationSource stdout pathToString { path, data = source } previous =
+    previous
+        |> Task.andThen
+            (\previousFiles ->
+                -- TODO: diagnostics should be written to stderr
+                Stream.Log.string stdout (pathToString path ++ "... ")
+                    |> Task.andThen
+                        (\_ ->
+                            -- TODO: use correct package name
+                            when Parser.run (PM.parser PackageName.example) Context.empty source is
+                                Ok mod -> 
+                                    Stream.Log.line stdout "V" -- TODO: unicode check, color
+                                        |> Task.andThen
+                                            (\_ -> 
+                                                Task.succeed <|
+                                                    Array.pushLast
+                                                        (ModuleName.toString <| .value <| ParsedAst.moduleName mod)
+                                                        previousFiles
+                                            )
+
+                                Err errs ->
+                                    Stream.Log.line stdout "X" -- TODO: unicode cross, color
+                                        |> Task.andThen
+                                            (\_ ->
+                                                Task.fail <|
+                                                    ParseFailure
+                                                        { path = path
+                                                        , error = PM.errorsToString source errs 
+                                                        }
+                                            )
+                        )
+            )
 
 
 parseFn { path, data = source } previous =
