@@ -17,7 +17,7 @@ import Compiler.Outline as Outline exposing (Outline)
 import Cli.Report as Report exposing (Report)
 import Terminal.PackageInstall as PackageInstall exposing (PackageResolution)
 import Cli.PrettyPrinter as PP
-import Compiler.PackageName as PackageName
+import Compiler.PackageName as PackageName exposing (PackageName)
 import Compiler.Parse.Module as PM
 import Compiler.Parse.Context as Context
 import String.Parser.Advanced as Parser
@@ -36,6 +36,7 @@ type alias Config =
 type Error
     = NoSources
     | ParseFailure { path : Path, error : String }
+    | ParseDependencyFailure { package : PackageName, error : String }
 
 
 type alias ParsedResolution =
@@ -61,22 +62,31 @@ run { stdout, fsPermission, pathToString, project } =
         Dict.values project.rootSources
             |> Array.keepIf (\{ path } -> path.extension == "gren")
             |> Array.foldl
-                (parseApplicationSource stdout (pathRelativeFrom project.projectPath >> pathToString))
+                (parseApplicationSource stdout pathToString project.projectPath)
                 (Task.succeed [])
             |> Task.andThen
                 (\parsedRoots ->
                     Dict.foldl
                         (\_ { path, outline, sources } acc ->
-                            Dict.foldl
-                                (\modName src acc_ ->
-                                    if String.startsWith "Gren.Kernel." modName then
-                                        acc_
+                            acc
+                                |> Task.andThen
+                                    (\parsedFiles ->
+                                        Dict.foldl
+                                            (\modName src acc_ ->
+                                                if String.startsWith "Gren.Kernel." modName then
+                                                    acc_
 
-                                    else
-                                        parseFn { path = path, data = src } acc_
-                                )
-                                acc
-                                sources
+                                                else
+                                                    parseDependencySource stdout outline.name src acc_
+                                            )
+                                            (Task.succeed parsedFiles)
+                                            sources
+                                    )
+                                |> Task.andThen
+                                    (\parsedFiles ->
+                                        Stream.Log.line stdout (PackageName.toString outline.name)
+                                            |> Task.map (\_ -> parsedFiles)
+                                    )
                         )
                         (Task.succeed parsedRoots)
                         project.dependencies
@@ -84,58 +94,72 @@ run { stdout, fsPermission, pathToString, project } =
             |> Task.map (String.join "\n")
 
 
-parseApplicationSource stdout pathToString { path, data = source } previous =
+parseApplicationSource stdout pathToString projectPath { path, data = source } previous =
     previous
         |> Task.andThen
             (\previousFiles ->
+                let
+                    relPath =
+                        pathRelativeFrom projectPath path
+                in
                 -- TODO: diagnostics should be written to stderr
-                Stream.Log.string stdout (pathToString path ++ "... ")
+                Stream.Log.string stdout (pathToString relPath ++ "... ")
+                    |> Task.andThen (\_ -> parseFn source)
                     |> Task.andThen
-                        (\_ ->
-                            -- TODO: use correct package name
-                            when Parser.run (PM.parser PackageName.example) Context.empty source is
-                                Ok mod -> 
-                                    Stream.Log.line stdout "V" -- TODO: unicode check, color
-                                        |> Task.andThen
-                                            (\_ -> 
-                                                Task.succeed <|
-                                                    Array.pushLast
-                                                        (ModuleName.toString <| .value <| ParsedAst.moduleName mod)
-                                                        previousFiles
-                                            )
-
-                                Err errs ->
-                                    Stream.Log.line stdout "X" -- TODO: unicode cross, color
-                                        |> Task.andThen
-                                            (\_ ->
-                                                Task.fail <|
-                                                    ParseFailure
-                                                        { path = path
-                                                        , error = PM.errorsToString source errs 
-                                                        }
-                                            )
+                        (\mod ->
+                            Stream.Log.line stdout "V" -- TODO: unicode check, color
+                                |> Task.map
+                                    (\_ ->
+                                        Array.pushLast
+                                            (ModuleName.toString <| .value <| ParsedAst.moduleName mod)
+                                            previousFiles
+                                    )
+                        )
+                    |> Task.onError
+                        (\errs ->
+                            Stream.Log.line stdout "X" -- TODO: unicode cross, color
+                                |> Task.andThen
+                                    (\_ ->
+                                        Task.fail <|
+                                            ParseFailure
+                                                { path = relPath
+                                                , error = PM.errorsToString source errs 
+                                                }
+                                    )
                         )
             )
 
 
-parseFn { path, data = source } previous =
-    Task.andThen
-        (\previousFiles ->
-            when Parser.run (PM.parser PackageName.example) Context.empty source is
-                Ok mod -> 
-                    Task.succeed <|
-                        Array.pushLast
-                            (ModuleName.toString <| .value <| ParsedAst.moduleName mod)
-                            previousFiles
+parseFn source =
+    -- TODO: use correct package name
+    when Parser.run (PM.parser PackageName.example) Context.empty source is
+        Ok mod -> 
+            Task.succeed mod
 
-                Err errs ->
-                    Task.fail <|
-                        ParseFailure
-                            { path = path
-                            , error = PM.errorsToString source errs 
-                            }
-        )
-        previous
+        Err errs ->
+            Task.fail errs
+
+
+parseDependencySource stdout packageName source previous =
+    previous
+        |> Task.andThen
+            (\previousFiles ->
+                -- TODO: diagnostics should be written to stderr
+                parseFn source
+                    |> Task.map
+                        (\mod ->
+                            Array.pushLast
+                                (ModuleName.toString <| .value <| ParsedAst.moduleName mod)
+                                previousFiles
+                        )
+                    |> Task.mapError
+                        (\errs ->
+                            ParseDependencyFailure
+                                { package = packageName
+                                , error = PM.errorsToString source errs 
+                                }
+                        )
+            )
 
 
 -- TODO: add to gren-lang/node?
@@ -184,5 +208,12 @@ prettifyError error =
             Report.create
                 "FAILED TO PARSE"
                 (Just path)
+                ( PP.verticalBlock (Array.map PP.text (String.split "\n" message))
+                )
+
+        ParseDependencyFailure { package, error = message } ->
+            Report.create
+                ("FAILED TO COMPILE " ++ PackageName.toString package)
+                Nothing
                 ( PP.verticalBlock (Array.map PP.text (String.split "\n" message))
                 )
